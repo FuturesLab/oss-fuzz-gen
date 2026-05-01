@@ -1,95 +1,188 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/stat.h>
-#include <string.h>
-#include "/src/libyang/src/context.h"
-#include "/src/libyang/src/parser_schema.h"
+#include "/src/libyang/src/parser_data.h"
+#include "/src/libyang/src/tree_data.h"
+#include "libyang.h"
 
-static struct ly_ctx *create_context() {
-    struct ly_ctx *ctx = NULL;
-    if (ly_ctx_new(NULL, 0, &ctx)) {
-        return NULL;
-    }
-    return ctx;
-}
-
-static void destroy_context(struct ly_ctx *ctx) {
-    ly_ctx_destroy(ctx);
-}
-
-static void test_ly_ctx_get_searchdirs(struct ly_ctx *ctx) {
-    const char * const *dirs = ly_ctx_get_searchdirs(ctx);
-    if (dirs) {
-        for (int i = 0; dirs[i]; ++i) {
-            printf("Searchdir: %s\n", dirs[i]);
-        }
-    }
-}
-
-static void test_ly_ctx_get_module_implemented(struct ly_ctx *ctx, const char *name) {
-    struct lys_module *mod = ly_ctx_get_module_implemented(ctx, name);
-    if (mod) {
-        printf("Module implemented: %s\n", mod->name);
-    }
-}
-
-static void test_ly_ctx_set_searchdir(struct ly_ctx *ctx, const char *search_dir) {
-    if (ly_ctx_set_searchdir(ctx, search_dir) != LY_SUCCESS) {
-        fprintf(stderr, "Failed to set searchdir: %s\n", search_dir);
-    }
-}
-
-static void test_lys_parse_path(struct ly_ctx *ctx, const char *path, LYS_INFORMAT format) {
-    struct lys_module *mod = NULL;
-    if (lys_parse_path(ctx, path, format, &mod) != LY_SUCCESS) {
-        fprintf(stderr, "Failed to parse path: %s\n", path);
-    } else if (mod) {
-        printf("Parsed module: %s\n", mod->name);
-    }
-}
-
-static void test_lys_search_localfile(const char * const *searchpaths, ly_bool cwd, const char *name) {
-    char *localfile = NULL;
-    LYS_INFORMAT format;
-    if (lys_search_localfile(searchpaths, cwd, name, NULL, &localfile, &format) == LY_SUCCESS && localfile) {
-        printf("Found schema file: %s\n", localfile);
-        free(localfile);
-    }
-}
-
-static void test_ly_ctx_load_module(struct ly_ctx *ctx, const char *name, const char *revision, const char **features) {
-    struct lys_module *mod = ly_ctx_load_module(ctx, name, revision, features);
-    if (mod) {
-        printf("Loaded module: %s\n", mod->name);
-    }
-}
-
-int LLVMFuzzerTestOneInput_54(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = create_context();
-    if (!ctx) {
-        return 0;
-    }
-
-    char dummy_file[] = "./dummy_file";
-    FILE *file = fopen(dummy_file, "wb");
+static void prepare_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
     if (file) {
         fwrite(Data, 1, Size, file);
         fclose(file);
     }
+}
 
-    test_ly_ctx_get_searchdirs(ctx);
-    test_ly_ctx_set_searchdir(ctx, "/tmp");
-    test_ly_ctx_get_module_implemented(ctx, "example-module");
-    test_lys_parse_path(ctx, dummy_file, 0);
-    test_lys_search_localfile(NULL, 1, "example-schema");
-    test_ly_ctx_load_module(ctx, "example-module", NULL, NULL);
+LY_ERR icvqecoo_54(const char *mod_name, const char *mod_rev, const char *submod_name, const char *submod_rev,
+        void *user_data, LYS_INFORMAT *format, const char **module_data, ly_module_imp_data_free_clb *free_module_data){
+	return NULL;
+}
+int LLVMFuzzerTestOneInput_54(const uint8_t *Data, size_t Size) {
+    if (Size == 0) {
+        return 0;
+    }
 
-    destroy_context(ctx);
+    // Ensure the input data is null-terminated
+    char *null_terminated_data = (char *)malloc(Size + 1);
+    if (!null_terminated_data) {
+        return 0;
+    }
+    memcpy(null_terminated_data, Data, Size);
+    null_terminated_data[Size] = '\0';
+
+    // Prepare dummy file
+    prepare_dummy_file(Data, Size);
+
+    // Initialize libyang context
+    struct ly_ctx *ctx = NULL;
+    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS) {
+        free(null_terminated_data);
+        return 0;
+    }
+
+    // Initialize variables for fuzzing
+    struct lyd_node *tree = NULL;
+    struct lyd_node *diff = NULL;
+    struct lyd_node *ext_tree = NULL;
+    struct lysc_ext_instance *ext = NULL;
+    struct lyd_node *new_parent = NULL;
+    struct lyd_node *new_node = NULL;
+    struct lyd_node *dup = NULL;
+    struct ly_in *in = NULL;
+    LYD_FORMAT format = LYD_JSON;
+    uint32_t options = 0;
+    LY_ERR ret;
+
+    // Fuzzing lyd_new_implicit_all
+    ret = lyd_new_implicit_all(&tree, ctx, options, &diff);
+    if (ret != LY_SUCCESS && diff) {
+        lyd_free_all(diff);
+    }
+
+    // Fuzzing lyd_validate_ext
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_new_implicit_all to ly_ctx_set_module_imp_clb
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ctx) {
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_new_implicit_all to lyd_path
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ctx) {
+    	return 0;
+    }
+    uint32_t ret_ly_ctx_internal_modules_count_ckeyr = ly_ctx_internal_modules_count(ctx);
+    if (ret_ly_ctx_internal_modules_count_ckeyr < 0){
+    	return 0;
+    }
+    char hafdnqtm[1024] = "xfvjx";
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tree) {
+    	return 0;
+    }
+    char* ret_lyd_path_axqxt = lyd_path(tree, 0, hafdnqtm, (size_t )ret_ly_ctx_internal_modules_count_ckeyr);
+    if (ret_lyd_path_axqxt == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    LY_ERR ret_ly_ctx_compile_zxsyl = ly_ctx_compile(ctx);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ctx) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!diff) {
+    	return 0;
+    }
+    ly_ctx_set_module_imp_clb(ctx, icvqecoo_54, (void *)diff);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    ret = lyd_validate_ext(&ext_tree, ext, options, &diff);
+    if (ret != LY_SUCCESS && diff) {
+        lyd_free_all(diff);
+    }
+
+    // Fuzzing lyd_new_path2
+    char path[256];
+    snprintf(path, sizeof(path), "/dummy-module:%.*s", (int)Size, Data);
+    ret = lyd_new_path2(NULL, ctx, path, NULL, 0, 0, options, &new_parent, &new_node);
+    if (ret != LY_SUCCESS && new_node) {
+        lyd_free_all(new_node);
+    }
+
+    // Fuzzing lyd_validate_all
+    ret = lyd_validate_all(&tree, ctx, options, &diff);
+    if (ret != LY_SUCCESS && diff) {
+        lyd_free_all(diff);
+    }
+
+    // Fuzzing lyd_parse_data
+    if (ly_in_new_memory(null_terminated_data, &in) == LY_SUCCESS) {
+        ret = lyd_parse_data(ctx, NULL, in, format, options, options, &tree);
+        if (ret != LY_SUCCESS && tree) {
+            lyd_free_all(tree);
+        }
+        ly_in_free(in, 0);
+    }
+
+    // Fuzzing lyd_dup_single_to_ctx
+    if (new_node) {
+        ret = lyd_dup_single_to_ctx(new_node, ctx, NULL, options, &dup);
+        if (ret != LY_SUCCESS && dup) {
+            lyd_free_all(dup);
+        }
+    }
+
+    // Cleanup
+    if (tree) {
+        lyd_free_all(tree);
+    }
+    ly_ctx_destroy(ctx);
+    free(null_terminated_data);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_54(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

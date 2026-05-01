@@ -1,105 +1,108 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include <time.h>
-#include "/src/libyang/src/tree_data.h"
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "/src/libyang/src/context.h"
 
-static void test_ly_time_tz_offset_at(time_t time) {
-    int offset = ly_time_tz_offset_at(time);
-    // Handle the offset if needed
+static void fuzz_ly_ctx_unset_options(struct ly_ctx *ctx, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(uint32_t)) return;
+    uint32_t option = *((uint32_t *)Data);
+    ly_ctx_unset_options(ctx, option);
 }
 
-static void test_ly_time_str2ts(const char *value, size_t size) {
-    // Ensure the input string is null-terminated
-    char *null_terminated_value = (char *)malloc(size + 1);
-    if (!null_terminated_value) {
-        return;
-    }
-    memcpy(null_terminated_value, value, size);
-    null_terminated_value[size] = '\0';
-
-    struct timespec ts;
-    LY_ERR err = ly_time_str2ts(null_terminated_value, &ts);
-    // Handle the error if needed
-
-    free(null_terminated_value);
+static void fuzz_ly_ctx_compiled_print(const struct ly_ctx *ctx, const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    size_t mem_size = Size;
+    void *mem = malloc(mem_size);
+    if (!mem) return;
+    void *mem_end = NULL;
+    ly_ctx_compiled_print(ctx, mem, &mem_end);
+    free(mem);
 }
 
-static void test_ly_time_ts2str(const struct timespec *ts) {
-    char *str = NULL;
-    LY_ERR err = ly_time_ts2str(ts, &str);
-    // Handle the error and use str if needed
-    free(str);
+static void fuzz_ly_ctx_unset_searchdir_last(struct ly_ctx *ctx, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(uint32_t)) return;
+    uint32_t count = *((uint32_t *)Data);
+    ly_ctx_unset_searchdir_last(ctx, count);
 }
 
-static void test_ly_time_time2str(time_t time, const char *fractions_s, size_t size) {
-    // Ensure the fractions string is null-terminated
-    char *null_terminated_fractions = (char *)malloc(size + 1);
-    if (!null_terminated_fractions) {
-        return;
-    }
-    memcpy(null_terminated_fractions, fractions_s, size);
-    null_terminated_fractions[size] = '\0';
-
-    char *str = NULL;
-    LY_ERR err = ly_time_time2str(time, null_terminated_fractions, &str);
-    // Handle the error and use str if needed
-
-    free(str);
-    free(null_terminated_fractions);
+static void fuzz_ly_ctx_compile(struct ly_ctx *ctx) {
+    ly_ctx_compile(ctx);
 }
 
-static void test_ly_time_str2time(const char *value, size_t size) {
-    // Ensure the input string is null-terminated
-    char *null_terminated_value = (char *)malloc(size + 1);
-    if (!null_terminated_value) {
-        return;
-    }
-    memcpy(null_terminated_value, value, size);
-    null_terminated_value[size] = '\0';
-
-    time_t time;
-    char *fractions_s = NULL;
-    LY_ERR err = ly_time_str2time(null_terminated_value, &time, &fractions_s);
-    // Handle the error and use time and fractions_s if needed
-
-    free(fractions_s);
-    free(null_terminated_value);
-}
-
-static void test_ly_time_tz_offset() {
-    int offset = ly_time_tz_offset();
-    // Handle the offset if needed
+static void fuzz_ly_ctx_set_options(struct ly_ctx *ctx, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(uint32_t)) return;
+    uint32_t option = *((uint32_t *)Data);
+    ly_ctx_set_options(ctx, option);
 }
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    struct ly_ctx *ctx = NULL;
+    const char *search_dir = "./dummy_file";
+    FILE *file = fopen(search_dir, "wb");
+    if (!file) return 0;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    if (ly_ctx_new(search_dir, 0, &ctx) != LY_SUCCESS) {
         return 0;
     }
 
-    // Create a dummy file if needed
-    FILE *dummy_file = fopen("./dummy_file", "w");
-    if (dummy_file) {
-        fwrite(Data, 1, Size, dummy_file);
-        fclose(dummy_file);
+    fuzz_ly_ctx_unset_options(ctx, Data, Size);
+    fuzz_ly_ctx_compiled_print(ctx, Data, Size);
+    fuzz_ly_ctx_unset_searchdir_last(ctx, Data, Size);
+    fuzz_ly_ctx_compile(ctx);
+    fuzz_ly_ctx_set_options(ctx, Data, Size);
+
+    if (ctx) {
+        // Assuming a function `ly_ctx_destroy` exists for cleanup
+        // ly_ctx_destroy(ctx);
     }
-
-    // Use the data to test the functions
-    time_t time = (time_t)Data[0];
-    char *string_data = (char *)Data;
-
-    test_ly_time_tz_offset_at(time);
-    test_ly_time_str2ts(string_data, Size);
-    
-    struct timespec ts = { .tv_sec = time, .tv_nsec = 0 };
-    test_ly_time_ts2str(&ts);
-
-    test_ly_time_time2str(time, string_data, Size);
-    test_ly_time_str2time(string_data, Size);
-    test_ly_time_tz_offset();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

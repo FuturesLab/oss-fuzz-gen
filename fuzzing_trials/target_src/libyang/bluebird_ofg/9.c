@@ -1,17 +1,17 @@
+#include <sys/stat.h>
+#include "stdbool.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include "/src/libyang/src/tree_data.h"
-#include "/src/libyang/src/context.h"
-#include "/src/libyang/src/parser_data.h"
-#include "/src/libyang/src/parser_schema.h"
+#include "libyang.h"
 
 int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *original_node = NULL;
+    struct lyd_node *node = NULL;
     struct lyd_node *dup_node = NULL;
     LY_ERR err;
+    const char *schema = "module test {namespace urn:test;prefix t;leaf a {type string;}}";
+    const char *json_data = "{\"t:a\":\"test\"}";
 
     // Initialize the context
     err = ly_ctx_new(NULL, 0, &ctx);
@@ -20,8 +20,7 @@ int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Create a dummy schema to parse the data
-    const char *schema = "module test {namespace urn:test;prefix t;container c {leaf l {type string;}}}";
+    // Parse the schema
     err = lys_parse_mem(ctx, schema, LYS_IN_YANG, NULL);
     if (err != LY_SUCCESS) {
         fprintf(stderr, "Failed to parse schema\n");
@@ -29,58 +28,63 @@ int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Convert the fuzz data into a string to be parsed
-    char *data_str = malloc(size + 1);
-    if (!data_str) {
+    // Parse the JSON data
+    err = lyd_parse_data_mem(ctx, json_data, LYD_JSON, 0, LYD_VALIDATE_PRESENT, &node);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to parse data\n");
         ly_ctx_destroy(ctx);
-        
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_destroy to ly_ctx_new_printed
-        struct lyd_node yzdqxdls;
-        memset(&yzdqxdls, 0, sizeof(yzdqxdls));
-        lyd_free_tree(&yzdqxdls);
-
-        LY_ERR ret_ly_ctx_new_printed_nswsp = ly_ctx_new_printed((const void *)&yzdqxdls, &ctx);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-return 0;
-    }
-    memcpy(data_str, data, size);
-    data_str[size] = '\0';
-
-    // Parse the data into a data tree
-    err = lyd_parse_data_mem(ctx, data_str, LYD_JSON, LYD_PARSE_ONLY, 0, &original_node);
-    free(data_str);
-
-    if (err == LY_SUCCESS && original_node) {
-        // Call the function-under-test
-        err = lyd_dup_siblings_to_ctx(original_node, ctx, NULL, 0, &dup_node);
-        if (err == LY_SUCCESS) {
-            // Free the duplicated node
-            lyd_free_all(dup_node);
-        
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_free_all to lyd_new_implicit_module
-            struct lyd_node* ret_lyd_child_no_keys_bugvz = lyd_child_no_keys(dup_node);
-            if (ret_lyd_child_no_keys_bugvz == NULL){
-            	return 0;
-            }
-
-            LY_ERR ret_lyd_new_implicit_module_ezrnd = lyd_new_implicit_module(&ret_lyd_child_no_keys_bugvz, NULL, size, &dup_node);
-
-            // End mutation: Producer.APPEND_MUTATOR
-
-} else {
-            fprintf(stderr, "Failed to duplicate siblings\n");
-        }
-
-        // Free the original node
-        lyd_free_all(original_node);
-    } else {
-        fprintf(stderr, "Failed to parse data into a data tree\n");
+        return 0;
     }
 
-    // Destroy the context
+    // Call the function-under-test
+    err = lyd_dup_single_to_ctx(node, ctx, NULL, 0, &dup_node);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to duplicate node\n");
+    }
+
+    // Clean up
+    lyd_free_all(node);
+    lyd_free_all(dup_node);
     ly_ctx_destroy(ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

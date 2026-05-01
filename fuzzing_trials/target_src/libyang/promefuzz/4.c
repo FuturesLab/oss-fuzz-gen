@@ -1,130 +1,155 @@
 // This fuzz driver is generated for library libyang, aiming to fuzz the following functions:
-// lyd_find_xpath3 at tree_data.c:3440:1 in tree_data.h
-// lyd_trim_xpath at tree_data.c:3581:1 in tree_data.h
-// lyd_find_xpath at tree_data.c:3424:1 in tree_data.h
-// lyd_eval_xpath2 at tree_data.c:3457:1 in tree_data.h
-// lyd_find_xpath2 at tree_data.c:3432:1 in tree_data.h
-// lyd_eval_xpath4 at tree_data.c:3470:1 in tree_data.h
+// lyd_insert_child at tree_data.c:1095:1 in tree_data.h
+// lyd_new_implicit_all at tree_data_new.c:2010:1 in tree_data.h
+// lyd_new_implicit_tree at tree_data_new.c:1971:1 in tree_data.h
+// lyd_dup_single_to_ctx at tree_data.c:2522:1 in tree_data.h
+// lyd_dup_siblings_to_ctx at tree_data.c:2547:1 in tree_data.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <tree_data.h>
-#include <set.h> // Include the header for ly_set_free
+#include "tree_data.h"
 
-static void fuzz_lyd_trim_xpath(const uint8_t *Data, size_t Size) {
-    struct lyd_node *tree = NULL;
-    char *xpath = strndup((const char *)Data, Size);
-    if (!xpath) {
-        return;
+static struct lyd_node *create_dummy_lyd_node(const struct lysc_node *schema) {
+    struct lyd_node *node = (struct lyd_node *)malloc(sizeof(struct lyd_node));
+    if (!node) {
+        return NULL;
     }
-    struct lyxp_var *vars = NULL;
-
-    lyd_trim_xpath(&tree, xpath, vars);
-
-    free(xpath);
+    memset(node, 0, sizeof(struct lyd_node));
+    node->prev = node; // Ensure 'prev' is never NULL
+    node->schema = schema; // Assign schema to avoid null dereference
+    return node;
 }
 
-static void fuzz_lyd_find_xpath(const uint8_t *Data, size_t Size) {
-    struct lyd_node *ctx_node = NULL;
-    char *xpath = strndup((const char *)Data, Size);
-    if (!xpath) {
-        return;
+static void cleanup_lyd_node(struct lyd_node *node) {
+    if (node) {
+        free(node);
     }
-    struct ly_set *set = NULL;
-
-    lyd_find_xpath(ctx_node, xpath, &set);
-
-    if (set) {
-        ly_set_free(set, NULL);
-    }
-    free(xpath);
-}
-
-static void fuzz_lyd_eval_xpath2(const uint8_t *Data, size_t Size) {
-    struct lyd_node *ctx_node = NULL;
-    char *xpath = strndup((const char *)Data, Size);
-    if (!xpath) {
-        return;
-    }
-    struct lyxp_var *vars = NULL;
-    ly_bool result;
-
-    lyd_eval_xpath2(ctx_node, xpath, vars, &result);
-
-    free(xpath);
-}
-
-static void fuzz_lyd_find_xpath2(const uint8_t *Data, size_t Size) {
-    struct lyd_node *ctx_node = NULL;
-    char *xpath = strndup((const char *)Data, Size);
-    if (!xpath) {
-        return;
-    }
-    struct lyxp_var *vars = NULL;
-    struct ly_set *set = NULL;
-
-    lyd_find_xpath2(ctx_node, xpath, vars, &set);
-
-    if (set) {
-        ly_set_free(set, NULL);
-    }
-    free(xpath);
-}
-
-static void fuzz_lyd_eval_xpath4(const uint8_t *Data, size_t Size) {
-    struct lyd_node *ctx_node = NULL;
-    struct lyd_node *tree = NULL;
-    struct lys_module *cur_mod = NULL;
-    char *xpath = strndup((const char *)Data, Size);
-    if (!xpath) {
-        return;
-    }
-    LY_VALUE_FORMAT format = 0;
-    void *prefix_data = NULL;
-    struct lyxp_var *vars = NULL;
-    LY_XPATH_TYPE ret_type;
-    struct ly_set *node_set = NULL;
-    char *string = NULL;
-    long double number;
-    ly_bool boolean;
-
-    lyd_eval_xpath4(ctx_node, tree, cur_mod, xpath, format, prefix_data, vars, &ret_type, &node_set, &string, &number, &boolean);
-
-    if (node_set) {
-        ly_set_free(node_set, NULL);
-    }
-    free(string);
-    free(xpath);
-}
-
-static void fuzz_lyd_find_xpath3(const uint8_t *Data, size_t Size) {
-    struct lyd_node *ctx_node = NULL;
-    struct lyd_node *tree = NULL;
-    char *xpath = strndup((const char *)Data, Size);
-    if (!xpath) {
-        return;
-    }
-    LY_VALUE_FORMAT format = 0;
-    void *prefix_data = NULL;
-    struct lyxp_var *vars = NULL;
-    struct ly_set *set = NULL;
-
-    lyd_find_xpath3(ctx_node, tree, xpath, format, prefix_data, vars, &set);
-
-    if (set) {
-        ly_set_free(set, NULL);
-    }
-    free(xpath);
 }
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    fuzz_lyd_trim_xpath(Data, Size);
-    fuzz_lyd_find_xpath(Data, Size);
-    fuzz_lyd_eval_xpath2(Data, Size);
-    fuzz_lyd_find_xpath2(Data, Size);
-    fuzz_lyd_eval_xpath4(Data, Size);
-    fuzz_lyd_find_xpath3(Data, Size);
+    if (Size < sizeof(uint32_t)) {
+        return 0;
+    }
+
+    // Create a dummy schema node to avoid null dereference
+    struct lysc_node dummy_schema;
+    memset(&dummy_schema, 0, sizeof(dummy_schema));
+
+    struct lyd_node *parent = create_dummy_lyd_node(&dummy_schema);
+    struct lyd_node *node = create_dummy_lyd_node(&dummy_schema);
+    if (!parent || !node) {
+        cleanup_lyd_node(parent);
+        cleanup_lyd_node(node);
+        return 0;
+    }
+
+    LY_ERR err;
+
+    // Fuzz lyd_insert_child
+    err = lyd_insert_child(parent, node);
+    if (err != LY_SUCCESS) {
+        cleanup_lyd_node(parent);
+        cleanup_lyd_node(node);
+        return 0;
+    }
+
+    struct lyd_node *tree = create_dummy_lyd_node(&dummy_schema);
+    struct lyd_node *diff = NULL;
+    uint32_t implicit_options = *((uint32_t *)Data);
+
+    // Fuzz lyd_new_implicit_all
+    err = lyd_new_implicit_all(&tree, NULL, implicit_options, &diff);
+    if (err != LY_SUCCESS) {
+        cleanup_lyd_node(tree);
+        cleanup_lyd_node(diff);
+        cleanup_lyd_node(parent);
+        cleanup_lyd_node(node);
+        return 0;
+    }
+
+    // Fuzz lyd_new_implicit_tree
+    err = lyd_new_implicit_tree(tree, implicit_options, &diff);
+    if (err != LY_SUCCESS) {
+        cleanup_lyd_node(tree);
+        cleanup_lyd_node(diff);
+        cleanup_lyd_node(parent);
+        cleanup_lyd_node(node);
+        return 0;
+    }
+
+    uint32_t options = *((uint32_t *)(Data + sizeof(uint32_t)));
+    struct lyd_node *dup = NULL;
+
+    // Fuzz lyd_dup_single_to_ctx
+    err = lyd_dup_single_to_ctx(node, NULL, parent, options, &dup);
+    if (err != LY_SUCCESS) {
+        cleanup_lyd_node(dup);
+        cleanup_lyd_node(tree);
+        cleanup_lyd_node(diff);
+        cleanup_lyd_node(parent);
+        cleanup_lyd_node(node);
+        return 0;
+    }
+
+    // Fuzz lyd_dup_siblings_to_ctx
+    err = lyd_dup_siblings_to_ctx(node, NULL, parent, options, &dup);
+    if (err != LY_SUCCESS) {
+        cleanup_lyd_node(dup);
+        cleanup_lyd_node(tree);
+        cleanup_lyd_node(diff);
+        cleanup_lyd_node(parent);
+        cleanup_lyd_node(node);
+        return 0;
+    }
+
+    // Cleanup
+    cleanup_lyd_node(dup);
+    cleanup_lyd_node(tree);
+    cleanup_lyd_node(diff);
+    cleanup_lyd_node(parent);
+    cleanup_lyd_node(node);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,59 +1,82 @@
 #include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include "libyang.h"
 
 int LLVMFuzzerTestOneInput_76(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *node = NULL;
-    struct lyd_attr *attr = NULL;
-    const char *module_data = "module test {namespace \"urn:test\"; prefix t; container cont {leaf leaf1 {type string;}}}";
-    const char *attr_module = "urn:test";
+    struct lys_module *module = NULL;
+    LY_ERR err;
+    int fd;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
 
-    // Initialize libyang context
-    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS) {
+    // Create a temporary file and write the fuzz data to it
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    lseek(fd, 0, SEEK_SET);
+
+    // Initialize the libyang context
+    err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        close(fd);
+        unlink(tmpl);
         return 0;
     }
 
-    // Parse the module data
-    if (lys_parse_mem(ctx, module_data, LYS_IN_YANG, NULL) == NULL) {
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
+    // Call the function under test
+    lys_parse_fd(ctx, fd, LYS_IN_YANG, &module);
 
-    // Create a dummy data tree node
-    node = lyd_new_path(NULL, ctx, "/test:cont/leaf1", "dummy", 0, 0);
-    if (node == NULL) {
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-
-    // Ensure data is not NULL and has enough size to be used meaningfully
-    if (size > 1) {
-        // Use the first byte for attribute name length and the rest for the name
-        size_t name_len = data[0] % size; // Ensure name length is within bounds
-        char *attr_name = malloc(name_len + 1);
-        if (attr_name == NULL) {
-            lyd_free_all(node);
-            ly_ctx_destroy(ctx);
-            return 0;
-        }
-        memcpy(attr_name, data + 1, name_len);
-        attr_name[name_len] = '\0';
-
-        // Use the remaining data for attribute value
-        const char *attr_value = (const char *)(data + 1 + name_len);
-
-        // Call the function under test
-        lyd_new_attr(node, attr_module, attr_name, attr_value, &attr);
-
-        free(attr_name);
-    }
-
-    // Cleanup
-    lyd_free_all(node);
+    // Clean up
     ly_ctx_destroy(ctx);
+    close(fd);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_76(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

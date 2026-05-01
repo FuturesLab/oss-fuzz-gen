@@ -1,27 +1,67 @@
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+#include <libyang.h>
 
-#include "libyang.h"
+int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
+    struct timespec ts;
+    char *str = NULL;
+    LY_ERR result;
 
-int LLVMFuzzerTestOneInput_80(uint8_t const *buf, size_t len) {
-  struct ly_ctx *ctx = NULL;
-  const char *search_dir = "/tmp";
-  uint32_t options = 0;
-  LY_ERR err;
+    // Ensure the data is large enough to fill a timespec structure
+    if (size < sizeof(struct timespec)) {
+        return 0;
+    }
 
-  // Initialize the context
-  err = ly_ctx_new(search_dir, options, &ctx);
-  if (err != LY_SUCCESS || ctx == NULL) {
-    fprintf(stderr, "Failed to create context\n");
+    // Copy data into timespec structure
+    memcpy(&ts, data, sizeof(struct timespec));
+
+    // Call the function-under-test
+    result = ly_time_ts2str(&ts, &str);
+
+    // Free the allocated string if it was successfully created
+    if (result == LY_SUCCESS && str != NULL) {
+        free(str);
+    }
+
     return 0;
-  }
-
-  // Perform operations on the context if needed
-  // ...
-
-  // Destroy the context
-  ly_ctx_destroy(ctx);
-
-  return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_80(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,53 +1,78 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include "/src/libyang/src/validation.h"
-#include "/src/libyang/build/libyang/tree.h"
-#include "/src/libyang/build/libyang/context.h"
+#include <string.h> // Include string.h for memcpy
+#include <libyang.h> // Correct include path for libyang
 
 int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *tree = NULL;
-    struct lyd_node *result_tree = NULL;
     LY_ERR err;
 
-    // Create a new libyang context
+    // Initialize the libyang context
     err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
         fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Allocate memory for the input data
-    char *input_data = malloc(size + 1);
-    if (!input_data) {
+    // Create a temporary buffer to store the input data
+    char *schema = malloc(size + 1);
+    if (!schema) {
         ly_ctx_destroy(ctx);
         return 0;
     }
 
-    // Copy the input data and null-terminate it
-    memcpy(input_data, data, size);
-    input_data[size] = '\0';
+    // Copy the input data to the schema buffer and null-terminate it
+    memcpy(schema, data, size);
+    schema[size] = '\0';
 
-    // Parse the input data into a data tree
-    err = lyd_parse_data_mem(ctx, input_data, LYD_JSON, LYD_PARSE_ONLY, 0, &tree);
-    if (err != LY_SUCCESS) {
-        free(input_data);
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
+    // Parse the schema to add it to the context
+    lys_parse_mem(ctx, schema, LYS_IN_YANG, NULL);
 
-    // Validate the entire data tree
-    err = lyd_validate_all(&tree, ctx, 0, &result_tree);
-    if (err != LY_SUCCESS) {
-        fprintf(stderr, "Validation failed\n");
-    }
+    // Call the function-under-test
+    ly_ctx_compile(ctx);
 
-    // Cleanup
-    lyd_free_all(tree);
-    lyd_free_all(result_tree);
+    // Clean up
+    free(schema);
     ly_ctx_destroy(ctx);
-    free(input_data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_50(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

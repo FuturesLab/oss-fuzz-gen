@@ -1,60 +1,89 @@
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include "libyang.h"
 
 int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *target_node = NULL;
-    struct lyd_node *source_node = NULL;
-    const struct lys_module *module = NULL;
-    lyd_merge_cb merge_cb = NULL;
-    void *private_data = NULL;
-    uint16_t options = 0;
+    struct lyd_node *tree = NULL;
     LY_ERR err;
+    int fd;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
 
-    // Initialize libyang context
+    // Create a new libyang context
     err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
         fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Parse a module to get a lys_module object
-    const char *schema = "module test {namespace urn:test;prefix t;leaf leaf1 {type string;}}";
-    err = lys_parse_mem(ctx, schema, LYS_IN_YANG, &module);
-    if (err != LY_SUCCESS || !module) {
-        fprintf(stderr, "Failed to parse module\n");
+    // Create a temporary file to write the fuzz data
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        perror("mkstemp");
         ly_ctx_destroy(ctx);
         return 0;
     }
 
-    // Parse data to create a source_node
-    char *data_str = malloc(size + 1);
-    if (!data_str) {
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        perror("write");
+        close(fd);
         ly_ctx_destroy(ctx);
         return 0;
     }
-    memcpy(data_str, data, size);
-    data_str[size] = '\0';
 
-    err = lyd_parse_data_mem(ctx, data_str, LYD_JSON, 0, LYD_VALIDATE_PRESENT, &source_node);
-    free(data_str);
-
-    if (err != LY_SUCCESS || !source_node) {
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
+    // Reset the file descriptor offset to the beginning
+    lseek(fd, 0, SEEK_SET);
 
     // Call the function-under-test
-    err = lyd_merge_module(&target_node, source_node, module, merge_cb, private_data, options);
+    lyd_parse_data_fd(ctx, fd, LYD_JSON, 0, LYD_VALIDATE_PRESENT, &tree);
 
     // Clean up
-    lyd_free_all(target_node);
-    lyd_free_all(source_node);
+    lyd_free_all(tree);
+    close(fd);
+    unlink(tmpl);
     ly_ctx_destroy(ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_65(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

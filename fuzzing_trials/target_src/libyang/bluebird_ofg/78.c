@@ -1,62 +1,76 @@
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdint.h>
-#include "libyang.h"
+#include "libyang.h"  // Corrected header file
 
 int LLVMFuzzerTestOneInput_78(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lys_module *module = NULL;
+    struct lyd_node *tree = NULL;
     LY_ERR err;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd;
-    FILE *file;
-
-    // Create a new context
+    
+    // Initialize the libyang context
     err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
-        fprintf(stderr, "Failed to create context\n");
+        fprintf(stderr, "Failed to create libyang context\n");
         return 0;
     }
 
-    // Create a temporary file
-    fd = mkstemp(tmpl);
-    if (fd == -1) {
-        fprintf(stderr, "Failed to create temporary file\n");
-        ly_ctx_destroy(ctx);
-        
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_destroy to ly_ctx_get_submodule
-        ly_pattern_free((void *)ctx);
-
-        const struct lysp_submodule* ret_ly_ctx_get_submodule_qurue = ly_ctx_get_submodule(ctx, ctx, (const char *)data);
-        if (ret_ly_ctx_get_submodule_qurue == NULL){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-return 0;
-    }
-
-    // Write fuzz data to the temporary file
-    file = fdopen(fd, "wb");
-    if (file == NULL) {
-        fprintf(stderr, "Failed to open temporary file\n");
-        close(fd);
+    // Allocate memory for the input data and ensure it is null-terminated
+    char *input_data = (char *)malloc(size + 1);
+    if (input_data == NULL) {
         ly_ctx_destroy(ctx);
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
+    memcpy(input_data, data, size);
+    input_data[size] = '\0';
 
-    // Call the function-under-test
-    lys_parse_path(ctx, tmpl, LYS_IN_YANG, &module);
+    // Call the function-under-test with the fuzzed input
+    lyd_parse_data_mem(ctx, input_data, LYD_JSON, 0, LYD_VALIDATE_PRESENT, &tree);
 
-    // Clean up
+    // Cleanup
+    lyd_free_all(tree);
     ly_ctx_destroy(ctx);
-    unlink(tmpl);
+    free(input_data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_78(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

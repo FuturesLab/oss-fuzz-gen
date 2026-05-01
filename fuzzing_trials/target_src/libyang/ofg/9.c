@@ -1,47 +1,71 @@
-#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-
+#include <stdint.h>
+#include <time.h>
 #include "libyang.h"
 
 int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-    struct ly_ctx *ctx = NULL;
-    const struct lysp_submodule *submodule;
-    const char *name = "example-submodule";
-    const char *revision = "2023-10-01";
+    // Declare and initialize variables
+    time_t time_input;
+    const char *format;
+    char *result = NULL;
     LY_ERR err;
 
-    // Ensure the input data is not empty
-    if (size == 0) {
+    // Ensure the size is sufficient to extract a time_t value
+    if (size < sizeof(time_t) + 1) {
         return 0;
     }
 
-    // Create a new context
-    err = ly_ctx_new(NULL, 0, &ctx);
-    if (err != LY_SUCCESS) {
-        fprintf(stderr, "Failed to create context\n");
-        return 0;
-    }
+    // Extract a time_t value from the input data
+    time_input = *(const time_t *)data;
 
-    // Use the input data as a schema for testing purposes
-    char *schema = malloc(size + 1);
-    if (schema == NULL) {
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-    memcpy(schema, data, size);
-    schema[size] = '\0';
-
-    // Parse the schema to add it to the context
-    lys_parse_mem(ctx, schema, LYS_IN_YANG, NULL);
+    // Extract a format string from the input data
+    format = (const char *)(data + sizeof(time_t));
 
     // Call the function-under-test
-    submodule = ly_ctx_get_submodule(ctx, name, revision);
+    err = ly_time_time2str(time_input, format, &result);
 
-    // Clean up
-    free(schema);
-    ly_ctx_destroy(ctx);
+    // Free allocated memory if necessary
+    free(result);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

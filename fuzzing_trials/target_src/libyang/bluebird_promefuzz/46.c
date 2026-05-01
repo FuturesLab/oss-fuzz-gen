@@ -1,205 +1,240 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include "/src/libyang/src/context.h"
-#include "/src/libyang/src/parser_schema.h"
-#include "/src/libyang/src/in.h"
+#include "/src/libyang/src/parser_data.h"
 
-static struct ly_ctx *create_context() {
+static int fuzz_ly_ctx_compiled_size(const uint8_t *Data, size_t Size) {
     struct ly_ctx *ctx = NULL;
-    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS) {
-        return NULL;
+    LY_ERR err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        return 0;
     }
-    return ctx;
+
+    int size = ly_ctx_compiled_size(ctx);
+    if (size == -1) {
+        // Handle error if needed
+    }
+
+    ly_ctx_destroy(ctx);
+    return 0;
 }
 
-static void cleanup_context(struct ly_ctx *ctx) {
-    if (ctx) {
+static int fuzz_ly_ctx_get_yanglib_data(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    struct lyd_node *root = NULL;
+
+    LY_ERR err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        return 0;
+    }
+
+    err = ly_ctx_get_yanglib_data(ctx, &root, "%u", 0);
+    if (err != LY_SUCCESS) {
+        // Handle error if needed
+    }
+
+    lyd_free_all(root);
+    ly_ctx_destroy(ctx);
+    return 0;
+}
+
+static int fuzz_ly_ctx_new_ylmem(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    char *data = (char *)malloc(Size + 1);
+    if (!data) {
+        return 0;
+    }
+    memcpy(data, Data, Size);
+    data[Size] = '\0';
+
+    LY_ERR err = ly_ctx_new_ylmem(NULL, data, LYD_XML, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        // Handle error if needed
+    }
+
+    ly_ctx_destroy(ctx);
+    free(data);
+    return 0;
+}
+
+static int fuzz_lyd_validate_all(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    struct lyd_node *tree = NULL, *diff = NULL;
+
+    LY_ERR err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        return 0;
+    }
+
+    char *data = (char *)malloc(Size + 1);
+    if (!data) {
         ly_ctx_destroy(ctx);
+        return 0;
+    }
+    memcpy(data, Data, Size);
+    data[Size] = '\0';
+
+    err = lyd_parse_data_mem(ctx, data, LYD_XML, 0, 0, &tree);
+    if (err == LY_SUCCESS) {
+        err = lyd_validate_all(&tree, ctx, 0, &diff);
+        if (err != LY_SUCCESS) {
+            // Handle error if needed
+        }
+        lyd_free_all(diff);
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_parse_data_mem to lyd_validate_all
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tree) {
+    	return 0;
+    }
+    uint32_t ret_lyd_list_pos_uvmhc = lyd_list_pos(tree);
+    if (ret_lyd_list_pos_uvmhc < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tree) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ctx) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tree) {
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_list_pos to lyd_validate_module_final
+    struct lyd_node elykkehh;
+    memset(&elykkehh, 0, sizeof(elykkehh));
+    struct lys_module xwigyrec;
+    memset(&xwigyrec, 0, sizeof(xwigyrec));
+    LY_ERR ret_lyd_validate_module_final_xxqil = lyd_validate_module_final(&elykkehh, &xwigyrec, ret_lyd_list_pos_uvmhc);
+    // End mutation: Producer.APPEND_MUTATOR
     
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_destroy to lyd_new_meta2
-        struct lyd_node nrghcvhy;
-        memset(&nrghcvhy, 0, sizeof(nrghcvhy));
-
-        LY_ERR ret_lyd_new_meta2_ajizh = lyd_new_meta2(ctx, &nrghcvhy, LYD_HT_MIN_ITEMS, NULL, NULL);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-}
-}
-
-static void fuzz_ly_ctx_get_module_ns(const struct ly_ctx *ctx, const char *ns, const char *revision) {
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ly_ctx_get_module_ns with ly_ctx_get_module
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ly_ctx_get_module
-    struct lys_module *module = ly_ctx_get_module(ctx, ns, (const char *)"w");
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // No specific cleanup required for ly_ctx_get_module_ns result
-}
-
-static void fuzz_lys_parse(struct ly_ctx *ctx, const char *data, LYS_INFORMAT format) {
-    struct ly_in *in = NULL;
-    if (ly_in_new_memory(data, &in) != LY_SUCCESS) {
-        return;
-    }
-    struct lys_module *module = NULL;
-    if (lys_parse(ctx, in, format, NULL, &module) != LY_SUCCESS) {
-        // Handle error
-    }
-    ly_in_free(in, 0);
-}
-
-static void fuzz_lys_parse_fd(struct ly_ctx *ctx, int fd, LYS_INFORMAT format) {
-    struct lys_module *module = NULL;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of lys_parse_fd
-    if (lys_parse_fd(ctx, -1, format, &module) != LY_SUCCESS) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        // Handle error
-    }
-    // No specific cleanup required for lys_parse_fd result
-}
-
-static void fuzz_lys_parse_mem(struct ly_ctx *ctx, const char *data, LYS_INFORMAT format) {
-    struct lys_module *module = NULL;
-    if (lys_parse_mem(ctx, data, format, &module) != LY_SUCCESS) {
-        // Handle error
+    LY_ERR ret_lyd_validate_all_oeiyk = lyd_validate_all(&tree, ctx, ret_lyd_list_pos_uvmhc, &tree);
+    // End mutation: Producer.APPEND_MUTATOR
     
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lys_parse_mem to ly_ctx_get_yanglib_data
-    struct lyd_node *rcnhhcbs;
-    memset(&rcnhhcbs, 0, sizeof(rcnhhcbs));
-    const char mmwxvpac[1024] = "ergqk";
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ly_ctx_get_yanglib_data
-    const char zlmndqdk[1024] = "kfnmn";
-    LY_ERR ret_ly_ctx_get_yanglib_data_txktw = ly_ctx_get_yanglib_data(ctx, &rcnhhcbs, zlmndqdk);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_get_yanglib_data to lyd_eval_xpath
-    ly_pattern_free((void *)module);
-    ly_bool ret_lyd_is_default_khscu = lyd_is_default(rcnhhcbs);
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of lyd_eval_xpath
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_is_default to lyd_eval_xpath
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lyd_unlink_siblings with lyd_unlink_tree
-    LY_ERR ret_lyd_unlink_siblings_adlvq = lyd_unlink_tree(rcnhhcbs);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    const char qmlllofc[1024] = "pvsme";
-
-    LY_ERR ret_lyd_eval_xpath_rzcon = lyd_eval_xpath(rcnhhcbs, qmlllofc, &ret_lyd_is_default_khscu);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    LY_ERR ret_lyd_eval_xpath_ioxuz = lyd_eval_xpath(rcnhhcbs, (const char *)data, &ret_lyd_is_default_khscu);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-}
-    // No specific cleanup required for lys_parse_mem result
+    lyd_free_all(tree);
+    ly_ctx_destroy(ctx);
+    free(data);
+    return 0;
 }
 
-static void fuzz_lys_parse_path(struct ly_ctx *ctx, const char *path, LYS_INFORMAT format) {
-    struct lys_module *module = NULL;
+static int fuzz_lyd_parse_data_mem(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    struct lyd_node *tree = NULL;
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of lys_parse_path
-    if (lys_parse_path(ctx, (const char *)"w", format, &module) != LY_SUCCESS) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        // Handle error
+    LY_ERR err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        return 0;
     }
-    // No specific cleanup required for lys_parse_path result
+
+    char *data = (char *)malloc(Size + 1);
+    if (!data) {
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+    memcpy(data, Data, Size);
+    data[Size] = '\0';
+
+    err = lyd_parse_data_mem(ctx, data, LYD_XML, 0, 0, &tree);
+    if (err != LY_SUCCESS) {
+        // Handle error if needed
+    }
+
+    lyd_free_all(tree);
+    ly_ctx_destroy(ctx);
+    free(data);
+    return 0;
 }
 
-static void fuzz_ly_ctx_get_module_latest(const struct ly_ctx *ctx, const char *name) {
+static int fuzz_ly_ctx_new_yldata(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    struct lyd_node *tree = NULL;
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ly_ctx_get_module_latest with ly_ctx_get_module_latest_ns
-    struct lys_module *module = ly_ctx_get_module_latest_ns(ctx, name);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    LY_ERR err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        return 0;
+    }
 
+    char *data = (char *)malloc(Size + 1);
+    if (!data) {
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+    memcpy(data, Data, Size);
+    data[Size] = '\0';
 
-    // No specific cleanup required for ly_ctx_get_module_latest result
+    err = lyd_parse_data_mem(ctx, data, LYD_XML, 0, 0, &tree);
+    if (err == LY_SUCCESS) {
+        err = ly_ctx_new_yldata(NULL, tree, 0, &ctx);
+        if (err != LY_SUCCESS) {
+            // Handle error if needed
+        }
+    }
+
+    lyd_free_all(tree);
+    ly_ctx_destroy(ctx);
+    free(data);
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
-
-    struct ly_ctx *ctx = create_context();
-    if (!ctx) {
-        return 0;
-    }
-
-    char *dummy_data = (char *)malloc(Size + 1);
-    if (!dummy_data) {
-        cleanup_context(ctx);
-        return 0;
-    }
-    memcpy(dummy_data, Data, Size);
-    dummy_data[Size] = '\0';
-
-    char *dummy_ns = "urn:example:namespace";
-    char *dummy_revision = "2023-10-10";
-    char *dummy_path = "./dummy_file";
-
-    // Fuzz ly_ctx_get_module_ns
-    fuzz_ly_ctx_get_module_ns(ctx, dummy_ns, dummy_revision);
-
-    // Fuzz lys_parse
-    fuzz_lys_parse(ctx, dummy_data, LYS_IN_YANG);
-
-    // Create a dummy file for lys_parse_fd
-    int fd = open(dummy_path, O_RDWR | O_CREAT, S_IRUSR | S_IWUSR);
-    if (fd != -1) {
-        write(fd, dummy_data, Size);
-        lseek(fd, 0, SEEK_SET);
-        fuzz_lys_parse_fd(ctx, fd, LYS_IN_YANG);
-        close(fd);
-    }
-
-    // Fuzz lys_parse_mem
-    fuzz_lys_parse_mem(ctx, dummy_data, LYS_IN_YANG);
-
-    // Fuzz lys_parse_path
-    FILE *file = fopen(dummy_path, "w");
-    if (file) {
-        fwrite(dummy_data, 1, Size, file);
-        fclose(file);
-        fuzz_lys_parse_path(ctx, dummy_path, LYS_IN_YANG);
-    }
-
-    // Fuzz ly_ctx_get_module_latest
-    fuzz_ly_ctx_get_module_latest(ctx, "example-module");
-
-    free(dummy_data);
-    cleanup_context(ctx);
+    fuzz_ly_ctx_compiled_size(Data, Size);
+    fuzz_ly_ctx_get_yanglib_data(Data, Size);
+    fuzz_ly_ctx_new_ylmem(Data, Size);
+    fuzz_lyd_validate_all(Data, Size);
+    fuzz_lyd_parse_data_mem(Data, Size);
+    fuzz_ly_ctx_new_yldata(Data, Size);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_46(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

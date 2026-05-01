@@ -1,45 +1,75 @@
-#include <stdint.h>
 #include <stdlib.h>
-#include <string.h>  // Added for memcpy
-#include "/src/libyang/src/tree_data.h"  // Correct path for lyd_free_tree
-#include "/src/libyang/src/context.h"    // Correct path for ly_ctx_new and ly_ctx_destroy
-#include "/src/libyang/src/parser_data.h" // Correct path for lyd_parse_data_mem
-#include "/src/libyang/src/parser_schema.h" // Correct path for lys_parse_mem
+#include "/src/libyang/src/tree_data.h"
 
-// Remove the 'extern "C"' linkage specification for C++ and use C linkage
 int LLVMFuzzerTestOneInput_105(const uint8_t *data, size_t size) {
-    struct ly_ctx *ctx = NULL;
-    struct lyd_node *tree = NULL;
+    struct lyd_node *parent = NULL;
+    const struct lys_module *module = NULL;
+    const char *list_name = "example-list";
+    const void **values = NULL;
+    uint32_t *value_types = NULL;
+    uint32_t value_count = 1;
+    struct lyd_node *new_node = NULL;
     LY_ERR err;
 
-    // Initialize the libyang context
-    err = ly_ctx_new(NULL, 0, &ctx);
-    if (err != LY_SUCCESS) {
+    // Allocate memory for values and value_types
+    values = (const void **)malloc(sizeof(void *) * value_count);
+    value_types = (uint32_t *)malloc(sizeof(uint32_t) * value_count);
+
+    if (values == NULL || value_types == NULL) {
+        free(values);
+        free(value_types);
         return 0;
     }
 
-    // Create a schema for the context
-    const char *schema = "module fuzzer {namespace urn:fuzzer;prefix fz; leaf test {type string;}}";
-    lys_parse_mem(ctx, schema, LYS_IN_YANG, NULL);
+    // Initialize values and value_types with non-NULL values
+    values[0] = (const void *)data;
+    value_types[0] = LY_TYPE_STRING;
 
-    // Allocate memory for data and ensure it's null-terminated
-    char *input_data = (char *)malloc(size + 1);
-    if (!input_data) {
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-    memcpy(input_data, data, size);
-    input_data[size] = '\0';
+    // Call the function-under-test
+    err = lyd_new_list3(parent, module, list_name, values, value_types, value_count, &new_node);
 
-    // Parse the input data into a data tree
-    lyd_parse_data_mem(ctx, input_data, LYD_JSON, LYD_PARSE_ONLY, 0, &tree);
-
-    // Free the data tree using the function-under-test
-    lyd_free_tree(tree);
-
-    // Clean up
-    free(input_data);
-    ly_ctx_destroy(ctx);
+    // Free allocated memory
+    free(values);
+    free(value_types);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_105(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

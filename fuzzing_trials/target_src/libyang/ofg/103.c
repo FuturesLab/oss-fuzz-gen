@@ -1,35 +1,66 @@
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include "libyang.h"
+#include <libyang.h>  // Corrected the include path
 
 int LLVMFuzzerTestOneInput_103(const uint8_t *data, size_t size) {
-    struct lyxp_var *vars = NULL;
-    const char *var_name = "example_var";
-    const char *var_value = "example_value";
+    struct ly_ctx *ctx = NULL;
+    LY_ERR err;
+    uint32_t options;
 
-    // Ensure data is not empty and has enough space for variable name and value
-    if (size < strlen(var_name) + strlen(var_value) + 2) {
+    // Initialize libyang context
+    err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to create context\n");
         return 0;
     }
-
-    // Use data to create a string for the variable name and value
-    char *name_data = (char *)malloc(size + 1);
-    if (!name_data) {
-        return 0;
-    }
-    memcpy(name_data, data, size);
-    name_data[size] = '\0';
 
     // Call the function-under-test
-    LY_ERR err = lyxp_vars_set(&vars, var_name, var_value);
+    options = ly_ctx_get_options(ctx);
 
-    // Free allocated memory
-    free(name_data);
+    // Print options (for debugging purposes, can be removed in production)
+    printf("Options: %u\n", options);
 
-    // Clean up vars if necessary
-    if (vars) {
-        lyxp_vars_free(vars);
-    }
+    // Clean up
+    ly_ctx_destroy(ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_103(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

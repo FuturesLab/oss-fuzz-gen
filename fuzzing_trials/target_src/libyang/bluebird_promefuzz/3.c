@@ -1,143 +1,137 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include "/src/libyang/src/context.h"
 #include "/src/libyang/src/parser_data.h"
+#include "/src/libyang/src/tree_data.h"
+#include "/src/libyang/src/context.h"
+#include "/src/libyang/src/in.h"
+#include "/src/libyang/src/set.h"
 
-static void fuzz_ly_ctx_new(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
-    char *search_dir = NULL;
-    uint32_t options = 0;
-
-    if (Size > sizeof(uint32_t)) {
-        search_dir = strndup((const char *)Data, Size - sizeof(uint32_t));
-        options = *(uint32_t *)(Data + Size - sizeof(uint32_t));
-    }
-
-    ly_ctx_new(search_dir, options, &ctx);
-
-    if (ctx) {
-        ly_ctx_destroy(ctx);
-    }
-
-    free(search_dir);
-}
-
-static void fuzz_ly_ctx_new_yldata(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
-    struct lyd_node *tree = NULL;
-    char *search_dir = NULL;
-    int options = 0;
-
-    if (Size > sizeof(int)) {
-        search_dir = strndup((const char *)Data, Size - sizeof(int));
-        options = *(int *)(Data + Size - sizeof(int));
-    }
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of ly_ctx_new_yldata
-    ly_ctx_new_yldata(search_dir, tree, 64, &ctx);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    if (ctx) {
-        ly_ctx_destroy(ctx);
-    }
-
-    free(search_dir);
-}
-
-static void fuzz_ly_ctx_get_yanglib_data(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
-    struct lyd_node *root = NULL;
-    char *format = NULL;
-
-    if (Size > 0) {
-        format = strndup((const char *)Data, Size);
-    }
-
-    ly_ctx_new(NULL, 0, &ctx);
-    if (ctx) {
-        if (format && strlen(format) > 0) {
-            ly_ctx_get_yanglib_data(ctx, &root, format);
-        }
-        lyd_free_all(root);
-        ly_ctx_destroy(ctx);
-    }
-
-    free(format);
-}
-
-static void fuzz_ly_ctx_compiled_size(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
-
-    ly_ctx_new(NULL, 0, &ctx);
-    if (ctx) {
-        ly_ctx_compiled_size(ctx);
-        ly_ctx_destroy(ctx);
+static void fuzz_lyd_any_value_str(const struct lyd_node *node) {
+    char *value_str = NULL;
+    LY_ERR err = lyd_any_value_str(node, LYD_XML, &value_str);
+    if (err == LY_SUCCESS) {
+        free(value_str);
     }
 }
 
-static void fuzz_ly_ctx_new_ylmem(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
-    char *search_dir = NULL;
-    char *data = NULL;
-    LYD_FORMAT format = 0;
-    int options = 0;
-
-    if (Size > sizeof(LYD_FORMAT) + sizeof(int)) {
-        search_dir = strndup((const char *)Data, Size - sizeof(LYD_FORMAT) - sizeof(int));
-        data = strndup((const char *)Data, Size - sizeof(LYD_FORMAT) - sizeof(int));
-        format = *(LYD_FORMAT *)(Data + Size - sizeof(LYD_FORMAT) - sizeof(int));
-        options = *(int *)(Data + Size - sizeof(int));
+static void fuzz_lyd_parse_op(const struct ly_ctx *ctx, const uint8_t *Data, size_t Size) {
+    if (Size == 0) {
+        return;
     }
+    
+    struct ly_in *in;
+    struct lyd_node *tree = NULL, *op = NULL;
+    // Ensure the input is null-terminated
+    char *data = strndup((const char *)Data, Size);
+    ly_in_new_memory(data, &in);
 
-    ly_ctx_new_ylmem(search_dir, data, format, options, &ctx);
+    lyd_parse_op(ctx, NULL, in, LYD_XML, LYD_TYPE_RPC_NETCONF, 0, &tree, &op);
 
-    if (ctx) {
-        ly_ctx_destroy(ctx);
-    }
-
-    free(search_dir);
+    lyd_free_all(tree);
+    lyd_free_all(op);
+    ly_in_free(in, 0);
     free(data);
 }
 
-static void fuzz_lyd_parse_data_mem(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
+static void fuzz_lyd_validate_op(struct lyd_node *op_tree) {
+    struct lyd_node *diff = NULL;
+    lyd_validate_op(op_tree, NULL, LYD_TYPE_RPC_YANG, &diff);
+    lyd_free_all(diff);
+}
+
+static void fuzz_lyd_find_xpath3(const struct lyd_node *tree, const uint8_t *Data, size_t Size) {
+    if (Size == 0) {
+        return;
+    }
+    
+    struct ly_set *set = NULL;
+    char *xpath = strndup((const char *)Data, Size);
+
+    lyd_find_xpath3(NULL, tree, xpath, LY_VALUE_JSON, NULL, NULL, &set);
+
+    ly_set_free(set, NULL);
+    free(xpath);
+}
+
+static void fuzz_lyd_parse_data_mem(const struct ly_ctx *ctx, const uint8_t *Data, size_t Size) {
+    if (Size == 0) {
+        return;
+    }
+    
     struct lyd_node *tree = NULL;
-    char *data = NULL;
-    LYD_FORMAT format = 0;
-    uint32_t parse_options = 0;
-    uint32_t validate_options = 0;
+    char *data = strndup((const char *)Data, Size);
 
-    if (Size > sizeof(LYD_FORMAT) + 2 * sizeof(uint32_t)) {
-        data = strndup((const char *)Data, Size - sizeof(LYD_FORMAT) - 2 * sizeof(uint32_t));
-        format = *(LYD_FORMAT *)(Data + Size - sizeof(LYD_FORMAT) - 2 * sizeof(uint32_t));
-        parse_options = *(uint32_t *)(Data + Size - 2 * sizeof(uint32_t));
-        validate_options = *(uint32_t *)(Data + Size - sizeof(uint32_t));
-    }
+    lyd_parse_data_mem(ctx, data, LYD_XML, 0, 0, &tree);
 
-    ly_ctx_new(NULL, 0, &ctx);
-    if (ctx) {
-        lyd_parse_data_mem(ctx, data, format, parse_options, validate_options, &tree);
-        lyd_free_all(tree);
-        ly_ctx_destroy(ctx);
-    }
-
+    lyd_free_all(tree);
     free(data);
+}
+
+static void fuzz_lyd_compare_single(const struct lyd_node *node1, const struct lyd_node *node2) {
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lyd_compare_single with lyd_compare_siblings
+    lyd_compare_siblings(node1, node2, 0);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 }
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    fuzz_ly_ctx_new(Data, Size);
-    fuzz_ly_ctx_new_yldata(Data, Size);
-    fuzz_ly_ctx_get_yanglib_data(Data, Size);
-    fuzz_ly_ctx_compiled_size(Data, Size);
-    fuzz_ly_ctx_new_ylmem(Data, Size);
-    fuzz_lyd_parse_data_mem(Data, Size);
+    struct ly_ctx *ctx = NULL;
+    struct lyd_node *node1 = NULL, *node2 = NULL;
 
+    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS) {
+        return 0;
+    }
+
+    // Fuzzing individual functions
+    fuzz_lyd_any_value_str(node1);
+    fuzz_lyd_parse_op(ctx, Data, Size);
+    fuzz_lyd_validate_op(node1);
+    fuzz_lyd_find_xpath3(node1, Data, Size);
+    fuzz_lyd_parse_data_mem(ctx, Data, Size);
+    fuzz_lyd_compare_single(node1, node2);
+
+    ly_ctx_destroy(ctx);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

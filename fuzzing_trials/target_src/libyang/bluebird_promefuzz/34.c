@@ -1,130 +1,215 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include "libyang.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include "/src/libyang/src/context.h"
 #include "/src/libyang/src/parser_data.h"
-#include "/src/libyang/src/tree_data.h"
 
-static void prepare_context(struct ly_ctx **ctx) {
-    if (ly_ctx_new(NULL, 0, ctx) != LY_SUCCESS) {
-        fprintf(stderr, "Failed to create libyang context.\n");
-        exit(EXIT_FAILURE);
+static int fuzz_ly_ctx_compiled_size(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    LY_ERR err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        return 0;
     }
+
+    int size = ly_ctx_compiled_size(ctx);
+    if (size == -1) {
+        // Handle error if needed
+    }
+
+    ly_ctx_destroy(ctx);
+    return 0;
 }
 
-static void cleanup_context(struct ly_ctx *ctx) {
-    if (ctx) {
+static int fuzz_ly_ctx_get_yanglib_data(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    struct lyd_node *root = NULL;
+
+    LY_ERR err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        return 0;
+    }
+
+    err = ly_ctx_get_yanglib_data(ctx, &root, "%u", 0);
+    if (err != LY_SUCCESS) {
+        // Handle error if needed
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_get_yanglib_data to lyd_parse_opaq_error
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!root) {
+    	return 0;
+    }
+    LY_ERR ret_lyd_parse_opaq_error_doqcg = lyd_parse_opaq_error(root);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    lyd_free_all(root);
+    ly_ctx_destroy(ctx);
+    return 0;
+}
+
+static int fuzz_ly_ctx_new_ylmem(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    char *data = (char *)malloc(Size + 1);
+    if (!data) {
+        return 0;
+    }
+    memcpy(data, Data, Size);
+    data[Size] = '\0';
+
+    LY_ERR err = ly_ctx_new_ylmem(NULL, data, LYD_XML, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        // Handle error if needed
+    }
+
+    ly_ctx_destroy(ctx);
+    free(data);
+    return 0;
+}
+
+static int fuzz_lyd_validate_all(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    struct lyd_node *tree = NULL, *diff = NULL;
+
+    LY_ERR err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        return 0;
+    }
+
+    char *data = (char *)malloc(Size + 1);
+    if (!data) {
         ly_ctx_destroy(ctx);
+        return 0;
     }
-}
+    memcpy(data, Data, Size);
+    data[Size] = '\0';
 
-static void fuzz_lyd_validate_all(struct lyd_node **tree, struct ly_ctx *ctx) {
-    struct lyd_node *diff = NULL;
-    uint32_t val_opts = 0;
-    LY_ERR ret = lyd_validate_all(tree, ctx, val_opts, &diff);
-    if (ret != LY_SUCCESS) {
-        fprintf(stderr, "lyd_validate_all failed.\n");
-    }
-    lyd_free_all(diff);
-}
-
-static void fuzz_lyd_parse_data(struct ly_ctx *ctx, const uint8_t *Data, size_t Size) {
-    struct lyd_node *tree = NULL;
-    struct ly_in *in;
-    LY_ERR ret;
-
-    // Ensure the input data is null-terminated
-    char *data_copy = (char *)malloc(Size + 1);
-    if (!data_copy) {
-        return;
-    }
-    memcpy(data_copy, Data, Size);
-    data_copy[Size] = '\0';
-
-    if (ly_in_new_memory(data_copy, &in) != LY_SUCCESS) {
-        free(data_copy);
-        return;
-    }
-
-    ret = lyd_parse_data(ctx, NULL, in, LYD_XML, 0, 0, &tree);
-    if (ret != LY_SUCCESS) {
-        fprintf(stderr, "lyd_parse_data failed.\n");
+    err = lyd_parse_data_mem(ctx, data, LYD_XML, 0, 0, &tree);
+    if (err == LY_SUCCESS) {
+        err = lyd_validate_all(&tree, ctx, 0, &diff);
+        if (err != LY_SUCCESS) {
+            // Handle error if needed
+        }
+        lyd_free_all(diff);
     }
 
     lyd_free_all(tree);
-    ly_in_free(in, 0);
-    free(data_copy);
+    ly_ctx_destroy(ctx);
+    free(data);
+    return 0;
 }
 
-static void fuzz_lyd_new_path2(struct ly_ctx *ctx) {
-    struct lyd_node *parent = NULL, *new_node = NULL;
-    const char *path = "/example-module:container/list[key='value']";
-    LY_ERR ret;
+static int fuzz_lyd_parse_data_mem(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    struct lyd_node *tree = NULL;
 
-    ret = lyd_new_path2(NULL, ctx, path, NULL, 0, 0, 0, &parent, &new_node);
-    if (ret != LY_SUCCESS) {
-        fprintf(stderr, "lyd_new_path2 failed.\n");
+    LY_ERR err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        return 0;
     }
 
-    lyd_free_tree(parent);
+    char *data = (char *)malloc(Size + 1);
+    if (!data) {
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+    memcpy(data, Data, Size);
+    data[Size] = '\0';
+
+    err = lyd_parse_data_mem(ctx, data, LYD_XML, 0, 0, &tree);
+    if (err != LY_SUCCESS) {
+        // Handle error if needed
+    }
+
+    lyd_free_all(tree);
+    ly_ctx_destroy(ctx);
+    free(data);
+    return 0;
 }
 
-static void fuzz_lyd_validate_ext(struct lyd_node **ext_tree, struct lysc_ext_instance *ext) {
-    struct lyd_node *diff = NULL;
-    uint32_t val_opts = 0;
-    LY_ERR ret = lyd_validate_ext(ext_tree, ext, val_opts, &diff);
-    if (ret != LY_SUCCESS) {
-        fprintf(stderr, "lyd_validate_ext failed.\n");
-    }
-    lyd_free_all(diff);
-}
+static int fuzz_ly_ctx_new_yldata(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    struct lyd_node *tree = NULL;
 
-static void fuzz_lyd_new_implicit_all(struct lyd_node **tree, struct ly_ctx *ctx) {
-    struct lyd_node *diff = NULL;
-    uint32_t implicit_options = 0;
-    LY_ERR ret = lyd_new_implicit_all(tree, ctx, implicit_options, &diff);
-    if (ret != LY_SUCCESS) {
-        fprintf(stderr, "lyd_new_implicit_all failed.\n");
-    }
-    lyd_free_all(diff);
-}
-
-static void fuzz_lyd_dup_single_to_ctx(struct lyd_node *node, struct ly_ctx *ctx) {
-    struct lyd_node *dup = NULL;
-    LY_ERR ret = lyd_dup_single_to_ctx(node, ctx, NULL, 0, &dup);
-    if (ret != LY_SUCCESS) {
-        fprintf(stderr, "lyd_dup_single_to_ctx failed.\n");
+    LY_ERR err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        return 0;
     }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_dup_single_to_ctx to lyd_insert_after
-    LY_ERR ret_lyd_unlink_siblings_pfwmc = lyd_unlink_siblings(dup);
+    char *data = (char *)malloc(Size + 1);
+    if (!data) {
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+    memcpy(data, Data, Size);
+    data[Size] = '\0';
 
-    LY_ERR ret_lyd_insert_after_oorel = lyd_insert_after(dup, dup);
+    err = lyd_parse_data_mem(ctx, data, LYD_XML, 0, 0, &tree);
+    if (err == LY_SUCCESS) {
+        err = ly_ctx_new_yldata(NULL, tree, 0, &ctx);
+        if (err != LY_SUCCESS) {
+            // Handle error if needed
+        }
+    }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-    lyd_free_tree(dup);
+    lyd_free_all(tree);
+    ly_ctx_destroy(ctx);
+    free(data);
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
-    struct lyd_node *tree = NULL;
-    struct lysc_ext_instance ext = {0};
-
-    prepare_context(&ctx);
-
-    fuzz_lyd_validate_all(&tree, ctx);
-    fuzz_lyd_parse_data(ctx, Data, Size);
-    fuzz_lyd_new_path2(ctx);
-    fuzz_lyd_validate_ext(&tree, &ext);
-    fuzz_lyd_new_implicit_all(&tree, ctx);
-    fuzz_lyd_dup_single_to_ctx(tree, ctx);
-
-    lyd_free_tree(tree);
-    cleanup_context(ctx);
-
+    fuzz_ly_ctx_compiled_size(Data, Size);
+    fuzz_ly_ctx_get_yanglib_data(Data, Size);
+    fuzz_ly_ctx_new_ylmem(Data, Size);
+    fuzz_lyd_validate_all(Data, Size);
+    fuzz_lyd_parse_data_mem(Data, Size);
+    fuzz_ly_ctx_new_yldata(Data, Size);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_34(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

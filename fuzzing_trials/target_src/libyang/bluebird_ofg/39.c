@@ -1,51 +1,101 @@
-#include "stdbool.h"
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include "/src/libyang/src/context.h"  // Correctly include libyang headers for context handling
-#include "/src/libyang/src/tree.h"     // Include for tree manipulation functions
+#include "libyang.h"
 
 int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    if (data == NULL || size == 0) {
-        return 0;  // Return early if data is null or size is zero
-    }
-
     struct ly_ctx *ctx = NULL;
     struct lys_module *module = NULL;
     LY_ERR err;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd;
+    FILE *file;
+    LYS_INFORMAT format = LYS_IN_YANG; // Assuming YANG format for fuzzing
 
-    // Create a new libyang context
+    // Initialize libyang context
     err = ly_ctx_new(NULL, 0, &ctx);
-    if (err != LY_SUCCESS || ctx == NULL) {
+    if (err != LY_SUCCESS) {
         fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Ensure the input data is null-terminated for string operations
-    char *yang_data = (char *)malloc(size + 1);
-    if (!yang_data) {
-        fprintf(stderr, "Memory allocation failed\n");
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-    memcpy(yang_data, data, size);
-    yang_data[size] = '\0';  // Null-terminate the input data
-
-    // Parse the input data as a YANG module
-    err = lys_parse_mem(ctx, yang_data, LYS_IN_YANG, &module);
-    if (err != LY_SUCCESS || !module) {
-        fprintf(stderr, "Failed to parse input data\n");
-        free(yang_data);
+    // Create a temporary file to store the fuzz data
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        fprintf(stderr, "Failed to create temporary file\n");
         ly_ctx_destroy(ctx);
         return 0;
     }
 
-    // Additional processing can be done here with the parsed module
+    // Write the fuzz data to the temporary file
+    file = fdopen(fd, "wb");
+    if (!file) {
+        fprintf(stderr, "Failed to open temporary file\n");
+        close(fd);
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Call the function-under-test
+    lys_parse_path(ctx, tmpl, format, &module);
 
     // Clean up
-    free(yang_data);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lys_parse_path to lyd_find_meta
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!module) {
+    	return 0;
+    }
+    struct lyd_meta* ret_lyd_find_meta_lhtis = lyd_find_meta(NULL, module, (const char *)"r");
+    if (ret_lyd_find_meta_lhtis == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     ly_ctx_destroy(ctx);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_39(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

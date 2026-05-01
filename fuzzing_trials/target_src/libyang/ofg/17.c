@@ -1,45 +1,77 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <string.h>
-#include "/src/libyang/build/libyang/context.h"
+#include "libyang.h"
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    const char *search_dir = "/tmp/searchdir";
+    char *searchdir = NULL;
     LY_ERR err;
 
-    // Create a new context to ensure ctx is not NULL
+    // Initialize the context
     err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
         fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Ensure the search directory is set initially
-    err = ly_ctx_set_searchdir(ctx, search_dir);
-    if (err != LY_SUCCESS) {
-        fprintf(stderr, "Failed to set search directory\n");
+    // Allocate memory for the searchdir string
+    searchdir = malloc(size + 1);
+    if (searchdir == NULL) {
         ly_ctx_destroy(ctx);
         return 0;
     }
 
-    // Prepare a string from the fuzzing data
-    char *fuzzed_dir = (char *)malloc(size + 1);
-    if (fuzzed_dir == NULL) {
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
+    // Copy the input data to the searchdir string and null-terminate it
+    memcpy(searchdir, data, size);
+    searchdir[size] = '\0';
 
-    memcpy(fuzzed_dir, data, size);
-    fuzzed_dir[size] = '\0';
-
-    // Call the function under test
-    ly_ctx_unset_searchdir(ctx, fuzzed_dir);
+    // Call the function-under-test
+    ly_ctx_unset_searchdir(ctx, searchdir);
 
     // Clean up
-    free(fuzzed_dir);
+    free(searchdir);
     ly_ctx_destroy(ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

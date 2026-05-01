@@ -1,49 +1,90 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "/src/libyang/build/libyang/context.h"
+#include "libyang.h"
 
 int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    const struct lysp_submodule *submodule = NULL;
-    char *module_name = NULL;
+    struct lyd_node *tree = NULL;
+    LY_ERR err;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd;
+    FILE *file;
+    LYD_FORMAT format = LYD_JSON; // Assuming JSON format for fuzzing
+    uint32_t parse_options = 0;
+    uint32_t validate_options = LYD_VALIDATE_PRESENT;
 
     // Initialize the libyang context
-    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS) {
-        fprintf(stderr, "Failed to create libyang context\n");
+    err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Allocate memory for the module name and ensure it's null-terminated
-    module_name = (char *)malloc(size + 1);
-    if (!module_name) {
+    // Create a temporary file to store the fuzz data
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
         ly_ctx_destroy(ctx);
         return 0;
     }
-    memcpy(module_name, data, size);
-    module_name[size] = '\0';
 
-    // Ensure the module name is a valid identifier
-    for (size_t i = 0; i < size; i++) {
-        if (!((module_name[i] >= 'a' && module_name[i] <= 'z') || 
-              (module_name[i] >= 'A' && module_name[i] <= 'Z') || 
-              (module_name[i] >= '0' && module_name[i] <= '9') || 
-              module_name[i] == '_' || module_name[i] == '-')) {
-            module_name[i] = '_'; // Replace invalid characters
-        }
+    // Write the fuzz data to the temporary file
+    file = fdopen(fd, "wb");
+    if (file == NULL) {
+        close(fd);
+        ly_ctx_destroy(ctx);
+        return 0;
     }
+    fwrite(data, 1, size, file);
+    fclose(file);
 
     // Call the function-under-test
-    submodule = ly_ctx_get_submodule_latest(ctx, module_name);
-
-    // Check if the submodule was found
-    if (submodule) {
-        // Optionally, perform additional operations on the submodule
-    }
+    lyd_parse_data_path(ctx, tmpl, format, parse_options, validate_options, &tree);
 
     // Clean up
-    free(module_name);
+    lyd_free_all(tree);
     ly_ctx_destroy(ctx);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_59(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

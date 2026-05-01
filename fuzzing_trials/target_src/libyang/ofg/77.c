@@ -1,45 +1,61 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
+
 #include "libyang.h"
 
-int LLVMFuzzerTestOneInput_77(const uint8_t *data, size_t size) {
-    struct ly_ctx *ctx = NULL;
-    struct lys_module *module = NULL;
-    LY_ERR err;
-    int fd;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    
-    // Create a temporary file
-    fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
+int LLVMFuzzerTestOneInput_77(uint8_t const *buf, size_t len) {
+  struct ly_ctx *ctx = NULL;
+  LY_ERR err;
 
-    // Write the fuzzing data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        return 0;
-    }
+  // Initialize the libyang context
+  err = ly_ctx_new(NULL, 0, &ctx);
+  if (err != LY_SUCCESS) {
+    fprintf(stderr, "Failed to create context\n");
+    exit(EXIT_FAILURE);
+  }
 
-    // Reset the file offset to the beginning
-    lseek(fd, 0, SEEK_SET);
+  // Call the function-under-test
+  ly_ctx_destroy(ctx);
 
-    // Initialize the context
-    err = ly_ctx_new(NULL, 0, &ctx);
-    if (err != LY_SUCCESS) {
-        close(fd);
-        return 0;
-    }
+  return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-    // Call the function-under-test
-    lys_parse_fd(ctx, fd, LYS_IN_YANG, &module);
+    if(argc < 2)
+        exit(0);
 
-    // Clean up
-    ly_ctx_destroy(ctx);
-    close(fd);
-    unlink(tmpl);
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
 
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_77(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

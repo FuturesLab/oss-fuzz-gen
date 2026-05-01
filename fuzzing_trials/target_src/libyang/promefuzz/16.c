@@ -1,37 +1,51 @@
 // This fuzz driver is generated for library libyang, aiming to fuzz the following functions:
-// lyd_node_schema at tree_data_common.c:1010:1 in tree_data.h
-// lyd_new_any at tree_data_new.c:749:1 in tree_data.h
-// lyd_node_module at tree_data_common.c:336:1 in tree_data.h
-// lyd_owner_module at tree_data_common.c:299:1 in tree_data.h
-// lyd_merge_module at tree_data.c:2856:1 in tree_data.h
-// lyd_merge_tree at tree_data.c:2844:1 in tree_data.h
+// lyd_diff_apply_module at diff.c:1946:1 in tree_data.h
+// lyd_diff_merge_module at diff.c:2995:1 in tree_data.h
+// lyd_diff_merge_tree at diff.c:3018:1 in tree_data.h
+// lyd_diff_merge_all at diff.c:3034:1 in tree_data.h
+// lyd_diff_tree at diff.c:1429:1 in tree_data.h
+// lyd_diff_siblings at diff.c:1435:1 in tree_data.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdio.h>
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <tree_data.h>
+#include <stdint.h>
+#include <assert.h>
+#include "tree_data.h"
 
-static struct lyd_node *create_dummy_lyd_node() {
-    struct lyd_node *node = (struct lyd_node *)malloc(sizeof(struct lyd_node));
+static struct lyd_node* create_dummy_lyd_node() {
+    struct lyd_node *node = malloc(sizeof(struct lyd_node));
     if (!node) {
         return NULL;
     }
     memset(node, 0, sizeof(struct lyd_node));
+    node->prev = node; // Ensuring prev is not NULL
     return node;
 }
 
-static struct lys_module *create_dummy_lys_module() {
-    struct lys_module *module = (struct lys_module *)malloc(sizeof(struct lys_module));
-    if (!module) {
+static struct lys_module* create_dummy_lys_module() {
+    struct lys_module *mod = malloc(sizeof(struct lys_module));
+    if (!mod) {
         return NULL;
     }
-    memset(module, 0, sizeof(struct lys_module));
-    return module;
+    memset(mod, 0, sizeof(struct lys_module));
+    return mod;
+}
+
+static void free_dummy_lyd_node(struct lyd_node *node) {
+    if (node) {
+        free(node);
+    }
+}
+
+static void free_dummy_lys_module(struct lys_module *mod) {
+    if (mod) {
+        free(mod);
+    }
 }
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
@@ -39,44 +53,82 @@ int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    // Create dummy data nodes and modules
-    struct lyd_node *lyd_node1 = create_dummy_lyd_node();
-    struct lyd_node *lyd_node2 = create_dummy_lyd_node();
-    struct lys_module *lys_module1 = create_dummy_lys_module();
-    
-    if (!lyd_node1 || !lyd_node2 || !lys_module1) {
-        free(lyd_node1);
-        free(lyd_node2);
-        free(lys_module1);
-        return 0;
+    struct lyd_node *data = create_dummy_lyd_node();
+    struct lyd_node *diff = create_dummy_lyd_node();
+    struct lys_module *mod = create_dummy_lys_module();
+    uint16_t options = Data[0];
+    lyd_diff_cb diff_cb = NULL;
+    void *cb_data = NULL;
+
+    if (!data || !diff || !mod) {
+        goto cleanup;
     }
 
-    // Fuzzing lyd_node_schema
-    const struct lysc_node *schema_node = lyd_node_schema(lyd_node1);
+    // Fuzz lyd_diff_apply_module
+    lyd_diff_apply_module(&data, diff, mod, diff_cb, cb_data);
 
-    // Fuzzing lyd_new_any
-    struct lyd_node *new_node = NULL;
-    lyd_new_any(lyd_node1, lys_module1, "dummy_name", lyd_node2, NULL, 0, 0, &new_node);
-    if (new_node) {
-        free(new_node);
-    }
+    // Fuzz lyd_diff_merge_module
+    lyd_diff_merge_module(&diff, diff, mod, diff_cb, cb_data, options);
 
-    // Fuzzing lyd_node_module
-    const struct lys_module *module_node = lyd_node_module(lyd_node1);
+    // Fuzz lyd_diff_merge_tree
+    lyd_diff_merge_tree(&diff, diff, diff, diff_cb, cb_data, options);
 
-    // Fuzzing lyd_owner_module
-    const struct lys_module *owner_module = lyd_owner_module(lyd_node1);
+    // Fuzz lyd_diff_merge_all
+    lyd_diff_merge_all(&diff, diff, options);
 
-    // Fuzzing lyd_merge_module
-    lyd_merge_module(&lyd_node1, lyd_node2, lys_module1, NULL, NULL, 0);
+    // Fuzz lyd_diff_tree
+    struct lyd_node *out_diff = NULL;
+    lyd_diff_tree(data, diff, options, &out_diff);
+    free_dummy_lyd_node(out_diff);
 
-    // Fuzzing lyd_merge_tree
-    lyd_merge_tree(&lyd_node1, lyd_node2, 0);
+    // Fuzz lyd_diff_siblings
+    lyd_diff_siblings(data, diff, options, &out_diff);
+    free_dummy_lyd_node(out_diff);
 
-    // Clean up
-    free(lyd_node1);
-    free(lyd_node2);
-    free(lys_module1);
+cleanup:
+    free_dummy_lyd_node(data);
+    free_dummy_lyd_node(diff);
+    free_dummy_lys_module(mod);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

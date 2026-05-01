@@ -1,71 +1,74 @@
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <string.h>
 #include "libyang.h"
 
 int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *tree = NULL;
     LY_ERR err;
-    int fd;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
 
-    // Create a temporary file
-    fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Reset the file offset to the beginning
-    lseek(fd, 0, SEEK_SET);
-
-    // Initialize the context
+    // Initialize the libyang context
     err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
-        close(fd);
-        unlink(tmpl);
+        fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
+    // Allocate memory for the directory path and ensure it is null-terminated
+    char *searchdir = (char *)malloc(size + 1);
+    if (searchdir == NULL) {
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+    memcpy(searchdir, data, size);
+    searchdir[size] = '\0';
+
     // Call the function-under-test
-    lyd_parse_data_fd(ctx, fd, LYD_JSON, 0, LYD_VALIDATE_PRESENT, &tree);
+    ly_ctx_set_searchdir(ctx, searchdir);
 
     // Cleanup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_parse_data_fd to ly_ctx_new_printed
-    struct ly_ctx *dovqqdmz;
-    memset(&dovqqdmz, 0, sizeof(dovqqdmz));
-
-    LY_ERR ret_ly_ctx_new_printed_daluf = ly_ctx_new_printed((const void *)tree, &dovqqdmz);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    lyd_free_all(tree);
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ly_ctx_destroy with ly_ctx_free_parsed
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_free_all to lyd_new_attr2
-    const char ehorvglk[1024] = "jvqpa";
-
-    LY_ERR ret_lyd_new_attr2_pexee = lyd_new_attr2(tree, ehorvglk, (const char *)data, (const char *)"r", NULL);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    ly_ctx_free_parsed(ctx);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    close(fd);
-    unlink(tmpl);
+    free(searchdir);
+    ly_ctx_destroy(ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_67(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

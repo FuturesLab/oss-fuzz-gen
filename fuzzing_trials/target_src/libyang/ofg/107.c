@@ -1,42 +1,74 @@
-#include <stddef.h>
-#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include "/src/libyang/src/tree_data.h"
-#include "/src/libyang/src/tree_schema.h"
-#include "/src/libyang/src/log.h"
+#include <string.h> // Include for memcpy
+#include <libyang.h> // Correct header for libyang
 
 int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for the data to be valid pointers and strings
-    if (size < sizeof(void *) * 3 + 1) {
+    const char *search_dir = NULL; // No specific search directory
+    uint32_t options = 0; // Default options
+    struct ly_ctx *ctx = NULL;
+    LY_ERR err;
+
+    // Allocate a buffer for the search directory string
+    char *search_dir_buf = (char *)malloc(size + 1);
+    if (!search_dir_buf) {
         return 0;
     }
 
-    // Declare and initialize variables
-    const struct lysc_node *node = NULL;
-    const char *value = NULL;
-    struct lysc_prefix *prefix = NULL;
-    const struct lyd_node *context_node = NULL;
-    const struct lysc_type *type = NULL;
-    const char *errmsg = NULL;
+    // Copy the fuzz data into the search directory buffer
+    memcpy(search_dir_buf, data, size);
+    search_dir_buf[size] = '\0'; // Null-terminate the string
 
-    // Extract pointers from the data buffer
-    node = (const struct lysc_node *)(data);
-    prefix = (struct lysc_prefix *)(data + sizeof(void *));
-    context_node = (const struct lyd_node *)(data + 2 * sizeof(void *));
+    // Call the function-under-test
+    err = ly_ctx_new(search_dir_buf, options, &ctx);
 
-    // Ensure the remaining data is a valid string for 'value'
-    size_t remaining_size = size - 3 * sizeof(void *);
-    value = (const char *)(data + 3 * sizeof(void *));
-    
-    // Check if the remaining data can be a valid null-terminated string
-    if (memchr(value, '\0', remaining_size) == NULL) {
-        return 0;
+    // Check the result
+    if (err == LY_SUCCESS) {
+        // Successfully created the context, now destroy it
+        ly_ctx_destroy(ctx);
     }
 
-    // Call the function under test
-    LY_ERR result = lyd_value_validate_dflt(node, value, prefix, context_node, &type, &errmsg);
+    // Free the allocated buffer
+    free(search_dir_buf);
 
-    // Handle the result (for fuzzing purposes, we just return 0)
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_107(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

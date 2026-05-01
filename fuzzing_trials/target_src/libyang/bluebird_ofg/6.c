@@ -1,20 +1,15 @@
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdint.h>
-#include "/src/libyang/src/tree_data.h"
-#include "/src/libyang/src/set.h"
-#include "/src/libyang/src/log.h"
-#include "/src/libyang/src/tree.h"
-#include "/src/libyang/src/context.h"
-#include "/src/libyang/src/in.h"
-#include "/src/libyang/src/tree_schema.h"  // Include for LYD_VALIDATE_PRESENT
-#include "/src/libyang/src/parser_data.h"  // Include for lyd_parse_data_mem
+#include <string.h>  // Include for memcpy
+#include "libyang.h"  // Corrected include path
 
 int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *root = NULL;
-    struct ly_set *set = NULL;
+    struct lyd_node *original_node = NULL;
+    struct lyd_node *parent_node = NULL;
+    struct lyd_node *dup_node = NULL;
     LY_ERR err;
 
     // Initialize libyang context
@@ -24,113 +19,169 @@ int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Create a simple YANG module for testing
-    const char *yang_module = "module test {namespace urn:test;prefix t; container top {leaf name {type string;}}}";
-    lys_parse_mem(ctx, yang_module, LYS_IN_YANG, NULL);
+    // Create a dummy schema for testing
+    const char *schema = "module test {namespace urn:test;prefix t;leaf name {type string;}}";
+    err = lys_parse_mem(ctx, schema, LYS_IN_YANG, NULL);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to parse schema\n");
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
 
-    // Create a simple XML data tree for testing
-    const char *xml_data = "<top xmlns=\"urn:test\"><name>test</name></top>";
-    lyd_parse_data_mem(ctx, xml_data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &root);
+    // Check if the input data is non-empty and starts with '<' for XML format
+    if (size == 0 || data[0] != '<') {
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
 
-    // Ensure the data is non-null and null-terminate it
-    char *xpath_expr = NULL;
-    if (size > 0) {
-        xpath_expr = (char *)malloc(size + 1);
-        if (!xpath_expr) {
+    // Ensure the data is null-terminated before parsing
+    char *data_copy = (char *)malloc(size + 1);
+    if (!data_copy) {
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+    memcpy(data_copy, data, size);
+    data_copy[size] = '\0';
 
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ly_ctx_destroy with ly_ctx_free_parsed
-            ly_ctx_free_parsed(ctx);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Create a dummy data tree for testing using the input data
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of lyd_parse_data_mem
+    err = lyd_parse_data_mem(ctx, data_copy, LYD_XML, 0, size, &original_node);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_parse_data_mem to lyd_new_meta2
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ctx) {
+    	return 0;
+    }
 
-            
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_destroy to lyd_new_path2
-            struct lyd_node rrixhlzo;
-            memset(&rrixhlzo, 0, sizeof(rrixhlzo));
-            lyd_free_siblings(&rrixhlzo);
-            ly_pattern_free((void *)ctx);
-            struct lyd_node* ret_lyd_first_sibling_kkyfl = lyd_first_sibling(root);
-            if (ret_lyd_first_sibling_kkyfl == NULL){
-            	return 0;
-            }
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_parse_data_mem to lyd_find_xpath3
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!original_node) {
+    	return 0;
+    }
+    LY_ERR ret_lyd_unlink_siblings_sfunh = lyd_unlink_siblings(original_node);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!original_node) {
+    	return 0;
+    }
+    LY_ERR ret_lyd_unlink_tree_gbija = lyd_unlink_tree(original_node);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!original_node) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!original_node) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!original_node) {
+    	return 0;
+    }
+    LY_ERR ret_lyd_find_xpath3_qxzzq = lyd_find_xpath3(original_node, original_node, (const char *)"r", 0, (void *)original_node, NULL, NULL);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    uint32_t ret_ly_ctx_internal_modules_count_dtlsj = ly_ctx_internal_modules_count(ctx);
+    if (ret_ly_ctx_internal_modules_count_dtlsj < 0){
+    	return 0;
+    }
+    struct lyd_attr yjrsxobn;
+    memset(&yjrsxobn, 0, sizeof(yjrsxobn));
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ctx) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!original_node) {
+    	return 0;
+    }
+    LY_ERR ret_lyd_new_meta2_huljd = lyd_new_meta2(ctx, original_node, ret_ly_ctx_internal_modules_count_dtlsj, &yjrsxobn, NULL);
+    // End mutation: Producer.APPEND_MUTATOR
+    
 
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ly_ctx_internal_modules_count with ly_ctx_get_options
-            uint32_t ret_ly_ctx_internal_modules_count_nsvnt = ly_ctx_get_options(ctx);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-            if (ret_ly_ctx_internal_modules_count_nsvnt < 0){
-            	return 0;
-            }
-
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lyd_first_sibling with lyd_child_no_keys
-            struct lyd_node* ret_lyd_first_sibling_hbjsp = lyd_child_no_keys(root);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-            if (ret_lyd_first_sibling_hbjsp == NULL){
-            	return 0;
-            }
-
-            LY_ERR ret_lyd_new_path2_xpvuz = lyd_new_path2(&rrixhlzo, ctx, ctx, (const void *)ret_lyd_first_sibling_kkyfl, 64, 0, ret_ly_ctx_internal_modules_count_nsvnt, &ret_lyd_first_sibling_hbjsp, &root);
-
-            // End mutation: Producer.APPEND_MUTATOR
-
-
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_new_path2 to lyd_any_copy_value
-            int ret_ly_ctx_compiled_size_tdxhg = ly_ctx_compiled_size(NULL);
-            if (ret_ly_ctx_compiled_size_tdxhg < 0){
-            	return 0;
-            }
-            struct lyd_node ffcbxudt;
-            memset(&ffcbxudt, 0, sizeof(ffcbxudt));
-            const char psgzswqp[1024] = "dlchn";
-
-
-            // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of lyd_any_copy_value
-            LY_ERR ret_lyd_any_copy_value_jgbtd = lyd_any_copy_value(&ffcbxudt, root, psgzswqp, LYD_HT_MIN_ITEMS);
-            // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-            // End mutation: Producer.APPEND_MUTATOR
-
-return 0;
-        }
-        memcpy(xpath_expr, data, size);
-        xpath_expr[size] = '\0';
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_new_meta2 to lyd_validate_all
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!original_node) {
+    	return 0;
+    }
+    struct lyd_node* ret_lyd_first_sibling_ivyoy = lyd_first_sibling(original_node);
+    if (ret_lyd_first_sibling_ivyoy == NULL){
+    	return 0;
+    }
+    uint32_t ret_ly_ctx_get_options_hxdye = ly_ctx_get_options(original_node);
+    if (ret_ly_ctx_get_options_hxdye < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_lyd_first_sibling_ivyoy) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ctx) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!original_node) {
+    	return 0;
+    }
+    LY_ERR ret_lyd_validate_all_zrcvx = lyd_validate_all(&ret_lyd_first_sibling_ivyoy, ctx, ret_ly_ctx_get_options_hxdye, &original_node);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(data_copy);  // Free the copied data after use
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to parse data\n");
+        ly_ctx_destroy(ctx);
+        return 0;
     }
 
     // Call the function-under-test
-    lyd_find_xpath(root, xpath_expr, &set);
+    err = lyd_dup_single(original_node, parent_node, 0, &dup_node);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "lyd_dup_single failed\n");
+    }
 
-    // Cleanup
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lyd_free_all with lyd_free_siblings
-    lyd_free_siblings(root);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_free_siblings to lyd_merge_siblings
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lyd_merge_siblings with lyd_merge_tree
-    LY_ERR ret_lyd_merge_siblings_qzlpx = lyd_merge_tree(NULL, root, 0);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    ly_set_free(set, NULL);  // Pass NULL for the destructor
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ly_ctx_destroy with ly_ctx_free_parsed
-    ly_ctx_free_parsed(ctx);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    free(xpath_expr);
+    // Clean up
+    lyd_free_all(original_node);
+    lyd_free_all(dup_node);
+    ly_ctx_destroy(ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

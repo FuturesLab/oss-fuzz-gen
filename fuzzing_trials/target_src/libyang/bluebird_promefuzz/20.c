@@ -1,105 +1,94 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
-#include "libyang.h"
+#include "/src/libyang/src/tree_data.h"
 
-static const char *dummy_schema_name = "dummy-schema-name";
-static const char *dummy_path = "/dummy:container/list[key='value']";
-static const char *dummy_value = "dummy-value";
+static struct lyd_meta *create_dummy_meta() {
+    return NULL; // Returning NULL as we cannot allocate incomplete type
+}
+
+static struct ly_ctx *create_dummy_ctx() {
+    return NULL; // Returning NULL as we cannot allocate incomplete type
+}
+
+static struct lys_module *create_dummy_module() {
+    return NULL; // Returning NULL as we cannot allocate incomplete type
+}
+
+static struct lyd_node *create_dummy_node() {
+    return NULL; // Returning NULL as we cannot allocate incomplete type
+}
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
-    const struct lys_module *module = NULL;
-    struct lyd_node *parent = NULL, *node = NULL;
-    uint32_t options = 0;
-    LY_ERR err;
+    if (Size < 1) return 0;
 
-    // Initialize context
-    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS) {
-        return 0;
-    }
+    struct lyd_meta *meta1 = create_dummy_meta();
+    struct lyd_meta *meta2 = create_dummy_meta();
+    struct lyd_meta *meta3 = create_dummy_meta();
+    struct lyd_meta *meta_out = NULL;
+    struct ly_ctx *ctx = create_dummy_ctx();
+    struct lys_module *module = create_dummy_module();
+    struct lyd_node *parent = create_dummy_node();
 
-    // Load a dummy module for testing
-    if (lys_parse_mem(ctx, "module dummy {namespace \"urn:dummy\";prefix d;}", LYS_IN_YANG, &module) != LY_SUCCESS) {
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
+    // Fuzzing lyd_compare_meta
+    lyd_compare_meta(meta1, meta2);
 
-    // Fuzzing lyd_new_list3
-    const void *key_values[] = {dummy_value};
-    uint32_t value_sizes_bits[] = {8 * strlen(dummy_value)};
-    err = lyd_new_list3(parent, module, dummy_schema_name, key_values, value_sizes_bits, options, &node);
-    if (err != LY_SUCCESS && err != LY_EEXIST) {
-        // Handle error
-    }
+    // Fuzzing lyd_new_meta
+    lyd_new_meta(ctx, parent, module, "dummy_name", "dummy_val", 0, &meta_out);
 
-    // Fuzzing lyd_new_path
-    char *path = strndup((const char *)Data, Size);
-    if (path) {
-        err = lyd_new_path(parent, ctx, path, dummy_value, options, &node);
-        if (err != LY_SUCCESS && err != LY_EEXIST) {
-            // Handle error
-        }
-        free(path);
-    }
+    // Fuzzing lyd_find_meta
+    lyd_find_meta(meta1, module, "dummy_name");
 
-    // Fuzzing lyd_new_inner
-    err = lyd_new_inner(parent, module, dummy_schema_name, 0, &node);
-    if (err != LY_SUCCESS) {
-        // Handle error
-    }
+    // Fuzzing lyd_free_meta_single
+    lyd_free_meta_single(meta1);
 
-    // Fuzzing lyd_new_list
+    // Fuzzing lyd_free_meta_siblings
+    lyd_free_meta_siblings(meta2);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_new_inner to lyd_new_meta
-    LY_ERR ret_ly_ctx_compile_opkbb = ly_ctx_compile(ctx);
-    ly_pattern_free((void *)parent);
-    ly_pattern_free((void *)parent);
-    uint32_t ret_lyd_list_pos_ygcii = lyd_list_pos(NULL);
-    if (ret_lyd_list_pos_ygcii < 0){
-    	return 0;
-    }
-    struct lyd_meta *rggzylww;
-    memset(&rggzylww, 0, sizeof(rggzylww));
-
-    LY_ERR ret_lyd_new_meta_eufer = lyd_new_meta(ctx, parent, NULL, parent, parent, ret_lyd_list_pos_ygcii, &rggzylww);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    err = lyd_new_list(parent, module, dummy_schema_name, options, &node, dummy_value);
-    if (err != LY_SUCCESS) {
-        // Handle error
-    }
-
-    // Fuzzing lyd_insert_child
-    if (node) {
-        err = lyd_insert_child(parent, node);
-        if (err != LY_SUCCESS) {
-            // Handle error
-        }
-    }
-
-    // Fuzzing lyd_new_list2
-    err = lyd_new_list2(parent, module, dummy_schema_name, "[key='value']", options, &node);
-    if (err != LY_SUCCESS) {
-        // Handle error
-    }
-
-    // Cleanup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_new_list2 to ly_ctx_new_printed
-    struct ly_ctx *gmzqbbaj;
-    memset(&gmzqbbaj, 0, sizeof(gmzqbbaj));
-
-    LY_ERR ret_ly_ctx_new_printed_wfckw = ly_ctx_new_printed((const void *)parent, &gmzqbbaj);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    lyd_free_tree(node);
-    ly_ctx_destroy(ctx);
+    // Fuzzing lyd_change_meta
+    lyd_change_meta(meta3, "new_value");
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

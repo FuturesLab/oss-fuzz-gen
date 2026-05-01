@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -5,57 +6,101 @@
 
 int LLVMFuzzerTestOneInput_88(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *node = NULL;
+    struct lys_module *module = NULL;
     LY_ERR err;
-    char *search_dir = NULL;
-    void *user_data = (void *)0x1; // Dummy non-NULL pointer
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd;
+    FILE *file;
+    LYS_INFORMAT format = LYS_IN_YANG; // Assuming YANG format for fuzzing
 
-    // Initialize the libyang context
+    // Initialize libyang context
     err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
-        fprintf(stderr, "Failed to create libyang context\n");
+        fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Ensure the data is null-terminated for use as a string
-    char *data_str = (char *)malloc(size + 1);
-    if (!data_str) {
+    // Create a temporary file to store the fuzz data
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        fprintf(stderr, "Failed to create temporary file\n");
         ly_ctx_destroy(ctx);
         return 0;
     }
-    memcpy(data_str, data, size);
-    data_str[size] = '\0';
+
+    // Write the fuzz data to the temporary file
+    file = fdopen(fd, "wb");
+    if (!file) {
+        fprintf(stderr, "Failed to open temporary file\n");
+        close(fd);
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
 
     // Call the function-under-test
-    err = ly_ctx_get_yanglib_data(ctx, &node, data_str, user_data);
+    lys_parse_path(ctx, tmpl, format, &module);
 
     // Clean up
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_get_yanglib_data to lyd_validate_op
-    struct lyd_node* ret_lyd_child_no_keys_gqypo = lyd_child_no_keys(node);
-    if (ret_lyd_child_no_keys_gqypo == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lys_parse_path to ly_ctx_get_yanglib_data
+    struct lyd_node* ret_lyd_child_no_keys_efgnw = lyd_child_no_keys(NULL);
+    if (ret_lyd_child_no_keys_efgnw == NULL){
     	return 0;
     }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_child_no_keys to lyd_find_sibling_first
-    lyd_free_siblings(ret_lyd_child_no_keys_gqypo);
-    struct lyd_node* ret_lyd_first_sibling_gmirv = lyd_first_sibling(NULL);
-    if (ret_lyd_first_sibling_gmirv == NULL){
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ctx) {
     	return 0;
     }
-
-    LY_ERR ret_lyd_find_sibling_first_rvtxq = lyd_find_sibling_first(ret_lyd_child_no_keys_gqypo, ret_lyd_first_sibling_gmirv, &ret_lyd_child_no_keys_gqypo);
-
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_lyd_child_no_keys_efgnw) {
+    	return 0;
+    }
+    LY_ERR ret_ly_ctx_get_yanglib_data_dcnbw = ly_ctx_get_yanglib_data(ctx, &ret_lyd_child_no_keys_efgnw, (const char *)"r");
     // End mutation: Producer.APPEND_MUTATOR
-
-    LY_ERR ret_lyd_validate_op_lstxx = lyd_validate_op(node, ret_lyd_child_no_keys_gqypo, 0, &node);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    lyd_free_all(node);
+    
     ly_ctx_destroy(ctx);
-    free(data_str);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_88(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

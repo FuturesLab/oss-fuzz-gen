@@ -1,111 +1,139 @@
 // This fuzz driver is generated for library libyang, aiming to fuzz the following functions:
-// ly_time_tz_offset_at at tree_data_common.c:1478:1 in tree_data.h
-// ly_time_str2ts at tree_data_common.c:1653:1 in tree_data.h
-// ly_time_ts2str at tree_data_common.c:1682:1 in tree_data.h
-// ly_time_time2str at tree_data_common.c:1622:1 in tree_data.h
-// ly_time_str2time at tree_data_common.c:1515:1 in tree_data.h
-// ly_time_tz_offset at tree_data_common.c:1472:1 in tree_data.h
+// ly_ctx_new at context.c:278:1 in context.h
+// ly_ctx_destroy at context.c:1503:1 in context.h
+// ly_ctx_get_submodule_latest at context.c:1106:1 in context.h
+// ly_ctx_get_module_latest_ns at context.c:979:1 in context.h
+// ly_ctx_get_submodule2 at context.c:1112:1 in context.h
+// ly_ctx_get_module_latest at context.c:972:1 in context.h
+// ly_ctx_get_submodule at context.c:1100:1 in context.h
+// ly_ctx_get_submodule2_latest at context.c:1118:1 in context.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <time.h>
-#include "tree_data.h"
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include "context.h"
 
-static void test_ly_time_tz_offset_at(time_t time) {
-    int offset = ly_time_tz_offset_at(time);
-    // Handle the offset if needed
-}
-
-static void test_ly_time_str2ts(const char *value, size_t size) {
-    // Ensure the input string is null-terminated
-    char *null_terminated_value = (char *)malloc(size + 1);
-    if (!null_terminated_value) {
-        return;
+static struct ly_ctx *initialize_context() {
+    // Initialize a dummy libyang context
+    struct ly_ctx *ctx = NULL;
+    if (ly_ctx_new(NULL, 0, &ctx)) {
+        return NULL;
     }
-    memcpy(null_terminated_value, value, size);
-    null_terminated_value[size] = '\0';
-
-    struct timespec ts;
-    LY_ERR err = ly_time_str2ts(null_terminated_value, &ts);
-    // Handle the error if needed
-
-    free(null_terminated_value);
+    return ctx;
 }
 
-static void test_ly_time_ts2str(const struct timespec *ts) {
-    char *str = NULL;
-    LY_ERR err = ly_time_ts2str(ts, &str);
-    // Handle the error and use str if needed
-    free(str);
-}
-
-static void test_ly_time_time2str(time_t time, const char *fractions_s, size_t size) {
-    // Ensure the fractions string is null-terminated
-    char *null_terminated_fractions = (char *)malloc(size + 1);
-    if (!null_terminated_fractions) {
-        return;
+static struct lys_module *initialize_module(struct ly_ctx *ctx, const char *name, const char *ns) {
+    struct lys_module *module = (struct lys_module *)malloc(sizeof(struct lys_module));
+    if (!module) {
+        return NULL;
     }
-    memcpy(null_terminated_fractions, fractions_s, size);
-    null_terminated_fractions[size] = '\0';
-
-    char *str = NULL;
-    LY_ERR err = ly_time_time2str(time, null_terminated_fractions, &str);
-    // Handle the error and use str if needed
-
-    free(str);
-    free(null_terminated_fractions);
+    memset(module, 0, sizeof(struct lys_module));
+    module->ctx = ctx;
+    module->name = name;
+    module->ns = ns;
+    return module;
 }
 
-static void test_ly_time_str2time(const char *value, size_t size) {
-    // Ensure the input string is null-terminated
-    char *null_terminated_value = (char *)malloc(size + 1);
-    if (!null_terminated_value) {
-        return;
+static void cleanup_context(struct ly_ctx *ctx) {
+    if (ctx) {
+        ly_ctx_destroy(ctx);
     }
-    memcpy(null_terminated_value, value, size);
-    null_terminated_value[size] = '\0';
-
-    time_t time;
-    char *fractions_s = NULL;
-    LY_ERR err = ly_time_str2time(null_terminated_value, &time, &fractions_s);
-    // Handle the error and use time and fractions_s if needed
-
-    free(fractions_s);
-    free(null_terminated_value);
 }
 
-static void test_ly_time_tz_offset() {
-    int offset = ly_time_tz_offset();
-    // Handle the offset if needed
+static void cleanup_module(struct lys_module *module) {
+    if (module) {
+        free(module);
+    }
 }
 
 int LLVMFuzzerTestOneInput_45(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size < 2) {
         return 0;
     }
 
-    // Create a dummy file if needed
-    FILE *dummy_file = fopen("./dummy_file", "w");
-    if (dummy_file) {
-        fwrite(Data, 1, Size, dummy_file);
-        fclose(dummy_file);
+    struct ly_ctx *ctx = initialize_context();
+    if (!ctx) {
+        return 0;
     }
 
-    // Use the data to test the functions
-    time_t time = (time_t)Data[0];
-    char *string_data = (char *)Data;
+    // Prepare some dummy strings
+    const char *dummy_submodule_name = "dummy-submodule";
+    const char *dummy_ns = "dummy-namespace";
+    const char *dummy_revision = "2023-01-01";
 
-    test_ly_time_tz_offset_at(time);
-    test_ly_time_str2ts(string_data, Size);
-    
-    struct timespec ts = { .tv_sec = time, .tv_nsec = 0 };
-    test_ly_time_ts2str(&ts);
+    // Attempt to fuzz ly_ctx_get_submodule_latest
+    const struct lysp_submodule *submodule_latest = ly_ctx_get_submodule_latest(ctx, dummy_submodule_name);
 
-    test_ly_time_time2str(time, string_data, Size);
-    test_ly_time_str2time(string_data, Size);
-    test_ly_time_tz_offset();
+    // Attempt to fuzz ly_ctx_get_module_latest_ns
+    struct lys_module *module_latest_ns = ly_ctx_get_module_latest_ns(ctx, dummy_ns);
+
+    // Create a dummy module for further testing
+    struct lys_module *dummy_module = initialize_module(ctx, dummy_submodule_name, dummy_ns);
+    if (!dummy_module) {
+        cleanup_context(ctx);
+        return 0;
+    }
+
+    // Attempt to fuzz ly_ctx_get_submodule2
+    const struct lysp_submodule *submodule2 = ly_ctx_get_submodule2(dummy_module, dummy_submodule_name, dummy_revision);
+
+    // Attempt to fuzz ly_ctx_get_module_latest
+    struct lys_module *module_latest = ly_ctx_get_module_latest(ctx, dummy_submodule_name);
+
+    // Attempt to fuzz ly_ctx_get_submodule
+    const struct lysp_submodule *submodule = ly_ctx_get_submodule(ctx, dummy_submodule_name, dummy_revision);
+
+    // Attempt to fuzz ly_ctx_get_submodule2_latest
+    const struct lysp_submodule *submodule2_latest = ly_ctx_get_submodule2_latest(dummy_module, dummy_submodule_name);
+
+    // Cleanup
+    cleanup_module(dummy_module);
+    cleanup_context(ctx);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_45(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

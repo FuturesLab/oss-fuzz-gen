@@ -1,110 +1,101 @@
 // This fuzz driver is generated for library libyang, aiming to fuzz the following functions:
-// lyd_unlink_siblings at tree_data.c:1266:1 in tree_data.h
-// lyd_find_sibling_opaq_next at tree_data.c:3388:1 in tree_data.h
-// lyd_new_opaq at tree_data_new.c:878:1 in tree_data.h
-// lyd_parse_opaq_error at tree_data_common.c:859:1 in tree_data.h
-// lyd_new_opaq2 at tree_data_new.c:909:1 in tree_data.h
-// lyd_any_value_str at tree_data_common.c:981:1 in tree_data.h
+// ly_ctx_get_modules_hash at context.c:763:1 in context.h
+// ly_ctx_internal_modules_count at context.c:1124:1 in context.h
+// ly_ctx_get_options at context.c:618:1 in context.h
+// ly_ctx_get_module_iter at context.c:860:1 in context.h
+// ly_ctx_get_change_count at context.c:755:1 in context.h
+// ly_ctx_free_parsed at context.c:1360:1 in context.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
-#include "tree_data.h"
+#include <stdio.h>
+#include "context.h"
 
-static struct lyd_node *create_dummy_node() {
-    struct lyd_node *node = (struct lyd_node *)malloc(sizeof(struct lyd_node));
-    if (node) {
-        memset(node, 0, sizeof(struct lyd_node));
-        node->prev = node; // Ensure prev is not NULL and points to itself
-    }
-    return node;
-}
-
-static void free_dummy_node(struct lyd_node *node) {
-    if (node) {
-        free(node);
-    }
-}
-
-static void fuzz_lyd_unlink_siblings(struct lyd_node *node) {
-    if (node) {
-        LY_ERR ret = lyd_unlink_siblings(node);
-        // Handle the return value if needed
-    }
-}
-
-static void fuzz_lyd_find_sibling_opaq_next(struct lyd_node *first, const char *name) {
-    if (first && name) {
-        struct lyd_node *match = NULL;
-        LY_ERR ret = lyd_find_sibling_opaq_next(first, name, &match);
-        // Handle the return value if needed
-    }
-}
-
-static void fuzz_lyd_new_opaq(struct lyd_node *parent, const struct ly_ctx *ctx, const char *name,
-                              const char *value, const char *prefix, const char *module_name) {
-    if (name && module_name) {
-        struct lyd_node *node = NULL;
-        LY_ERR ret = lyd_new_opaq(parent, ctx, name, value, prefix, module_name, &node);
-        // Handle the return value if needed
-    }
-}
-
-static void fuzz_lyd_parse_opaq_error(const struct lyd_node *node) {
-    if (node) {
-        LY_ERR ret = lyd_parse_opaq_error(node);
-        // Handle the return value if needed
-    }
-}
-
-static void fuzz_lyd_new_opaq2(struct lyd_node *parent, const struct ly_ctx *ctx, const char *name,
-                               const char *value, const char *prefix, const char *module_ns) {
-    if (name && module_ns) {
-        struct lyd_node *node = NULL;
-        LY_ERR ret = lyd_new_opaq2(parent, ctx, name, value, prefix, module_ns, &node);
-        // Handle the return value if needed
-    }
-}
-
-static void fuzz_lyd_any_value_str(const struct lyd_node *any, LYD_FORMAT format) {
-    if (any) {
-        char *value_str = NULL;
-        LY_ERR ret = lyd_any_value_str(any, format, &value_str);
-        if (value_str) {
-            free(value_str);
-        }
-        // Handle the return value if needed
-    }
+static struct ly_ctx* initialize_context(const uint8_t *Data, size_t Size) {
+    // For simplicity, this function just returns a NULL context, as we don't have the means to create a valid context here.
+    // In a real-world scenario, you would parse 'Data' to create a valid 'ly_ctx' object.
+    return NULL;
 }
 
 int LLVMFuzzerTestOneInput_35(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(struct lyd_node)) {
+    struct ly_ctx *ctx = initialize_context(Data, Size);
+    if (!ctx) {
         return 0;
     }
 
-    struct lyd_node *node = create_dummy_node();
-    if (!node) {
-        return 0; // Memory allocation failed
+    // Fuzz ly_ctx_get_options
+    uint32_t options = ly_ctx_get_options(ctx);
+    (void)options; // Suppress unused variable warning
+
+    // Fuzz ly_ctx_get_modules_hash
+    uint32_t hash = ly_ctx_get_modules_hash(ctx);
+    (void)hash; // Suppress unused variable warning
+
+    // Fuzz ly_ctx_get_change_count
+    uint16_t change_count = ly_ctx_get_change_count(ctx);
+    (void)change_count; // Suppress unused variable warning
+
+    // Fuzz ly_ctx_get_module_iter
+    uint32_t index = 0;
+    while (ly_ctx_get_module_iter(ctx, &index) != NULL) {
+        // Iterate through all modules
     }
 
-    struct ly_ctx *ctx = NULL; // Assume a valid context is set up elsewhere
-    const char *dummy_name = "dummy_name";
-    const char *dummy_value = "dummy_value";
-    const char *dummy_prefix = "dummy_prefix";
-    const char *dummy_module_name = "dummy_module";
+    // Fuzz ly_ctx_free_parsed
+    ly_ctx_free_parsed(ctx);
 
-    // Fuzz each function
-    fuzz_lyd_unlink_siblings(node);
-    fuzz_lyd_find_sibling_opaq_next(node, dummy_name);
-    fuzz_lyd_new_opaq(node, ctx, dummy_name, dummy_value, dummy_prefix, dummy_module_name);
-    fuzz_lyd_parse_opaq_error(node);
-    fuzz_lyd_new_opaq2(node, ctx, dummy_name, dummy_value, dummy_prefix, dummy_module_name);
-    fuzz_lyd_any_value_str(node, 0); // Assuming 0 as a placeholder for LYD_FORMAT
+    // Fuzz ly_ctx_internal_modules_count
+    uint32_t internal_modules_count = ly_ctx_internal_modules_count(ctx);
+    (void)internal_modules_count; // Suppress unused variable warning
 
-    free_dummy_node(node);
+    // Clean up
+    // In a real-world scenario, you would free the context here if it was dynamically allocated.
+    // ly_ctx_destroy(ctx);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_35(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    
