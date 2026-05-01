@@ -1,89 +1,152 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
+// aom_codec_av1_cx at av1_cx_iface.c:5345:20 in aomcx.h
+// aom_codec_enc_config_default at aom_encoder.c:100:17 in aom_encoder.h
+// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
+// aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR at aomcx.h:2399:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_QUANTIZER_ONE_PASS at aomcx.h:2381:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_SVC_PARAMS at aomcx.h:2290:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_TIMING_INFO_TYPE at aomcx.h:2225:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC at aomcx.h:2408:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_INTER_DCT_ONLY at aomcx.h:2252:1 in aomcx.h
 // aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
 #include <iostream>
-#include <cstdint>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <cstring>
 #include <cstdlib>
 #include <cstdio>
-extern "C" {
-#include <aom/aom_codec.h>
-#include <aom/aom_encoder.h>
-#include <aom/aomcx.h>
-#include <aom/aom_decoder.h>
-#include <aom/aomdx.h>
-#include <aom/aom.h>
-#include <aom/aom_image.h>
-#include <aom/aom_integer.h>
-#include <aom/aom_frame_buffer.h>
-#include <aom/aom_external_partition.h>
-}
-
-static void InitializeCodecContext(aom_codec_ctx_t &codec_ctx) {
-    codec_ctx.name = "AV1 Codec";
-    codec_ctx.iface = aom_codec_av1_cx();
-    codec_ctx.err = AOM_CODEC_OK;
-    codec_ctx.init_flags = 0;
-    codec_ctx.priv = nullptr;
-}
-
-static void CleanupCodecContext(aom_codec_ctx_t &codec_ctx) {
-    aom_codec_destroy(&codec_ctx);
-}
+#include <cstdint>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include "aom.h"
+#include "aom_codec.h"
+#include "aomcx.h"
+#include "aom_decoder.h"
+#include "aom_encoder.h"
+#include "aom_external_partition.h"
+#include "aom_frame_buffer.h"
+#include "aom_image.h"
+#include "aom_integer.h"
 
 extern "C" int LLVMFuzzerTestOneInput_74(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) {
+    if (Size < sizeof(aom_codec_ctx_t) + sizeof(aom_svc_params_t)) {
         return 0;
     }
 
+    // Initialize codec context with default encoder interface
     aom_codec_ctx_t codec_ctx;
-    InitializeCodecContext(codec_ctx);
-
-    int control_id = Data[0] % 6;
-    int value = *reinterpret_cast<const int*>(Data);
-
-    aom_codec_err_t res = AOM_CODEC_OK;
-    switch (control_id) {
-        case 0:
-            res = aom_codec_control(&codec_ctx, AV1E_SET_COLOR_PRIMARIES, value);
-            break;
-        case 1:
-            res = aom_codec_control(&codec_ctx, AV1E_SET_COLOR_RANGE, value);
-            break;
-        case 2:
-            res = aom_codec_control(&codec_ctx, AV1E_SET_S_FRAME_MODE, value);
-            break;
-        case 3:
-            res = aom_codec_control(&codec_ctx, AV1E_SET_TUNE_CONTENT, value);
-            break;
-        case 4:
-            {
-                aom_ext_part_funcs_t part_funcs;
-                part_funcs.decision_mode = static_cast<aom_ext_part_decision_mode_t>(value % 2);
-                res = aom_codec_control(&codec_ctx, AV1E_SET_EXTERNAL_PARTITION, &part_funcs);
-            }
-            break;
-        case 5:
-            {
-                int width = value % 65536;
-                int height = (value / 65536) % 65536;
-                res = aom_codec_control(&codec_ctx, AV1E_SET_RENDER_SIZE, width, height);
-            }
-            break;
-        default:
-            break;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    aom_codec_enc_cfg_t cfg;
+    if (aom_codec_enc_config_default(iface, &cfg, 0) != AOM_CODEC_OK) {
+        return 0;
     }
 
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "Error: " << codec_ctx.err << std::endl;
+    if (aom_codec_enc_init(&codec_ctx, iface, &cfg, 0) != AOM_CODEC_OK) {
+        return 0;
     }
 
-    CleanupCodecContext(codec_ctx);
+    // Prepare SVC parameters
+    aom_svc_params_t svc_params;
+    memcpy(&svc_params, Data, sizeof(aom_svc_params_t));
+    Data += sizeof(aom_svc_params_t);
+    Size -= sizeof(aom_svc_params_t);
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR
+    if (Size >= sizeof(int)) {
+        int max_consec_frame_drop_cbr = *reinterpret_cast<const int*>(Data);
+        aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR(
+            &codec_ctx, AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR, max_consec_frame_drop_cbr);
+        Data += sizeof(int);
+        Size -= sizeof(int);
+    }
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_QUANTIZER_ONE_PASS
+    if (Size >= sizeof(int)) {
+        int quantizer_one_pass = *reinterpret_cast<const int*>(Data);
+        aom_codec_control_typechecked_AV1E_SET_QUANTIZER_ONE_PASS(
+            &codec_ctx, AV1E_SET_QUANTIZER_ONE_PASS, quantizer_one_pass);
+        Data += sizeof(int);
+        Size -= sizeof(int);
+    }
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_SVC_PARAMS
+    aom_codec_control_typechecked_AV1E_SET_SVC_PARAMS(
+        &codec_ctx, AV1E_SET_SVC_PARAMS, &svc_params);
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_TIMING_INFO_TYPE
+    if (Size >= sizeof(int)) {
+        int timing_info_type = *reinterpret_cast<const int*>(Data);
+        aom_codec_control_typechecked_AV1E_SET_TIMING_INFO_TYPE(
+            &codec_ctx, AV1E_SET_TIMING_INFO_TYPE, timing_info_type);
+        Data += sizeof(int);
+        Size -= sizeof(int);
+    }
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC
+    if (Size >= sizeof(int)) {
+        int postencode_drop_rtc = *reinterpret_cast<const int*>(Data);
+        aom_codec_control_typechecked_AV1E_SET_POSTENCODE_DROP_RTC(
+            &codec_ctx, AV1E_SET_POSTENCODE_DROP_RTC, postencode_drop_rtc);
+        Data += sizeof(int);
+        Size -= sizeof(int);
+    }
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_INTER_DCT_ONLY
+    if (Size >= sizeof(int)) {
+        int inter_dct_only = *reinterpret_cast<const int*>(Data);
+        aom_codec_control_typechecked_AV1E_SET_INTER_DCT_ONLY(
+            &codec_ctx, AV1E_SET_INTER_DCT_ONLY, inter_dct_only);
+        Data += sizeof(int);
+        Size -= sizeof(int);
+    }
+
+    // Cleanup codec context
+    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_74(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

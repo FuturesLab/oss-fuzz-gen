@@ -1,10 +1,13 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_control_typechecked_AOME_SET_CQ_LEVEL at aomcx.h:1937:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_ENABLEAUTOALTREF at aomcx.h:1913:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_ARNR_STRENGTH at aomcx.h:1931:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_ENABLEAUTOBWDREF at aomcx.h:2034:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_ARNR_MAXFRAMES at aomcx.h:1928:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_SHARPNESS at aomcx.h:1916:1 in aomcx.h
+// aom_codec_av1_cx at av1_cx_iface.c:5345:20 in aomcx.h
+// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,60 +19,86 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
-#include <cstdint>
-#include <cstring>
-#include "aom_integer.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom_frame_buffer.h"
-#include "aom_encoder.h"
-#include "aom_external_partition.h"
 #include "aom.h"
-#include "aom_decoder.h"
+#include "aom_codec.h"
 #include "aomcx.h"
-#include "aomdx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *Data, size_t Size) {
     if (Size < 6) return 0;
 
-    // Initialize codec context
     aom_codec_ctx_t codec_ctx;
-    memset(&codec_ctx, 0, sizeof(codec_ctx));
-    codec_ctx.name = "test_codec";
-    codec_ctx.iface = nullptr;
-    codec_ctx.err = static_cast<aom_codec_err_t>(0);
-    codec_ctx.init_flags = 0;
-    codec_ctx.priv = nullptr;
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    int noise_level = Data[0] % 100; // Assuming noise level is between 0 and 99
+    int enable_dist_wtd_comp = Data[1] % 2; // 0 or 1
+    int screen_content_mode = Data[2] % 2; // 0 or 1
+    int enable_directional_intra = Data[3] % 2; // 0 or 1
+    int reduced_reference_set = Data[4] % 2; // 0 or 1
+    int intra_dct_only = Data[5] % 2; // 0 or 1
 
-    // Prepare a dummy file
-    std::ofstream dummy_file("./dummy_file", std::ios::binary);
-    if (!dummy_file) return 0;
-    dummy_file.write(reinterpret_cast<const char*>(Data), Size);
-    dummy_file.close();
+    if (aom_codec_enc_init(&codec_ctx, iface, nullptr, 0)) {
+        std::cerr << "Failed to initialize codec" << std::endl;
+        return 0;
+    }
 
-    // Fuzz aom_codec_control_typechecked_AOME_SET_CQ_LEVEL
-    int cq_level = Data[0] % 64; // Example: CQ level between 0 and 63
-    aom_codec_control_typechecked_AOME_SET_CQ_LEVEL(&codec_ctx, AOME_SET_CQ_LEVEL, cq_level);
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_DENOISE_NOISE_LEVEL
+    aom_codec_control(&codec_ctx, AV1E_SET_DENOISE_NOISE_LEVEL, noise_level);
 
-    // Fuzz aom_codec_control_typechecked_AOME_SET_ENABLEAUTOALTREF
-    int auto_alt_ref = Data[1] % 2; // Enable or disable
-    aom_codec_control_typechecked_AOME_SET_ENABLEAUTOALTREF(&codec_ctx, AOME_SET_ENABLEAUTOALTREF, auto_alt_ref);
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_DIST_WTD_COMP
+    aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_DIST_WTD_COMP, enable_dist_wtd_comp);
 
-    // Fuzz aom_codec_control_typechecked_AOME_SET_ARNR_STRENGTH
-    int arnr_strength = Data[2] % 8; // Example: ARNR strength between 0 and 7
-    aom_codec_control_typechecked_AOME_SET_ARNR_STRENGTH(&codec_ctx, AOME_SET_ARNR_STRENGTH, arnr_strength);
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_SCREEN_CONTENT_DETECTION_MODE
+    aom_codec_control(&codec_ctx, AV1E_SET_SCREEN_CONTENT_DETECTION_MODE, screen_content_mode);
 
-    // Fuzz aom_codec_control_typechecked_AOME_SET_ENABLEAUTOBWDREF
-    int auto_bwd_ref = Data[3] % 2; // Enable or disable
-    aom_codec_control_typechecked_AOME_SET_ENABLEAUTOBWDREF(&codec_ctx, AOME_SET_ENABLEAUTOBWDREF, auto_bwd_ref);
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_DIRECTIONAL_INTRA
+    aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_DIRECTIONAL_INTRA, enable_directional_intra);
 
-    // Fuzz aom_codec_control_typechecked_AOME_SET_ARNR_MAXFRAMES
-    int arnr_maxframes = Data[4] % 15; // Example: ARNR max frames between 0 and 14
-    aom_codec_control_typechecked_AOME_SET_ARNR_MAXFRAMES(&codec_ctx, AOME_SET_ARNR_MAXFRAMES, arnr_maxframes);
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_REDUCED_REFERENCE_SET
+    aom_codec_control(&codec_ctx, AV1E_SET_REDUCED_REFERENCE_SET, reduced_reference_set);
 
-    // Fuzz aom_codec_control_typechecked_AOME_SET_SHARPNESS
-    int sharpness = Data[5] % 8; // Example: Sharpness level between 0 and 7
-    aom_codec_control_typechecked_AOME_SET_SHARPNESS(&codec_ctx, AOME_SET_SHARPNESS, sharpness);
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_INTRA_DCT_ONLY
+    aom_codec_control(&codec_ctx, AV1E_SET_INTRA_DCT_ONLY, intra_dct_only);
+
+    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_39(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

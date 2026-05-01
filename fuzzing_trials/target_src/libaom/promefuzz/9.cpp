@@ -1,11 +1,17 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_img_free at aom_image.c:304:6 in aom_image.h
-// aom_img_add_metadata at aom_image.c:380:5 in aom_image.h
-// aom_img_flip at aom_image.c:285:6 in aom_image.h
-// aom_img_num_metadata at aom_image.c:429:8 in aom_image.h
-// aom_img_get_metadata at aom_image.c:419:23 in aom_image.h
-// aom_img_remove_metadata at aom_image.c:412:6 in aom_image.h
-#include <iostream>
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_codec_av1_dx at av1_dx_iface.c:1813:20 in aomdx.h
+// aom_codec_dec_init_ver at aom_decoder.c:25:17 in aom_decoder.h
+// aom_codec_error at aom_codec.c:56:13 in aom_codec.h
+// aom_codec_error at aom_codec.c:56:13 in aom_codec.h
+// aom_codec_error_detail at aom_codec.c:61:13 in aom_codec.h
+// aom_codec_error_detail at aom_codec.c:61:13 in aom_codec.h
+// aom_codec_get_preview_frame at aom_encoder.c:264:20 in aom_encoder.h
+// aom_codec_get_preview_frame at aom_encoder.c:264:20 in aom_encoder.h
+// aom_codec_get_frame at aom_decoder.c:109:14 in aom_decoder.h
+// aom_codec_get_frame at aom_decoder.c:109:14 in aom_decoder.h
+// aom_codec_encode at aom_encoder.c:168:17 in aom_encoder.h
+// aom_codec_encode at aom_encoder.c:168:17 in aom_encoder.h
 #include <sstream>
 #include <string>
 #include <vector>
@@ -14,84 +20,139 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
-#include <aom/aom_integer.h>
-#include <aom/aom_image.h>
-#include <aom/aom_codec.h>
-#include <aom/aom_frame_buffer.h>
-#include <aom/aom_encoder.h>
-#include <aom/aom_external_partition.h>
-#include <aom/aom.h>
-#include <aom/aomcx.h>
-#include <aom/aom_decoder.h>
-#include <aom/aomdx.h>
-}
-
-#include <cstddef>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
-#include <fstream>
-
-static void initialize_image(aom_image_t &img) {
-    img.fmt = AOM_IMG_FMT_I420;
-    img.cp = AOM_CICP_CP_BT_709;
-    img.tc = AOM_CICP_TC_BT_709;
-    img.mc = AOM_CICP_MC_BT_709;
-    img.monochrome = 0;
-    img.csp = AOM_CSP_UNKNOWN;
-    img.range = AOM_CR_FULL_RANGE;
-    img.w = 640;
-    img.planes[0] = nullptr;  // Y plane
-    img.planes[1] = nullptr;  // U plane
-    img.planes[2] = nullptr;  // V plane
-    img.stride[0] = 640;
-    img.stride[1] = 320;
-    img.stride[2] = 320;
-    img.sz = 640 * 480 + 2 * (320 * 240);
-    img.img_data = new unsigned char[img.sz];
-    img.metadata = nullptr;
-
-    // Assign planes to point into img_data
-    img.planes[0] = img.img_data;
-    img.planes[1] = img.img_data + (640 * 480);
-    img.planes[2] = img.img_data + (640 * 480) + (320 * 240);
-}
-
-static void cleanup_image(aom_image_t &img) {
-    delete[] img.img_data;
-    aom_img_free(&img);
-}
+#include "aomdx.h"
+#include "aom.h"
+#include "aom_codec.h"
+#include "aom_external_partition.h"
+#include "aom_decoder.h"
+#include "aom_image.h"
+#include "aomcx.h"
+#include "aom_integer.h"
+#include "aom_frame_buffer.h"
+#include "aom_encoder.h"
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(aom_codec_ctx_t)) {
+        return 0; // Not enough data to proceed
+    }
 
+    // Initialize a codec context
+    aom_codec_ctx_t ctx;
+    aom_codec_iface_t *iface = aom_codec_av1_dx();
+    if (aom_codec_dec_init(&ctx, iface, nullptr, 0) != AOM_CODEC_OK) {
+        return 0; // Initialization failed
+    }
+
+    // Fuzz aom_codec_error with both valid and null context
+    const char *error_message = aom_codec_error(&ctx);
+    if (error_message) {
+        printf("Error message: %s\n", error_message);
+    }
+
+    error_message = aom_codec_error(nullptr);
+    if (error_message) {
+        printf("Error message for null context: %s\n", error_message);
+    }
+
+    // Fuzz aom_codec_error_detail with both valid and null context
+    const char *error_detail = aom_codec_error_detail(&ctx);
+    if (error_detail) {
+        printf("Error detail: %s\n", error_detail);
+    }
+
+    error_detail = aom_codec_error_detail(nullptr);
+    if (error_detail) {
+        printf("Error detail for null context: %s\n", error_detail);
+    }
+
+    // Fuzz aom_codec_get_preview_frame with both valid and null context
+    const aom_image_t *preview_frame = aom_codec_get_preview_frame(&ctx);
+    if (preview_frame) {
+        printf("Preview frame width: %u\n", preview_frame->w);
+    }
+
+    preview_frame = aom_codec_get_preview_frame(nullptr);
+    if (preview_frame) {
+        printf("Preview frame for null context width: %u\n", preview_frame->w);
+    }
+
+    // Fuzz aom_codec_get_frame with both valid and null context
+    aom_codec_iter_t iter = nullptr;
+    aom_image_t *frame = aom_codec_get_frame(&ctx, &iter);
+    if (frame) {
+        printf("Frame width: %u\n", frame->w);
+    }
+
+    frame = aom_codec_get_frame(nullptr, &iter);
+    if (frame) {
+        printf("Frame for null context width: %u\n", frame->w);
+    }
+
+    // Prepare a dummy image for encoding
     aom_image_t img;
-    initialize_image(img);
+    img.fmt = AOM_IMG_FMT_I420;
+    img.w = 640; // Example width
+    img.h = 480; // Example height
+    img.planes[0] = (unsigned char *)malloc(img.w * img.h); // Y plane
+    img.planes[1] = (unsigned char *)malloc(img.w * img.h / 4); // U plane
+    img.planes[2] = (unsigned char *)malloc(img.w * img.h / 4); // V plane
 
-    // Fuzz aom_img_add_metadata
-    if (Size > 10) {
-        uint32_t type = Data[0];
-        size_t metadata_size = Size - 10;
-        aom_metadata_insert_flags_t insert_flag = static_cast<aom_metadata_insert_flags_t>(Data[1] % 19);
-        aom_img_add_metadata(&img, type, Data + 10, metadata_size, insert_flag);
-    }
+    // Fuzz aom_codec_encode with both valid and null image
+    aom_codec_err_t encode_result = aom_codec_encode(&ctx, &img, 0, 1, 0);
+    printf("Encode result: %d\n", encode_result);
 
-    // Fuzz aom_img_flip
-    aom_img_flip(&img);
+    encode_result = aom_codec_encode(&ctx, nullptr, 0, 0, 0);
+    printf("Encode result for null image: %d\n", encode_result);
 
-    // Fuzz aom_img_num_metadata
-    size_t num_metadata = aom_img_num_metadata(&img);
+    // Cleanup
+    free(img.planes[0]);
+    free(img.planes[1]);
+    free(img.planes[2]);
+    aom_codec_destroy(&ctx);
 
-    // Fuzz aom_img_get_metadata
-    if (num_metadata > 0) {
-        size_t index = Data[2] % num_metadata;
-        const aom_metadata_t *metadata = aom_img_get_metadata(&img, index);
-        (void)metadata;  // Use metadata in some way if needed
-    }
-
-    // Fuzz aom_img_remove_metadata
-    aom_img_remove_metadata(&img);
-
-    cleanup_image(img);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

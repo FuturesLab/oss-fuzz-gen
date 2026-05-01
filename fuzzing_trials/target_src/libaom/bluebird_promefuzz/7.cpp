@@ -1,6 +1,5 @@
 #include <string.h>
 #include <sys/stat.h>
-#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -9,80 +8,99 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
-#include "/src/aom/aom/aom_codec.h"
-#include "/src/aom/aom/aom_encoder.h"
-#include "/src/aom/aom/aomcx.h"
-}
-
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-
-static void initialize_codec(aom_codec_ctx_t *codec_ctx, aom_codec_iface_t *iface) {
-    aom_codec_enc_cfg_t cfg;
-    if (aom_codec_enc_config_default(iface, &cfg, 0) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to get default codec config.\n");
-        exit(1);
-    }
-
-    if (aom_codec_enc_init(codec_ctx, iface, &cfg, 0) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to initialize codec.\n");
-        exit(1);
-    }
-}
-
-static void cleanup_codec(aom_codec_ctx_t *codec_ctx) {
-    if (aom_codec_destroy(codec_ctx) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to destroy codec.\n");
-    }
-}
-
-static void fuzz_codec_controls(aom_codec_ctx_t *codec_ctx, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    int cq_level = Data[0] % 64; // CQ level range
-    if (aom_codec_control(codec_ctx, AOME_SET_CQ_LEVEL, cq_level) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to set CQ level.\n");
-    }
-
-    if (Size < 2) return;
-    int enable_auto_alt_ref = Data[1] % 2;
-    if (aom_codec_control(codec_ctx, AOME_SET_ENABLEAUTOALTREF, enable_auto_alt_ref) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to set auto alt ref.\n");
-    }
-
-    if (Size < 3) return;
-    int num_spatial_layers = Data[2] % 5 + 1; // 1 to 5 layers
-    if (aom_codec_control(codec_ctx, AOME_SET_NUMBER_SPATIAL_LAYERS, num_spatial_layers) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to set number of spatial layers.\n");
-    }
-
-    int loop_filter_level;
-    if (aom_codec_control(codec_ctx, AOME_GET_LOOPFILTER_LEVEL, &loop_filter_level) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to get loop filter level.\n");
-    }
-
-    if (Size < 4) return;
-    int arnr_max_frames = Data[3] % 16; // ARNR max frames range
-    if (aom_codec_control(codec_ctx, AOME_SET_ARNR_MAXFRAMES, arnr_max_frames) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to set ARNR max frames.\n");
-    }
-
-    if (Size < 5) return;
-    int sharpness = Data[4] % 8; // Sharpness range
-    if (aom_codec_control(codec_ctx, AOME_SET_SHARPNESS, sharpness) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to set sharpness.\n");
-    }
-}
+#include <cstring>
+#include "aom/aomdx.h"
+#include "/src/aom/aom/aom.h"
+#include "/src/aom/aom/aom_codec.h"
+#include "/src/aom/aom/aom_external_partition.h"
+#include "aom/aom_decoder.h"
+#include "/src/aom/aom/aom_image.h"
+#include "/src/aom/aom/aomcx.h"
+#include "/src/aom/aom/aom_integer.h"
+#include "/src/aom/aom/aom_frame_buffer.h"
+#include "/src/aom/aom/aom_encoder.h"
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    if (Size < sizeof(aom_codec_ctx_t)) {
+        return 0; // Not enough data to proceed
+    }
 
-    initialize_codec(&codec_ctx, iface);
-    fuzz_codec_controls(&codec_ctx, Data, Size);
-    cleanup_codec(&codec_ctx);
+    // Initialize a codec context
+    aom_codec_ctx_t ctx;
+    aom_codec_iface_t *iface = aom_codec_av1_dx();
+    if (aom_codec_dec_init(&ctx, iface, nullptr, 0) != AOM_CODEC_OK) {
+        return 0; // Initialization failed
+    }
+
+    // Fuzz aom_codec_error with both valid and null context
+    const char *error_message = aom_codec_error(&ctx);
+    if (error_message) {
+        printf("Error message: %s\n", error_message);
+    }
+
+    error_message = aom_codec_error(nullptr);
+    if (error_message) {
+        printf("Error message for null context: %s\n", error_message);
+    }
+
+    // Fuzz aom_codec_error_detail with both valid and null context
+    const char *error_detail = aom_codec_error_detail(&ctx);
+    if (error_detail) {
+        printf("Error detail: %s\n", error_detail);
+    }
+
+    error_detail = aom_codec_error_detail(nullptr);
+    if (error_detail) {
+        printf("Error detail for null context: %s\n", error_detail);
+    }
+
+    // Fuzz aom_codec_get_preview_frame with both valid and null context
+    const aom_image_t *preview_frame = aom_codec_get_preview_frame(&ctx);
+    if (preview_frame) {
+        printf("Preview frame width: %u\n", preview_frame->w);
+    }
+
+    preview_frame = aom_codec_get_preview_frame(nullptr);
+    if (preview_frame) {
+        printf("Preview frame for null context width: %u\n", preview_frame->w);
+    }
+
+    // Fuzz aom_codec_get_frame with both valid and null context
+    aom_codec_iter_t iter = nullptr;
+    aom_image_t *frame = aom_codec_get_frame(&ctx, &iter);
+    if (frame) {
+        printf("Frame width: %u\n", frame->w);
+    }
+
+    frame = aom_codec_get_frame(nullptr, &iter);
+    if (frame) {
+        printf("Frame for null context width: %u\n", frame->w);
+    }
+
+    // Prepare a dummy image for encoding
+    aom_image_t img;
+    img.fmt = AOM_IMG_FMT_I420;
+    img.w = 640; // Example width
+    img.h = 480; // Example height
+    img.planes[0] = (unsigned char *)malloc(img.w * img.h); // Y plane
+    img.planes[1] = (unsigned char *)malloc(img.w * img.h / 4); // U plane
+    img.planes[2] = (unsigned char *)malloc(img.w * img.h / 4); // V plane
+
+    // Fuzz aom_codec_encode with both valid and null image
+    aom_codec_err_t encode_result = aom_codec_encode(&ctx, &img, 0, 1, 0);
+    printf("Encode result: %d\n", encode_result);
+
+    encode_result = aom_codec_encode(&ctx, nullptr, 0, 0, 0);
+    printf("Encode result for null image: %d\n", encode_result);
+
+    // Cleanup
+    free(img.planes[0]);
+    free(img.planes[1]);
+    free(img.planes[2]);
+    aom_codec_destroy(&ctx);
 
     return 0;
 }

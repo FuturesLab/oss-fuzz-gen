@@ -9,71 +9,78 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <iostream>
+#include <fstream>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "/src/aom/aom/aom_codec.h"
-#include "/src/aom/aom/aom_encoder.h"
+#include "aom/aomdx.h"
 #include "/src/aom/aom/aom.h"
-#include "/src/aom/aom/aomcx.h"
+#include "/src/aom/aom/aom_codec.h"
+#include "aom/aom_decoder.h"
+#include "/src/aom/aom/aom_image.h"
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_codec_enc_cfg_t)) {
+    if (Size == 0) {
         return 0;
     }
-
-    // Prepare encoder configuration
-    aom_codec_enc_cfg_t cfg;
-    memcpy(&cfg, Data, sizeof(cfg));
 
     // Initialize codec context
-    aom_codec_ctx_t codec;
-    memset(&codec, 0, sizeof(codec));
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_iface_t *iface = aom_codec_av1_dx();
+    aom_codec_dec_cfg_t cfg = {0};
+    aom_codec_flags_t flags = 0;
+    int ver = AOM_DECODER_ABI_VERSION;
 
-    // Initialize encoder interface
-    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    // Initialize the decoder
+    if (aom_codec_dec_init_ver(&codec_ctx, iface, &cfg, flags, ver) != AOM_CODEC_OK) {
+        return 0;
+    }
+
+    // Prepare aom_codec_stream_info_t
+    aom_codec_stream_info_t stream_info;
+    stream_info.w = 0;
+
+    // Peek stream info
+    if (aom_codec_peek_stream_info(iface, Data, Size, &stream_info) == AOM_CODEC_OK) {
+        // Decode the input data
+        if (aom_codec_decode(&codec_ctx, Data, Size, nullptr) == AOM_CODEC_OK) {
+            // Retrieve frames
+            aom_codec_iter_t iter = nullptr;
+            aom_image_t *img;
+            while ((img = aom_codec_get_frame(&codec_ctx, &iter)) != nullptr) {
+                // Process the image (img)
+                // For the purpose of fuzzing, we don't need to do anything with img
+            }
+        }
+    }
+
+    // Get stream info after decoding
+    if (aom_codec_get_stream_info(&codec_ctx, &stream_info) != AOM_CODEC_OK) {
+        // Handle error in getting stream info
+    }
+
+    // Destroy the codec context
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_peek_stream_info to aom_codec_decode
+    size_t ret_aom_uleb_size_in_bytes_qnxac = aom_uleb_size_in_bytes(Size);
+    if (ret_aom_uleb_size_in_bytes_qnxac < 0){
+    	return 0;
+    }
+    size_t ret_aom_img_num_metadata_zzdaw = aom_img_num_metadata(NULL);
+    if (ret_aom_img_num_metadata_zzdaw < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
     if (!iface) {
-        return 0;
+    	return 0;
     }
-
-    // Initialize the encoder
-    aom_codec_err_t res = aom_codec_enc_init_ver(&codec, iface, &cfg, 0, AOM_ENCODER_ABI_VERSION);
-    if (res != AOM_CODEC_OK) {
-        return 0;
-    }
-
-    // Set active map
-    aom_active_map_t active_map;
-    active_map.rows = 1;
-    active_map.active_map = new unsigned char[1];
-    active_map.active_map[0] = 1;
-    res = aom_codec_control(&codec, AOME_SET_ACTIVEMAP, &active_map);
-    delete[] active_map.active_map;
-
-    // Set ROI map
-    aom_roi_map_t roi_map;
-    roi_map.enabled = 1;
-    roi_map.rows = 1;
-    roi_map.roi_map = new unsigned char[1];
-    roi_map.roi_map[0] = 0;
-    res = aom_codec_control(&codec, AOME_SET_ROI_MAP, &roi_map);
-    delete[] roi_map.roi_map;
-
-    // Get last quantizer
-    int last_quantizer;
-    res = aom_codec_control(&codec, AOME_GET_LAST_QUANTIZER, &last_quantizer);
-
-    // Set tile rows
-    int tile_rows = 2;
-    res = aom_codec_control(&codec, AV1E_SET_TILE_ROWS, tile_rows);
-
-    // Get active map
-    aom_active_map_t retrieved_active_map;
-    res = aom_codec_control(&codec, AV1E_GET_ACTIVEMAP, &retrieved_active_map);
-
-    // Cleanup
-    aom_codec_destroy(&codec);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of aom_codec_decode
+    aom_codec_err_t ret_aom_codec_decode_qhxtp = aom_codec_decode(&codec_ctx, NULL, ret_aom_img_num_metadata_zzdaw, (void *)iface);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }

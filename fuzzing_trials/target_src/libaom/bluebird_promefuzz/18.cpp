@@ -1,110 +1,89 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <cstring>
-#include <cstdlib>
-#include <cstdio>
-#include <cstdint>
-#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include "aom/aomdx.h"
 #include "/src/aom/aom/aom.h"
 #include "/src/aom/aom/aom_codec.h"
-#include "/src/aom/aom/aomcx.h"
-#include "/src/aom/aom/aom_encoder.h"
 #include "/src/aom/aom/aom_external_partition.h"
+#include "aom/aom_decoder.h"
+#include "/src/aom/aom/aomcx.h"
+#include "/src/aom/aom/aom_integer.h"
 #include "/src/aom/aom/aom_frame_buffer.h"
 #include "/src/aom/aom/aom_image.h"
-#include "/src/aom/aom/aom_integer.h"
-#include "aom/aomdx.h"
-#include "aom/aom_decoder.h"
+#include "/src/aom/aom/aom_encoder.h"
+
+static void InitializeCodecContext(aom_codec_ctx_t &codec_ctx, aom_codec_iface_t *iface) {
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
+    codec_ctx.iface = iface;
+    codec_ctx.err = AOM_CODEC_OK;
+    codec_ctx.priv = nullptr;
+}
+
+static void CleanupCodecContext(aom_codec_ctx_t &codec_ctx) {
+    aom_codec_destroy(&codec_ctx);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) {
+    if (Size < 1) return 0;
+
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_iface_t *iface = aom_codec_av1_dx();
+
+    InitializeCodecContext(codec_ctx, iface);
+
+    // Use dummy data for codec initialization
+    aom_codec_dec_cfg_t cfg = {0};
+    cfg.threads = 1;
+    cfg.allow_lowbitdepth = 1;
+
+    if (aom_codec_dec_init(&codec_ctx, iface, &cfg, 0) != AOM_CODEC_OK) {
+        CleanupCodecContext(codec_ctx);
         return 0;
     }
 
-    // Initialize codec context
-    aom_codec_ctx_t codec;
-    aom_codec_iface_t *iface = aom_codec_av1_cx();
-    aom_codec_enc_cfg_t cfg;
-    if (aom_codec_enc_config_default(iface, &cfg, 0)) {
-        return 0;
+    // Create dummy file for codec operations
+    FILE *dummy_file = fopen("./dummy_file", "wb");
+    if (dummy_file) {
+        fwrite(Data, 1, Size, dummy_file);
+        fclose(dummy_file);
     }
 
-    if (aom_codec_enc_init(&codec, iface, &cfg, 0)) {
-        return 0;
+    // Fuzz various API functions
+    int show_frame_flag;
+    if (aom_codec_control(&codec_ctx, AOMD_GET_SHOW_FRAME_FLAG, &show_frame_flag) == AOM_CODEC_OK) {
+        std::cout << "Show Frame Flag: " << show_frame_flag << std::endl;
     }
 
-    // Prepare parameters from input data
-    int bitrate = *reinterpret_cast<const int*>(Data);
-    Data += sizeof(int);
-    Size -= sizeof(int);
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_BITRATE_ONE_PASS_CBR
-    aom_codec_control(&codec, AV1E_SET_BITRATE_ONE_PASS_CBR, bitrate);
-
-    if (Size < 1) {
-        aom_codec_destroy(&codec);
-        return 0;
+    aom_tile_info tile_info;
+    if (aom_codec_control(&codec_ctx, AOMD_GET_TILE_INFO, &tile_info) == AOM_CODEC_OK) {
+        std::cout << "Tile Columns: " << tile_info.tile_columns << std::endl;
     }
 
-    // Fuzz aom_codec_control_typechecked_AV1E_ENABLE_RATE_GUIDE_DELTAQ
-    int enable_rate_guide_deltaq = Data[0] % 2;
-    aom_codec_control(&codec, AV1E_ENABLE_RATE_GUIDE_DELTAQ, enable_rate_guide_deltaq);
-
-    if (Size < 2) {
-        aom_codec_destroy(&codec);
-        return 0;
+    aom_gop_info_t gop_info;
+    if (aom_codec_control(&codec_ctx, AV1E_GET_GOP_INFO, &gop_info) == AOM_CODEC_OK) {
+        std::cout << "GOP Size: " << gop_info.gop_size << std::endl;
     }
 
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_KEYFRAME_FILTERING
-    int enable_keyframe_filtering = Data[1] % 2;
-    aom_codec_control(&codec, AV1E_SET_ENABLE_KEYFRAME_FILTERING, enable_keyframe_filtering);
-
-    if (Size < 3) {
-        aom_codec_destroy(&codec);
-        return 0;
+    int base_q_idx;
+    if (aom_codec_control(&codec_ctx, AOMD_GET_BASE_Q_IDX, &base_q_idx) == AOM_CODEC_OK) {
+        std::cout << "Base Q Index: " << base_q_idx << std::endl;
     }
 
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_FORCE_VIDEO_MODE
-    int force_video_mode = Data[2] % 2;
-    aom_codec_control(&codec, AV1E_SET_FORCE_VIDEO_MODE, force_video_mode);
-
-    if (Size < 4) {
-        aom_codec_destroy(&codec);
-        return 0;
+    int loopfilter_level;
+    if (aom_codec_control(&codec_ctx, AOME_GET_LOOPFILTER_LEVEL, &loopfilter_level) == AOM_CODEC_OK) {
+        std::cout << "Loop Filter Level: " << loopfilter_level << std::endl;
     }
 
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_AUTO_TILES
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_control to aom_codec_error_detail
-    const char* ret_aom_codec_error_detail_ukxjw = aom_codec_error_detail(&codec);
-    if (ret_aom_codec_error_detail_ukxjw == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    int auto_tiles = Data[3] % 2;
-    aom_codec_control(&codec, AV1E_SET_AUTO_TILES, auto_tiles);
-
-    if (Size < 5) {
-        aom_codec_destroy(&codec);
-        return 0;
+    int baseline_gf_interval;
+    if (aom_codec_control(&codec_ctx, AV1E_GET_BASELINE_GF_INTERVAL, &baseline_gf_interval) == AOM_CODEC_OK) {
+        std::cout << "Baseline GF Interval: " << baseline_gf_interval << std::endl;
     }
 
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_AQ_MODE
-    int aq_mode = Data[4] % 4; // Assuming 4 different AQ modes
-    aom_codec_control(&codec, AV1E_SET_AQ_MODE, aq_mode);
-
-    // Clean up
-    aom_codec_destroy(&codec);
-
+    CleanupCodecContext(codec_ctx);
     return 0;
 }
 #ifdef INC_MAIN

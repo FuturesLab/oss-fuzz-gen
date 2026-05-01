@@ -1,43 +1,50 @@
 #include <string.h>
 #include <sys/stat.h>
-#include <cstddef>
 #include <cstdint>
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
+#include <cstddef>
+#include <cstring>
+#include <limits>
+#include <new> // Include this header for std::nothrow
+
+// Assuming the function is defined in an external C library
+extern "C" {
+    int aom_uleb_encode_fixed_size(uint64_t value, size_t fixed_size, size_t available_size, uint8_t *buffer, size_t *encoded_size);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec;
-    aom_codec_err_t res;
-    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
-    void *user_priv = (void*)1; // Non-NULL user private data
+    // Ensure the input size is sufficient for our needs
+    if (size < sizeof(uint64_t) + 2 * sizeof(size_t)) {
+        return 0;
+    }
 
-    // Initialize the codec context
-    res = aom_codec_dec_init(&codec, iface, NULL, 0);
-    if (res != AOM_CODEC_OK) {
-        return 0; // Initialization failed
+    // Extract values from the input data
+    uint64_t value;
+    size_t fixed_size, available_size;
+    size_t encoded_size = 0;
+
+    // Copy data into variables
+    std::memcpy(&value, data, sizeof(uint64_t));
+    std::memcpy(&fixed_size, data + sizeof(uint64_t), sizeof(size_t));
+    std::memcpy(&available_size, data + sizeof(uint64_t) + sizeof(size_t), sizeof(size_t));
+
+    // Limit the available_size to prevent excessive memory allocation
+    const size_t max_buffer_size = 1024; // Define a reasonable maximum buffer size
+    if (available_size > max_buffer_size) {
+        available_size = max_buffer_size;
+    }
+
+    // Ensure buffer is not NULL and has at least one byte
+    uint8_t *buffer = new (std::nothrow) uint8_t[available_size > 0 ? available_size : 1];
+    if (!buffer) {
+        // Handle memory allocation failure
+        return 0;
     }
 
     // Call the function-under-test
-    res = aom_codec_decode(&codec, data, size, user_priv);
+    aom_uleb_encode_fixed_size(value, fixed_size, available_size, buffer, &encoded_size);
 
-    // Destroy the codec context
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_set_frame_buffer_functions
-    aom_image_t itwfpvem;
-    memset(&itwfpvem, 0, sizeof(itwfpvem));
-    aom_img_flip(&itwfpvem);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_img_flip to aom_img_get_metadata
-    const aom_metadata_t* ret_aom_img_get_metadata_lutkx = aom_img_get_metadata(&itwfpvem, 0);
-    if (ret_aom_img_get_metadata_lutkx == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_ydahc = aom_codec_set_frame_buffer_functions(&codec, 0, 0, (void *)&itwfpvem);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_destroy(&codec);
+    // Clean up
+    delete[] buffer;
 
     return 0;
 }

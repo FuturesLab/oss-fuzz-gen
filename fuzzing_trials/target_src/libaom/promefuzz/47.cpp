@@ -1,11 +1,10 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_av1_dx at av1_dx_iface.c:1813:20 in aomdx.h
+// aom_codec_dec_init_ver at aom_decoder.c:25:17 in aom_decoder.h
+// aom_codec_peek_stream_info at aom_decoder.c:57:17 in aom_decoder.h
+// aom_codec_decode at aom_decoder.c:94:17 in aom_decoder.h
+// aom_codec_get_frame at aom_decoder.c:109:14 in aom_decoder.h
+// aom_codec_get_stream_info at aom_decoder.c:75:17 in aom_decoder.h
 // aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
@@ -16,53 +15,97 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include "aom_integer.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom_frame_buffer.h"
-#include "aom_encoder.h"
-#include "aom_external_partition.h"
-#include "aom.h"
-#include "aom_decoder.h"
-#include "aomcx.h"
-#include "aomdx.h"
+#include <iostream>
+#include <fstream>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <aom/aomdx.h>
+#include <aom/aom.h>
+#include <aom/aom_codec.h>
+#include <aom/aom_decoder.h>
+#include <aom/aom_image.h>
 
 extern "C" int LLVMFuzzerTestOneInput_47(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return 0;
+    if (Size == 0) return 0;
 
-    aom_codec_ctx_t codec;
-    aom_codec_iface_t *iface = aom_codec_av1_cx();
-    aom_codec_err_t res = aom_codec_enc_init(&codec, iface, nullptr, 0);
-    if (res != AOM_CODEC_OK) return 0;
+    // Initialize codec context
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_iface_t *iface = aom_codec_av1_dx();
+    aom_codec_dec_cfg_t cfg = {0};
+    aom_codec_flags_t flags = 0;
+    int ver = AOM_DECODER_ABI_VERSION;
 
-    int value;
-    memcpy(&value, Data, sizeof(int));
+    // Initialize the decoder
+    if (aom_codec_dec_init_ver(&codec_ctx, iface, &cfg, flags, ver) != AOM_CODEC_OK) {
+        return 0;
+    }
 
-    // 1. Test aom_codec_control_typechecked_AOME_SET_CQ_LEVEL
-    aom_codec_control(&codec, AOME_SET_CQ_LEVEL, value);
+    // Prepare aom_codec_stream_info_t
+    aom_codec_stream_info_t stream_info;
+    stream_info.w = 0;
 
-    // 2. Test aom_codec_control_typechecked_AOME_GET_LAST_QUANTIZER_64
-    int64_t last_quantizer_64;
-    aom_codec_control(&codec, AOME_GET_LAST_QUANTIZER_64, &last_quantizer_64);
+    // Peek stream info
+    if (aom_codec_peek_stream_info(iface, Data, Size, &stream_info) == AOM_CODEC_OK) {
+        // Decode the input data
+        if (aom_codec_decode(&codec_ctx, Data, Size, nullptr) == AOM_CODEC_OK) {
+            // Retrieve frames
+            aom_codec_iter_t iter = nullptr;
+            aom_image_t *img;
+            while ((img = aom_codec_get_frame(&codec_ctx, &iter)) != nullptr) {
+                // Process the image (img)
+                // For the purpose of fuzzing, we don't need to do anything with img
+            }
+        }
+    }
 
-    // 3. Test aom_codec_control_typechecked_AOME_SET_ARNR_STRENGTH
-    aom_codec_control(&codec, AOME_SET_ARNR_STRENGTH, value);
+    // Get stream info after decoding
+    if (aom_codec_get_stream_info(&codec_ctx, &stream_info) != AOM_CODEC_OK) {
+        // Handle error in getting stream info
+    }
 
-    // 4. Test aom_codec_control_typechecked_AOME_SET_MAX_INTER_BITRATE_PCT
-    // Assuming correct macro name is AOME_SET_MAX_INTER_BITRATE_PCT
-    #ifdef AOME_SET_MAX_INTER_BITRATE_PCT
-    aom_codec_control(&codec, AOME_SET_MAX_INTER_BITRATE_PCT, value);
-    #endif
-
-    // 5. Test aom_codec_control_typechecked_AOME_GET_LAST_QUANTIZER
-    int last_quantizer;
-    aom_codec_control(&codec, AOME_GET_LAST_QUANTIZER, &last_quantizer);
-
-    // 6. Test aom_codec_control_typechecked_AOME_SET_STATIC_THRESHOLD
-    aom_codec_control(&codec, AOME_SET_STATIC_THRESHOLD, value);
-
-    // Cleanup
-    aom_codec_destroy(&codec);
+    // Destroy the codec context
+    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_47(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,28 +1,57 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <cstring>
-#include <cstdlib>
-#include <cstdio>
 #include <cstdint>
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+extern "C" {
 #include "/src/aom/aom/aom.h"
-#include "/src/aom/aom/aom_encoder.h"
 #include "/src/aom/aom/aom_codec.h"
+#include "/src/aom/aom/aom_encoder.h"
+#include "aom/aom_decoder.h"
 #include "/src/aom/aom/aomcx.h"
+#include "aom/aomdx.h"
+#include "/src/aom/aom/aom_external_partition.h"
+#include "/src/aom/aom/aom_image.h"
+#include "/src/aom/aom/aom_integer.h"
+#include "/src/aom/aom/aom_frame_buffer.h"
+}
 
-extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) {
-        return 0;
+static void fuzz_aom_codec_control(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int) + 1) {
+        return;
     }
 
+    int control_id = *reinterpret_cast<const int*>(Data);
+    int control_value = static_cast<int>(Data[sizeof(int)]);
+
+    switch (control_id) {
+        case 1:
+            // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of aom_codec_control
+            aom_codec_control(codec, Size);
+            // End mutation: Producer.REPLACE_ARG_MUTATOR
+            break;
+        case 2:
+            aom_codec_control(codec, AV1E_SET_FP_MT_UNIT_TEST, control_value);
+            break;
+        case 3:
+            aom_codec_control(codec, AV1E_SET_DV_COST_UPD_FREQ, control_value);
+            break;
+        case 4:
+            aom_codec_control(codec, AOME_SET_MAX_INTRA_BITRATE_PCT, control_value);
+            break;
+        case 5:
+            aom_codec_control(codec, AV1E_ENABLE_RATE_GUIDE_DELTAQ, control_value);
+            break;
+        case 6:
+            aom_codec_control(codec, AV1E_SET_BITRATE_ONE_PASS_CBR, control_value);
+            break;
+        default:
+            break;
+    }
+}
+
+extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
     aom_codec_ctx_t codec;
     aom_codec_iface_t *iface = aom_codec_av1_cx();
     aom_codec_enc_cfg_t cfg;
@@ -35,56 +64,7 @@ extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    int control_id = 0;
-    if (Size >= sizeof(int)) {
-        memcpy(&control_id, Data, sizeof(int));
-    }
-
-    switch (control_id % 6) {
-        case 0:
-            if (Size >= sizeof(int) * 2) {
-                unsigned int noise_sensitivity;
-                memcpy(&noise_sensitivity, Data + sizeof(int), sizeof(unsigned int));
-                aom_codec_control(&codec, AV1E_SET_NOISE_SENSITIVITY, noise_sensitivity);
-            }
-            break;
-        case 1:
-            if (Size >= sizeof(int) * 2) {
-                unsigned int fp_mt_unit_test;
-                memcpy(&fp_mt_unit_test, Data + sizeof(int), sizeof(unsigned int));
-                aom_codec_control(&codec, AV1E_SET_FP_MT_UNIT_TEST, fp_mt_unit_test);
-            }
-            break;
-        case 2:
-            {
-                unsigned int auto_intra_tools_off = 1;
-                aom_codec_control(&codec, AV1E_SET_AUTO_INTRA_TOOLS_OFF, auto_intra_tools_off);
-            }
-            break;
-        case 3:
-            if (Size >= sizeof(int) * 2) {
-                unsigned int tile_columns;
-                memcpy(&tile_columns, Data + sizeof(int), sizeof(unsigned int));
-                aom_codec_control(&codec, AV1E_SET_TILE_COLUMNS, tile_columns);
-            }
-            break;
-        case 4:
-            if (Size >= sizeof(int) * 2) {
-                unsigned int frame_parallel_decoding;
-                memcpy(&frame_parallel_decoding, Data + sizeof(int), sizeof(unsigned int));
-                aom_codec_control(&codec, AV1E_SET_FRAME_PARALLEL_DECODING, frame_parallel_decoding);
-            }
-            break;
-        case 5:
-            if (Size >= sizeof(int) * 2) {
-                unsigned int cdf_update_mode;
-                memcpy(&cdf_update_mode, Data + sizeof(int), sizeof(unsigned int));
-                aom_codec_control(&codec, AV1E_SET_CDF_UPDATE_MODE, cdf_update_mode);
-            }
-            break;
-        default:
-            break;
-    }
+    fuzz_aom_codec_control(&codec, Data, Size);
 
     aom_codec_destroy(&codec);
     return 0;

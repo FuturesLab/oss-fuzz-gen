@@ -1,11 +1,10 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_control_typechecked_AOME_SET_CQ_LEVEL at aomcx.h:1937:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_GET_LAST_QUANTIZER_64 at aomcx.h:1925:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_COLOR_RANGE at aomcx.h:2019:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_TUNE_CONTENT at aomcx.h:1992:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_GET_LAST_QUANTIZER at aomcx.h:1922:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_STATIC_THRESHOLD at aomcx.h:1919:1 in aomcx.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR at aomcx.h:2399:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_ONESIDED_COMP at aomcx.h:2159:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_EXTERNAL_RATE_CONTROL at aomcx.h:2424:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_SUPERRES at aomcx.h:2198:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_MS_CBR at aomcx.h:2411:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_REDUCED_REFERENCE_SET at aomcx.h:2267:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,85 +14,119 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
-#include <aom/aom_integer.h>
-#include <aom/aom_image.h>
-#include <aom/aom_codec.h>
-#include <aom/aom_frame_buffer.h>
-#include <aom/aom_encoder.h>
-#include <aom/aom_external_partition.h>
-#include <aom/aom.h>
-#include <aom/aom_decoder.h>
-#include <aom/aomcx.h>
-#include <aom/aomdx.h>
-}
-
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include "aomdx.h"
+#include "aom.h"
+#include "aom_codec.h"
+#include "aom_external_partition.h"
+#include "aom_decoder.h"
+#include "aomcx.h"
+#include "aom_integer.h"
+#include "aom_frame_buffer.h"
+#include "aom_image.h"
+#include "aom_encoder.h"
 
-static void setup_codec_context(aom_codec_ctx_t &ctx) {
-    // Initialize codec context with dummy values
-    ctx.name = "dummy_codec";
-    ctx.iface = nullptr;  // Assume this will be set by some library call
-    ctx.err = AOM_CODEC_OK;
-    ctx.init_flags = 0;
-    ctx.config.raw = nullptr;
-    ctx.priv = nullptr;
+static void init_codec_ctx(aom_codec_ctx_t &codec_ctx) {
+    codec_ctx.name = "AV1";
+    codec_ctx.iface = nullptr;
+    codec_ctx.err = AOM_CODEC_OK;
+    codec_ctx.init_flags = 0;
+    codec_ctx.config.enc = nullptr;
+    codec_ctx.priv = nullptr;
 }
 
-static void test_set_cq_level(aom_codec_ctx_t &ctx, int cq_level) {
-    // Fuzz the AOME_SET_CQ_LEVEL control function
-    aom_codec_control_typechecked_AOME_SET_CQ_LEVEL(&ctx, AOME_SET_CQ_LEVEL, cq_level);
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR(aom_codec_ctx_t &codec_ctx, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int)) return;
+    int max_drop = *reinterpret_cast<const int*>(Data);
+    aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR(&codec_ctx, AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR, max_drop);
 }
 
-static void test_get_last_quantizer_64(aom_codec_ctx_t &ctx) {
-    // Fuzz the AOME_GET_LAST_QUANTIZER_64 control function
-    int quantizer = 0;
-    aom_codec_control_typechecked_AOME_GET_LAST_QUANTIZER_64(&ctx, AOME_GET_LAST_QUANTIZER_64, &quantizer);
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_ONESIDED_COMP(aom_codec_ctx_t &codec_ctx, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int)) return;
+    int enable = *reinterpret_cast<const int*>(Data);
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_ONESIDED_COMP(&codec_ctx, AV1E_SET_ENABLE_ONESIDED_COMP, enable);
 }
 
-static void test_set_color_range(aom_codec_ctx_t &ctx, int color_range) {
-    // Fuzz the AV1E_SET_COLOR_RANGE control function
-    aom_codec_control_typechecked_AV1E_SET_COLOR_RANGE(&ctx, AV1E_SET_COLOR_RANGE, color_range);
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_EXTERNAL_RATE_CONTROL(aom_codec_ctx_t &codec_ctx, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(aom_rc_funcs_t)) return;
+    aom_rc_funcs_t rc_funcs;
+    std::memcpy(&rc_funcs, Data, sizeof(aom_rc_funcs_t));
+    aom_codec_control_typechecked_AV1E_SET_EXTERNAL_RATE_CONTROL(&codec_ctx, AV1E_SET_EXTERNAL_RATE_CONTROL, &rc_funcs);
 }
 
-static void test_set_tune_content(aom_codec_ctx_t &ctx, int tune_content) {
-    // Fuzz the AV1E_SET_TUNE_CONTENT control function
-    aom_codec_control_typechecked_AV1E_SET_TUNE_CONTENT(&ctx, AV1E_SET_TUNE_CONTENT, tune_content);
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_SUPERRES(aom_codec_ctx_t &codec_ctx, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int)) return;
+    int enable = *reinterpret_cast<const int*>(Data);
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_SUPERRES(&codec_ctx, AV1E_SET_ENABLE_SUPERRES, enable);
 }
 
-static void test_get_last_quantizer(aom_codec_ctx_t &ctx) {
-    // Fuzz the AOME_GET_LAST_QUANTIZER control function
-    int quantizer = 0;
-    aom_codec_control_typechecked_AOME_GET_LAST_QUANTIZER(&ctx, AOME_GET_LAST_QUANTIZER, &quantizer);
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_MS_CBR(aom_codec_ctx_t &codec_ctx, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int)) return;
+    int max_drop_ms = *reinterpret_cast<const int*>(Data);
+    aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_MS_CBR(&codec_ctx, AV1E_SET_MAX_CONSEC_FRAME_DROP_MS_CBR, max_drop_ms);
 }
 
-static void test_set_static_threshold(aom_codec_ctx_t &ctx, int threshold) {
-    // Fuzz the AOME_SET_STATIC_THRESHOLD control function
-    aom_codec_control_typechecked_AOME_SET_STATIC_THRESHOLD(&ctx, AOME_SET_STATIC_THRESHOLD, threshold);
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_REDUCED_REFERENCE_SET(aom_codec_ctx_t &codec_ctx, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int)) return;
+    int enable = *reinterpret_cast<const int*>(Data);
+    aom_codec_control_typechecked_AV1E_SET_REDUCED_REFERENCE_SET(&codec_ctx, AV1E_SET_REDUCED_REFERENCE_SET, enable);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_72(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0;  // Ensure there's enough data
+    if (Size == 0) return 0;
 
     aom_codec_ctx_t codec_ctx;
-    setup_codec_context(codec_ctx);
+    init_codec_ctx(codec_ctx);
 
-    int cq_level = Data[0];
-    int color_range = Data[1];
-    int tune_content = Data[2];
-    int threshold = Data[3];
-
-    test_set_cq_level(codec_ctx, cq_level);
-    test_get_last_quantizer_64(codec_ctx);
-    test_set_color_range(codec_ctx, color_range);
-    test_set_tune_content(codec_ctx, tune_content);
-    test_get_last_quantizer(codec_ctx);
-    test_set_static_threshold(codec_ctx, threshold);
-
-    // Clean up if necessary
-    aom_codec_destroy(&codec_ctx);
+    fuzz_aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR(codec_ctx, Data, Size);
+    fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_ONESIDED_COMP(codec_ctx, Data, Size);
+    fuzz_aom_codec_control_typechecked_AV1E_SET_EXTERNAL_RATE_CONTROL(codec_ctx, Data, Size);
+    fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_SUPERRES(codec_ctx, Data, Size);
+    fuzz_aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_MS_CBR(codec_ctx, Data, Size);
+    fuzz_aom_codec_control_typechecked_AV1E_SET_REDUCED_REFERENCE_SET(codec_ctx, Data, Size);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_72(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

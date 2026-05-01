@@ -1,11 +1,11 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_img_alloc at aom_image.c:200:14 in aom_image.h
-// aom_img_flip at aom_image.c:285:6 in aom_image.h
-// aom_img_set_rect at aom_image.c:234:5 in aom_image.h
-// aom_img_free at aom_image.c:304:6 in aom_image.h
-// aom_img_alloc_with_border at aom_image.c:225:14 in aom_image.h
-// aom_img_wrap at aom_image.c:216:14 in aom_image.h
-// aom_img_free at aom_image.c:304:6 in aom_image.h
+// aom_codec_control_typechecked_AV1E_SET_LOOPFILTER_CONTROL at aomcx.h:2348:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_DIFF_WTD_COMP at aomcx.h:2168:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_WARPED_MOTION at aomcx.h:2180:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_MAX_REFERENCE_FRAMES at aomcx.h:2264:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_TX_SIZE_SEARCH at aomcx.h:2336:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_GLOBAL_MOTION at aomcx.h:2177:1 in aomcx.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,56 +16,94 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <iostream>
-#include <aom/aom_image.h>
-#include <aom/aom_codec.h>
-#include <aom/aom_frame_buffer.h>
-#include <aom/aom_encoder.h>
-#include <aom/aom_external_partition.h>
-#include <aom/aom.h>
-#include <aom/aomcx.h>
-#include <aom/aom_decoder.h>
-#include <aom/aomdx.h>
+#include "aom.h"
+#include "aom_codec.h"
+#include "aom_encoder.h"
+#include "aomcx.h"
+#include "aom_decoder.h"
+#include "aomdx.h"
+#include "aom_external_partition.h"
+#include "aom_frame_buffer.h"
+#include "aom_image.h"
+#include "aom_integer.h"
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(aom_codec_ctx_t) + sizeof(int)) {
+        return 0;
+    }
 
-    aom_image_t *img = nullptr;
-    unsigned int width = 640;
-    unsigned int height = 480;
-    unsigned int align = 32;
-    unsigned int size_align = 32;
-    unsigned int border = 32;
+    aom_codec_ctx_t codec_ctx;
+    codec_ctx.iface = nullptr;
+    codec_ctx.err = AOM_CODEC_OK;
+    codec_ctx.priv = nullptr;
 
-    aom_img_fmt_t fmt = static_cast<aom_img_fmt_t>(Data[0] % 8);
+    // Initialize codec context with dummy data
+    codec_ctx.name = "dummy_codec";
+    codec_ctx.init_flags = 0;
+    codec_ctx.config.enc = nullptr;
 
-    // Allocate an image
-    img = aom_img_alloc(nullptr, fmt, width, height, align);
-    if (!img) return 0;
+    // Dummy data for loop filter control
+    int loopfilter_control = Data[0] % 256;
 
-    // Flip the image
-    aom_img_flip(img);
+    // Dummy data for enabling/disabling features
+    int enable_diff_wtd_comp = Data[1] % 2;
+    int enable_warped_motion = Data[2] % 2;
+    int max_reference_frames = Data[3] % 16; // Assume max 16 reference frames
+    int enable_tx_size_search = Data[4] % 2;
+    int enable_global_motion = Data[5] % 2;
 
-    // Set a rectangle
-    unsigned int x = 0, y = 0, w = width / 2, h = height / 2;
-    aom_img_set_rect(img, x, y, w, h, border);
+    // Fuzz different API functions
+    aom_codec_control_typechecked_AV1E_SET_LOOPFILTER_CONTROL(&codec_ctx, 0, loopfilter_control);
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_DIFF_WTD_COMP(&codec_ctx, 0, enable_diff_wtd_comp);
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_WARPED_MOTION(&codec_ctx, 0, enable_warped_motion);
+    aom_codec_control_typechecked_AV1E_SET_MAX_REFERENCE_FRAMES(&codec_ctx, 0, max_reference_frames);
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_TX_SIZE_SEARCH(&codec_ctx, 0, enable_tx_size_search);
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_GLOBAL_MOTION(&codec_ctx, 0, enable_global_motion);
 
-    // Free the image
-    aom_img_free(img);
-
-    // Allocate with border
-    img = aom_img_alloc_with_border(nullptr, fmt, width, height, align, size_align, border);
-    if (!img) return 0;
-
-    // Wrap an image
-    unsigned char *img_data = new unsigned char[width * height * 3 / 2];
-    aom_img_wrap(img, fmt, width, height, align, img_data);
-
-    // Free the image
-    aom_img_free(img);
-    delete[] img_data;
+    // Clean up if necessary
+    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

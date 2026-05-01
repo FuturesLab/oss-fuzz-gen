@@ -1,33 +1,56 @@
 #include <string.h>
 #include <sys/stat.h>
-#include <cstddef>
 #include <cstdint>
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
+#include <cstdlib>
+#include "/src/aom/aom/aom_image.h"
+
+extern "C" {
+    #include "/src/aom/aom/aom_codec.h" // Include necessary headers for AOM_IMG_FMT_I420
+    #include "/src/aom/aom/aom_integer.h" // Include for AOM_IMG_PLANES
+
+    int aom_img_plane_width(const aom_image_t *img, int plane);
+
+    // Define AOM_IMG_PLANES if not defined in the included headers
+    #ifndef AOM_IMG_PLANES
+    #define AOM_IMG_PLANES 3
+    #endif
+}
 
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec;
-    aom_codec_err_t res;
-    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
-    void *user_priv = (void*)1; // Non-NULL user private data
-
-    // Initialize the codec context
-    res = aom_codec_dec_init(&codec, iface, NULL, 0);
-    if (res != AOM_CODEC_OK) {
-        return 0; // Initialization failed
+    // Ensure that the size is sufficient to initialize the aom_image_t structure
+    if (size < sizeof(aom_image_t)) {
+        return 0;
     }
 
+    // Initialize aom_image_t structure
+    aom_image_t img;
+    img.w = 640;  // Set a default width
+    img.h = 480;  // Set a default height
+    img.d_w = 640; // Display width
+    img.d_h = 480; // Display height
+    img.x_chroma_shift = 1;
+    img.y_chroma_shift = 1;
+    img.img_data = const_cast<uint8_t*>(data); // Use input data as image data
+    img.img_data_owner = 0;
+    img.self_allocd = 0;
+    img.fmt = AOM_IMG_FMT_I420; // Set a default image format
+    img.bps = 12; // Bits per sample
+
+    // Initialize planes
+    for (int i = 0; i < AOM_IMG_PLANES; ++i) {
+        img.planes[i] = const_cast<uint8_t*>(data);
+        img.stride[i] = 640; // Set a default stride
+    }
+
+    // Use the first byte of data to determine the plane index
+    int plane = data[0] % AOM_IMG_PLANES;
+
     // Call the function-under-test
-    res = aom_codec_decode(&codec, data, size, user_priv);
+    int width = aom_img_plane_width(&img, plane);
 
-    // Destroy the codec context
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_set_frame_buffer_functions
-    aom_codec_err_t ret_aom_codec_destroy_vldcs = aom_codec_destroy(&codec);
-    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_oqses = aom_codec_set_frame_buffer_functions(&codec, 0, 0, (void *)&codec);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_destroy(&codec);
+    // Use the result to prevent optimization
+    volatile int result = width;
+    (void)result;
 
     return 0;
 }

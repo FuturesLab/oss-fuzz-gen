@@ -13,85 +13,68 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "/src/aom/aom/aom.h"
-#include "/src/aom/aom/aomcx.h"
-#include "aom/aom_decoder.h"
 #include "aom/aomdx.h"
-#include "/src/aom/aom/aom_encoder.h"
+#include "/src/aom/aom/aom.h"
+#include "/src/aom/aom/aom_codec.h"
 #include "/src/aom/aom/aom_external_partition.h"
+#include "aom/aom_decoder.h"
+#include "/src/aom/aom/aomcx.h"
+#include "/src/aom/aom/aom_integer.h"
 #include "/src/aom/aom/aom_frame_buffer.h"
 #include "/src/aom/aom/aom_image.h"
-#include "/src/aom/aom/aom_integer.h"
+#include "/src/aom/aom/aom_encoder.h"
+
+static void initialize_codec_context(aom_codec_ctx_t &ctx) {
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    aom_codec_enc_cfg_t cfg;
+    aom_codec_err_t res = aom_codec_enc_config_default(iface, &cfg, 0);
+    if (res == AOM_CODEC_OK) {
+        res = aom_codec_enc_init(&ctx, iface, &cfg, 0);
+    }
+    if (res != AOM_CODEC_OK) {
+        fprintf(stderr, "Failed to initialize codec context\n");
+        std::abort();
+    }
+}
+
+static void cleanup_codec_context(aom_codec_ctx_t &ctx) {
+    aom_codec_err_t res = aom_codec_destroy(&ctx);
+    if (res != AOM_CODEC_OK) {
+        fprintf(stderr, "Failed to destroy codec context\n");
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_20(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size < 3) return 0; // Ensure we have enough data for our operations
 
-    // Initialize decoder
-    aom_codec_ctx_t dec_ctx;
-    aom_codec_iface_t *dec_iface = aom_codec_av1_dx();
+    aom_codec_ctx_t codec_ctx;
+    initialize_codec_context(codec_ctx);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_av1_dx to aom_codec_peek_stream_info
-    size_t ret_aom_uleb_size_in_bytes_vffau = aom_uleb_size_in_bytes(Size);
-    if (ret_aom_uleb_size_in_bytes_vffau < 0){
-    	return 0;
-    }
-    aom_codec_err_t ret_aom_codec_peek_stream_info_zlcgo = aom_codec_peek_stream_info(dec_iface, (const uint8_t *)&ret_aom_uleb_size_in_bytes_vffau, AOM_MAX_SEGMENTS, NULL);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_dec_cfg_t dec_cfg = {0}; // Default configuration
-    aom_codec_err_t dec_res = aom_codec_dec_init_ver(&dec_ctx, dec_iface, &dec_cfg, 0, AOM_DECODER_ABI_VERSION);
-    if (dec_res != AOM_CODEC_OK) {
-        return 0;
-    }
+    // Fuzz aom_codec_control_typechecked_AOMD_GET_SHOW_FRAME_FLAG
+    int show_frame_flag;
+    aom_codec_control(&codec_ctx, AOMD_GET_SHOW_FRAME_FLAG, &show_frame_flag);
 
-    // Initialize encoder
-    aom_codec_ctx_t enc_ctx;
-    aom_codec_iface_t *enc_iface = aom_codec_av1_cx();
-    aom_codec_enc_cfg_t enc_cfg;
-    if (aom_codec_enc_config_default(enc_iface, &enc_cfg, 0) != AOM_CODEC_OK) {
-        aom_codec_destroy(&dec_ctx);
-        return 0;
-    }
-    aom_codec_err_t enc_res = aom_codec_enc_init_ver(&enc_ctx, enc_iface, &enc_cfg, 0, AOM_ENCODER_ABI_VERSION);
-    if (enc_res != AOM_CODEC_OK) {
-        aom_codec_destroy(&dec_ctx);
-        return 0;
-    }
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_INTERINTRA_WEDGE
+    int enable_interintra_wedge = Data[0] % 2; // 0 or 1
+    aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_INTERINTRA_WEDGE, enable_interintra_wedge);
 
-    // Decode input data
-    if (aom_codec_decode(&dec_ctx, Data, Size, NULL) != AOM_CODEC_OK) {
-        aom_codec_destroy(&enc_ctx);
-        aom_codec_destroy(&dec_ctx);
-        return 0;
-    }
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_WARPED_MOTION
+    int enable_warped_motion = Data[1] % 2; // 0 or 1
+    aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_WARPED_MOTION, enable_warped_motion);
 
-    // Get decoded frames
-    aom_codec_iter_t iter = NULL;
-    aom_image_t *img = nullptr;
-    while ((img = aom_codec_get_frame(&dec_ctx, &iter)) != NULL) {
-        // Encode the frame
-        if (aom_codec_encode(&enc_ctx, img, 0, 1, 0) != AOM_CODEC_OK) {
-            break;
-        }
+    // Fuzz aom_codec_control_typechecked_AV1E_GET_GOP_INFO
+    aom_gop_info_t gop_info;
+    aom_codec_control(&codec_ctx, AV1E_GET_GOP_INFO, &gop_info);
 
-        // Get stream info
-        aom_codec_stream_info_t si;
-        if (aom_codec_get_stream_info(&dec_ctx, &si) != AOM_CODEC_OK) {
-            break;
-        }
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_SCREEN_CONTENT_DETECTION_MODE
+    int screen_content_mode = Data[2] % 2; // 0 or 1
+    aom_codec_control(&codec_ctx, AV1E_SET_SCREEN_CONTENT_DETECTION_MODE, screen_content_mode);
 
-        // Get capabilities
-        aom_codec_caps_t caps = aom_codec_get_caps(dec_iface);
+    // Fuzz aom_codec_control_typechecked_AV1E_GET_BASELINE_GF_INTERVAL
+    int baseline_gf_interval;
+    aom_codec_control(&codec_ctx, AV1E_GET_BASELINE_GF_INTERVAL, &baseline_gf_interval);
 
-        (void)caps; // Use capabilities for something meaningful
-    }
-
-    // Cleanup
-    aom_codec_destroy(&enc_ctx);
-    aom_codec_destroy(&dec_ctx);
-
+    cleanup_codec_context(codec_ctx);
     return 0;
 }
 #ifdef INC_MAIN

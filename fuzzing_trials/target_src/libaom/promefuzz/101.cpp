@@ -1,10 +1,13 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_enc_config_set at aom_encoder.c:298:17 in aom_encoder.h
-// aom_codec_get_global_headers at aom_encoder.c:281:18 in aom_encoder.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_av1_cx at av1_cx_iface.c:5345:20 in aomcx.h
+// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
+// aom_codec_control_typechecked_AV1E_GET_NUM_OPERATING_POINTS at aomcx.h:2372:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_TX_SIZE_SEARCH at aomcx.h:2336:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO at aomcx.h:2387:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_QUANT_B_ADAPT at aomcx.h:2258:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_VMAF_MODEL_PATH at aomcx.h:2300:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_RECT_TX at aomcx.h:2138:1 in aomcx.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -18,92 +21,103 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
-#include "aom/aomdx.h"
-#include "aom/aom_frame_buffer.h"
-#include "aom/aom_external_partition.h"
-#include "aom/aom_encoder.h"
-#include "aom/aom_codec.h"
-#include "aom/aomcx.h"
-#include "aom/aom_integer.h"
-#include "aom/aom_image.h"
-#include "aom/aom.h"
-#include "aom/aom_decoder.h"
+#include "aom.h"
+#include "aom_codec.h"
+#include "aomcx.h"
+#include "aomdx.h"
+#include "aom_decoder.h"
+#include "aom_encoder.h"
+#include "aom_external_partition.h"
+#include "aom_frame_buffer.h"
+#include "aom_image.h"
+#include "aom_integer.h"
 
 extern "C" int LLVMFuzzerTestOneInput_101(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_codec_ctx_t) + sizeof(aom_codec_enc_cfg_t)) {
-        return 0;
+    if (Size < 1) return 0;  // Ensure there's at least some data
+
+    // Initialize codec context
+    aom_codec_ctx_t codec;
+    memset(&codec, 0, sizeof(codec));
+
+    // Assume we have a valid interface for AV1 encoder
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+
+    // Initialize codec
+    if (aom_codec_enc_init(&codec, iface, nullptr, 0) != AOM_CODEC_OK) {
+        return 0;  // Initialization failed
     }
 
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_enc_cfg_t enc_cfg;
-    std::memcpy(&codec_ctx, Data, sizeof(aom_codec_ctx_t));
-    std::memcpy(&enc_cfg, Data + sizeof(aom_codec_ctx_t), sizeof(aom_codec_enc_cfg_t));
+    // Fuzz the function: aom_codec_control_typechecked_AV1E_GET_NUM_OPERATING_POINTS
+    int num_operating_points = 0;
+    aom_codec_control_typechecked_AV1E_GET_NUM_OPERATING_POINTS(&codec, AV1E_GET_NUM_OPERATING_POINTS, &num_operating_points);
 
-    // Initialize codec context with dummy values
-    codec_ctx.name = "dummy_codec";
-    codec_ctx.iface = nullptr;
-    codec_ctx.err = AOM_CODEC_OK;
-    codec_ctx.init_flags = 0;
-    codec_ctx.priv = nullptr;
+    // Fuzz the function: aom_codec_control_typechecked_AV1E_SET_ENABLE_TX_SIZE_SEARCH
+    int enable_tx_size_search = Data[0] % 2;
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_TX_SIZE_SEARCH(&codec, AV1E_SET_ENABLE_TX_SIZE_SEARCH, enable_tx_size_search);
 
-    // Initialize encoder configuration with dummy values
-    enc_cfg.g_usage = 0;
-    enc_cfg.g_bit_depth = AOM_BITS_8;
-    enc_cfg.g_timebase.num = 1;
-    enc_cfg.g_error_resilient = 0;
-    enc_cfg.g_pass = AOM_RC_ONE_PASS;
-    enc_cfg.rc_superres_mode = static_cast<aom_superres_mode>(0);
-    enc_cfg.rc_end_usage = AOM_VBR;
-    enc_cfg.rc_twopass_stats_in.buf = nullptr;
-    enc_cfg.fwd_kf_enabled = 0;
-    enc_cfg.kf_mode = AOM_KF_AUTO;
-    enc_cfg.encoder_cfg.init_by_cfg_file = 0;
+    // Fuzz the function: aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO
+    const char *rate_distribution_info = reinterpret_cast<const char*>(Data);
+    aom_codec_control_typechecked_AV1E_SET_RATE_DISTRIBUTION_INFO(&codec, AV1E_SET_RATE_DISTRIBUTION_INFO, rate_distribution_info);
 
-    // Test aom_codec_enc_config_set
-    aom_codec_err_t err = aom_codec_enc_config_set(&codec_ctx, &enc_cfg);
-    if (err != AOM_CODEC_OK) {
-        std::cerr << "Error setting encoder config: " << err << std::endl;
+    // Fuzz the function: aom_codec_control_typechecked_AV1E_SET_QUANT_B_ADAPT
+    int quant_b_adapt = Data[0] % 256;
+    aom_codec_control_typechecked_AV1E_SET_QUANT_B_ADAPT(&codec, AV1E_SET_QUANT_B_ADAPT, quant_b_adapt);
+
+    // Fuzz the function: aom_codec_control_typechecked_AV1E_SET_VMAF_MODEL_PATH
+    const char *vmaf_model_path = "./dummy_file";
+    FILE *file = fopen(vmaf_model_path, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+        aom_codec_control_typechecked_AV1E_SET_VMAF_MODEL_PATH(&codec, AV1E_SET_VMAF_MODEL_PATH, vmaf_model_path);
     }
 
-    // Test aom_codec_get_global_headers
-    aom_fixed_buf_t *global_headers = aom_codec_get_global_headers(&codec_ctx);
-    if (global_headers) {
-        free(global_headers->buf);
-        free(global_headers);
-    }
+    // Fuzz the function: aom_codec_control_typechecked_AV1E_SET_ENABLE_RECT_TX
+    int enable_rect_tx = Data[0] % 2;
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_RECT_TX(&codec, AV1E_SET_ENABLE_RECT_TX, enable_rect_tx);
 
-    // Test aom_codec_control_typechecked_AOME_SET_MAX_INTRA_BITRATE_PCT
-    int max_intra_bitrate_pct = 100;
-    err = aom_codec_control(&codec_ctx, AOME_SET_MAX_INTRA_BITRATE_PCT, max_intra_bitrate_pct);
-    if (err != AOM_CODEC_OK) {
-        std::cerr << "Error setting max intra bitrate pct: " << err << std::endl;
-    }
-
-    // Test aom_codec_control_typechecked_AOME_SET_ROI_MAP
-    aom_roi_map_t roi_map;
-    roi_map.enabled = 1;
-    roi_map.roi_map = nullptr;
-    roi_map.rows = 0;
-    roi_map.delta_q[0] = 0;
-    roi_map.delta_qp_enabled = 0;
-    err = aom_codec_control(&codec_ctx, AOME_SET_ROI_MAP, &roi_map);
-    if (err != AOM_CODEC_OK) {
-        std::cerr << "Error setting ROI map: " << err << std::endl;
-    }
-
-    // Test aom_codec_control_typechecked_AV1E_SET_FORCE_VIDEO_MODE
-    int force_video_mode = 1;
-    err = aom_codec_control(&codec_ctx, AV1E_SET_FORCE_VIDEO_MODE, force_video_mode);
-    if (err != AOM_CODEC_OK) {
-        std::cerr << "Error setting force video mode: " << err << std::endl;
-    }
-
-    // Test aom_codec_control_typechecked_AOME_GET_LAST_QUANTIZER
-    int last_quantizer = 0;
-    err = aom_codec_control(&codec_ctx, AOME_GET_LAST_QUANTIZER, &last_quantizer);
-    if (err != AOM_CODEC_OK) {
-        std::cerr << "Error getting last quantizer: " << err << std::endl;
-    }
+    // Destroy codec to clean up
+    aom_codec_destroy(&codec);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_101(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

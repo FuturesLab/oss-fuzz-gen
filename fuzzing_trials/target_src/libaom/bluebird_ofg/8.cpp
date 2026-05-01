@@ -1,31 +1,61 @@
 #include <string.h>
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstddef>
+#include <iostream> // Include for debugging output
 
 extern "C" {
     #include "/src/aom/aom/aom_codec.h"
     #include "aom/aom_decoder.h"
-    #include "aom/aomdx.h" // Include the header where aom_codec_av1_dx is declared
+    #include "aom/aomdx.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    // Initialize the codec interface for AV1 decoding
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
+    if (size == 0) {
+        return 0;
+    }
 
-    // Create a codec context
+    const aom_codec_iface_t *iface = aom_codec_av1_dx();
+
     aom_codec_ctx_t codec;
-    if (aom_codec_dec_init(&codec, iface, NULL, 0) != AOM_CODEC_OK) {
-        return 0; // If initialization fails, exit early
+    aom_codec_err_t res = aom_codec_dec_init(&codec, iface, nullptr, 0);
+    if (res != AOM_CODEC_OK) {
+        std::cerr << "Failed to initialize codec: " << aom_codec_err_to_string(res) << std::endl;
+        return 0;
     }
 
-    // Decode the input data
-    if (aom_codec_decode(&codec, data, size, NULL) != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec);
-        return 0; // If decoding fails, clean up and exit
+    res = aom_codec_decode(&codec, data, size, nullptr);
+    if (res != AOM_CODEC_OK) {
+        std::cerr << "Failed to decode: " << aom_codec_err_to_string(res) << std::endl;
     }
 
-    // Clean up and destroy the codec context
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_set_frame_buffer_functions
+    aom_image_t ohnjtcyv;
+    memset(&ohnjtcyv, 0, sizeof(ohnjtcyv));
+    aom_img_flip(&ohnjtcyv);
+    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_ggkip = aom_codec_set_frame_buffer_functions(&codec, 0, 0, (void *)&ohnjtcyv);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_set_frame_buffer_functions to aom_codec_control
+    aom_codec_err_t ret_aom_codec_control_mbrmt = aom_codec_control(&codec, size);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from aom_codec_control to aom_codec_error using the plateau pool
+    const char* ret_aom_codec_error_luxxj = aom_codec_error(&codec);
+    if (ret_aom_codec_error_luxxj == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    aom_codec_iter_t iter = nullptr;
+    aom_image_t *img = nullptr;
+    while ((img = aom_codec_get_frame(&codec, &iter)) != nullptr) {
+        // Process the image (img) if needed
+    }
+
     aom_codec_destroy(&codec);
 
     return 0;

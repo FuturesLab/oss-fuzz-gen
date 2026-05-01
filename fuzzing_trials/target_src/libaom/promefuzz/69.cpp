@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_control_typechecked_AV1E_SET_SUPERBLOCK_SIZE at aomcx.h:2031:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_AUTO_TILES at aomcx.h:2368:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_DV_COST_UPD_FREQ at aomcx.h:2293:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_ENABLE_RATE_GUIDE_DELTAQ at aomcx.h:2350:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_AQ_MODE at aomcx.h:1983:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_RESTORATION at aomcx.h:2040:1 in aomcx.h
+// aom_codec_control_typechecked_AOMD_GET_SHOW_FRAME_FLAG at aomdx.h:598:1 in aomdx.h
+// aom_codec_control_typechecked_AOME_SET_NUMBER_SPATIAL_LAYERS at aomcx.h:1974:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_INTERINTRA_COMP at aomcx.h:2162:1 in aomcx.h
+// aom_codec_control_typechecked_AOMD_GET_BASE_Q_IDX at aomdx.h:601:1 in aomdx.h
+// aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX at aomcx.h:2369:1 in aomcx.h
+// aom_codec_control_typechecked_AOME_GET_LOOPFILTER_LEVEL at aomcx.h:2351:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,65 +15,103 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
-#include <cstdio>
-#include <cstring>
-#include "aom_integer.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom_frame_buffer.h"
-#include "aom_encoder.h"
-#include "aom_external_partition.h"
+#include <iostream>
+#include <fstream>
+#include "aomdx.h"
 #include "aom.h"
+#include "aom_codec.h"
+#include "aom_external_partition.h"
 #include "aom_decoder.h"
 #include "aomcx.h"
-#include "aomdx.h"
+#include "aom_integer.h"
+#include "aom_frame_buffer.h"
+#include "aom_image.h"
+#include "aom_encoder.h"
 
 extern "C" int LLVMFuzzerTestOneInput_69(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_codec_ctx_t) + sizeof(int)) {
+    if (Size < sizeof(aom_codec_ctx_t)) {
         return 0;
     }
 
+    // Initialize codec context
     aom_codec_ctx_t codec_ctx;
-    memset(&codec_ctx, 0, sizeof(codec_ctx));
-
-    // Initialize codec context with dummy data
-    codec_ctx.name = "dummy_codec";
-    codec_ctx.iface = nullptr; // In a real scenario, this should point to a valid codec interface
+    codec_ctx.name = "Test Codec";
+    codec_ctx.iface = nullptr; // Assume proper initialization elsewhere
     codec_ctx.err = AOM_CODEC_OK;
     codec_ctx.init_flags = 0;
-    codec_ctx.config.raw = nullptr;
     codec_ctx.priv = nullptr;
 
-    // Extract integer values from the data buffer
-    const int *int_data = reinterpret_cast<const int*>(Data);
-
-    // Fuzz different control functions with data
-    if (Size >= sizeof(int) * 2) {
-        aom_codec_control_typechecked_AV1E_SET_SUPERBLOCK_SIZE(&codec_ctx, 0, int_data[0]);
+    // Create dummy file for testing
+    std::ofstream dummy_file("./dummy_file", std::ios::binary);
+    if (!dummy_file.is_open()) {
+        return 0;
     }
+    dummy_file.write(reinterpret_cast<const char *>(Data), Size);
+    dummy_file.close();
 
-    if (Size >= sizeof(int) * 3) {
-        aom_codec_control_typechecked_AV1E_SET_AUTO_TILES(&codec_ctx, 0, int_data[1]);
-    }
+    // Fuzzing aom_codec_control_typechecked_AOMD_GET_SHOW_FRAME_FLAG
+    int show_frame_flag = 0;
+    aom_codec_control_typechecked_AOMD_GET_SHOW_FRAME_FLAG(&codec_ctx, AOMD_GET_SHOW_FRAME_FLAG, &show_frame_flag);
 
-    if (Size >= sizeof(int) * 4) {
-        aom_codec_control_typechecked_AV1E_SET_DV_COST_UPD_FREQ(&codec_ctx, 0, int_data[2]);
-    }
+    // Fuzzing aom_codec_control_typechecked_AOME_SET_NUMBER_SPATIAL_LAYERS
+    int num_spatial_layers = Data[0] % 4; // Assuming a max of 4 spatial layers
+    aom_codec_control_typechecked_AOME_SET_NUMBER_SPATIAL_LAYERS(&codec_ctx, AOME_SET_NUMBER_SPATIAL_LAYERS, num_spatial_layers);
 
-    if (Size >= sizeof(int) * 5) {
-        aom_codec_control_typechecked_AV1E_ENABLE_RATE_GUIDE_DELTAQ(&codec_ctx, 0, int_data[3]);
-    }
+    // Fuzzing aom_codec_control_typechecked_AV1E_SET_ENABLE_INTERINTRA_COMP
+    int enable_interintra_comp = Data[1] % 2; // 0 or 1
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_INTERINTRA_COMP(&codec_ctx, AV1E_SET_ENABLE_INTERINTRA_COMP, enable_interintra_comp);
 
-    if (Size >= sizeof(int) * 6) {
-        aom_codec_control_typechecked_AV1E_SET_AQ_MODE(&codec_ctx, 0, int_data[4]);
-    }
+    // Fuzzing aom_codec_control_typechecked_AOMD_GET_BASE_Q_IDX
+    int base_q_idx = 0;
+    aom_codec_control_typechecked_AOMD_GET_BASE_Q_IDX(&codec_ctx, AOMD_GET_BASE_Q_IDX, &base_q_idx);
 
-    if (Size >= sizeof(int) * 7) {
-        aom_codec_control_typechecked_AV1E_SET_ENABLE_RESTORATION(&codec_ctx, 0, int_data[5]);
-    }
+    // Fuzzing aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX
+    int target_seq_level_idx = 0;
+    aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX(&codec_ctx, AV1E_GET_TARGET_SEQ_LEVEL_IDX, &target_seq_level_idx);
 
-    // Cleanup and return
-    // Normally you would call aom_codec_destroy(&codec_ctx) here if the codec was initialized
+    // Fuzzing aom_codec_control_typechecked_AOME_GET_LOOPFILTER_LEVEL
+    int loopfilter_level = 0;
+    aom_codec_control_typechecked_AOME_GET_LOOPFILTER_LEVEL(&codec_ctx, AOME_GET_LOOPFILTER_LEVEL, &loopfilter_level);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_69(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

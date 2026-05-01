@@ -10,86 +10,45 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
+#include <cstdio>
 #include <cstring>
-#include "/src/aom/aom/aom.h"
-#include "/src/aom/aom/aomcx.h"
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
-#include "/src/aom/aom/aom_encoder.h"
-#include "/src/aom/aom/aom_external_partition.h"
-#include "/src/aom/aom/aom_frame_buffer.h"
 #include "/src/aom/aom/aom_image.h"
-#include "/src/aom/aom/aom_integer.h"
+#include "/src/aom/aom/aom.h"
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size < 21) {
         return 0;
     }
 
-    // Initialize decoder
-    aom_codec_ctx_t dec_ctx;
-    aom_codec_iface_t *dec_iface = aom_codec_av1_dx();
+    aom_img_fmt_t fmt = static_cast<aom_img_fmt_t>(Data[0]);
+    unsigned int d_w = (Data[1] << 24) | (Data[2] << 16) | (Data[3] << 8) | Data[4];
+    unsigned int d_h = (Data[5] << 24) | (Data[6] << 16) | (Data[7] << 8) | Data[8];
+    unsigned int align = (Data[9] << 24) | (Data[10] << 16) | (Data[11] << 8) | Data[12];
+    unsigned int stride_align = (Data[13] << 24) | (Data[14] << 16) | (Data[15] << 8) | Data[16];
+    unsigned int border = (Data[17] << 24) | (Data[18] << 16) | (Data[19] << 8) | Data[20];
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_av1_dx to aom_codec_iface_name
-    const char* ret_aom_codec_iface_name_btjfb = aom_codec_iface_name(dec_iface);
-    if (ret_aom_codec_iface_name_btjfb == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_dec_cfg_t dec_cfg = {0}; // Default configuration
-    aom_codec_err_t dec_res = aom_codec_dec_init_ver(&dec_ctx, dec_iface, &dec_cfg, 0, AOM_DECODER_ABI_VERSION);
-    if (dec_res != AOM_CODEC_OK) {
-        return 0;
-    }
-
-    // Initialize encoder
-    aom_codec_ctx_t enc_ctx;
-    aom_codec_iface_t *enc_iface = aom_codec_av1_cx();
-    aom_codec_enc_cfg_t enc_cfg;
-    if (aom_codec_enc_config_default(enc_iface, &enc_cfg, 0) != AOM_CODEC_OK) {
-        aom_codec_destroy(&dec_ctx);
-        return 0;
-    }
-    aom_codec_err_t enc_res = aom_codec_enc_init_ver(&enc_ctx, enc_iface, &enc_cfg, 0, AOM_ENCODER_ABI_VERSION);
-    if (enc_res != AOM_CODEC_OK) {
-        aom_codec_destroy(&dec_ctx);
-        return 0;
-    }
-
-    // Decode input data
-    if (aom_codec_decode(&dec_ctx, Data, Size, NULL) != AOM_CODEC_OK) {
-        aom_codec_destroy(&enc_ctx);
-        aom_codec_destroy(&dec_ctx);
-        return 0;
-    }
-
-    // Get decoded frames
-    aom_codec_iter_t iter = NULL;
     aom_image_t *img = nullptr;
-    while ((img = aom_codec_get_frame(&dec_ctx, &iter)) != NULL) {
-        // Encode the frame
-        if (aom_codec_encode(&enc_ctx, img, 0, 1, 0) != AOM_CODEC_OK) {
-            break;
-        }
-
-        // Get stream info
-        aom_codec_stream_info_t si;
-        if (aom_codec_get_stream_info(&dec_ctx, &si) != AOM_CODEC_OK) {
-            break;
-        }
-
-        // Get capabilities
-        aom_codec_caps_t caps = aom_codec_get_caps(dec_iface);
-
-        (void)caps; // Use capabilities for something meaningful
+    img = aom_img_alloc(img, fmt, d_w, d_h, align);
+    if (img) {
+        aom_img_set_rect(img, 0, 0, d_w, d_h, border);
+        aom_img_remove_metadata(img);
+        aom_img_free(img);
     }
 
-    // Cleanup
-    aom_codec_destroy(&enc_ctx);
-    aom_codec_destroy(&dec_ctx);
+    unsigned char *img_data = new unsigned char[d_w * d_h * 3 / 2];
+    aom_image_t *wrapped_img = aom_img_wrap(nullptr, fmt, d_w, d_h, stride_align, img_data);
+    if (wrapped_img) {
+        aom_img_remove_metadata(wrapped_img);
+        aom_img_free(wrapped_img);
+    }
+    delete[] img_data;
+
+    aom_image_t *border_img = aom_img_alloc_with_border(nullptr, fmt, d_w, d_h, align, align, border);
+    if (border_img) {
+        aom_img_remove_metadata(border_img);
+        aom_img_free(border_img);
+    }
 
     return 0;
 }
