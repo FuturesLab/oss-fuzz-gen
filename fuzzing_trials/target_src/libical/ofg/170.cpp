@@ -1,27 +1,27 @@
+#include <stdint.h>
+#include <stddef.h>
 #include <libical/ical.h>
-#include <cstdint>
-#include <cstddef>
-#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_170(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for a null-terminated string
-    if (size < 1) {
+    // Ensure there is enough data to read an integer
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Create a null-terminated string from the input data
-    char *str = new char[size + 1];
-    memcpy(str, data, size);
-    str[size] = '\0';
+    // Initialize a new icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
+        return 0;
+    }
+
+    // Extract an integer from the input data
+    int sequence = *((int *)data);
 
     // Call the function-under-test
-    icalproperty *prop = icalproperty_vanew_scope(str, nullptr);
+    icalcomponent_set_sequence(component, sequence);
 
     // Clean up
-    if (prop != nullptr) {
-        icalproperty_free(prop);
-    }
-    delete[] str;
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_170(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_170(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

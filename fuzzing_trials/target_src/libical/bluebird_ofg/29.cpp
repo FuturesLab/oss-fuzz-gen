@@ -1,72 +1,40 @@
-#include <string.h>
 #include <sys/stat.h>
+#include <string.h>
 #include <cstdint>
-#include <cstddef>
-#include <cstring> // Include this for strlen
-#include <cstdlib> // Include this for malloc and free
+#include <cstdlib>
+#include <cstring> // Include for memcpy
 
 extern "C" {
     #include "libical/ical.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create an icalattach
-    if (size < 1) {
+    // Ensure that the size is sufficient to create a valid icalcomponent
+    if (size == 0) {
         return 0;
     }
 
-    // Ensure the data is null-terminated to prevent buffer overflow in strlen
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
+    // Create a string from the input data
+    char *ical_string = static_cast<char *>(malloc(size + 1));
+    if (ical_string == nullptr) {
         return 0;
     }
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
+    memcpy(ical_string, data, size);
+    ical_string[size] = '\0';
 
-    // Create an icalattach from the input data
-    icalattach *attachment = icalattach_new_from_data(null_terminated_data, NULL, NULL);
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(ical_string);
 
-    // Check if attachment creation was successful
-    if (attachment == NULL) {
-        free(null_terminated_data);
-        return 0;
+    // Ensure the component is not null
+    if (component != nullptr) {
+        // Call the function-under-test
+        struct icaltimetype dtstamp = icalcomponent_get_dtstamp(component);
+
+        // Clean up
+        icalcomponent_free(component);
     }
 
-    // Create an icalproperty using the attachment
-    icalproperty *property = icalproperty_vanew_attach(attachment, NULL);
-
-    // Check if property creation was successful
-    if (property != NULL) {
-        // Manipulate the property to ensure different code paths are exercised
-        icalproperty_set_attach(property, attachment);
-
-        // Additional operations to increase code coverage
-        icalproperty_kind kind = icalproperty_isa(property);
-        if (kind == ICAL_ATTACH_PROPERTY) {
-            icalattach *retrieved_attachment = icalproperty_get_attach(property);
-            if (retrieved_attachment != NULL) {
-                const char *value = reinterpret_cast<const char *>(icalattach_get_data(retrieved_attachment));
-                if (value != NULL) {
-                    // Perform operations on the value
-                    size_t value_length = strlen(value);
-                    if (value_length > 0) {
-                        // Example operation: check if the value is a valid URL
-                        icalattach *new_attachment = icalattach_new_from_url(value);
-                        if (new_attachment != NULL) {
-                            icalattach_unref(new_attachment);
-                        }
-                    }
-                }
-                // Do not unref retrieved_attachment here as it is the same as attachment
-            }
-        }
-
-        icalproperty_free(property);
-    }
-
-    // Clean up
-    icalattach_unref(attachment);
-    free(null_terminated_data);
+    free(ical_string);
 
     return 0;
 }
@@ -92,7 +60,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -102,7 +70,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_29(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_29(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

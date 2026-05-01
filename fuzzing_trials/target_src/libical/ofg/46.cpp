@@ -2,32 +2,47 @@
 #include <stddef.h>
 
 extern "C" {
-    #include <libical/ical.h>
+    #include <libical/icalcomponent.h>
+    #include <libical/icalproperty.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to fill the icaltimetype structure
-    if (size < sizeof(struct icaltimetype)) {
+    // Check if the input data size is sufficient
+    if (size < 1) {
         return 0;
     }
 
-    // Initialize an icaltimetype structure using the provided data
-    struct icaltimetype dtstamp;
-    dtstamp.year = (int16_t)((data[0] << 8) | data[1]);
-    dtstamp.month = data[2] % 12 + 1; // Ensure valid month (1-12)
-    dtstamp.day = data[3] % 31 + 1;   // Ensure valid day (1-31)
-    dtstamp.hour = data[4] % 24;      // Ensure valid hour (0-23)
-    dtstamp.minute = data[5] % 60;    // Ensure valid minute (0-59)
-    dtstamp.second = data[6] % 60;    // Ensure valid second (0-59)
-    dtstamp.is_date = data[7] % 2;    // Boolean value
+    // Initialize variables
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (!component) {
+        return 0; // Failed to create component
+    }
 
-    // Call the function-under-test
-    icalproperty *prop = icalproperty_new_dtstamp(dtstamp);
+    // Map the first byte of data to a status value
+    icalproperty_status status;
+    switch (data[0] % 3) {
+        case 0:
+            status = ICAL_STATUS_TENTATIVE;
+            break;
+        case 1:
+            status = ICAL_STATUS_CONFIRMED;
+            break;
+        case 2:
+            status = ICAL_STATUS_CANCELLED;
+            break;
+        default:
+            status = ICAL_STATUS_NONE;
+            break;
+    }
+
+    // Set the status of the component
+    icalcomponent_set_status(component, status);
+
+    // Optionally, add more properties or manipulate the component further
+    // based on the input data to increase code coverage.
 
     // Clean up
-    if (prop != NULL) {
-        icalproperty_free(prop);
-    }
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -53,7 +68,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -63,7 +78,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_46(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_46(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

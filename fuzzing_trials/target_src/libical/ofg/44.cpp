@@ -1,43 +1,36 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>  // Include for memcpy
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    // Ensure there's enough data for the test
-    if (size < sizeof(struct icaltimetype) + sizeof(int)) {
+    // Ensure the data size is sufficient to create a valid string
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize a timezone object
-    icaltimezone *timezone = icaltimezone_get_builtin_timezone("UTC");
-    if (!timezone) {
-        return 0;
+    // Create a null-terminated string from the input data
+    char *icalString = new char[size + 1];
+    memcpy(icalString, data, size);
+    icalString[size] = '\0';
+
+    // Parse the string into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(icalString);
+
+    // Ensure the component is not NULL before proceeding
+    if (component != nullptr) {
+        // Call the function-under-test
+        const char *description = icalcomponent_get_description(component);
+
+        // Optionally, use the description for further processing
+        // (e.g., logging, additional checks, etc.)
     }
 
-    // Extract icaltimetype from data
-    struct icaltimetype time;
-    memcpy(&time, data, sizeof(struct icaltimetype));
-
-    // Ensure the time values are within valid ranges
-    time.year = time.year % 9999;  // Limit year to a reasonable range
-    time.month = (time.month % 12) + 1;  // Ensure month is 1-12
-    time.day = (time.day % 31) + 1;  // Ensure day is 1-31
-    time.hour = time.hour % 24;  // Ensure hour is 0-23
-    time.minute = time.minute % 60;  // Ensure minute is 0-59
-    time.second = time.second % 60;  // Ensure second is 0-59
-
-    // Initialize an integer for the UTC offset
-    int utc_offset = 0;
-
-    // Call the function-under-test
-    int offset = icaltimezone_get_utc_offset(timezone, &time, &utc_offset);
-
-    // Use the result to prevent optimization out
-    (void)offset;
+    // Clean up
+    if (component != nullptr) {
+        icalcomponent_free(component);
+    }
+    delete[] icalString;
 
     return 0;
 }
@@ -63,7 +56,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -73,7 +66,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_44(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_44(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

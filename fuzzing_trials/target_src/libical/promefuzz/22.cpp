@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalproperty_get_value_as_string at icalproperty.c:819:13 in icalproperty.h
-// icalproperty_get_property_name_r at icalproperty.c:868:7 in icalproperty.h
-// icalproperty_set_x_name at icalproperty.c:839:6 in icalproperty.h
-// icalproperty_get_property_name at icalproperty.c:859:13 in icalproperty.h
-// icalproperty_remove_parameter_by_name at icalproperty.c:641:6 in icalproperty.h
-// icalproperty_get_value_as_string_r at icalproperty.c:828:7 in icalproperty.h
+// icalcomponent_convert_errors at icalcomponent.c:1168:6 in icalcomponent.h
+// icalcomponent_new_vpoll at icalcomponent.c:2095:16 in icalcomponent.h
+// icalcomponent_new_vpatch at icalcomponent.c:2110:16 in icalcomponent.h
+// icalcomponent_new_xvote at icalcomponent.c:2105:16 in icalcomponent.h
+// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
+// icalcomponent_free at icalcomponent.c:172:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,56 +14,50 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <cstring>
-#include <cstdint>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <icalproperty.h>
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Create a dummy icalproperty
-    icalproperty *prop = icalproperty_new(ICAL_X_PROPERTY);
-    if (!prop) return 0;
-
-    // Use part of the input data as a string
-    std::string inputStr(reinterpret_cast<const char*>(Data), Size);
-
-    // Test icalproperty_set_x_name
-    icalproperty_set_x_name(prop, inputStr.c_str());
-
-    // Test icalproperty_get_value_as_string_r
-    char *valueStr = icalproperty_get_value_as_string_r(prop);
-    if (valueStr) {
-        free(valueStr);
+    // Create a new vPatch component
+    icalcomponent *vpatch = icalcomponent_new_vpatch();
+    if (vpatch) {
+        // Convert errors in the vPatch component
+        icalcomponent_convert_errors(vpatch);
+        // Free the vPatch component
+        icalcomponent_free(vpatch);
     }
 
-    // Test icalproperty_get_property_name_r
-    char *nameStr = icalproperty_get_property_name_r(prop);
-    if (nameStr) {
-        free(nameStr);
+    // Create a new vPoll component
+    icalcomponent *vpoll = icalcomponent_new_vpoll();
+    if (vpoll) {
+        // Convert errors in the vPoll component
+        icalcomponent_convert_errors(vpoll);
+        // Free the vPoll component
+        icalcomponent_free(vpoll);
     }
 
-    // Test icalproperty_remove_parameter_by_name
-    icalproperty_remove_parameter_by_name(prop, inputStr.c_str());
-
-    // Test icalproperty_get_value_as_string
-    const char *valueConstStr = icalproperty_get_value_as_string(prop);
-    if (valueConstStr) {
-        // Normally managed by the library, no need to free
+    // Create a new xVote component
+    icalcomponent *xvote = icalcomponent_new_xvote();
+    if (xvote) {
+        // Convert errors in the xVote component
+        icalcomponent_convert_errors(xvote);
+        // Free the xVote component
+        icalcomponent_free(xvote);
     }
 
-    // Test icalproperty_get_property_name
-    const char *nameConstStr = icalproperty_get_property_name(prop);
-    if (nameConstStr) {
-        // Normally managed by the library, no need to free
+    // Create a new xPatch component
+    icalcomponent *xpatch = icalcomponent_new_xpatch();
+    if (xpatch) {
+        // Convert errors in the xPatch component
+        icalcomponent_convert_errors(xpatch);
+        // Free the xPatch component
+        icalcomponent_free(xpatch);
     }
-
-    // Clean up
-    icalproperty_free(prop);
 
     return 0;
 }

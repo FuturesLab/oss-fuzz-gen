@@ -1,11 +1,14 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_COLOR_PRIMARIES at aomcx.h:1998:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_CHROMA_SAMPLE_POSITION at aomcx.h:2007:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_LOOPFILTER_CONTROL at aomcx.h:2317:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_EXTERNAL_RATE_CONTROL at aomcx.h:2390:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_S_FRAME_MODE at aomcx.h:1980:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_TARGET_SEQ_LEVEL_IDX at aomcx.h:2025:1 in aomcx.h
+// aom_codec_av1_cx at av1_cx_iface.c:5345:20 in aomcx.h
+// aom_codec_enc_config_default at aom_encoder.c:100:17 in aom_encoder.h
+// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,73 +18,117 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <exception>
-#include "aom.h"
-#include "aom_codec.h"
-#include "aom_encoder.h"
-#include "aomcx.h"
+#include <aom/aom.h>
+#include <aom/aom_codec.h>
+#include <aom/aom_encoder.h>
+#include <aom/aomcx.h>
+#include <aom/aomdx.h>
+#include <aom/aom_decoder.h>
+#include <aom/aom_external_partition.h>
+#include <aom/aom_integer.h>
+#include <aom/aom_frame_buffer.h>
+#include <aom/aom_image.h>
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_codec_ctx_t) + sizeof(int)) {
+    if (Size < 1) return 0;
+
+    // Initialize codec context
+    aom_codec_ctx_t codec_ctx;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
+
+    // Dummy initialization values
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    aom_codec_enc_cfg_t cfg;
+    aom_codec_enc_config_default(iface, &cfg, 0);
+
+    if (aom_codec_enc_init(&codec_ctx, iface, &cfg, 0)) {
+        std::cerr << "Failed to initialize codec." << std::endl;
         return 0;
     }
 
-    aom_codec_ctx_t codec_ctx;
-    memset(&codec_ctx, 0, sizeof(codec_ctx));
-    codec_ctx.name = "AV1 Codec";
-    codec_ctx.iface = aom_codec_av1_cx();
-    codec_ctx.err = AOM_CODEC_OK;
+    // Fuzzing aom_codec_control_typechecked_AV1E_SET_PARTITION_INFO_PATH
+    const char *partition_info_path = "./dummy_partition_info_path";
+    FILE *dummy_file = fopen(partition_info_path, "wb");
+    if (dummy_file) {
+        fwrite(Data, 1, Size, dummy_file);
+        fclose(dummy_file);
+    }
+    aom_codec_control(&codec_ctx, AV1E_SET_PARTITION_INFO_PATH, partition_info_path);
 
-    int control_value = 0;
-    memcpy(&control_value, Data, sizeof(int));
+    // Fuzzing aom_codec_control_typechecked_AV1E_SET_RTC_EXTERNAL_RC
+    int rtc_external_rc = static_cast<int>(Data[0]);
+    aom_codec_control(&codec_ctx, AV1E_SET_RTC_EXTERNAL_RC, rtc_external_rc);
 
-    try {
-        aom_codec_err_t res;
+    // Fuzzing aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX
+    int target_seq_level_idx;
+    aom_codec_control(&codec_ctx, AV1E_GET_TARGET_SEQ_LEVEL_IDX, &target_seq_level_idx);
 
-        // Fuzz aom_codec_control_typechecked_AV1E_SET_COLOR_PRIMARIES
-        res = aom_codec_control_typechecked_AV1E_SET_COLOR_PRIMARIES(&codec_ctx, AV1E_SET_COLOR_PRIMARIES, control_value);
-        if (res != AOM_CODEC_OK) {
-            throw std::runtime_error("Error in AV1E_SET_COLOR_PRIMARIES");
-        }
+    // Fuzzing aom_codec_control_typechecked_AV1E_SET_FILM_GRAIN_TABLE
+    const char *film_grain_table_path = "./dummy_film_grain_table";
+    dummy_file = fopen(film_grain_table_path, "wb");
+    if (dummy_file) {
+        fwrite(Data, 1, Size, dummy_file);
+        fclose(dummy_file);
+    }
+    aom_codec_control(&codec_ctx, AV1E_SET_FILM_GRAIN_TABLE, film_grain_table_path);
 
-        // Fuzz aom_codec_control_typechecked_AV1E_SET_CHROMA_SAMPLE_POSITION
-        res = aom_codec_control_typechecked_AV1E_SET_CHROMA_SAMPLE_POSITION(&codec_ctx, AV1E_SET_CHROMA_SAMPLE_POSITION, control_value);
-        if (res != AOM_CODEC_OK) {
-            throw std::runtime_error("Error in AV1E_SET_CHROMA_SAMPLE_POSITION");
-        }
+    // Fuzzing aom_codec_control_typechecked_AV1E_SET_VMAF_MODEL_PATH
+    const char *vmaf_model_path = "./dummy_vmaf_model";
+    dummy_file = fopen(vmaf_model_path, "wb");
+    if (dummy_file) {
+        fwrite(Data, 1, Size, dummy_file);
+        fclose(dummy_file);
+    }
+    aom_codec_control(&codec_ctx, AV1E_SET_VMAF_MODEL_PATH, vmaf_model_path);
 
-        // Fuzz aom_codec_control_typechecked_AV1E_SET_LOOPFILTER_CONTROL
-        res = aom_codec_control_typechecked_AV1E_SET_LOOPFILTER_CONTROL(&codec_ctx, AV1E_SET_LOOPFILTER_CONTROL, control_value);
-        if (res != AOM_CODEC_OK) {
-            throw std::runtime_error("Error in AV1E_SET_LOOPFILTER_CONTROL");
-        }
+    // Fuzzing aom_codec_control_typechecked_AV1E_SET_ENABLE_RECT_TX
+    int enable_rect_tx = Data[0] % 2; // boolean flag
+    aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_RECT_TX, enable_rect_tx);
 
-        // Fuzz aom_codec_control_typechecked_AV1E_SET_EXTERNAL_RATE_CONTROL
-        aom_rc_funcs_t rc_funcs;
-        memset(&rc_funcs, 0, sizeof(rc_funcs));
-        res = aom_codec_control_typechecked_AV1E_SET_EXTERNAL_RATE_CONTROL(&codec_ctx, AV1E_SET_EXTERNAL_RATE_CONTROL, &rc_funcs);
-        if (res != AOM_CODEC_OK) {
-            throw std::runtime_error("Error in AV1E_SET_EXTERNAL_RATE_CONTROL");
-        }
-
-        // Fuzz aom_codec_control_typechecked_AV1E_SET_S_FRAME_MODE
-        res = aom_codec_control_typechecked_AV1E_SET_S_FRAME_MODE(&codec_ctx, AV1E_SET_S_FRAME_MODE, control_value);
-        if (res != AOM_CODEC_OK) {
-            throw std::runtime_error("Error in AV1E_SET_S_FRAME_MODE");
-        }
-
-        // Fuzz aom_codec_control_typechecked_AV1E_SET_TARGET_SEQ_LEVEL_IDX
-        res = aom_codec_control_typechecked_AV1E_SET_TARGET_SEQ_LEVEL_IDX(&codec_ctx, AV1E_SET_TARGET_SEQ_LEVEL_IDX, control_value);
-        if (res != AOM_CODEC_OK) {
-            throw std::runtime_error("Error in AV1E_SET_TARGET_SEQ_LEVEL_IDX");
-        }
-    } catch (const std::exception &e) {
-        fprintf(stderr, "Exception: %s\n", e.what());
+    // Cleanup
+    if (aom_codec_destroy(&codec_ctx)) {
+        std::cerr << "Failed to destroy codec." << std::endl;
     }
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

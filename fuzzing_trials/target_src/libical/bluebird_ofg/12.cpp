@@ -1,86 +1,52 @@
-#include <string.h>
 #include <sys/stat.h>
 #include "libical/ical.h"
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h> // Include for memcpy
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-    // Initialize a memory context for icalcomponent
-    icalcomponent *component = nullptr;
-
-    // Ensure the data size is sufficient to create a valid icalcomponent
-    if (size > 0) {
-        // Create a string from the input data
-        char *inputData = (char *)malloc(size + 1);
-        if (inputData == nullptr) {
-            return 0; // Memory allocation failed
-        }
-        memcpy(inputData, data, size);
-        inputData[size] = '\0'; // Null-terminate the string
-
-        // Parse the input data into an icalcomponent
-        component = icalparser_parse_string(inputData);
-
-        // Free the input data as it's no longer needed
-
-        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalparser_parse_string to icalcomponent_set_method using the plateau pool
-        icalproperty_method method = static_cast<icalproperty_method>(data[0] % ICAL_METHOD_NONE);
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
-        	return 0;
-        }
-        icalcomponent_set_method(component, method);
-        // End mutation: Producer.SPLICE_MUTATOR
-        
-        free(inputData);
+    // Ensure that the input data is large enough to be meaningful
+    if (size < 1) {
+        return 0;
     }
 
-    // If a valid icalcomponent was created, use it
-    if (component != nullptr) {
-        // Call the function-under-test
-        char *icalString = icalcomponent_as_ical_string_r(component);
+    // Initialize the icalcomponent and icalproperty_kind
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalproperty_kind kind = ICAL_ANY_PROPERTY;
 
-        // Free the returned string if not NULL
-        if (icalString != nullptr) {
-            free(icalString);
-        }
+    // Add some properties to the component to ensure it is not empty
+    icalproperty *summary = icalproperty_new_summary("Sample Summary");
+    icalcomponent_add_property(component, summary);
 
-        // Free the icalcomponent
+    icalproperty *description = icalproperty_new_description("Sample Description");
+    icalcomponent_add_property(component, description);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string_r to icaltimezone_get_builtin_timezone_from_offset
-        size_t ret_icallimit_get_pauii = icallimit_get(ICAL_LIMIT_PARSE_SEARCH);
-        if (ret_icallimit_get_pauii < 0){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!icalString) {
-        	return 0;
-        }
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icallimit_get to icalproperty_set_pollwinner
-        const char zfxfvsmt[1024] = "gxihs";
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalproperty_vanew_link with icalproperty_vanew_location
-        icalproperty* ret_icalproperty_vanew_link_qxbyq = icalproperty_vanew_location(zfxfvsmt);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        if (ret_icalproperty_vanew_link_qxbyq == NULL){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalproperty_vanew_link_qxbyq) {
-        	return 0;
-        }
-        icalproperty_set_pollwinner(ret_icalproperty_vanew_link_qxbyq, (int )ret_icallimit_get_pauii);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        icaltimezone* ret_icaltimezone_get_builtin_timezone_from_offset_bsaji = icaltimezone_get_builtin_timezone_from_offset((int )ret_icallimit_get_pauii, icalString);
-        if (ret_icaltimezone_get_builtin_timezone_from_offset_bsaji == NULL){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
+    // Use the input data to modify the component or properties
+    // For example, create a new property from the input data
+    char *data_copy = (char *)malloc(size + 1);
+    if (data_copy == NULL) {
         icalcomponent_free(component);
+        return 0;
     }
+    memcpy(data_copy, data, size);
+    data_copy[size] = '\0'; // Null-terminate the string
+
+    icalproperty *custom_property = icalproperty_new_comment(data_copy);
+    icalcomponent_add_property(component, custom_property);
+
+    // Call the function under test
+    icalproperty *property = icalcomponent_get_first_property(component, kind);
+
+    // Process the component to increase code coverage
+    char *component_as_string = icalcomponent_as_ical_string(component);
+    if (component_as_string) {
+        // Optionally, you can print or log the string for debugging
+        // printf("%s\n", component_as_string);
+    }
+
+    // Clean up
+    free(data_copy);
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -106,7 +72,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -116,7 +82,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_12(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_12(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

@@ -1,26 +1,39 @@
-#include <libical/ical.h>
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <string.h> // Include this header for memcpy
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated to be used as a C string
-    char *input = (char *)malloc(size + 1);
-    if (input == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
-    memcpy(input, data, size);
-    input[size] = '\0'; // Null-terminate the string
+    icalcomponent *component = nullptr;
 
-    // Call the function-under-test
-    icalproperty *prop = icalproperty_new_from_string(input);
+    if (size > 0) {
+        // Create a temporary buffer to hold the input data
+        char *buffer = (char *)malloc(size + 1);
+        if (buffer == nullptr) {
+            return 0; // Unable to allocate memory
+        }
 
-    // Clean up
-    if (prop != NULL) {
-        icalproperty_free(prop);
+        // Copy data into the buffer and ensure it's null-terminated
+        memcpy(buffer, data, size);
+        buffer[size] = '\0';
+
+        // Parse the input data into an icalcomponent
+        component = icalparser_parse_string(buffer);
+
+        // Free the temporary buffer
+        free(buffer);
     }
-    free(input);
+
+    if (component != nullptr) {
+        // Call the function under test
+        icalcomponent_normalize(component);
+
+        // Clean up the component
+        icalcomponent_free(component);
+    }
 
     return 0;
 }
@@ -46,7 +59,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -56,7 +69,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_48(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_48(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

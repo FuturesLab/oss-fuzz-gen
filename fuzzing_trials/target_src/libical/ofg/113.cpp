@@ -1,29 +1,43 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdbool.h>
-#include <libical/ical.h>
+#include <cstring>  // Include for memcpy
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_113(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to populate two icaltime_span structures
-    if (size < sizeof(icaltime_span) * 2) {
-        return 0;
+    // Initialize the icalcomponent and icalcomponent_kind
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalcomponent_kind kind = ICAL_VEVENT_COMPONENT;
+
+    // Ensure the data is large enough to simulate a valid component
+    if (size > 0) {
+        // Create a temporary buffer to hold the data
+        char *buffer = (char *)malloc(size + 1);
+        if (buffer == NULL) {
+            return 0;
+        }
+        memcpy(buffer, data, size);
+        buffer[size] = '\0';
+
+        // Attempt to parse the data as an icalcomponent
+        icalcomponent *parsed_component = icalparser_parse_string(buffer);
+        if (parsed_component != NULL) {
+            // Assign the parsed component to the component variable
+            icalcomponent_free(component);
+            component = parsed_component;
+        }
+
+        free(buffer);
     }
 
-    // Initialize two icaltime_span structures
-    icaltime_span span1;
-    icaltime_span span2;
-
-    // Populate the spans with data
-    const icaltime_span *data_span = (const icaltime_span *)data;
-    span1 = data_span[0];
-    span2 = data_span[1];
-
     // Call the function-under-test
-    bool result = icaltime_span_overlaps(&span1, &span2);
+    icalcompiter iter = icalcomponent_begin_component(component, kind);
 
-    // Use the result to prevent the compiler from optimizing away the call
-    volatile bool prevent_optimization = result;
-    (void)prevent_optimization;
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -49,7 +63,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -59,7 +73,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_113(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_113(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

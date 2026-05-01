@@ -1,33 +1,27 @@
-#include <cstdint> // Include standard library for uint8_t
-#include <cstddef> // Include standard library for size_t
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <stdint.h>
+#include <stdlib.h>
 
 extern "C" int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Define all possible values for icalproperty_transp
-    icalproperty_transp transp_values[] = {
-        ICAL_TRANSP_OPAQUE,
-        ICAL_TRANSP_OPAQUENOCONFLICT, // Corrected the identifier
-        ICAL_TRANSP_TRANSPARENT,
-        ICAL_TRANSP_NONE
-    };
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_vpoll();
 
-    // Calculate the number of possible values
-    size_t num_values = sizeof(transp_values) / sizeof(transp_values[0]);
-
-    // Iterate over all possible values
-    for (size_t i = 0; i < num_values; ++i) {
-        icalproperty_transp transp_value = transp_values[i];
-
-        // Call the function-under-test
-        icalproperty *prop = icalproperty_new_transp(transp_value);
-
-        // Clean up
-        if (prop != NULL) {
-            icalproperty_free(prop);
+    // Perform operations on the component if needed
+    if (component != NULL) {
+        // Example operation: convert the component to a string and print it
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // Print or process the component string
+            // (For fuzzing purposes, it's usually not necessary to print)
         }
+
+        // Free the string if it was allocated
+        if (component_str != NULL) {
+            free(component_str);
+        }
+
+        // Free the component
+        icalcomponent_free(component);
     }
 
     return 0;
@@ -54,7 +48,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -64,7 +58,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_20(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

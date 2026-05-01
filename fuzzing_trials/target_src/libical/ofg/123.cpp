@@ -1,33 +1,45 @@
-#include <cstddef>
-#include <cstdint>
+#include <stdint.h>
+#include <stddef.h>
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_123(const uint8_t *data, size_t size) {
-    // Ensure there's enough data for at least one parameter
-    if (size < sizeof(int)) {
-        return 0;
+    // Initialize the library
+    icalerror_clear_errno();
+
+    // Create a temporary string buffer to hold the input data
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        return 0; // Exit if memory allocation fails
+    }
+    memcpy(input, data, size);
+    input[size] = '\0'; // Null-terminate the string
+
+    // Parse the input data into an icalcomponent
+    icalcomponent *comp = icalparser_parse_string(input);
+    free(input);
+
+    if (comp == NULL) {
+        return 0; // Exit if parsing fails
     }
 
-    // Initialize an icalproperty object
-    icalproperty *property = icalproperty_new(ICAL_ANY_PROPERTY);
-    if (property == nullptr) {
-        return 0;
+    // Iterate over properties using icalcomponent_get_first_property
+    icalproperty *prop;
+    for (prop = icalcomponent_get_first_property(comp, ICAL_ANY_PROPERTY);
+         prop != NULL;
+         prop = icalcomponent_get_next_property(comp, ICAL_ANY_PROPERTY)) {
+        // Perform operations on the property if needed
+        // For now, just assert that the property is not NULL
+        assert(prop != NULL);
     }
-
-    // Instead of using va_list, directly pass the parameter
-    int dummy_param = static_cast<int>(data[0]);
-
-    // Call a function that doesn't require va_list
-    // Assuming icalproperty_add_parameter is the intended function
-    icalparameter *param = icalparameter_new(ICAL_ANY_PARAMETER);
-    icalproperty_add_parameter(property, param);
 
     // Clean up
-    icalproperty_free(property);
-    icalparameter_free(param);
+    icalcomponent_free(comp);
 
     return 0;
 }
@@ -53,7 +65,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -63,7 +75,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_123(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_123(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

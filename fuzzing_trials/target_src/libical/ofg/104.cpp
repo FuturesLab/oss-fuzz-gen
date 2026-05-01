@@ -1,33 +1,43 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
 
 extern "C" {
-    #include "libical/ical.h" // Adjust the include path as necessary
-    // The header for icalpvl_elem and icalpvl_new_element might be different or the functions might be declared elsewhere
-    // Since libical/icalpvl.h is not found, we need to find the correct header or assume the declarations here if not found
-    typedef struct icalpvl_elem_t* icalpvl_elem; // Assuming a typedef based on typical C conventions
-    icalpvl_elem icalpvl_new_element(void* ptr, icalpvl_elem elem1, icalpvl_elem elem2); // Assuming function prototype
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_104(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract elements
-    if (size < 2 * sizeof(icalpvl_elem)) {
+    // Ensure the data is large enough to be meaningful
+    if (size == 0) {
         return 0;
     }
 
-    // Extract two icalpvl_elem values from the data
-    icalpvl_elem elem1 = *(icalpvl_elem*)(data);
-    icalpvl_elem elem2 = *(icalpvl_elem*)(data + sizeof(icalpvl_elem));
+    // Create a string from the input data
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
+        return 0;
+    }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0';
 
-    // Use a non-null pointer for the first parameter
-    void* non_null_ptr = (void*)data;
+    // Parse the input data as an iCalendar component
+    icalcomponent *component = icalparser_parse_string(inputData);
 
-    // Call the function-under-test
-    icalpvl_elem new_elem = icalpvl_new_element(non_null_ptr, elem1, elem2);
+    // Perform operations on 'component' if it is successfully created
+    if (component != NULL) {
+        // Example operation: convert component to string and print
+        char *componentStr = icalcomponent_as_ical_string(component);
+        if (componentStr != NULL) {
+            // Normally, you would do something with 'componentStr'
+            // For example, logging it or using it in further processing
+        }
 
-    // Optionally, perform some operations with new_elem if needed
-    // For now, just suppress unused variable warning
-    (void)new_elem;
+        // Free the component
+        icalcomponent_free(component);
+    }
+
+    // Free the input data
+    free(inputData);
 
     return 0;
 }
@@ -53,7 +63,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -63,7 +73,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_104(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_104(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

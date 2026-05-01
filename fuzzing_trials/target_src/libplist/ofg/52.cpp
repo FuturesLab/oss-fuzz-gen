@@ -1,45 +1,74 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h> // Include the string.h library for strlen function
+#include <string.h>
 #include <plist/plist.h>
 
-extern "C" {
-    int plist_data_val_compare_with_size(plist_t, const uint8_t *, size_t);
-}
-
 extern "C" int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create a plist
+    // Ensure the data size is sufficient for testing
     if (size < 1) {
         return 0;
     }
 
-    // Create a plist node of type PLIST_DATA
-    plist_t node = plist_new_data((const char *)data, size);
-
-    // Check if the node was created successfully
-    if (!node) {
+    // Allocate memory for the input string and ensure null-termination
+    char *input_str = (char *)malloc(size + 1);
+    if (!input_str) {
         return 0;
     }
+    memcpy(input_str, data, size);
+    input_str[size] = '\0';  // Null-terminate the string
 
-    // Create a second plist node to compare with
-    // Instead of creating a node with the same data, create a node with different data
-    const char *other_data = "other_data";
-    size_t other_size = strlen(other_data);
-    plist_t node_to_compare = plist_new_data(other_data, other_size);
-
-    // Check if the second node was created successfully
-    if (!node_to_compare) {
-        plist_free(node);
-        return 0;
-    }
+    // Initialize variables for the function call
+    plist_t plist = NULL;
+    plist_format_t format = PLIST_FORMAT_XML;
+    uint32_t length = (uint32_t)size;
 
     // Call the function-under-test
-    int result = plist_data_val_compare_with_size(node, (const uint8_t *)other_data, other_size);
+    plist_err_t result = plist_from_memory(input_str, length, &plist, &format);
 
-    // Free the plist nodes
-    plist_free(node);
-    plist_free(node_to_compare);
+    // Clean up
+    if (plist) {
+        plist_free(plist);
+    }
+    free(input_str);
 
-    // Return the result to ensure the function is utilized
-    return result;
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_52(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

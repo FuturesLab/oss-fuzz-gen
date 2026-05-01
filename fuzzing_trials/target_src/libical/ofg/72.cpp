@@ -1,49 +1,39 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>
+#include <cstddef>
+#include <cstdlib>  // Include for malloc and free
+#include <cstring>  // Include for memcpy
 
 extern "C" {
-    #include <libical/ical.h>
+#include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
-    // Ensure that size is sufficient to create a valid icalproperty
-    if (size < 1) {
+    // Check if the input data size is sufficient to create a valid string
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize the library
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == nullptr) {
+    // Convert input data to a null-terminated string
+    char *ical_string = (char *)malloc(size + 1);
+    if (ical_string == NULL) {
         return 0;
     }
+    memcpy(ical_string, data, size);
+    ical_string[size] = '\0';
 
-    // Create a temporary buffer to hold the property value
-    char *prop_buffer = (char *)malloc(size + 1);
-    if (prop_buffer == nullptr) {
-        icalcomponent_free(component);
-        return 0;
-    }
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(ical_string);
+    free(ical_string);
 
-    // Copy data into the buffer and null-terminate it
-    memcpy(prop_buffer, data, size);
-    prop_buffer[size] = '\0';
-
-    // Create an icalproperty from the buffer
-    icalproperty *property = icalproperty_new_from_string(prop_buffer);
-    free(prop_buffer);
-
-    if (property == nullptr) {
-        icalcomponent_free(component);
+    // Ensure the component is not NULL
+    if (component == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    struct icaldurationtype duration = icalproperty_get_refreshinterval(property);
+    icalcompiter iterator = icalcomponent_end_component(component, ICAL_ANY_COMPONENT);
 
     // Clean up
-    icalproperty_free(property);
     icalcomponent_free(component);
 
     return 0;
@@ -70,7 +60,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -80,7 +70,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_72(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_72(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

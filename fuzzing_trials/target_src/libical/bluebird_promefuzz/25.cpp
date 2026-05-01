@@ -9,8 +9,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <cstdio>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include "libical/ical.h"
@@ -19,57 +18,63 @@
 #include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_25(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Create a new X component with a name derived from input data
-    char *x_name = static_cast<char *>(malloc(Size + 1));
-    if (!x_name) {
+    // Step 1: Create a null-terminated string from the input data
+    char *inputStr = static_cast<char *>(malloc(Size + 1));
+    if (!inputStr) {
         return 0;
     }
-    memcpy(x_name, Data, Size);
-    x_name[Size] = '\0';
+    memcpy(inputStr, Data, Size);
+    inputStr[Size] = '\0';
 
-    icalcomponent *component = icalcomponent_new_x(x_name);
-    free(x_name);
+    // Step 2: Create an icalcomponent from the input string
+    icalcomponent *component = icalcomponent_new_from_string(inputStr);
+    free(inputStr);
 
-    if (!component) {
-        return 0;
-    }
-
-    // Set X name with another portion of input data
-    if (Size > 1) {
-        char *new_x_name = static_cast<char *>(malloc(Size));
-        if (new_x_name) {
-            memcpy(new_x_name, Data + 1, Size - 1);
-            new_x_name[Size - 1] = '\0';
-            icalcomponent_set_x_name(component, new_x_name);
-            free(new_x_name);
+    if (component) {
+        // Step 3: Test icalcomponent_get_component_name_r
+        char *componentName = icalcomponent_get_component_name_r(component);
+        if (componentName) {
+            free(componentName);
         }
+
+        // Step 4: Test icalcomponent_as_ical_string_r
+        char *icalStringR = icalcomponent_as_ical_string_r(component);
+        if (icalStringR) {
+            free(icalStringR);
+        }
+
+        // Step 5: Test icalcomponent_as_ical_string
+        char *icalString = icalcomponent_as_ical_string(component);
+        if (icalString) {
+            free(icalString);
+        }
+
+        // Step 6: Test icalcomponent_set_summary
+        const char *summaryText = "Sample Summary";
+        icalcomponent_set_summary(component, summaryText);
+
+        // Step 7: Test icalcomponent_get_comment
+
+        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_set_summary to icalcomponent_get_span using the plateau pool
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        struct icaltime_span ret_icalcomponent_get_span_cajvc = icalcomponent_get_span(component);
+        // End mutation: Producer.SPLICE_MUTATOR
+        
+        const char *comment = icalcomponent_get_comment(component);
+        if (comment) {
+            // Do something with the comment if needed
+        }
+
+        // Clean up the icalcomponent
+        icalcomponent_free(component);
     }
-
-    // Set sequence number using the first byte of input data
-    icalcomponent_set_sequence(component, Data[0]);
-
-    // Strip errors, if any
-    icalcomponent_strip_errors(component);
-
-    // Retrieve component name
-    const char *component_name = icalcomponent_get_component_name(component);
-    if (component_name) {
-        std::cout << "Component Name: " << component_name << std::endl;
-    }
-
-    // Retrieve component name with dynamic allocation
-    char *component_name_r = icalcomponent_get_component_name_r(component);
-    if (component_name_r) {
-        std::cout << "Component Name R: " << component_name_r << std::endl;
-        free(component_name_r);
-    }
-
-    // Cleanup
-    icalcomponent_free(component);
 
     return 0;
 }
@@ -95,7 +100,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -105,7 +110,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_25(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_25(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

@@ -1,57 +1,78 @@
 #include <cstdint>
-#include <cstdlib>
-#include <aom/aom_image.h>
-#include <aom/aom_codec.h>
+#include <cstddef>
+#include <iostream> // Include for debugging output
 
 extern "C" {
-    // Include the necessary headers for the function-under-test
-    #include <aom/aom.h>
-    #include <aom/aomcx.h> // Include the header where AOM_METADATA_INSERT_FLAG_NONE is likely defined
-    #include <aom/aom_encoder.h> // Additional header where AOM_METADATA_INSERT_FLAG_NONE might be defined
+    #include <aom/aom_codec.h>
+    #include <aom/aom_decoder.h>
+    #include <aom/aomdx.h>
 }
 
-// Function signature to be fuzzed
-extern "C" int aom_img_add_metadata(aom_image_t *img, uint32_t type, const uint8_t *metadata, size_t metadata_size, aom_metadata_insert_flags_t flags);
-
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    // Initialize the aom_image_t structure
-    aom_image_t img;
-    img.fmt = AOM_IMG_FMT_I420; // Example format
-    img.w = 640; // Example width
-    img.h = 480; // Example height
-    img.d_w = img.w;
-    img.d_h = img.h;
-    img.x_chroma_shift = 1;
-    img.y_chroma_shift = 1;
-    img.bps = 12;
-    img.planes[0] = (uint8_t *)malloc(img.w * img.h); // Allocate memory for Y plane
-    img.planes[1] = (uint8_t *)malloc((img.w >> img.x_chroma_shift) * (img.h >> img.y_chroma_shift)); // Allocate memory for U plane
-    img.planes[2] = (uint8_t *)malloc((img.w >> img.x_chroma_shift) * (img.h >> img.y_chroma_shift)); // Allocate memory for V plane
-    img.stride[0] = img.w;
-    img.stride[1] = img.w >> img.x_chroma_shift;
-    img.stride[2] = img.w >> img.x_chroma_shift;
-
-    // Ensure the data size is sufficient for metadata
-    if (size < 1) {
-        free(img.planes[0]);
-        free(img.planes[1]);
-        free(img.planes[2]);
+    if (size == 0) {
         return 0;
     }
 
-    // Set up the metadata and flags
-    uint32_t type = 0; // Example type
-    const uint8_t *metadata = data;
-    size_t metadata_size = size;
-    aom_metadata_insert_flags_t flags = static_cast<aom_metadata_insert_flags_t>(0); // Example flag, assuming 0 is a valid default
+    const aom_codec_iface_t *iface = aom_codec_av1_dx();
 
-    // Call the function-under-test
-    int result = aom_img_add_metadata(&img, type, metadata, metadata_size, flags);
+    aom_codec_ctx_t codec;
+    aom_codec_err_t res = aom_codec_dec_init(&codec, iface, nullptr, 0);
+    if (res != AOM_CODEC_OK) {
+        std::cerr << "Failed to initialize codec: " << aom_codec_err_to_string(res) << std::endl;
+        return 0;
+    }
 
-    // Clean up
-    free(img.planes[0]);
-    free(img.planes[1]);
-    free(img.planes[2]);
+    res = aom_codec_decode(&codec, data, size, nullptr);
+    if (res != AOM_CODEC_OK) {
+        std::cerr << "Failed to decode: " << aom_codec_err_to_string(res) << std::endl;
+    }
+
+    aom_codec_iter_t iter = nullptr;
+    aom_image_t *img = nullptr;
+    while ((img = aom_codec_get_frame(&codec, &iter)) != nullptr) {
+        // Process the image (img) if needed
+    }
+
+    aom_codec_destroy(&codec);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

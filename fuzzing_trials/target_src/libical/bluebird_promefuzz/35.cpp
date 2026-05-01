@@ -1,4 +1,5 @@
 #include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -8,99 +9,52 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+extern "C" {
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
+}
+
+#include <cstdint>
+#include <cstdlib>
+
+static void cleanup(icalcomponent *component) {
+    if (component) {
+        icalcomponent_free(component);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_35(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icalcomponent_kind)) {
-        return 0;
+    if (Size < 1) return 0;
+
+    // Create components based on the first byte of the input data
+    icalcomponent *component = nullptr;
+    switch (Data[0] % 6) {
+        case 0:
+            component = icalcomponent_new_vfreebusy();
+            break;
+        case 1:
+            component = icalcomponent_new_vreply();
+            break;
+        case 2:
+            component = icalcomponent_new_vresource();
+            break;
+        case 3:
+            component = icalcomponent_new_vlocation();
+            break;
+        case 4:
+            component = icalcomponent_new_valarm();
+            break;
+        case 5:
+            component = icalcomponent_new_vcalendar();
+            break;
+        default:
+            break;
     }
 
-    // Prepare an icalcomponent
-    icalcomponent_kind kind;
-    memcpy(&kind, Data, sizeof(icalcomponent_kind));
-    Data += sizeof(icalcomponent_kind);
-    Size -= sizeof(icalcomponent_kind);
-
-    icalcomponent *comp = icalcomponent_new(kind);
-    if (!comp) {
-        return 0;
-    }
-
-    // Use the remaining data to create dummy properties or comments
-    if (Size > 0) {
-        char *dummyData = (char *)malloc(Size + 1);
-        if (dummyData) {
-            memcpy(dummyData, Data, Size);
-            dummyData[Size] = '\0';
-
-            // Set a dummy comment
-            icalcomponent_set_comment(comp, dummyData);
-
-            // Set a dummy UID
-            icalcomponent_set_uid(comp, dummyData);
-
-            // Clean up
-            free(dummyData);
-        }
-    }
-
-    // Fuzz the API functions
-    char *icalStringR = icalcomponent_as_ical_string_r(comp);
-    if (icalStringR) {
-        free(icalStringR);
-    }
-
-    const char *comment = icalcomponent_get_comment(comp);
-    if (comment) {
-        // Do something with comment if needed
-    }
-
-    const char *componentName = icalcomponent_get_component_name(comp);
-    if (componentName) {
-        // Do something with componentName if needed
-    }
-
-    const char *relcalid = icalcomponent_get_relcalid(comp);
-    if (relcalid) {
-        // Do something with relcalid if needed
-    }
-
-    char *icalString = icalcomponent_as_ical_string(comp);
-    if (icalString) {
-        free(icalString);
-    }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string to icalparameter_set_options
-    icalparameter* ret_icalparameter_new_sentby_apquv = icalparameter_new_sentby((const char *)"w");
-    if (ret_icalparameter_new_sentby_apquv == NULL){
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!ret_icalparameter_new_sentby_apquv) {
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!icalString) {
-    	return 0;
-    }
-    icalparameter_set_options(ret_icalparameter_new_sentby_apquv, icalString);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    const char *uid = icalcomponent_get_uid(comp);
-    if (uid) {
-        // Do something with uid if needed
-    }
-
-    // Clean up
-    icalcomponent_free(comp);
+    // Cleanup the created component
+    cleanup(component);
 
     return 0;
 }
@@ -126,7 +80,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -136,7 +90,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_35(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_35(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

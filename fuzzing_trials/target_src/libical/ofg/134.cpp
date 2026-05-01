@@ -1,30 +1,29 @@
-#include <cstdint>
+#include <stdint.h>
 #include <stddef.h>
-
-// Assume that the following enum is defined somewhere in the project
-typedef enum {
-    ICALPARSER_CTRL_NONE,
-    ICALPARSER_CTRL_STOP,
-    ICALPARSER_CTRL_CONTINUE,
-    ICALPARSER_CTRL_MAX
-} DW_TAG_enumeration_typeicalparser_ctrl;
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
-    // Function-under-test
-    void icalparser_set_ctrl(DW_TAG_enumeration_typeicalparser_ctrl ctrl);
+    #include <libical/icalcomponent.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_134(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to select a valid enum value
-    if (size < 1) {
-        return 0;
+    // Ensure the input data is null-terminated to safely convert to a string
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0; // Exit if memory allocation fails
     }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // Map the first byte of data to a valid enum value
-    DW_TAG_enumeration_typeicalparser_ctrl ctrl = static_cast<DW_TAG_enumeration_typeicalparser_ctrl>(data[0] % ICALPARSER_CTRL_MAX);
+    // Call the function-under-test with the fuzzed input
+    icalcomponent *component = icalcomponent_new_x(null_terminated_data);
 
-    // Call the function-under-test
-    icalparser_set_ctrl(ctrl);
+    // Clean up
+    if (component != NULL) {
+        icalcomponent_free(component);
+    }
+    free(null_terminated_data);
 
     return 0;
 }
@@ -50,7 +49,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -60,7 +59,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_134(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_134(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

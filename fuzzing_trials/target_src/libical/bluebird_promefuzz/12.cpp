@@ -9,58 +9,41 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cassert>
-#include <cstdint>
-#include <cstdlib>
+#include <iostream>
+#include <fstream>
 #include <cstring>
+#include <cassert>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icalduration.h"
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Test icaldurationtype_normalize
-    struct icaldurationtype dur;
-    dur.is_neg = Data[0] % 2;
-    dur.days = Data[0];
-    dur.hours = Data[0] % 24;
-    dur.minutes = Data[0] % 60;
-    dur.seconds = Data[0] % 60;
-    struct icaldurationtype normalized = icaldurationtype_normalize(dur);
+    // Create a new VTIMEZONE component
+    icalcomponent *vtimezone = icalcomponent_new_vtimezone();
+    assert(vtimezone != nullptr);
 
-    // Test icaldurationtype_null_duration
-    struct icaldurationtype null_duration = icaldurationtype_null_duration();
-    assert(null_duration.days == 0);
-    assert(null_duration.weeks == 0);
-    assert(null_duration.hours == 0);
-    assert(null_duration.minutes == 0);
-    assert(null_duration.seconds == 0);
-    assert(icaldurationtype_is_null_duration(null_duration));
-    assert(icaldurationtype_as_seconds(null_duration) == 0);
+    // Create a new VALARM component
+    icalcomponent *valarm = icalcomponent_new_valarm();
+    assert(valarm != nullptr);
 
-    // Test icaldurationtype_bad_duration
-    struct icaldurationtype bad_duration = icaldurationtype_bad_duration();
-    assert(icaldurationtype_is_bad_duration(bad_duration));
+    // Determine the kind of the components
+    icalcomponent_kind kind_vtimezone = icalcomponent_isa(vtimezone);
+    icalcomponent_kind kind_valarm = icalcomponent_isa(valarm);
 
-    // Test icaldurationtype_from_string
-    // Ensure null-terminated string for icaldurationtype_from_string
-    std::string input_str(reinterpret_cast<const char*>(Data), Size);
-    struct icaldurationtype from_string = icaldurationtype_from_string(input_str.c_str());
-    if (icaldurationtype_is_bad_duration(from_string)) {
-        assert(icalerrno == ICAL_MALFORMEDDATA_ERROR);
-    }
+    // Set a summary for the VTIMEZONE component
+    std::string summary(reinterpret_cast<const char*>(Data), Size);
+    icalcomponent_set_summary(vtimezone, summary.c_str());
 
-    // Test icalcomponent_set_duration and icalcomponent_get_duration
-    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalcomponent_set_duration(comp, normalized);
-    struct icaldurationtype retrieved_duration = icalcomponent_get_duration(comp);
-    icalcomponent_free(comp);
+    // Get and set status for the VALARM component
+    icalproperty_status status = icalcomponent_get_status(valarm);
+    icalcomponent_set_status(valarm, ICAL_STATUS_TENTATIVE);
+
+    // Clean up components
+    icalcomponent_free(vtimezone);
+    icalcomponent_free(valarm);
 
     return 0;
 }
@@ -86,7 +69,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -96,7 +79,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_12(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_12(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

@@ -15,46 +15,60 @@
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
-#include "/src/libical/src/libical/icaltypes.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icalenums.h"
+#include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_46(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Fuzz icalenum_reqstat_code
-    icalrequeststatus status = static_cast<icalrequeststatus>(Data[0]);
-    char *code = icalenum_reqstat_code(status);
-    // No need to free code as it is managed by libical's memory management
-
-    // Fuzz icalenum_reqstat_desc
-    const char *desc = icalenum_reqstat_desc(status);
-    // No need to free desc as it's a const char*
-
-    // Fuzz icalreqstattype_from_string
-    char *str = (char *)malloc(Size + 1);
-    if (!str) return 0;
-    memcpy(str, Data, Size);
-    str[Size] = '\0';
-    icalreqstattype reqstattype = icalreqstattype_from_string(str);
-    free(str);
-
-    // Fuzz icalreqstattype_as_string_r
-    char *reqstat_string_r = icalreqstattype_as_string_r(reqstattype);
-    if (reqstat_string_r) {
-        free(reqstat_string_r);
+    if (Size == 0) {
+        return 0;
     }
 
-    // Fuzz icalreqstattype_as_string
-    const char *reqstat_string = icalreqstattype_as_string(reqstattype);
-    // No need to free reqstat_string as it's a const char*
+    // Ensure null-terminated string for icalcomponent_new_from_string
+    char *icalStr = static_cast<char*>(malloc(Size + 1));
+    if (!icalStr) {
+        return 0;
+    }
+    memcpy(icalStr, Data, Size);
+    icalStr[Size] = '\0';
 
-    // Fuzz icalenum_reqstat_code_r
-    char *code_r = icalenum_reqstat_code_r(status);
-    if (code_r) {
-        free(code_r);
+    // Create icalcomponent from string
+    icalcomponent *comp = icalcomponent_new_from_string(icalStr);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new_from_string to icalcomponent_set_dtstart
+    struct icaltimetype ret_icalcomponent_get_due_jgzmi = icalcomponent_get_due(NULL);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
+    }
+    icalcomponent_set_dtstart(comp, ret_icalcomponent_get_due_jgzmi);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(icalStr);
+
+    if (comp) {
+        // Test icalcomponent_isa_component
+        icalcomponent_isa_component(comp);
+
+        // Setup a dummy icaltimetype for testing
+        struct icaltimetype dtstart = {0};
+        struct icaltimetype recurtime = {0};
+
+        // Test icalproperty_recurrence_is_excluded
+        icalproperty_recurrence_is_excluded(comp, &dtstart, &recurtime);
+
+        // Test icalcomponent_set_description
+        icalcomponent_set_description(comp, "Sample Description");
+
+        // Test icalcomponent_kind_is_valid
+        icalcomponent_kind kind = icalcomponent_isa(comp);
+        icalcomponent_kind_is_valid(kind);
+
+        // Test icalcomponent_is_valid
+        icalcomponent_is_valid(comp);
+
+        // Cleanup the component
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(comp);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
 
     return 0;
@@ -81,7 +95,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -91,7 +105,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_46(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_46(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

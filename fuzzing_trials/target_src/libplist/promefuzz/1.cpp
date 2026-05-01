@@ -1,12 +1,14 @@
 // This fuzz driver is generated for library libplist, aiming to fuzz the following functions:
-// plist_from_xml at xplist.c:1599:13 in plist.h
-// plist_to_bin at bplist.c:1302:13 in plist.h
-// plist_from_bin at bplist.c:847:13 in plist.h
-// plist_dict_remove_item at plist.c:990:6 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_mem_free at plist.c:561:6 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_is_binary at plist.c:211:5 in plist.h
+// plist_new_dict at plist.c:527:9 in plist.h
+// plist_new_int at plist.c:614:9 in plist.h
+// plist_set_int_val at plist.c:2036:6 in plist.h
+// plist_get_int_val at plist.c:1807:6 in plist.h
+// plist_dict_set_item at plist.c:1314:6 in plist.h
+// plist_dict_get_int at plist.c:1499:9 in plist.h
+// plist_new_dict at plist.c:527:9 in plist.h
+// plist_dict_copy_int at plist.c:1602:13 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,44 +18,77 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+extern "C" {
+#include <plist/plist.h>
+}
+
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
-#include <fstream>
-#include "plist/plist.h"
+#include <cstdlib>
+
+static void fuzz_plist_functions(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+
+    plist_t dict = plist_new_dict();
+    plist_t int_node = plist_new_int(static_cast<int64_t>(Data[0]));
+    plist_set_int_val(int_node, static_cast<int64_t>(Data[0]));
+
+    int64_t retrieved_val = 0;
+    plist_get_int_val(int_node, &retrieved_val);
+
+    char key[] = "test_key";
+    plist_dict_set_item(dict, key, int_node);
+
+    int64_t dict_int_val = plist_dict_get_int(dict, key);
+
+    plist_t target_dict = plist_new_dict();
+    plist_err_t copy_result = plist_dict_copy_int(target_dict, dict, key, nullptr);
+
+    plist_free(dict);
+    plist_free(target_dict);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
-
-    // Prepare a dummy file if needed
-    std::ofstream dummyFile("./dummy_file", std::ios::binary);
-    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-    dummyFile.close();
-
-    // Test plist_from_xml
-    plist_t plist_xml = nullptr;
-    plist_err_t xml_err = plist_from_xml(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist_xml);
-    if (xml_err == PLIST_ERR_SUCCESS && plist_xml) {
-        // Test plist_to_bin
-        char *bin_data = nullptr;
-        uint32_t bin_length = 0;
-        plist_err_t bin_err = plist_to_bin(plist_xml, &bin_data, &bin_length);
-        if (bin_err == PLIST_ERR_SUCCESS) {
-            // Test plist_from_bin
-            plist_t plist_bin = nullptr;
-            plist_err_t bin_import_err = plist_from_bin(bin_data, bin_length, &plist_bin);
-            if (bin_import_err == PLIST_ERR_SUCCESS && plist_bin) {
-                // Test plist_dict_remove_item with a dummy key
-                plist_dict_remove_item(plist_bin, "dummy_key");
-                plist_free(plist_bin);
-            }
-            plist_mem_free(bin_data);
-        }
-        plist_free(plist_xml);
-    }
-
-    // Test plist_is_binary
-    int is_binary = plist_is_binary(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size));
-
+    fuzz_plist_functions(Data, Size);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

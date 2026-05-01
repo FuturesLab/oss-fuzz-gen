@@ -1,106 +1,63 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icaltriggertype_from_string at icaltypes.c:53:24 in icaltypes.h
-// icalparameter_decode_value at icalparameter.c:411:6 in icalparameter.h
-// icalvalue_new_from_string at icalvalue.c:780:12 in icalvalue.h
-// icalmemory_append_decoded_string at icalmemory.c:519:6 in icalmemory.h
-// icalvalue_decode_ical_string at icalvalue.c:1577:6 in icalvalue.h
-// icalrecurrencetype_new_from_string at icalrecur.c:818:28 in icalrecur.h
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <cstring>
-#include <cstdlib>
-#include <cstdio>
+// icalcomponent_new_vquery at icalcomponent.c:2075:16 in icalcomponent.h
+// icalcomponent_new_vjournal at icalcomponent.c:2040:16 in icalcomponent.h
+// icalcomponent_new_vcalendar at icalcomponent.c:2025:16 in icalcomponent.h
+// icalcomponent_new_vresource at icalcomponent.c:2130:16 in icalcomponent.h
+// icalcomponent_new_vagenda at icalcomponent.c:2070:16 in icalcomponent.h
+// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
 #include <cstdint>
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <iostream>
+extern "C" {
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalmemory.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "icalvalue.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "icalparameter.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "icaltypes.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "icalrecur.h"
+#include "icalcomponent.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_46(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
+    if (Size == 0) return 0;
+
+    // Fuzzing icalcomponent_new_vquery
+    icalcomponent *vquery_component = icalcomponent_new_vquery();
+    if (vquery_component != nullptr) {
+        // Clean up
+        icalcomponent_free(vquery_component);
     }
 
-    // Convert the input data to a string
-    char *inputStr = static_cast<char *>(malloc(Size + 1));
-    if (!inputStr) {
-        return 0;
-    }
-    memcpy(inputStr, Data, Size);
-    inputStr[Size] = '\0';
-
-    // Ensure the inputStr is null-terminated for functions that expect C-style strings
-    if (inputStr[Size - 1] != '\0') {
-        inputStr[Size - 1] = '\0';
+    // Fuzzing icalcomponent_new_vresource
+    icalcomponent *vresource_component = icalcomponent_new_vresource();
+    if (vresource_component != nullptr) {
+        // Clean up
+        icalcomponent_free(vresource_component);
     }
 
-    // 1. Test icalvalue_new_from_string
-    for (int kind = ICAL_ANY_VALUE; kind <= ICAL_XMLREFERENCE_VALUE; ++kind) {
-        icalvalue *value = icalvalue_new_from_string(static_cast<icalvalue_kind>(kind), inputStr);
-        if (value) {
-            icalvalue_free(value);
-        }
+    // Fuzzing icalcomponent_new_vjournal
+    icalcomponent *vjournal_component = icalcomponent_new_vjournal();
+    if (vjournal_component != nullptr) {
+        // Clean up
+        icalcomponent_free(vjournal_component);
     }
 
-    // 2. Test icalrecurrencetype_new_from_string
-    icalrecurrencetype *recurType = icalrecurrencetype_new_from_string(inputStr);
-    if (recurType) {
-        free(recurType);
+    // Fuzzing icalcomponent_new_vagenda
+    icalcomponent *vagenda_component = icalcomponent_new_vagenda();
+    if (vagenda_component != nullptr) {
+        // Clean up
+        icalcomponent_free(vagenda_component);
     }
 
-    // 3. Test icaltriggertype_from_string
-    icaltriggertype triggerType = icaltriggertype_from_string(inputStr);
-    // No need for cleanup as icaltriggertype_from_string does not allocate memory
-
-    // 4. Test icalmemory_append_decoded_string
-    char *buf = nullptr;
-    char *pos = nullptr;
-    size_t buf_size = 0;
-    icalmemory_append_decoded_string(&buf, &pos, &buf_size, inputStr);
-    if (buf) {
-        free(buf);
+    // Fuzzing icalcomponent_new_vcalendar
+    icalcomponent *vcalendar_component = icalcomponent_new_vcalendar();
+    if (vcalendar_component != nullptr) {
+        // Clean up
+        icalcomponent_free(vcalendar_component);
     }
 
-    // 5. Test icalvalue_decode_ical_string
-    if (Size > 0) {
-        char decodedText[1024];
-        bool success = icalvalue_decode_ical_string(inputStr, decodedText, sizeof(decodedText));
-        if (!success) {
-            // Handle decoding failure if necessary
-        }
+    // Fuzzing icalcomponent_new_xpatch
+    icalcomponent *xpatch_component = icalcomponent_new_xpatch();
+    if (xpatch_component != nullptr) {
+        // Clean up
+        icalcomponent_free(xpatch_component);
     }
 
-    // 6. Test icalparameter_decode_value
-    char *mutableStr = strdup(inputStr);
-    if (mutableStr) {
-        icalparameter_decode_value(mutableStr);
-        free(mutableStr);
-    }
-
-    free(inputStr);
     return 0;
 }
     #ifdef INC_MAIN

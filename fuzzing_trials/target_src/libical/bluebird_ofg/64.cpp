@@ -1,41 +1,65 @@
-#include <string.h>
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <time.h>
+#include <string.h>
 #include "libical/ical.h"
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
-extern "C" {
-
-// Define a callback function that matches the expected signature for the recurrence callback
-void recurrence_callback(const icalcomponent *comp,
-                         const struct icaltime_span *span,
-                         void *data) {
-    // This is a placeholder function for the callback
-}
-
-int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent
-    icalcomponent *comp = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    
-    // Create start and end times for the recurrence
-    struct icaltimetype start_time = icaltime_from_timet_with_zone(time(NULL), 0, NULL);
-    struct icaltimetype end_time = icaltime_from_timet_with_zone(time(NULL) + 3600, 0, NULL);
-    
-    // Check if the component was created successfully
-    if (comp == NULL) {
+extern "C" int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
+    // Ensure that the input data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Call the function-under-test
-    icalcomponent_foreach_recurrence(comp, start_time, end_time, recurrence_callback, NULL);
-    
-    // Free the component
-    icalcomponent_free(comp);
+    // Create a temporary buffer to hold the input data
+    char *buffer = static_cast<char *>(malloc(size + 1));
+    if (buffer == nullptr) {
+        return 0;
+    }
 
-    return 0;
+    // Copy the input data into the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
+
+    // Parse the buffer into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(buffer);
+
+    // If parsing was successful, call the function-under-test
+    if (component != nullptr) {
+        char *icalString = icalcomponent_as_ical_string_r(component);
+
+        // Free the returned string if it's not null
+        if (icalString != nullptr) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_add_component
+        icalcomponent* ret_icalcomponent_new_vevent_faxdw = icalcomponent_new_vevent();
+        if (ret_icalcomponent_new_vevent_faxdw == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalcomponent_new_vevent_faxdw) {
+        	return 0;
+        }
+        icalcomponent_add_component(component, ret_icalcomponent_new_vevent_faxdw);
+        // End mutation: Producer.APPEND_MUTATOR
+        
 }
 
+    // Free the buffer
+    free(buffer);
+
+    return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>
@@ -59,7 +83,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -69,7 +93,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_64(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_64(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

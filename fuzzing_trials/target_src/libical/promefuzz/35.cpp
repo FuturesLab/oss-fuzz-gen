@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalvalue_clone at icalvalue.c:58:12 in icalvalue.h
-// icalvalue_free at icalvalue.c:785:6 in icalvalue.h
-// icalvalue_new at icalvalue.c:53:12 in icalvalue.h
-// icalvalue_isa at icalvalue.c:1306:16 in icalvalue.h
-// icalvalue_new_from_string at icalvalue.c:780:12 in icalvalue.h
-// icalvalue_as_ical_string at icalvalue.c:1197:13 in icalvalue.h
+// icalcomponent_strip_errors at icalcomponent.c:1145:6 in icalcomponent.h
+// icalcomponent_convert_errors at icalcomponent.c:1168:6 in icalcomponent.h
+// icalcomponent_clone at icalcomponent.c:129:16 in icalcomponent.h
+// icalcomponent_free at icalcomponent.c:172:6 in icalcomponent.h
+// icalcomponent_count_errors at icalcomponent.c:1123:5 in icalcomponent.h
+// icalcomponent_check_restrictions at icalcomponent.c:1117:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,52 +16,58 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
+#include <cstdint>
 #include <cstring>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <icalvalue.h>
+#include "icalcomponent.h"
+
+static icalcomponent* createComponentFromData(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(icalcomponent_kind)) {
+        return nullptr;
+    }
+    
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+    icalcomponent *component = icalcomponent_new(kind);
+    
+    // Additional setup of the component can be done here based on Data
+    
+    return component;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_35(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Prepare a string from the input data
-    std::string inputString(reinterpret_cast<const char*>(Data), Size);
-
-    // Choose a kind based on the first byte of the input data
-    icalvalue_kind kind = static_cast<icalvalue_kind>(Data[0] % ICAL_NO_VALUE);
-
-    // Test icalvalue_new_from_string
-    icalvalue *valueFromString = icalvalue_new_from_string(kind, inputString.c_str());
-    if (valueFromString) {
-        // Test icalvalue_clone
-        icalvalue *clonedValue = icalvalue_clone(valueFromString);
-        
-        // Test icalvalue_isa
-        icalvalue_kind isaKind = icalvalue_isa(valueFromString);
-
-        // Test icalvalue_as_ical_string
-        const char *icalString = icalvalue_as_ical_string(valueFromString);
-        if (icalString) {
-            std::ofstream dummyFile("./dummy_file");
-            if (dummyFile.is_open()) {
-                dummyFile << icalString;
-                dummyFile.close();
-            }
-        }
-
-        // Clean up
-        icalvalue_free(valueFromString);
-        if (clonedValue) {
-            icalvalue_free(clonedValue);
-        }
+    if (Size == 0) {
+        return 0;
     }
 
-    // Test icalvalue_new
-    icalvalue *newValue = icalvalue_new(kind);
-    if (newValue) {
-        icalvalue_free(newValue);
+    icalcomponent *component = createComponentFromData(Data, Size);
+    if (!component) {
+        return 0;
     }
+
+    // Test icalcomponent_strip_errors
+    icalcomponent_strip_errors(component);
+
+    // Test icalcomponent_convert_errors
+    icalcomponent_convert_errors(component);
+
+    // Test icalcomponent_count_errors
+    int error_count = icalcomponent_count_errors(component);
+    (void)error_count;  // Suppress unused variable warning
+
+    // Test icalcomponent_clone
+    icalcomponent *cloned_component = icalcomponent_clone(component);
+    if (cloned_component) {
+        icalcomponent_free(cloned_component);
+    }
+
+    // Test icalcomponent_check_restrictions
+    bool restrictions_ok = icalcomponent_check_restrictions(component);
+    (void)restrictions_ok;  // Suppress unused variable warning
+
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }

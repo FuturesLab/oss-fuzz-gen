@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icaltimezone_get_zone_directory at icaltimezone.c:2249:13 in icaltimezone.h
-// icaltimezone_set_tzid_prefix at icaltimezone.c:2281:6 in icaltimezone.h
-// icaltimezone_set_system_zone_directory at icaltimezone.c:2205:6 in icaltimezone.h
-// icaltimezone_set_zone_directory at icaltimezone.c:2258:6 in icaltimezone.h
-// icaltimezone_tzid_prefix at icaltimezone.c:205:13 in icaltimezone.h
-// icaltimezone_get_tzid at icaltimezone.c:1210:13 in icaltimezone.h
+// icalcomponent_set_comment at icalcomponent.c:1769:6 in icalcomponent.h
+// icalcomponent_set_location at icalcomponent.c:1920:6 in icalcomponent.h
+// icalcomponent_set_x_name at icalcomponent.c:324:6 in icalcomponent.h
+// icalcomponent_set_summary at icalcomponent.c:1734:6 in icalcomponent.h
+// icalcomponent_get_summary at icalcomponent.c:1746:13 in icalcomponent.h
+// icalcomponent_set_description at icalcomponent.c:1885:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -17,71 +17,76 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <fstream>
 #include <iostream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icaltimezone.h"
+#include "icalcomponent.h"
 
-static void fuzz_icaltimezone_set_zone_directory(const uint8_t *Data, size_t Size) {
-    char *zone_directory = new char[Size + 1];
-    memcpy(zone_directory, Data, Size);
-    zone_directory[Size] = '\0';
-    icaltimezone_set_zone_directory(zone_directory);
-    delete[] zone_directory;
+// Helper function to create a new icalcomponent
+static icalcomponent* create_component() {
+    return icalcomponent_new(ICAL_VEVENT_COMPONENT);
 }
 
-static void fuzz_icaltimezone_set_tzid_prefix(const uint8_t *Data, size_t Size) {
-    if (Size < 256) {
-        char *tzid_prefix = new char[Size + 1];
-        memcpy(tzid_prefix, Data, Size);
-        tzid_prefix[Size] = '\0';
-        icaltimezone_set_tzid_prefix(tzid_prefix);
-        delete[] tzid_prefix;
-    }
+// Helper function to safely extract a string from fuzz data
+static const char* extract_string(const uint8_t* Data, size_t Size, size_t& offset) {
+    if (offset >= Size) return nullptr;
+    size_t len = strnlen(reinterpret_cast<const char*>(Data + offset), Size - offset);
+    if (offset + len >= Size) return nullptr; // Ensure null terminator is within bounds
+    const char* str = reinterpret_cast<const char*>(Data + offset);
+    offset += len + 1; // Move past the string and null terminator
+    return str;
 }
 
-static void fuzz_icaltimezone_set_system_zone_directory(const uint8_t *Data, size_t Size) {
-    char *system_zone_directory = new char[Size + 1];
-    memcpy(system_zone_directory, Data, Size);
-    system_zone_directory[Size] = '\0';
-    icaltimezone_set_system_zone_directory(system_zone_directory);
-    delete[] system_zone_directory;
-}
-
-static void fuzz_icaltimezone_tzid_prefix() {
-    const char *prefix = icaltimezone_tzid_prefix();
-    if (prefix) {
-        std::cout << "TZID Prefix: " << prefix << std::endl;
-    }
-}
-
-static void fuzz_icaltimezone_get_zone_directory() {
-    const char *zone_directory = icaltimezone_get_zone_directory();
-    if (zone_directory) {
-        std::cout << "Zone Directory: " << zone_directory << std::endl;
-    }
-}
-
-static void fuzz_icaltimezone_get_tzid() {
-    // As we do not have a constructor for icaltimezone, we will pass NULL
-    const char *tzid = icaltimezone_get_tzid(NULL);
-    if (tzid) {
-        std::cout << "TZID: " << tzid << std::endl;
-    }
-}
-
-extern "C" int LLVMFuzzerTestOneInput_37(const uint8_t *Data, size_t Size) {
+extern "C" int LLVMFuzzerTestOneInput_37(const uint8_t* Data, size_t Size) {
     if (Size == 0) return 0;
 
-    // Fuzz each function with the provided input data
-    fuzz_icaltimezone_set_zone_directory(Data, Size);
-    fuzz_icaltimezone_set_tzid_prefix(Data, Size);
-    fuzz_icaltimezone_set_system_zone_directory(Data, Size);
-    fuzz_icaltimezone_tzid_prefix();
-    fuzz_icaltimezone_get_zone_directory();
-    fuzz_icaltimezone_get_tzid();
+    // Create a new icalcomponent
+    icalcomponent* comp = create_component();
+    if (!comp) return 0;
+
+    size_t offset = 0;
+
+    // Extract strings from the fuzz input
+    const char* comment = extract_string(Data, Size, offset);
+    const char* description = extract_string(Data, Size, offset);
+    const char* location = extract_string(Data, Size, offset);
+    const char* summary = extract_string(Data, Size, offset);
+    const char* x_name = extract_string(Data, Size, offset);
+
+    // Fuzz icalcomponent_set_comment
+    if (comment) {
+        icalcomponent_set_comment(comp, comment);
+    }
+
+    // Fuzz icalcomponent_set_description
+    if (description) {
+        icalcomponent_set_description(comp, description);
+    }
+
+    // Fuzz icalcomponent_set_location
+    if (location) {
+        icalcomponent_set_location(comp, location);
+    }
+
+    // Fuzz icalcomponent_set_summary
+    if (summary) {
+        icalcomponent_set_summary(comp, summary);
+    }
+
+    // Fuzz icalcomponent_get_summary
+    const char* retrieved_summary = icalcomponent_get_summary(comp);
+    if (retrieved_summary) {
+        std::cout << "Retrieved Summary: " << retrieved_summary << std::endl;
+    }
+
+    // Fuzz icalcomponent_set_x_name
+    if (x_name) {
+        icalcomponent_set_x_name(comp, x_name);
+    }
+
+    // Clean up
+    icalcomponent_free(comp);
 
     return 0;
 }

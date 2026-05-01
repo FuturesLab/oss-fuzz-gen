@@ -1,63 +1,87 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
-#include "plist/plist.h"
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h> // Include this header for the 'close' function
 
 extern "C" {
-    // Include necessary C headers and functions here
     #include "plist/plist.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_47(const uint8_t *data, size_t size) {
-    // Initialize plist_t variable
-    plist_t plist = NULL;
-    
-    // Create a plist from the input data
+    // Ensure that we have enough data to work with
+    if (size < 4) {
+        return 0;
+    }
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function plist_from_bin with plist_from_xml
-    plist_from_xml((const char*)data, size, &plist);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Initialize plist_t object
+    plist_t plist = plist_new_dict();
 
+    // Create a temporary file to write the plist data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        plist_free(plist);
+        return 0;
+    }
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
+        plist_free(plist);
+        return 0;
+    }
 
-
-    // Prepare variables for plist_to_bin
-    char *bin_data = NULL;
-    uint32_t bin_size = 0;
+    // Extract values from the input data
+    plist_format_t format = static_cast<plist_format_t>(data[0] % 3); // Assuming 3 possible formats
+    plist_write_options_t options = static_cast<plist_write_options_t>(data[1] % 2); // Assuming 2 possible options
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_from_xml to plist_real_val_compare
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_from_xml to plist_array_insert_item
-    plist_t ret_plist_new_bool_qaoet = plist_new_bool(-1);
-    int ret_plist_bool_val_is_true_bqfgb = plist_bool_val_is_true(plist);
-    if (ret_plist_bool_val_is_true_bqfgb < 0){
-    	return 0;
-    }
-
-    plist_array_insert_item(ret_plist_new_bool_qaoet, plist, (uint32_t )ret_plist_bool_val_is_true_bqfgb);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    uint32_t ret_plist_array_get_item_index_hroeq = plist_array_get_item_index(plist);
-    if (ret_plist_array_get_item_index_hroeq < 0){
-    	return 0;
-    }
-
-    int ret_plist_real_val_compare_pcrmw = plist_real_val_compare(plist, (double )ret_plist_array_get_item_index_hroeq);
-    if (ret_plist_real_val_compare_pcrmw < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    plist_err_t result = plist_to_bin(plist, &bin_data, &bin_size);
+    plist_write_to_stream(plist, file, format, options);
 
     // Clean up
-    if (bin_data != NULL) {
-        free(bin_data);
-    }
+    fclose(file);
+    remove(tmpl);
     plist_free(plist);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_47(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

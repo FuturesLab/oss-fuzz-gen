@@ -1,54 +1,65 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <plist/plist.h>
-
 extern "C" {
-    void plist_dict_get_item_key(plist_t node, char **key);
+    #include <plist/plist.h>
+    #include <string.h> // Include the string.h library for memcpy
 }
 
 extern "C" int LLVMFuzzerTestOneInput_146(const uint8_t *data, size_t size) {
-    // Create a plist node from the input data
-    plist_t node = plist_new_dict();
-    
-    // Ensure the data is not empty before using it
-    if (size > 0) {
-        // Create a key string from the data
-        char *key = static_cast<char*>(malloc(size + 1));
-        if (key == NULL) {
-            plist_free(node);
-            return 0;
-        }
-        memcpy(key, data, size);
-        key[size] = '\0';
-
-        // Insert the key into the plist dictionary
-        plist_dict_set_item(node, key, plist_new_string("value"));
-
-        // Call the function-under-test
-        char *retrieved_key = NULL;
-        
-        // Instead of calling plist_dict_get_item_key, retrieve the item directly
-        plist_t item = plist_dict_get_item(node, key);
-        if (item != NULL) {
-            plist_dict_get_item_key(item, &retrieved_key);
-        }
-
-        // Check if the retrieved key is not NULL and matches the original key
-        if (retrieved_key != NULL) {
-            // Do something with the retrieved key, like comparing it
-            if (strcmp(retrieved_key, key) == 0) {
-                // Keys match
-            }
-            free(retrieved_key);
-        }
-
-        // Free the allocated memory for the key
-        free(key);
+    // Ensure size is sufficient to extract a uint64_t value
+    if (size < sizeof(uint64_t)) {
+        return 0;
     }
 
-    // Free the plist node
-    plist_free(node);
+    // Initialize a plist_t object
+    plist_t plist = plist_new_dict();
+
+    // Extract a uint64_t value from the input data
+    uint64_t uint_val;
+    memcpy(&uint_val, data, sizeof(uint64_t));
+
+    // Call the function-under-test
+    plist_set_uint_val(plist, uint_val);
+
+    // Clean up
+    plist_free(plist);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_146(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

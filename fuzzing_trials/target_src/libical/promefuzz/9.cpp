@@ -1,71 +1,66 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_get_uid at icalcomponent.c:1816:13 in icalcomponent.h
-// icalcomponent_get_location at icalcomponent.c:1932:13 in icalcomponent.h
+// icalcomponent_new_xavailable at icalcomponent.c:2090:16 in icalcomponent.h
+// icalcomponent_new_vavailability at icalcomponent.c:2085:16 in icalcomponent.h
+// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
 // icalcomponent_set_description at icalcomponent.c:1885:6 in icalcomponent.h
-// icalcomponent_get_comment at icalcomponent.c:1781:13 in icalcomponent.h
-// icalcomponent_get_summary at icalcomponent.c:1746:13 in icalcomponent.h
-// icalcomponent_as_ical_string at icalcomponent.c:215:7 in icalcomponent.h
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <cstring>
-#include <cstdlib>
-#include <cstdio>
-#include <cstdint>
-#include <cstddef>
-#include <iostream>
-#include <fstream>
-#include <string>
+// icalcomponent_set_summary at icalcomponent.c:1734:6 in icalcomponent.h
+// icalcomponent_new_xvote at icalcomponent.c:2105:16 in icalcomponent.h
+extern "C" {
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include "icalcomponent.h"
+}
+
+#include <cstdint>
+#include <cstddef>
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
+    if (Size < 1) return 0; // Ensure there is at least 1 byte to use
+
+    // Create a new VAVAILABILITY component
+    icalcomponent *vavailability = icalcomponent_new_vavailability();
+    if (!vavailability) return 0;
+
+    // Use the first byte of Data as a simple description
+    char description[2] = {static_cast<char>(Data[0]), '\0'};
+    icalcomponent_set_description(vavailability, description);
+
+    // Create a new XAVAILABLE component
+    icalcomponent *xavailable = icalcomponent_new_xavailable();
+    if (xavailable) {
+        // Set summary using the second byte of Data if available
+        if (Size > 1) {
+            char summary[2] = {static_cast<char>(Data[1]), '\0'};
+            icalcomponent_set_summary(xavailable, summary);
+        }
     }
 
-    // Create a dummy icalcomponent for testing purposes
-    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (!comp) {
-        return 0;
+    // Create a new XVOTE component
+    icalcomponent *xvote = icalcomponent_new_xvote();
+    if (xvote) {
+        // Set description using the third byte of Data if available
+        if (Size > 2) {
+            char xvote_desc[2] = {static_cast<char>(Data[2]), '\0'};
+            icalcomponent_set_description(xvote, xvote_desc);
+        }
     }
 
-    // Use the data to set a description
-    std::string description(reinterpret_cast<const char*>(Data), Size);
-    icalcomponent_set_description(comp, description.c_str());
-
-    // Retrieve and print various properties
-    const char *comment = icalcomponent_get_comment(comp);
-    if (comment) {
-        std::cout << "Comment: " << comment << std::endl;
-    }
-
-    const char *location = icalcomponent_get_location(comp);
-    if (location) {
-        std::cout << "Location: " << location << std::endl;
-    }
-
-    const char *summary = icalcomponent_get_summary(comp);
-    if (summary) {
-        std::cout << "Summary: " << summary << std::endl;
-    }
-
-    const char *uid = icalcomponent_get_uid(comp);
-    if (uid) {
-        std::cout << "UID: " << uid << std::endl;
-    }
-
-    char *ical_str = icalcomponent_as_ical_string(comp);
-    if (ical_str) {
-        std::cout << "iCalendar String: " << ical_str << std::endl;
-        // Do not free ical_str as it is managed by libical's internal memory management
+    // Create a new XPATCH component
+    icalcomponent *xpatch = icalcomponent_new_xpatch();
+    if (xpatch) {
+        // Set summary using the fourth byte of Data if available
+        if (Size > 3) {
+            char xpatch_summary[2] = {static_cast<char>(Data[3]), '\0'};
+            icalcomponent_set_summary(xpatch, xpatch_summary);
+        }
     }
 
     // Cleanup
-    icalcomponent_free(comp);
+    icalcomponent_free(vavailability);
+    icalcomponent_free(xavailable);
+    icalcomponent_free(xvote);
+    icalcomponent_free(xpatch);
 
     return 0;
 }

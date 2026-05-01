@@ -1,59 +1,73 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
+#include <stdlib.h>
 #include "plist/plist.h"
 
-extern "C" {
-    // Include necessary C headers and functions here
-    #include "plist/plist.h"
-}
-
 extern "C" int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    // Initialize plist_t variable
-    plist_t plist = NULL;
-    
-    // Create a plist from the input data
+    // Ensure the data size is sufficient for meaningful input
+    if (size < 2) {
+        return 0;
+    }
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function plist_from_bin with plist_from_xml
-    plist_from_xml((const char*)data, size, &plist);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Create a plist object
+    plist_t plist = plist_new_string("example");
 
-
-
-    // Prepare variables for plist_to_bin
-    char *bin_data = NULL;
-    uint32_t bin_size = 0;
+    // Create a null-terminated string from the input data
+    char *input_string = (char *)malloc(size + 1);
+    if (input_string == NULL) {
+        plist_free(plist);
+        return 0;
+    }
+    memcpy(input_string, data, size);
+    input_string[size] = '\0';
 
     // Call the function-under-test
-    plist_err_t result = plist_to_bin(plist, &bin_data, &bin_size);
+    int result = plist_string_val_compare(plist, input_string);
 
     // Clean up
-    if (bin_data != NULL) {
-        free(bin_data);
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_to_bin to plist_is_binary
-    uint32_t ret_plist_array_get_size_shcbp = plist_array_get_size(plist);
-    if (ret_plist_array_get_size_shcbp < 0){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_array_get_size to plist_set_int_val
-    plist_t ret_plist_new_bool_sgsbx = plist_new_bool(-1);
-
-    plist_set_int_val(ret_plist_new_bool_sgsbx, (int64_t )ret_plist_array_get_size_shcbp);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_plist_is_binary_zaozn = plist_is_binary(bin_data, ret_plist_array_get_size_shcbp);
-    if (ret_plist_is_binary_zaozn < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    free(input_string);
     plist_free(plist);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_45(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

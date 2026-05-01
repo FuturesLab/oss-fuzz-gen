@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_new_vtodo at icalcomponent.c:2035:16 in icalcomponent.h
-// icalcomponent_normalize at icalcomponent.c:2832:6 in icalcomponent.h
-// icalcomponent_new_vavailability at icalcomponent.c:2085:16 in icalcomponent.h
-// icalcomponent_new_vagenda at icalcomponent.c:2070:16 in icalcomponent.h
-// icalcomponent_clone at icalcomponent.c:129:16 in icalcomponent.h
-// icalcomponent_new_vcalendar at icalcomponent.c:2025:16 in icalcomponent.h
+// icalcomponent_remove_component at icalcomponent.c:543:6 in icalcomponent.h
+// icalcomponent_set_parent at icalcomponent.c:1231:6 in icalcomponent.h
+// icalcomponent_get_parent at icalcomponent.c:1226:16 in icalcomponent.h
+// icalcomponent_add_component at icalcomponent.c:509:6 in icalcomponent.h
+// icalcomponent_new_vtimezone at icalcomponent.c:2055:16 in icalcomponent.h
+// icalcomponent_isa at icalcomponent.c:304:20 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,41 +16,47 @@
 #include <cstddef>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include <icalcomponent.h>
-#include <stdlib.h>
 
 extern "C" int LLVMFuzzerTestOneInput_29(const uint8_t *Data, size_t Size) {
-    // Create various ical components
-    icalcomponent *vcalendar = icalcomponent_new_vcalendar();
-    icalcomponent *vagenda = icalcomponent_new_vagenda();
-    icalcomponent *vavailability = icalcomponent_new_vavailability();
-    icalcomponent *vtodo = icalcomponent_new_vtodo();
+    if (Size < 1) return 0;
 
-    // Clone the components if they are not NULL
-    icalcomponent *cloned_vcalendar = vcalendar ? icalcomponent_clone(vcalendar) : NULL;
-    icalcomponent *cloned_vagenda = vagenda ? icalcomponent_clone(vagenda) : NULL;
-    icalcomponent *cloned_vavailability = vavailability ? icalcomponent_clone(vavailability) : NULL;
-    icalcomponent *cloned_vtodo = vtodo ? icalcomponent_clone(vtodo) : NULL;
+    // Create a new VTIMEZONE component
+    icalcomponent *vtimezone = icalcomponent_new_vtimezone();
+    if (!vtimezone) return 0;
 
-    // Normalize the components
-    if (vcalendar) icalcomponent_normalize(vcalendar);
-    if (vagenda) icalcomponent_normalize(vagenda);
-    if (vavailability) icalcomponent_normalize(vavailability);
-    if (vtodo) icalcomponent_normalize(vtodo);
+    // Create another component to act as a child
+    icalcomponent *child = icalcomponent_new_vtimezone();
+    if (!child) {
+        icalcomponent_free(vtimezone);
+        return 0;
+    }
 
-    // Cleanup: free the components
-    if (vcalendar) icalcomponent_free(vcalendar);
-    if (vagenda) icalcomponent_free(vagenda);
-    if (vavailability) icalcomponent_free(vavailability);
-    if (vtodo) icalcomponent_free(vtodo);
+    // Fuzzing logic for icalcomponent_set_parent
+    icalcomponent_set_parent(child, vtimezone);
 
-    if (cloned_vcalendar) icalcomponent_free(cloned_vcalendar);
-    if (cloned_vagenda) icalcomponent_free(cloned_vagenda);
-    if (cloned_vavailability) icalcomponent_free(cloned_vavailability);
-    if (cloned_vtodo) icalcomponent_free(cloned_vtodo);
+    // Fuzzing logic for icalcomponent_add_component
+    icalcomponent_add_component(vtimezone, child);
+
+    // Fuzzing logic for icalcomponent_get_parent
+    icalcomponent *parent = icalcomponent_get_parent(child);
+    (void)parent; // Suppress unused variable warning
+
+    // Fuzzing logic for icalcomponent_isa
+    icalcomponent_kind kind = icalcomponent_isa(vtimezone);
+    (void)kind; // Suppress unused variable warning
+
+    // Fuzzing logic for icalcomponent_remove_component
+    icalcomponent_remove_component(vtimezone, child);
+
+    // Free allocated components
+    icalcomponent_free(child);
+    icalcomponent_free(vtimezone);
 
     return 0;
 }

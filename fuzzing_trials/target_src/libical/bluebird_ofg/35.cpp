@@ -1,47 +1,41 @@
 #include <sys/stat.h>
+#include "libical/ical.h"
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h> // Added for memcpy
-
-extern "C" {
-    #include "/src/libical/src/libical/icalparameter.h" // Corrected include for libical
-    #include "/src/libical/src/libical/icalderivedparameter.h" // Include the derived header for the complete type
-}
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to initialize icalparameter
+    // Ensure the data size is sufficient to create a valid icalcomponent
     if (size == 0) {
         return 0;
     }
 
-    // Null-terminate the input data to prevent overflow in string functions
-    char *null_terminated_data = (char*)malloc(size + 1);
-    if (null_terminated_data == NULL) {
+    // Create a temporary buffer to hold the data
+    char *tempData = (char *)malloc(size + 1);
+    if (tempData == NULL) {
         return 0;
     }
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
 
-    // Create an icalparameter object from the input data
-    icalparameter *param = icalparameter_new_from_string(null_terminated_data);
-    if (param == NULL) {
-        free(null_terminated_data);
+    // Copy the input data to the temporary buffer and null-terminate it
+    memcpy(tempData, data, size);
+    tempData[size] = '\0';
+
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(tempData);
+
+    // Free the temporary buffer
+    free(tempData);
+
+    // If the component is NULL, exit
+    if (component == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    icalparameter *result = icalparameter_new_from_string(null_terminated_data);
+    struct icaldurationtype duration = icalcomponent_get_duration(component);
 
-    // Free the allocated memory for param
-    icalparameter_free(param);
-
-    // Assume result needs to be freed if not NULL
-    if (result != NULL) {
-        icalparameter_free(result);
-    }
-
-    // Free the null-terminated data
-    free(null_terminated_data);
+    // Clean up the icalcomponent
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -67,7 +61,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -77,7 +71,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_35(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_35(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

@@ -1,35 +1,41 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h> // Include the necessary header for memcpy
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_88(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to work with for both icalproperty and icaltimetype
-    if (size < sizeof(struct icaltimetype)) {
+    // Check if the size is sufficient to create a string
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize an icalproperty
-    icalproperty *property = icalproperty_new(ICAL_TZUNTIL_PROPERTY);
-    if (property == NULL) {
+    // Create a string from the input data
+    char *ical_str = (char *)malloc(size + 1);
+    if (!ical_str) {
+        return 0;
+    }
+    memcpy(ical_str, data, size);
+    ical_str[size] = '\0';
+
+    // Parse the string into an icalcomponent
+    icalcomponent *comp = icalparser_parse_string(ical_str);
+    free(ical_str);
+
+    if (comp == NULL) {
         return 0;
     }
 
-    // Extract an icaltimetype from the data
-    struct icaltimetype tt;
-    memcpy(&tt, data, sizeof(struct icaltimetype));
+    // Map the first byte of data to a valid icalproperty_method
+    icalproperty_method method = ICAL_METHOD_NONE;
+    if (size > 0) {
+        method = static_cast<icalproperty_method>(data[0] % ICAL_METHOD_NONE);
+    }
 
-    // Ensure the icaltimetype is valid
-    tt.is_date = 1; // Set is_date to a non-zero value to ensure it's not NULL
-
-    // Call the function under test
-    icalproperty_set_tzuntil(property, tt);
+    // Call the function-under-test
+    icalcomponent_set_method(comp, method);
 
     // Clean up
-    icalproperty_free(property);
+    icalcomponent_free(comp);
 
     return 0;
 }
@@ -55,7 +61,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -65,7 +71,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_88(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_88(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

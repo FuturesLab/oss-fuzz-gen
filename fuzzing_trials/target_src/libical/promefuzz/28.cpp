@@ -1,11 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalparser_get_ctrl at icalparser.c:1337:22 in icalparser.h
-// icalparser_set_ctrl at icalparser.c:1342:6 in icalparser.h
-// icalparser_get_state at icalparser.c:1203:18 in icalparser.h
-// icalparser_free at icalparser.c:103:6 in icalparser.h
-// icalparser_new at icalparser.c:80:13 in icalparser.h
-// icalparser_add_line at icalparser.c:641:16 in icalparser.h
-#include <iostream>
+// icalcomponent_set_x_name at icalcomponent.c:324:6 in icalcomponent.h
+// icalcomponent_set_comment at icalcomponent.c:1769:6 in icalcomponent.h
+// icalcomponent_set_location at icalcomponent.c:1920:6 in icalcomponent.h
+// icalcomponent_set_uid at icalcomponent.c:1804:6 in icalcomponent.h
+// icalcomponent_set_summary at icalcomponent.c:1734:6 in icalcomponent.h
+// icalcomponent_get_summary at icalcomponent.c:1746:13 in icalcomponent.h
 #include <sstream>
 #include <string>
 #include <vector>
@@ -14,52 +13,55 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+extern "C" {
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icalcomponent.h>
+}
+
 #include <cstdint>
-#include <cstdlib>
-#include <cstdio>
 #include <cstring>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "icalparser.h"
+#include <fstream>
+
+static void writeToFile(const char* filename, const char* data, size_t size) {
+    std::ofstream file(filename, std::ios::binary);
+    file.write(data, size);
+    file.close();
+}
 
 extern "C" int LLVMFuzzerTestOneInput_28(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < 1) return 0;
 
-    // Initialize the parser
-    icalparser *parser = icalparser_new();
-    if (!parser) return 0;
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+    icalcomponent* comp = icalcomponent_new(kind);
 
-    // Set control characters handling
-    icalparser_ctrl ctrl = static_cast<icalparser_ctrl>(Data[0] % 3);
-    icalparser_set_ctrl(ctrl);
+    if (!comp) return 0;
 
-    // Check the current control setting
-    icalparser_get_ctrl();
+    const char* strData = reinterpret_cast<const char*>(Data);
+    size_t strSize = Size > 1 ? Size - 1 : 0;
 
-    // Feed data to the parser line by line
-    char *line = static_cast<char *>(malloc(Size + 1));
-    if (!line) {
-        icalparser_free(parser);
-        return 0;
-    }
-    memcpy(line, Data, Size);
-    line[Size] = '\0';
+    // Create a null-terminated string
+    std::string safeStr(strData, strSize);
 
-    icalcomponent *component = icalparser_add_line(parser, line);
+    if (strSize > 0) {
+        icalcomponent_set_uid(comp, safeStr.c_str());
+        icalcomponent_set_comment(comp, safeStr.c_str());
+        icalcomponent_set_location(comp, safeStr.c_str());
+        icalcomponent_set_summary(comp, safeStr.c_str());
+        icalcomponent_set_x_name(comp, safeStr.c_str());
 
-    // Free the component if it was created
-    if (component) {
-        icalcomponent_free(component);
+        const char* summary = icalcomponent_get_summary(comp);
+        if (summary) {
+            writeToFile("./dummy_file", summary, strlen(summary));
+        }
     }
 
-    // Check the parser state
-    icalparser_get_state(parser);
-
-    // Clean up
-    free(line);
-    icalparser_free(parser);
-
+    icalcomponent_free(comp);
     return 0;
 }
     #ifdef INC_MAIN

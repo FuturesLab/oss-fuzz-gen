@@ -1,9 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalduration_from_times at icalduration.c:341:25 in icalduration.h
-// icalduration_extend at icalduration.c:292:21 in icalduration.h
-// icaldurationtype_bad_duration at icalduration.c:278:25 in icalduration.h
-// icaldurationtype_normalize at icalduration.c:364:25 in icalduration.h
-// icaldurationtype_null_duration at icalduration.c:256:25 in icalduration.h
+// icalcomponent_set_sequence at icalcomponent.c:1955:6 in icalcomponent.h
+// icalcomponent_get_sequence at icalcomponent.c:1967:5 in icalcomponent.h
+// icalcomponent_get_inner at icalcomponent.c:1490:16 in icalcomponent.h
+// icalcomponent_get_next_component at icalcomponent.c:627:16 in icalcomponent.h
+// icalcomponent_set_dtstart at icalcomponent.c:1533:6 in icalcomponent.h
+// icalcomponent_new_valarm at icalcomponent.c:2045:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,50 +16,69 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
-#include <cassert>
-#include <cstdint>
-#include <cstring>
+#include <stdint.h>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalcomponent.h"
+#include <libical/icalcomponent.h>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalduration.h"
+#include <libical/icaltime.h>
+
+static icalcomponent* create_component_from_data(const uint8_t *Data, size_t Size) {
+    if (Size < 1) {
+        return nullptr;
+    }
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+    return icalcomponent_new(kind);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(struct icaldurationtype) + sizeof(struct icaltimetype) * 2) {
+    if (Size < 1) {
         return 0;
     }
 
-    struct icaldurationtype *dur = (struct icaldurationtype *)Data;
-    struct icaltimetype *t1 = (struct icaltimetype *)(Data + sizeof(struct icaldurationtype));
-    struct icaltimetype *t2 = (struct icaltimetype *)(Data + sizeof(struct icaldurationtype) + sizeof(struct icaltimetype));
-
-    // Normalize duration
-    struct icaldurationtype normalizedDur = icaldurationtype_normalize(*dur);
-
-    // Extend time by duration
-    struct icaltimetype extendedTime = icalduration_extend(*t1, *dur);
-
-    // Create null duration
-    struct icaldurationtype nullDur = icaldurationtype_null_duration();
-    assert(nullDur.days == 0 && nullDur.is_neg == 0);
-
-    // Calculate duration from two times
-    struct icaldurationtype durationFromTimes = icalduration_from_times(*t1, *t2);
-
-    // Create bad duration
-    struct icaldurationtype badDur = icaldurationtype_bad_duration();
-    assert(icaldurationtype_is_bad_duration(badDur));
-
-    // Write to a dummy file if necessary
-    std::ofstream dummyFile("./dummy_file", std::ios::binary);
-    if (dummyFile.is_open()) {
-        dummyFile.write(reinterpret_cast<const char *>(Data), Size);
-        dummyFile.close();
+    icalcomponent *comp = create_component_from_data(Data, Size);
+    if (!comp) {
+        return 0;
     }
+
+    // Test icalcomponent_get_inner
+    icalcomponent *inner = icalcomponent_get_inner(comp);
+    if (inner) {
+        // Do something with inner, like checking its kind
+        icalcomponent_kind inner_kind = icalcomponent_isa(inner);
+        (void)inner_kind; // Suppress unused variable warning
+    }
+
+    // Test icalcomponent_set_dtstart
+    struct icaltimetype dtstart = icaltime_from_timet_with_zone(time(NULL), 0, nullptr);
+    icalcomponent_set_dtstart(comp, dtstart);
+
+    // Test icalcomponent_get_sequence
+    int sequence = icalcomponent_get_sequence(comp);
+    (void)sequence; // Suppress unused variable warning
+
+    // Test icalcomponent_get_next_component
+    icalcomponent *next = icalcomponent_get_next_component(comp, ICAL_VEVENT_COMPONENT);
+    if (next) {
+        // Do something with next, like checking its kind
+        icalcomponent_kind next_kind = icalcomponent_isa(next);
+        (void)next_kind; // Suppress unused variable warning
+    }
+
+    // Test icalcomponent_new_valarm
+    icalcomponent *alarm = icalcomponent_new_valarm();
+    if (alarm) {
+        icalcomponent_add_component(comp, alarm);
+    }
+
+    // Test icalcomponent_set_sequence
+    icalcomponent_set_sequence(comp, static_cast<int>(Data[0]));
+
+    // Cleanup
+    icalcomponent_free(comp);
 
     return 0;
 }

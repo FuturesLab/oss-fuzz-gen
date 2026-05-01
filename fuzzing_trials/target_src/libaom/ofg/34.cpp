@@ -1,34 +1,67 @@
 #include <cstdint>
 #include <cstdlib>
-
-extern "C" {
-    #include <aom/aom_codec.h>
-    #include <aom/aom_decoder.h>
-    #include <aom/aomdx.h> // Include the header for AV1 decoder interface
-}
+#include <aom/aom_image.h>
 
 extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    // Initialize the codec interface
-    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Ensure the correct function is used
-
-    // Ensure the interface is not NULL
-    if (iface == NULL) {
-        return 0;
+    if (size < 5) {
+        return 0; // Ensure there's enough data for the parameters
     }
 
-    // Initialize the stream info structure
-    aom_codec_stream_info_t stream_info;
-    stream_info.w = 0; // Initialize width to a known value
-    stream_info.h = 0; // Initialize height to a known value
-    stream_info.is_kf = 0; // Initialize to a known value
+    // Initialize parameters for aom_img_wrap
+    aom_image_t img; // Uninitialized image structure
+    aom_img_fmt_t fmt = static_cast<aom_img_fmt_t>(data[0] % 10); // Enum value, assuming 10 possible formats
+    unsigned int d_w = data[1] + 1; // Width, ensuring it's non-zero
+    unsigned int d_h = data[2] + 1; // Height, ensuring it's non-zero
+    unsigned int stride_align = data[3] + 1; // Stride alignment, ensuring it's non-zero
+    unsigned char *img_data = const_cast<unsigned char*>(data + 4); // Image data starts from the 5th byte
 
     // Call the function-under-test
-    aom_codec_err_t result = aom_codec_peek_stream_info(iface, data, size, &stream_info);
+    aom_image_t *result = aom_img_wrap(&img, fmt, d_w, d_h, stride_align, img_data);
 
-    // Check the result (optional, mainly for debugging purposes)
-    if (result != AOM_CODEC_OK) {
-        // Handle error if necessary
+    // Optionally, you can perform additional checks or operations on the result
+    // For now, just ensure the result is used to avoid compiler optimizations
+    if (result != nullptr) {
+        // Perform some operations if needed
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_34(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,41 +1,34 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <libical/ical.h>
 
 extern "C" {
-    #include <libical/ical.h>
+
+// A simple callback function to be used with icalcomponent_foreach_tzid
+void tzid_callback(icalparameter *param, void *data) {
+    // This is where you would handle the parameter and data
+    // For fuzzing purposes, we can leave it empty or log the parameter
 }
 
-extern "C" int LLVMFuzzerTestOneInput_103(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for a null-terminated string
-    if (size == 0) {
+int LLVMFuzzerTestOneInput_103(const uint8_t *data, size_t size) {
+    // Initialize a memory zone for icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    if (component == NULL) {
         return 0;
     }
 
-    // Allocate memory for the tzid string and ensure it is null-terminated
-    char *tzid = (char *)malloc(size + 1);
-    if (tzid == NULL) {
-        return 0;
-    }
-    memcpy(tzid, data, size);
-    tzid[size] = '\0';
-
-    // Create a new icalproperty instance
-    icalproperty *prop = icalproperty_new(ICAL_TZID_PROPERTY);
-    if (prop == NULL) {
-        free(tzid);
-        return 0;
-    }
+    // Create a dummy data pointer
+    void *user_data = static_cast<void*>(const_cast<uint8_t*>(data));
 
     // Call the function-under-test
-    icalproperty_set_tzid(prop, tzid);
+    icalcomponent_foreach_tzid(component, tzid_callback, user_data);
 
     // Clean up
-    icalproperty_free(prop);
-    free(tzid);
+    icalcomponent_free(component);
 
     return 0;
+}
+
 }
 #ifdef INC_MAIN
 #include <stdio.h>
@@ -59,7 +52,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -69,7 +62,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_103(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_103(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

@@ -1,42 +1,71 @@
+#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <aom/aom_image.h>
-#include <aom/aom_codec.h>
+
+extern "C" {
+    // Include the necessary AOM headers
+    #include <aom/aom_image.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    // Initialize an aom_image_t structure
-    aom_image_t img;
-    memset(&img, 0, sizeof(aom_image_t));
-
-    // Set some non-NULL values for the aom_image_t structure
-    img.fmt = AOM_IMG_FMT_I420;
-    img.w = 640;
-    img.h = 480;
-    img.d_w = 640;
-    img.d_h = 480;
-    img.stride[0] = 640;
-    img.stride[1] = 320;
-    img.stride[2] = 320;
-    img.planes[0] = (uint8_t *)malloc(640 * 480);
-    img.planes[1] = (uint8_t *)malloc(320 * 240);
-    img.planes[2] = (uint8_t *)malloc(320 * 240);
-
-    // Ensure the data is not NULL and size is valid for metadata retrieval
-    if (data != nullptr && size > 0) {
-        // Call the function-under-test
-        const aom_metadata_t *metadata = aom_img_get_metadata(&img, size);
-
-        // Process the metadata if needed (for fuzzing purposes, we just check if it's not NULL)
-        if (metadata != nullptr) {
-            // Example processing (not doing anything specific here)
-        }
+    if (size < 4) {
+        return 0; // Not enough data to proceed
     }
 
-    // Free allocated memory
-    free(img.planes[0]);
-    free(img.planes[1]);
-    free(img.planes[2]);
+    // Use input data to determine image parameters
+    aom_image_t img;
+    aom_image_t *img_ptr = &img;
+    aom_img_fmt_t fmt = static_cast<aom_img_fmt_t>(data[0] % 4); // Limited to 4 formats
+    unsigned int width = 640 + (data[1] % 640); // Vary width from 640 to 1279
+    unsigned int height = 480 + (data[2] % 480); // Vary height from 480 to 959
+    unsigned int align = 1 + (data[3] % 16); // Vary alignment from 1 to 16
+
+    // Call the function-under-test
+    aom_image_t *result = aom_img_alloc(img_ptr, fmt, width, height, align);
+
+    // Free the allocated image if it was successfully allocated
+    if (result != nullptr) {
+        aom_img_free(result);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_46(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,39 +1,62 @@
 #include <string.h>
 #include <sys/stat.h>
-#include <cstddef>
 #include <cstdint>
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
+#include <cstddef>
+#include <iostream> // Include for debugging output
+
+extern "C" {
+    #include "/src/aom/aom/aom_codec.h"
+    #include "aom/aom_decoder.h"
+    #include "aom/aomdx.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
+    if (size == 0) {
+        return 0;
+    }
+
+    const aom_codec_iface_t *iface = aom_codec_av1_dx();
+
     aom_codec_ctx_t codec;
-    aom_codec_err_t res;
-    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
-    void *user_priv = (void*)1; // Non-NULL user private data
-
-    // Initialize the codec context
-    res = aom_codec_dec_init(&codec, iface, NULL, 0);
+    aom_codec_err_t res = aom_codec_dec_init(&codec, iface, nullptr, 0);
     if (res != AOM_CODEC_OK) {
-        return 0; // Initialization failed
+        std::cerr << "Failed to initialize codec: " << aom_codec_err_to_string(res) << std::endl;
+        return 0;
     }
 
-    // Call the function-under-test
-    res = aom_codec_decode(&codec, data, size, user_priv);
+    res = aom_codec_decode(&codec, data, size, nullptr);
+    if (res != AOM_CODEC_OK) {
+        std::cerr << "Failed to decode: " << aom_codec_err_to_string(res) << std::endl;
+    }
 
-    // Destroy the codec context
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_dec_init_ver
-    size_t ret_aom_uleb_size_in_bytes_ycpht = aom_uleb_size_in_bytes(AOM_PLANE_PACKED);
-    if (ret_aom_uleb_size_in_bytes_ycpht < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_destroy
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_set_frame_buffer_functions
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!iface) {
     	return 0;
     }
-    size_t ret_aom_img_num_metadata_srufi = aom_img_num_metadata(NULL);
-    if (ret_aom_img_num_metadata_srufi < 0){
+    aom_codec_caps_t ret_aom_codec_get_caps_hfuwy = aom_codec_get_caps(iface);
+    if (ret_aom_codec_get_caps_hfuwy < 0){
     	return 0;
     }
-    aom_codec_err_t ret_aom_codec_dec_init_ver_jwsbs = aom_codec_dec_init_ver(&codec, NULL, NULL, (long )ret_aom_uleb_size_in_bytes_ycpht, (int )ret_aom_img_num_metadata_srufi);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!iface) {
+    	return 0;
+    }
+    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_puhmd = aom_codec_set_frame_buffer_functions(&codec, 0, 0, (void *)iface);
     // End mutation: Producer.APPEND_MUTATOR
     
+    aom_codec_err_t ret_aom_codec_destroy_ltydx = aom_codec_destroy(&codec);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    aom_codec_iter_t iter = nullptr;
+    aom_image_t *img = nullptr;
+    while ((img = aom_codec_get_frame(&codec, &iter)) != nullptr) {
+        // Process the image (img) if needed
+    }
+
     aom_codec_destroy(&codec);
 
     return 0;

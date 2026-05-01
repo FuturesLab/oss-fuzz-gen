@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_get_due at icalcomponent.c:2613:21 in icalcomponent.h
-// icalcomponent_set_dtstamp at icalcomponent.c:1710:6 in icalcomponent.h
-// icalcomponent_set_dtend at icalcomponent.c:1622:6 in icalcomponent.h
-// icalcomponent_set_due at icalcomponent.c:2634:6 in icalcomponent.h
-// icalcomponent_get_dtstamp at icalcomponent.c:1722:21 in icalcomponent.h
-// icalcomponent_set_recurrenceid at icalcomponent.c:1839:6 in icalcomponent.h
+// icalcomponent_new_vlocation at icalcomponent.c:2125:16 in icalcomponent.h
+// icalcomponent_new_vreply at icalcomponent.c:2080:16 in icalcomponent.h
+// icalcomponent_new_valarm at icalcomponent.c:2045:16 in icalcomponent.h
+// icalcomponent_new_vcalendar at icalcomponent.c:2025:16 in icalcomponent.h
+// icalcomponent_new_vresource at icalcomponent.c:2130:16 in icalcomponent.h
+// icalcomponent_new_vfreebusy at icalcomponent.c:2050:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,51 +14,52 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+extern "C" {
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include "icalcomponent.h"
+}
 
-static icaltimetype generate_random_icaltimetype(const uint8_t *Data, size_t Size) {
-    icaltimetype time;
-    if (Size < sizeof(time.year)) {
-        time.year = 0;
-    } else {
-        memcpy(&time.year, Data, sizeof(time.year));
+#include <cstdint>
+#include <cstdlib>
+
+static void cleanup(icalcomponent *component) {
+    if (component) {
+        icalcomponent_free(component);
     }
-    time.zone = nullptr; // Set to nullptr for simplicity
-    return time;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_25(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    if (Size < 1) return 0;
+
+    // Create components based on the first byte of the input data
+    icalcomponent *component = nullptr;
+    switch (Data[0] % 6) {
+        case 0:
+            component = icalcomponent_new_vfreebusy();
+            break;
+        case 1:
+            component = icalcomponent_new_vreply();
+            break;
+        case 2:
+            component = icalcomponent_new_vresource();
+            break;
+        case 3:
+            component = icalcomponent_new_vlocation();
+            break;
+        case 4:
+            component = icalcomponent_new_valarm();
+            break;
+        case 5:
+            component = icalcomponent_new_vcalendar();
+            break;
+        default:
+            break;
     }
-    
-    // Create a dummy icalcomponent
-    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (!comp) {
-        return 0;
-    }
 
-    // Generate a random icaltimetype from input data
-    icaltimetype time = generate_random_icaltimetype(Data, Size);
-
-    // Invoke target functions with the component and generated time
-    icalcomponent_set_dtend(comp, time);
-    icalcomponent_set_recurrenceid(comp, time);
-    icalcomponent_set_dtstamp(comp, time);
-    icalcomponent_set_due(comp, time);
-
-    // Retrieve and use returned icaltimetype structures
-    icaltimetype due_time = icalcomponent_get_due(comp);
-    icaltimetype dtstamp_time = icalcomponent_get_dtstamp(comp);
-
-    // Clean up the component
-    icalcomponent_free(comp);
+    // Cleanup the created component
+    cleanup(component);
 
     return 0;
 }

@@ -1,27 +1,67 @@
-#include <string.h>
 #include <sys/stat.h>
-#include <cstdint> // Include standard library for uint8_t
-
-extern "C" {
+#include <string.h>
 #include "libical/ical.h"
-}
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract a valid enumeration value
-    if (size < 1) {
+    // Ensure that the input data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Extract an enumeration value from the input data
-    icalproperty_taskmode taskmode = static_cast<icalproperty_taskmode>(data[0] % 3);
-
-    // Call the function-under-test
-    icalproperty *property = icalproperty_vanew_taskmode(taskmode, NULL);
-
-    // Clean up if a property was created
-    if (property != NULL) {
-        icalproperty_free(property);
+    // Create a temporary buffer to hold the input data
+    char *buffer = static_cast<char *>(malloc(size + 1));
+    if (buffer == nullptr) {
+        return 0;
     }
+
+    // Copy the input data into the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
+
+    // Parse the buffer into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(buffer);
+
+    // If parsing was successful, call the function-under-test
+    if (component != nullptr) {
+        char *icalString = icalcomponent_as_ical_string_r(component);
+
+        // Free the returned string if it's not null
+        if (icalString != nullptr) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_set_x_name
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        char* ret_icalcomponent_as_ical_string_zolob = icalcomponent_as_ical_string(component);
+        if (ret_icalcomponent_as_ical_string_zolob == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalcomponent_as_ical_string_zolob) {
+        	return 0;
+        }
+        icalcomponent_set_x_name(component, ret_icalcomponent_as_ical_string_zolob);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Free the buffer
+    free(buffer);
 
     return 0;
 }
@@ -47,7 +87,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -57,7 +97,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_39(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_39(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

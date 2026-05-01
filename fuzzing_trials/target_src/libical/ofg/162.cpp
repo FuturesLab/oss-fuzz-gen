@@ -1,23 +1,22 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-
-extern "C" {
-    // Include the necessary header for the function-under-test
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <cstdint>
+#include <cstddef>
 
 extern "C" int LLVMFuzzerTestOneInput_162(const uint8_t *data, size_t size) {
+    // Ensure that the size is sufficient to extract an icalcomponent_kind value
+    if (size < sizeof(icalcomponent_kind)) {
+        return 0;
+    }
+
+    // Extract an icalcomponent_kind value from the input data
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(data[0]);
+
     // Call the function-under-test
-    const char *zone_directory = icaltimezone_get_system_zone_directory();
-    
-    // Check if the returned directory path is not NULL
-    if (zone_directory != NULL) {
-        // Print the directory path for debugging purposes
-        printf("System zone directory: %s\n", zone_directory);
-    } else {
-        // Print a message if the directory path is NULL
-        printf("System zone directory is NULL.\n");
+    icalcomponent *component = icalcomponent_vanew(kind, NULL);
+
+    // Clean up the created component if it's not NULL
+    if (component != NULL) {
+        icalcomponent_free(component);
     }
 
     return 0;
@@ -44,7 +43,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -54,7 +53,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_162(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_162(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

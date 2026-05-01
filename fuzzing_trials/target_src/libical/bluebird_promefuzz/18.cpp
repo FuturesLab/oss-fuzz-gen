@@ -9,8 +9,6 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
@@ -19,46 +17,43 @@
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
-static void test_icalcomponent_set_get_method(icalcomponent *comp, icalproperty_method method) {
-    icalcomponent_set_method(comp, method);
-    icalproperty_method retrieved_method = icalcomponent_get_method(comp);
-    if (retrieved_method != method) {
-        std::cerr << "Method mismatch: set " << method << ", got " << retrieved_method << std::endl;
-    }
-}
-
-static void test_icalcomponent_add_get_inner(icalcomponent *parent, icalcomponent *child) {
-    icalcomponent_add_component(parent, child);
-    icalcomponent *inner = icalcomponent_get_inner(parent);
-    if (inner != child) {
-        std::cerr << "Inner component mismatch" << std::endl;
-    }
-}
-
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Create a new VCALENDAR component
-    icalcomponent *vcalendar = icalcomponent_new_vcalendar();
-    if (!vcalendar) return 0;
+    // Create a dummy icalcomponent
+    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (!comp) return 0;
 
-    // Create a new VPATCH component
-    icalcomponent *vpatch = icalcomponent_new_vpatch();
-    if (!vpatch) {
-        icalcomponent_free(vcalendar);
+    // Ensure the data is null-terminated
+    char *inputString = static_cast<char *>(malloc(Size + 1));
+    if (!inputString) {
+        icalcomponent_free(comp);
         return 0;
     }
+    memcpy(inputString, Data, Size);
+    inputString[Size] = '\0';
 
-    // Use the first byte of Data to set a method
-    icalproperty_method method = static_cast<icalproperty_method>(Data[0] % (ICAL_METHOD_NONE + 1));
-    test_icalcomponent_set_get_method(vcalendar, method);
+    // Fuzz icalcomponent_set_uid
+    icalcomponent_set_uid(comp, inputString);
 
-    // Add VPATCH to VCALENDAR and test inner component retrieval
-    test_icalcomponent_add_get_inner(vcalendar, vpatch);
+    // Fuzz icalcomponent_set_relcalid
+    icalcomponent_set_relcalid(comp, inputString);
 
-    // Clean up
-    // Free the parent component which will also free the child components
-    icalcomponent_free(vcalendar);
+    // Fuzz icalcomponent_set_comment
+    icalcomponent_set_comment(comp, inputString);
+
+    // Fuzz icalcomponent_set_description
+    icalcomponent_set_description(comp, inputString);
+
+    // Fuzz icalcomponent_set_location
+    icalcomponent_set_location(comp, inputString);
+
+    // Fuzz icalcomponent_set_summary
+    icalcomponent_set_summary(comp, inputString);
+
+    // Cleanup
+    free(inputString);
+    icalcomponent_free(comp);
 
     return 0;
 }
@@ -84,7 +79,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -94,7 +89,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_18(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_18(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

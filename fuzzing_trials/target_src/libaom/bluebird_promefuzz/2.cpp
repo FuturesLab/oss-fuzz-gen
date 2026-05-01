@@ -9,120 +9,77 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include "/src/aom/aom/aom.h"
 #include "/src/aom/aom/aom_codec.h"
-#include "/src/aom/aom/aomcx.h"
 #include "/src/aom/aom/aom_encoder.h"
-#include "/src/aom/aom/aom_external_partition.h"
-#include "/src/aom/aom/aom_frame_buffer.h"
-#include "/src/aom/aom/aom_image.h"
-#include "/src/aom/aom/aom_integer.h"
+#include "/src/aom/aom/aomcx.h"
 #include "aom/aomdx.h"
 #include "aom/aom_decoder.h"
+#include "/src/aom/aom/aom_external_partition.h"
+#include "/src/aom/aom/aom_integer.h"
+#include "/src/aom/aom/aom_frame_buffer.h"
+#include "/src/aom/aom/aom_image.h"
 
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
     // Initialize codec context
-    aom_codec_ctx_t codec;
+    aom_codec_ctx_t codec_ctx;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
+
+    // Dummy initialization values
     aom_codec_iface_t *iface = aom_codec_av1_cx();
     aom_codec_enc_cfg_t cfg;
-    if (aom_codec_enc_config_default(iface, &cfg, 0)) {
+    aom_codec_enc_config_default(iface, &cfg, 0);
+
+    if (aom_codec_enc_init(&codec_ctx, iface, &cfg, 0)) {
+        std::cerr << "Failed to initialize codec." << std::endl;
         return 0;
     }
 
-    if (aom_codec_enc_init(&codec, iface, &cfg, 0)) {
-        return 0;
+    // Fuzzing aom_codec_control_typechecked_AV1E_SET_PARTITION_INFO_PATH
+    const char *partition_info_path = "./dummy_partition_info_path";
+    FILE *dummy_file = fopen(partition_info_path, "wb");
+    if (dummy_file) {
+        fwrite(Data, 1, Size, dummy_file);
+        fclose(dummy_file);
     }
+    aom_codec_control(&codec_ctx, AV1E_SET_PARTITION_INFO_PATH, partition_info_path);
 
-    // Prepare parameters from input data
-    int bitrate = *reinterpret_cast<const int*>(Data);
-    Data += sizeof(int);
-    Size -= sizeof(int);
+    // Fuzzing aom_codec_control_typechecked_AV1E_SET_RTC_EXTERNAL_RC
+    int rtc_external_rc = static_cast<int>(Data[0]);
+    aom_codec_control(&codec_ctx, AV1E_SET_RTC_EXTERNAL_RC, rtc_external_rc);
 
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_BITRATE_ONE_PASS_CBR
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of aom_codec_control
-    aom_codec_control(&codec, Size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Fuzzing aom_codec_control_typechecked_AV1E_GET_TARGET_SEQ_LEVEL_IDX
+    int target_seq_level_idx;
+    aom_codec_control(&codec_ctx, AV1E_GET_TARGET_SEQ_LEVEL_IDX, &target_seq_level_idx);
 
-    if (Size < 1) {
-        aom_codec_destroy(&codec);
-        return 0;
+    // Fuzzing aom_codec_control_typechecked_AV1E_SET_FILM_GRAIN_TABLE
+    const char *film_grain_table_path = "./dummy_film_grain_table";
+    dummy_file = fopen(film_grain_table_path, "wb");
+    if (dummy_file) {
+        fwrite(Data, 1, Size, dummy_file);
+        fclose(dummy_file);
     }
+    aom_codec_control(&codec_ctx, AV1E_SET_FILM_GRAIN_TABLE, film_grain_table_path);
 
-    // Fuzz aom_codec_control_typechecked_AV1E_ENABLE_RATE_GUIDE_DELTAQ
-    int enable_rate_guide_deltaq = Data[0] % 2;
-    aom_codec_control(&codec, AV1E_ENABLE_RATE_GUIDE_DELTAQ, enable_rate_guide_deltaq);
-
-    if (Size < 2) {
-        aom_codec_destroy(&codec);
-        return 0;
+    // Fuzzing aom_codec_control_typechecked_AV1E_SET_VMAF_MODEL_PATH
+    const char *vmaf_model_path = "./dummy_vmaf_model";
+    dummy_file = fopen(vmaf_model_path, "wb");
+    if (dummy_file) {
+        fwrite(Data, 1, Size, dummy_file);
+        fclose(dummy_file);
     }
+    aom_codec_control(&codec_ctx, AV1E_SET_VMAF_MODEL_PATH, vmaf_model_path);
 
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_KEYFRAME_FILTERING
-    int enable_keyframe_filtering = Data[1] % 2;
-    aom_codec_control(&codec, AV1E_SET_ENABLE_KEYFRAME_FILTERING, enable_keyframe_filtering);
+    // Fuzzing aom_codec_control_typechecked_AV1E_SET_ENABLE_RECT_TX
+    int enable_rect_tx = Data[0] % 2; // boolean flag
+    aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_RECT_TX, enable_rect_tx);
 
-    if (Size < 3) {
-        aom_codec_destroy(&codec);
-        return 0;
+    // Cleanup
+    if (aom_codec_destroy(&codec_ctx)) {
+        std::cerr << "Failed to destroy codec." << std::endl;
     }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_FORCE_VIDEO_MODE
-    int force_video_mode = Data[2] % 2;
-    aom_codec_control(&codec, AV1E_SET_FORCE_VIDEO_MODE, force_video_mode);
-
-    if (Size < 4) {
-        aom_codec_destroy(&codec);
-        return 0;
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_AUTO_TILES
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_control to aom_codec_error_detail
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_control to aom_codec_get_stream_info
-    aom_codec_err_t ret_aom_codec_get_stream_info_grsdy = aom_codec_get_stream_info(&codec, NULL);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_get_stream_info to aom_codec_set_frame_buffer_functions
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_get_stream_info to aom_codec_set_option
-    aom_codec_err_t ret_aom_codec_set_option_isecr = aom_codec_set_option(&codec, (const char *)"w", (const char *)"r");
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_pthta = aom_codec_set_frame_buffer_functions(NULL, 0, 0, (void *)&codec);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    const char* ret_aom_codec_error_detail_ukxjw = aom_codec_error_detail(&codec);
-    if (ret_aom_codec_error_detail_ukxjw == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    int auto_tiles = Data[3] % 2;
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of aom_codec_control
-    aom_codec_control(&codec, Size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-    if (Size < 5) {
-        aom_codec_destroy(&codec);
-        return 0;
-    }
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_AQ_MODE
-    int aq_mode = Data[4] % 4; // Assuming 4 different AQ modes
-    aom_codec_control(&codec, AV1E_SET_AQ_MODE, aq_mode);
-
-    // Clean up
-    aom_codec_destroy(&codec);
 
     return 0;
 }

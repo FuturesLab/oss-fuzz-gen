@@ -1,28 +1,29 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstdlib>  // Include for malloc and free
-#include <cstring>  // Include for memcpy
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h> // Include string.h for strlen
 
 extern "C" {
-    #include <libical/ical.h>
+    #include <libical/ical.h> // Adjust the include path to the correct location of libical headers
 }
 
 extern "C" int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated to safely use it as a C string
-    char *cstr = (char *)malloc(size + 1);
-    if (cstr == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Ensure that the size is sufficient to represent an icalcomponent_kind
+    if (size < sizeof(icalcomponent_kind)) {
+        return 0;
     }
-    memcpy(cstr, data, size);
-    cstr[size] = '\0'; // Null-terminate the string
+
+    // Cast the input data to icalcomponent_kind
+    icalcomponent_kind kind = *(reinterpret_cast<const icalcomponent_kind*>(data));
 
     // Call the function-under-test
-    icalproperty *prop = icalproperty_new_queryid(cstr);
+    const char *result = icalcomponent_kind_to_string(kind);
 
-    // Clean up
-    if (prop != NULL) {
-        icalproperty_free(prop);
+    // Use the result to prevent compiler optimizations from removing the call
+    if (result != NULL) {
+        // Do something trivial with the result
+        volatile size_t len = strlen(result);
+        (void)len;
     }
-    free(cstr);
 
     return 0;
 }
@@ -48,7 +49,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -58,7 +59,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_65(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_65(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

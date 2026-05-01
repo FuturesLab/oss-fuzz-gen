@@ -1,38 +1,21 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" int LLVMFuzzerTestOneInput_154(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create a valid icalproperty
-    if (size < 1) {
-        return 0;
-    }
+    // Initialize the iCalendar component
+    icalcomponent *parent = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalcomponent *child = icalcomponent_new(ICAL_VEVENT_COMPONENT);
 
-    // Create a dummy icalproperty to pass to the function
-    icalproperty *property = icalproperty_new(ICAL_ANY_PROPERTY);
+    // Ensure the child component is added to the parent
+    icalcomponent_add_component(parent, child);
 
-    // Ensure the property is not null
-    if (!property) {
-        return 0;
-    }
-
-    // Modify the property based on input data to increase code coverage
-    icalproperty_set_x(property, reinterpret_cast<const char*>(data));
-
-    // Call the function-under-test
-    icalproperty_pollmode pollmode = icalproperty_get_pollmode(property);
-
-    // Correct enum value for comparison
-    if (pollmode == ICAL_POLLMODE_NONE) {
-        // Do something with pollmode, e.g., print or log
-    }
+    // Call the function-under-test with the parent and child components
+    icalcomponent_remove_component(parent, child);
 
     // Clean up
-    icalproperty_free(property);
+    icalcomponent_free(parent);
+    // Note: The child component is freed when the parent is freed
 
     return 0;
 }
@@ -58,7 +41,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -68,7 +51,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_154(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_154(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

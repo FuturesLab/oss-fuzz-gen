@@ -1,42 +1,40 @@
 #include <sys/stat.h>
-#include "libical/ical.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <string.h> // Include for memcpy
+#include <string.h>
 
-// Define a non-null timezone for testing
 extern "C" {
-    icaltimezone *get_test_timezone() {
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icaltimezone_get_utc_timezone with icaltimezone_new
-        return icaltimezone_new();
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    }
+    #include "libical/ical.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
-    if (size < sizeof(struct icaltimetype) * 2) {
-        return 0; // Not enough data to create two icaltimetype structures
+    // Ensure that the data size is sufficient to create a valid string
+    if (size == 0) {
+        return 0;
     }
 
-    // Initialize two icaltimetype structures from the input data
-    struct icaltimetype time1, time2;
-    icaltimezone *tz = get_test_timezone();
-
-    // Copy data into the first icaltimetype structure
-    memcpy(&time1, data, sizeof(struct icaltimetype));
-    // Copy data into the second icaltimetype structure
-    memcpy(&time2, data + sizeof(struct icaltimetype), sizeof(struct icaltimetype));
-
-    // Call the function under test
-    int result = icaltime_compare_date_only_tz(time1, time2, tz);
-
-    // Use the result in some way to prevent compiler optimizations from removing the call
-    if (result == 0) {
-        // Do something trivial
-        volatile int x = result;
-        (void)x;
+    // Create a dummy icalcomponent object
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
+        return 0;
     }
+
+    // Convert the input data to a null-terminated string
+    char *location = (char *)malloc(size + 1);
+    if (location == NULL) {
+        icalcomponent_free(component);
+        return 0;
+    }
+    memcpy(location, data, size);
+    location[size] = '\0'; // Null-terminate the string
+
+    // Call the function-under-test
+    icalcomponent_set_location(component, location);
+
+    // Clean up
+    free(location);
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -62,7 +60,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -72,7 +70,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_21(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_21(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

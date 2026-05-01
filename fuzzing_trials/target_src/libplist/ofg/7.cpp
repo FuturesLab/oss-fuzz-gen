@@ -1,25 +1,77 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <stdbool.h>
+#include <unistd.h>
 #include <plist/plist.h>
 
-extern "C" int plist_bool_val_is_true(plist_t node);
-
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    // Initialize a plist node
-    plist_t node = plist_new_bool(false);
-
-    // If size is greater than 0, use the first byte to set the boolean value
-    if (size > 0) {
-        bool value = (data[0] % 2 == 0);  // Use the first byte to determine true or false
-        plist_set_bool_val(node, value);
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
+
+    // Initialize plist_t and plist_format_t
+    plist_t plist = NULL;
+    plist_format_t format = PLIST_FORMAT_XML;
+
     // Call the function-under-test
-    int result = plist_bool_val_is_true(node);
+    plist_err_t err = plist_read_from_file(tmpl, &plist, &format);
 
     // Clean up
-    plist_free(node);
+    if (plist) {
+        plist_free(plist);
+    }
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

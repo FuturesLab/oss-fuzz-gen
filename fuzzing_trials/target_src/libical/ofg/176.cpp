@@ -1,42 +1,41 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include <libical/ical.h>
-
-extern "C" {
-    #include <libical/ical.h>
-}
 
 extern "C" int LLVMFuzzerTestOneInput_176(const uint8_t *data, size_t size) {
-    // Initialize the iCalendar component
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-
-    // Create a temporary string buffer to hold the input data
-    char *inputData = (char *)malloc(size + 1);
-    if (inputData == NULL) {
+    // Ensure that the input size is sufficient to create a property
+    if (size < 2) {
         return 0;
     }
 
-    // Copy the input data into the string buffer and null-terminate it
-    memcpy(inputData, data, size);
-    inputData[size] = '\0';
-
-    // Parse the input data into the iCalendar component
-    icalcomponent *parsedComponent = icalparser_parse_string(inputData);
-    if (parsedComponent != NULL) {
-        // Call the function-under-test
-        struct icaltimetype dtend = icalcomponent_get_dtend(parsedComponent);
-
-        // Clean up the parsed component
-        icalcomponent_free(parsedComponent);
+    // Create a new icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
+        return 0;
     }
 
-    // Clean up the input data buffer
-    free(inputData);
+    // Create a new icalproperty
+    icalproperty *property = icalproperty_new(ICAL_SUMMARY_PROPERTY);
+    if (property == NULL) {
+        icalcomponent_free(component);
+        return 0;
+    }
 
-    // Clean up the initial component
+    // Use the input data to set a value for the property
+    char value[size + 1];
+    for (size_t i = 0; i < size; ++i) {
+        value[i] = static_cast<char>(data[i]);
+    }
+    value[size] = '\0'; // Null-terminate the string
+
+    icalproperty_set_summary(property, value);
+
+    // Call the function-under-test
+    icalcomponent_add_property(component, property);
+
+    // Clean up
     icalcomponent_free(component);
+    // Note: The property is freed when the component is freed
 
     return 0;
 }
@@ -62,7 +61,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -72,7 +71,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_176(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_176(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

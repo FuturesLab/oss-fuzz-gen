@@ -1,26 +1,21 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>  // Standard library for uint8_t
+#include <cstddef>  // Standard library for size_t
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_186(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract an icalproperty_class value
-    if (size < sizeof(icalproperty_class)) {
-        return 0;
-    }
-
-    // Extract an icalproperty_class value from the input data
-    icalproperty_class prop_class = static_cast<icalproperty_class>(data[0] % (ICAL_CLASS_X + 1));
-
     // Call the function-under-test
-    const char *result = icalproperty_class_to_string(prop_class);
+    icalcomponent *component = icalcomponent_new_vlocation();
 
-    // Use the result to avoid compiler optimizations that might remove the call
-    if (result != nullptr) {
-        volatile char dummy = result[0];
-        (void)dummy;
+    // Check if the component was created successfully
+    if (component != NULL) {
+        // Perform additional operations on the component if needed
+        // For example, you could serialize it to a string or inspect its properties
+
+        // Free the component to avoid memory leaks
+        icalcomponent_free(component);
     }
 
     return 0;
@@ -47,7 +42,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -57,7 +52,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_186(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_186(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

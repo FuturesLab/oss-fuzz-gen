@@ -1,4 +1,5 @@
 #include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -8,100 +9,106 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <iostream>
+#include <fstream>
+#include <cstring>
+#include <cstdlib>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_48(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icalcomponent_kind)) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Prepare an icalcomponent
-    icalcomponent_kind kind;
-    memcpy(&kind, Data, sizeof(icalcomponent_kind));
-    Data += sizeof(icalcomponent_kind);
-    Size -= sizeof(icalcomponent_kind);
+    // Create a string from the input data
+    std::string icalStr(reinterpret_cast<const char*>(Data), Size);
 
-    icalcomponent *comp = icalcomponent_new(kind);
-    if (!comp) {
-        return 0;
-    }
+    // Use the icalcomponent_new_from_string function
+    icalcomponent *component = icalcomponent_new_from_string(icalStr.c_str());
 
-    // Use the remaining data to create dummy properties or comments
-    if (Size > 0) {
-        char *dummyData = (char *)malloc(Size + 1);
-        if (dummyData) {
-            memcpy(dummyData, Data, Size);
-            dummyData[Size] = '\0';
+    if (component) {
+        // Use the icalcomponent_get_location function
+        const char *location = icalcomponent_get_location(component);
 
-            // Set a dummy comment
-            icalcomponent_set_comment(comp, dummyData);
+        // Use the icalcomponent_isa function
+        icalcomponent_kind kind = icalcomponent_isa(component);
 
-            // Set a dummy UID
-            icalcomponent_set_uid(comp, dummyData);
+        // Use the icalcomponent_get_recurrenceid function
+        struct icaltimetype recurrenceId = icalcomponent_get_recurrenceid(component);
 
-            // Clean up
-            free(dummyData);
+        // Loop through different component kinds for icalcomponent_get_first_component
+        for (int kindIndex = ICAL_NO_COMPONENT; kindIndex < ICAL_NUM_COMPONENT_TYPES; ++kindIndex) {
+            icalcomponent *firstComponent = icalcomponent_get_first_component(component, static_cast<icalcomponent_kind>(kindIndex));
+            // Just to simulate usage
+            if (firstComponent) {
+                const char *comment = icalcomponent_get_comment(firstComponent);
+            
+                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_comment to icalcomponent_set_duration
+                // Ensure dataflow is valid (i.e., non-null)
+                if (!firstComponent) {
+                	return 0;
+                }
+
+                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_comment to icalcomponent_set_recurrenceid
+                // Ensure dataflow is valid (i.e., non-null)
+                if (!firstComponent) {
+                	return 0;
+                }
+                struct icaltimetype ret_icalcomponent_get_due_wzrmq = icalcomponent_get_due(firstComponent);
+                // Ensure dataflow is valid (i.e., non-null)
+                if (!firstComponent) {
+                	return 0;
+                }
+                icalcomponent_set_recurrenceid(firstComponent, ret_icalcomponent_get_due_wzrmq);
+                // End mutation: Producer.APPEND_MUTATOR
+                
+                struct icaldurationtype ret_icalcomponent_get_duration_qchvp = icalcomponent_get_duration(firstComponent);
+                // Ensure dataflow is valid (i.e., non-null)
+                if (!firstComponent) {
+                	return 0;
+                }
+                icalcomponent_set_duration(firstComponent, ret_icalcomponent_get_duration_qchvp);
+                // End mutation: Producer.APPEND_MUTATOR
+                
+}
         }
+
+        // Use the icalcomponent_get_comment function
+        const char *comment = icalcomponent_get_comment(component);
+
+        // Free the component
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
 
-    // Fuzz the API functions
-    char *icalStringR = icalcomponent_as_ical_string_r(comp);
-    if (icalStringR) {
-        free(icalStringR);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new_from_string to icalcomponent_get_timezone
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!component) {
+    	return 0;
     }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string_r to icalproperty_set_refid
-    icalproperty* ret_icalproperty_new_pollmode_tsoyd = icalproperty_new_pollmode(ICAL_POLLMODE_NONE);
-    if (ret_icalproperty_new_pollmode_tsoyd == NULL){
+    char* ret_icalcomponent_as_ical_string_vtbic = icalcomponent_as_ical_string(component);
+    if (ret_icalcomponent_as_ical_string_vtbic == NULL){
     	return 0;
     }
     // Ensure dataflow is valid (i.e., non-null)
-    if (!ret_icalproperty_new_pollmode_tsoyd) {
+    if (!component) {
     	return 0;
     }
     // Ensure dataflow is valid (i.e., non-null)
-    if (!icalStringR) {
+    if (!ret_icalcomponent_as_ical_string_vtbic) {
     	return 0;
     }
-    icalproperty_set_refid(ret_icalproperty_new_pollmode_tsoyd, icalStringR);
+    icaltimezone* ret_icalcomponent_get_timezone_pqykh = icalcomponent_get_timezone(component, ret_icalcomponent_as_ical_string_vtbic);
+    if (ret_icalcomponent_get_timezone_pqykh == NULL){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
     
-    const char *comment = icalcomponent_get_comment(comp);
-    if (comment) {
-        // Do something with comment if needed
-    }
-
-    const char *componentName = icalcomponent_get_component_name(comp);
-    if (componentName) {
-        // Do something with componentName if needed
-    }
-
-    const char *relcalid = icalcomponent_get_relcalid(comp);
-    if (relcalid) {
-        // Do something with relcalid if needed
-    }
-
-    char *icalString = icalcomponent_as_ical_string(comp);
-    if (icalString) {
-        free(icalString);
-    }
-
-    const char *uid = icalcomponent_get_uid(comp);
-    if (uid) {
-        // Do something with uid if needed
-    }
-
-    // Clean up
-    icalcomponent_free(comp);
-
     return 0;
 }
 #ifdef INC_MAIN
@@ -126,7 +133,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -136,7 +143,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_48(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_48(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

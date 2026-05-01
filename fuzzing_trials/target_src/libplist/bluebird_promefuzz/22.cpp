@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -8,92 +10,125 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <fstream>
 #include "plist/plist.h"
 
 extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Prepare a dummy file if needed
-    std::ofstream dummyFile("./dummy_file", std::ios::binary);
-    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-    dummyFile.close();
+    plist_t plist = nullptr;
+    plist_from_bin(reinterpret_cast<const char*>(Data), Size, &plist);
 
-    // Test plist_from_xml
-    plist_t plist_xml = nullptr;
-    plist_err_t xml_err = plist_from_xml(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist_xml);
-    if (xml_err == PLIST_ERR_SUCCESS && plist_xml) {
+    if (plist) {
+        char *output = nullptr;
+        uint32_t length = 0;
+        plist_err_t result;
+
         // Test plist_to_bin
-        char *bin_data = nullptr;
-        uint32_t bin_length = 0;
-        plist_err_t bin_err = plist_to_bin(plist_xml, &bin_data, &bin_length);
-        if (bin_err == PLIST_ERR_SUCCESS) {
-            // Test plist_from_bin
-            plist_t plist_bin = nullptr;
-            plist_err_t bin_import_err = plist_from_bin(bin_data, bin_length, &plist_bin);
-            if (bin_import_err == PLIST_ERR_SUCCESS && plist_bin) {
-                // Test plist_dict_remove_item with a dummy key
-                plist_dict_remove_item(plist_bin, "dummy_key");
-                plist_free(plist_bin);
-            }
-            plist_mem_free(bin_data);
+        result = plist_to_bin(plist, &output, &length);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
         }
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_to_bin to plist_from_bin
-        plist_t ret_plist_new_real_dvqdb = plist_new_real(64);
+        // Test plist_to_openstep_with_options with different options
 
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function plist_from_bin with plist_from_json
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_new_real to plist_data_val_compare_with_size
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_new_real to plist_get_data_val
-        int ret_plist_bool_val_is_true_bueyw = plist_bool_val_is_true(ret_plist_new_real_dvqdb);
-        if (ret_plist_bool_val_is_true_bueyw < 0){
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_to_bin to plist_to_xml
+        plist_t ret_plist_new_string_ghpei = plist_new_string((const char *)Data);
+        uint32_t ret_plist_array_get_size_nuvgz = plist_array_get_size(plist);
+        if (ret_plist_array_get_size_nuvgz < 0){
         	return 0;
         }
-
-        plist_get_data_val(ret_plist_new_real_dvqdb, NULL, (uint64_t *)&ret_plist_bool_val_is_true_bueyw);
-
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!output) {
+        	return 0;
+        }
+        plist_err_t ret_plist_to_xml_hiwuv = plist_to_xml(ret_plist_new_string_ghpei, &output, &ret_plist_array_get_size_nuvgz);
         // End mutation: Producer.APPEND_MUTATOR
-
-        uint32_t ret_plist_array_get_size_cucbc = plist_array_get_size(ret_plist_new_real_dvqdb);
-        if (ret_plist_array_get_size_cucbc < 0){
-        	return 0;
-        }
-        uint32_t ret_plist_dict_get_size_tolfc = plist_dict_get_size(ret_plist_new_real_dvqdb);
-        if (ret_plist_dict_get_size_tolfc < 0){
-        	return 0;
+        
+        result = plist_to_openstep_with_options(plist, &output, &length, PLIST_OPT_COMPACT);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
         }
 
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function plist_data_val_compare_with_size with plist_data_val_compare
-        int ret_plist_data_val_compare_with_size_fddyz = plist_data_val_compare(ret_plist_new_real_dvqdb, (const uint8_t *)&ret_plist_array_get_size_cucbc, (size_t)ret_plist_dict_get_size_tolfc);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        if (ret_plist_data_val_compare_with_size_fddyz < 0){
-        	return 0;
+        result = plist_to_openstep_with_options(plist, &output, &length, PLIST_OPT_COERCE);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
         }
 
-        // End mutation: Producer.APPEND_MUTATOR
+        // Test plist_to_json
+        result = plist_to_json(plist, &output, &length, 1);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
 
-        plist_err_t ret_plist_from_bin_kaqyr = plist_from_json(bin_data, 0, &ret_plist_new_real_dvqdb);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        // Test plist_write_to_stream
+        FILE *file = fopen("./dummy_file", "wb");
+        if (file) {
+            result = plist_write_to_stream(plist, file, PLIST_FORMAT_JSON, PLIST_OPT_NONE);
+            fclose(file);
+        }
 
+        // Test plist_write_to_string
+        result = plist_write_to_string(plist, &output, &length, PLIST_FORMAT_XML, PLIST_OPT_NONE);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
 
+        // Test plist_to_json_with_options with different options
+        result = plist_to_json_with_options(plist, &output, &length, PLIST_OPT_COMPACT);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
 
-        // End mutation: Producer.APPEND_MUTATOR
+        result = plist_to_json_with_options(plist, &output, &length, PLIST_OPT_COERCE);
+        if (result == PLIST_ERR_SUCCESS) {
+            plist_mem_free(output);
+        }
 
-        plist_free(plist_xml);
+        plist_free(plist);
     }
-
-    // Test plist_is_binary
-    int is_binary = plist_is_binary(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size));
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_22(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

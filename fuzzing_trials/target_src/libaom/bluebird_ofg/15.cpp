@@ -1,46 +1,43 @@
 #include <string.h>
 #include <sys/stat.h>
-#include <cstddef>
 #include <cstdint>
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
+#include <cstdlib>
+#include <cstring>
+#include "/src/aom/aom/aom_image.h"
+#include "/src/aom/aom/aom_codec.h"
+
+extern "C" {
+    const aom_metadata_t * aom_img_get_metadata(const aom_image_t *, size_t);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec;
-    aom_codec_err_t res;
-    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
-    void *user_priv = (void*)1; // Non-NULL user private data
-
-    // Initialize the codec context
-    res = aom_codec_dec_init(&codec, iface, NULL, 0);
-    if (res != AOM_CODEC_OK) {
-        return 0; // Initialization failed
+    if (size < sizeof(aom_image_t) + 640 * 480) {
+        return 0; // Not enough data to form a valid aom_image_t and fill the image plane
     }
+
+    // Allocate and initialize aom_image_t
+    aom_image_t img;
+    memset(&img, 0, sizeof(aom_image_t));
+
+    // Fill the aom_image_t with data, ensuring no NULL pointers
+    img.fmt = AOM_IMG_FMT_I420; // Example format
+    img.w = 640; // Example width
+    img.h = 480; // Example height
+    img.d_w = 640; // Display width
+    img.d_h = 480; // Display height
+    img.x_chroma_shift = 1;
+    img.y_chroma_shift = 1;
+    img.bps = 8;
+
+    // Use input data for plane, ensuring it's not null
+    img.planes[0] = const_cast<uint8_t*>(data + sizeof(aom_image_t)); 
+    img.stride[0] = 640; // Example stride
 
     // Call the function-under-test
-    res = aom_codec_decode(&codec, data, size, user_priv);
+    const aom_metadata_t *metadata = aom_img_get_metadata(&img, size - sizeof(aom_image_t));
 
-    // Destroy the codec context
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_get_frame
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_control
-    aom_codec_caps_t ret_aom_codec_get_caps_qqmvk = aom_codec_get_caps(NULL);
-    if (ret_aom_codec_get_caps_qqmvk < 0){
-    	return 0;
-    }
-    aom_codec_err_t ret_aom_codec_control_jfqeo = aom_codec_control(&codec, (int )ret_aom_codec_get_caps_qqmvk);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_iter_t mgcgrhoz;
-    memset(&mgcgrhoz, 0, sizeof(mgcgrhoz));
-    aom_image_t* ret_aom_codec_get_frame_gkfrl = aom_codec_get_frame(&codec, &mgcgrhoz);
-    if (ret_aom_codec_get_frame_gkfrl == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_destroy(&codec);
+    // Normally, you would check or use the metadata here, but since this is a fuzz test, we just return
+    (void)metadata; // Prevent unused variable warning
 
     return 0;
 }

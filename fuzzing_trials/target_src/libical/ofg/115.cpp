@@ -1,34 +1,51 @@
+#include <libical/ical.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <string.h>  // Include the header for memcpy
 
+// Ensure C linkage for the function-under-test
 extern "C" {
-    #include <libical/ical.h>
+    struct icaltimetype icalproperty_get_datetime_with_component(icalproperty *, icalcomponent *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_115(const uint8_t *data, size_t size) {
-    // Initialize icalproperty
-    icalproperty *prop = icalproperty_new(ICAL_LASTMODIFIED_PROPERTY);
-    if (prop == NULL) {
-        return 0; // Return if property creation fails
+    // Initialize necessary variables
+    icalproperty *property = nullptr;
+    icalcomponent *component = nullptr;
+    struct icaltimetype datetime;
+
+    // Create an icalproperty from the input data if size is sufficient
+    if (size > 0) {
+        // Create a string from the input data
+        char *str = (char *)malloc(size + 1);
+        if (str == nullptr) {
+            return 0; // Memory allocation failed
+        }
+        memcpy(str, data, size);
+        str[size] = '\0';
+
+        // Attempt to parse the input string into an icalproperty
+        property = icalproperty_new_from_string(str);
+        free(str);
+
+        // Create a basic icalcomponent for testing
+        component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+
+        // Ensure neither property nor component is NULL before calling the function
+        if (property != nullptr && component != nullptr) {
+            // Call the function-under-test
+            datetime = icalproperty_get_datetime_with_component(property, component);
+        }
+
+        // Clean up allocated resources
+        if (property != nullptr) {
+            icalproperty_free(property);
+        }
+        if (component != nullptr) {
+            icalcomponent_free(component);
+        }
     }
-
-    // Initialize icaltimetype
-    struct icaltimetype lastmodified_time;
-    lastmodified_time.year = (size > 0) ? data[0] + 1900 : 2022; // Year range: 1900-2155
-    lastmodified_time.month = (size > 1) ? (data[1] % 12) + 1 : 1; // Month range: 1-12
-    lastmodified_time.day = (size > 2) ? (data[2] % 31) + 1 : 1; // Day range: 1-31
-    lastmodified_time.hour = (size > 3) ? data[3] % 24 : 0; // Hour range: 0-23
-    lastmodified_time.minute = (size > 4) ? data[4] % 60 : 0; // Minute range: 0-59
-    lastmodified_time.second = (size > 5) ? data[5] % 60 : 0; // Second range: 0-59
-    lastmodified_time.is_date = 0;
-    lastmodified_time.is_daylight = 0; // Assuming no daylight saving time
-    lastmodified_time.zone = icaltimezone_get_utc_timezone();
-
-    // Call the function-under-test
-    icalproperty_set_lastmodified(prop, lastmodified_time);
-
-    // Clean up
-    icalproperty_free(prop);
 
     return 0;
 }
@@ -54,7 +71,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -64,7 +81,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_115(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_115(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

@@ -1,29 +1,39 @@
-#include <cstdint>  // Include standard library for uint8_t
-#include <cstddef>  // Include standard library for size_t
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_148(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for creating a valid icalvalue
-    if (size < 1) {
+    // Ensure the data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Create an icalvalue object
-    icalvalue *value = icalvalue_new(ICAL_NO_VALUE);
-
-    // Check if the icalvalue was created successfully
-    if (value == NULL) {
+    // Create a dummy icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
         return 0;
     }
 
-    // Call the function-under-test
-    icalvalue_reset_kind(value);
+    // Ensure the comment string is null-terminated
+    char *comment = (char *)malloc(size + 1);
+    if (comment == NULL) {
+        icalcomponent_free(component);
+        return 0;
+    }
+    memcpy(comment, data, size);
+    comment[size] = '\0';
 
-    // Clean up the icalvalue object
-    icalvalue_free(value);
+    // Call the function under test
+    icalcomponent_set_comment(component, comment);
+
+    // Clean up
+    icalcomponent_free(component);
+    free(comment);
 
     return 0;
 }
@@ -49,7 +59,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -59,7 +69,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_148(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_148(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

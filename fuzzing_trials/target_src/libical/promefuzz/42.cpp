@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalmemory_get_mem_alloc_funcs at icalmemory.c:288:6 in icalmemory.h
-// icalmemory_set_mem_alloc_funcs at icalmemory.c:279:6 in icalmemory.h
-// icalmemory_strdup at icalmemory.c:235:7 in icalmemory.h
-// icalmemory_new_buffer at icalmemory.c:308:7 in icalmemory.h
-// icalmemory_free_buffer at icalmemory.c:348:6 in icalmemory.h
-// icalmemory_add_tmp_buffer at icalmemory.c:151:6 in icalmemory.h
+// icalcomponent_vanew at icalcomponent.c:105:16 in icalcomponent.h
+// icalcomponent_new at icalcomponent.c:100:16 in icalcomponent.h
+// icalcomponent_new_vlocation at icalcomponent.c:2125:16 in icalcomponent.h
+// icalcomponent_new_from_string at icalcomponent.c:124:16 in icalcomponent.h
+// icalcomponent_new_xvote at icalcomponent.c:2105:16 in icalcomponent.h
+// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,60 +15,78 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
+#include <cstddef>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <icalcomponent.h>
 #include <cstring>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "icalmemory.h"
+#include <cstdarg>
+#include <cstdio>
+
+static void test_icalcomponent_new() {
+    for (int kind = ICAL_NO_COMPONENT; kind <= ICAL_NUM_COMPONENT_TYPES; ++kind) {
+        icalcomponent *comp = icalcomponent_new(static_cast<icalcomponent_kind>(kind));
+        if (comp) {
+            icalcomponent_free(comp);
+        }
+    }
+}
+
+static void test_icalcomponent_new_vlocation() {
+    icalcomponent *comp = icalcomponent_new_vlocation();
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+}
+
+static void test_icalcomponent_new_from_string(const char *str) {
+    icalcomponent *comp = icalcomponent_new_from_string(str);
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+}
+
+static void test_icalcomponent_new_xvote() {
+    icalcomponent *comp = icalcomponent_new_xvote();
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+}
+
+static void test_icalcomponent_vanew() {
+    icalcomponent *comp = icalcomponent_vanew(ICAL_VEVENT_COMPONENT, NULL);
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+}
+
+static void test_icalcomponent_new_xpatch() {
+    icalcomponent *comp = icalcomponent_new_xpatch();
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_42(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
-
-    // Set custom memory functions
-    icalmemory_set_mem_alloc_funcs(malloc, realloc, free);
-
-    // Test icalmemory_strdup with a portion of the input data
-    const char *str = reinterpret_cast<const char *>(Data);
-    size_t str_len = strnlen(str, Size);
-    
-    // Ensure null-termination
-    char *null_terminated_str = static_cast<char *>(malloc(str_len + 1));
-    if (null_terminated_str) {
-        memcpy(null_terminated_str, str, str_len);
-        null_terminated_str[str_len] = '\0';  // Null-terminate the string
-
-        char *dup_str = icalmemory_strdup(null_terminated_str);
-        if (dup_str) {
-            icalmemory_free_buffer(dup_str);
-        }
-        free(null_terminated_str);
+    if (Size == 0) {
+        return 0;
     }
 
-    // Test icalmemory_new_buffer and icalmemory_free_buffer
-    void *buffer = icalmemory_new_buffer(Size);
-    if (buffer) {
-        memcpy(buffer, Data, Size);
-        icalmemory_free_buffer(buffer);
-    }
+    // Ensure null-termination for string input
+    char *str = new char[Size + 1];
+    memcpy(str, Data, Size);
+    str[Size] = '\0';
 
-    // Test icalmemory_add_tmp_buffer
-    void *tmp_buffer = malloc(Size);
-    if (tmp_buffer) {
-        memcpy(tmp_buffer, Data, Size);
-        icalmemory_add_tmp_buffer(tmp_buffer);
-    }
+    // Test various functions
+    test_icalcomponent_new();
+    test_icalcomponent_new_vlocation();
+    test_icalcomponent_new_from_string(str);
+    test_icalcomponent_new_xvote();
+    test_icalcomponent_vanew();
+    test_icalcomponent_new_xpatch();
 
-    // Retrieve memory functions to ensure they are set correctly
-    icalmemory_malloc_f f_malloc;
-    icalmemory_realloc_f f_realloc;
-    icalmemory_free_f f_free;
-    icalmemory_get_mem_alloc_funcs(&f_malloc, &f_realloc, &f_free);
-
+    delete[] str;
     return 0;
 }
     #ifdef INC_MAIN

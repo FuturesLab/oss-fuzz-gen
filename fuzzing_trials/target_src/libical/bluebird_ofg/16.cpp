@@ -1,82 +1,53 @@
-#include <string.h>
 #include <sys/stat.h>
-#include "libical/ical.h"
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+
+extern "C" {
+    #include "libical/ical.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Initialize a memory context for icalcomponent
     icalcomponent *component = nullptr;
+    icaltimetype due_time;
 
-    // Ensure the data size is sufficient to create a valid icalcomponent
+    // Ensure the data is not empty and can be used to create a component
     if (size > 0) {
-        // Create a string from the input data
-        char *inputData = (char *)malloc(size + 1);
-        if (inputData == nullptr) {
-            return 0; // Memory allocation failed
-        }
-        memcpy(inputData, data, size);
-        inputData[size] = '\0'; // Null-terminate the string
+        // Create a temporary buffer to hold the data
+        char *temp_buffer = new char[size + 1];
+        memcpy(temp_buffer, data, size);
+        temp_buffer[size] = '\0'; // Null-terminate the buffer
 
-        // Parse the input data into an icalcomponent
-        component = icalparser_parse_string(inputData);
+        // Parse the data into an icalcomponent
+        component = icalparser_parse_string(temp_buffer);
 
-        // Free the input data as it's no longer needed
-        free(inputData);
+        // Clean up the temporary buffer
+        delete[] temp_buffer;
     }
 
-    // If a valid icalcomponent was created, use it
+    // Ensure the component is not NULL before calling the function-under-test
     if (component != nullptr) {
         // Call the function-under-test
-        char *icalString = icalcomponent_as_ical_string_r(component);
+        due_time = icalcomponent_get_due(component);
 
-        // Free the returned string if not NULL
-        if (icalString != nullptr) {
-            free(icalString);
+        // Free the component after use
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_due to icalcomponent_set_dtstamp
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
         }
-
-        // Free the icalcomponent
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string_r to icaltimezone_get_builtin_timezone_from_offset
-        size_t ret_icallimit_get_pauii = icallimit_get(ICAL_LIMIT_PARSE_SEARCH);
-        if (ret_icallimit_get_pauii < 0){
+        icalcomponent* ret_icalcomponent_clone_vsyge = icalcomponent_clone(component);
+        if (ret_icalcomponent_clone_vsyge == NULL){
         	return 0;
         }
         // Ensure dataflow is valid (i.e., non-null)
-        if (!icalString) {
+        if (!ret_icalcomponent_clone_vsyge) {
         	return 0;
         }
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icallimit_get to icalparameter_get_feature_nth
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icallimit_get to icalparameter_get_feature_nth
-        icalparameter* ret_icalparameter_new_rsvp_mpnry = icalparameter_new_rsvp(ICAL_RSVP_X);
-        if (ret_icalparameter_new_rsvp_mpnry == NULL){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalparameter_new_rsvp_mpnry) {
-        	return 0;
-        }
-        icalparameter_feature ret_icalparameter_get_feature_nth_ippdr = icalparameter_get_feature_nth(ret_icalparameter_new_rsvp_mpnry, ret_icallimit_get_pauii);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        icalparameter* ret_icalparameter_new_required_pfify = icalparameter_new_required(ICAL_REQUIRED_FALSE);
-        if (ret_icalparameter_new_required_pfify == NULL){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalparameter_new_required_pfify) {
-        	return 0;
-        }
-        icalparameter_feature ret_icalparameter_get_feature_nth_dwefi = icalparameter_get_feature_nth(ret_icalparameter_new_required_pfify, ret_icallimit_get_pauii);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        icaltimezone* ret_icaltimezone_get_builtin_timezone_from_offset_bsaji = icaltimezone_get_builtin_timezone_from_offset((int )ret_icallimit_get_pauii, icalString);
-        if (ret_icaltimezone_get_builtin_timezone_from_offset_bsaji == NULL){
-        	return 0;
-        }
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_dtstamp with icalcomponent_set_recurrenceid
+        icalcomponent_set_recurrenceid(ret_icalcomponent_clone_vsyge, due_time);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
         // End mutation: Producer.APPEND_MUTATOR
         
         icalcomponent_free(component);
@@ -106,7 +77,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -116,7 +87,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_16(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

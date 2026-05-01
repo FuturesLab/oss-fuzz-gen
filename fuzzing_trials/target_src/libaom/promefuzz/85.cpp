@@ -1,14 +1,10 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_enc_config_default at aom_encoder.c:100:17 in aom_encoder.h
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_PAETH_INTRA at aomcx.h:2192:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_REF_FRAME_MVS at aomcx.h:2144:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_REDUCED_TX_TYPE_SET at aomcx.h:2246:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_CHROMA_DELTAQ at aomcx.h:2153:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_DIAGONAL_INTRA at aomcx.h:2321:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_SVC_REF_FRAME_COMP_PRED at aomcx.h:2339:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -18,50 +14,114 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <stdint.h>
-#include <stddef.h>
-#include <fstream>
+extern "C" {
+#include "aomdx.h"
+#include "aom.h"
 #include "aom_codec.h"
-#include "aom_encoder.h"
+#include "aom_external_partition.h"
+#include "aom_decoder.h"
 #include "aomcx.h"
+#include "aom_integer.h"
+#include "aom_frame_buffer.h"
+#include "aom_image.h"
+#include "aom_encoder.h"
+}
+
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_PAETH_INTRA(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    int enable = Data[0] % 2;
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_PAETH_INTRA(codec, AV1E_SET_ENABLE_PAETH_INTRA, enable);
+}
+
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_REF_FRAME_MVS(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    int enable = Data[0] % 2;
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_REF_FRAME_MVS(codec, AV1E_SET_ENABLE_REF_FRAME_MVS, enable);
+}
+
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_REDUCED_TX_TYPE_SET(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    int set_value = Data[0] % 2;
+    aom_codec_control_typechecked_AV1E_SET_REDUCED_TX_TYPE_SET(codec, AV1E_SET_REDUCED_TX_TYPE_SET, set_value);
+}
+
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_CHROMA_DELTAQ(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    int enable = Data[0] % 2;
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_CHROMA_DELTAQ(codec, AV1E_SET_ENABLE_CHROMA_DELTAQ, enable);
+}
+
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_DIAGONAL_INTRA(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
+    if (Size < 1) return;
+    int enable = Data[0] % 2;
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_DIAGONAL_INTRA(codec, AV1E_SET_ENABLE_DIAGONAL_INTRA, enable);
+}
+
+static void fuzz_aom_codec_control_typechecked_AV1E_SET_SVC_REF_FRAME_COMP_PRED(aom_codec_ctx_t *codec, const uint8_t *Data, size_t Size) {
+    if (Size < 3) return;
+    aom_svc_ref_frame_comp_pred_t comp_pred;
+    comp_pred.use_comp_pred[0] = Data[0] % 2;
+    comp_pred.use_comp_pred[1] = Data[1] % 2;
+    comp_pred.use_comp_pred[2] = Data[2] % 2;
+    aom_codec_control_typechecked_AV1E_SET_SVC_REF_FRAME_COMP_PRED(codec, AV1E_SET_SVC_REF_FRAME_COMP_PRED, &comp_pred);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_85(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return 0;
+    if (Size == 0) return 0;
 
-    // Initialize codec context
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_err_t res;
+    aom_codec_ctx_t codec;
+    memset(&codec, 0, sizeof(codec));
 
-    // Assume the interface is for AV1 encoder
-    aom_codec_iface_t *iface = aom_codec_av1_cx();
-
-    // Initialize encoder configuration
-    aom_codec_enc_cfg_t cfg;
-    res = aom_codec_enc_config_default(iface, &cfg, 0);
-    if (res != AOM_CODEC_OK) return 0;
-
-    // Initialize codec
-    res = aom_codec_enc_init(&codec_ctx, iface, &cfg, 0);
-    if (res != AOM_CODEC_OK) return 0;
-
-    // Prepare a dummy file if needed
-    std::ofstream dummyFile("./dummy_file", std::ios::binary);
-    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-    dummyFile.close();
-
-    // Extract an integer from the input data
-    int control_value = *reinterpret_cast<const int*>(Data);
-
-    // Fuzz each target function with extracted control_value
-    aom_codec_control(&codec_ctx, AV1E_SET_NOISE_SENSITIVITY, control_value);
-    aom_codec_control(&codec_ctx, AV1E_SET_FP_MT_UNIT_TEST, control_value);
-    aom_codec_control(&codec_ctx, AV1E_SET_MIN_GF_INTERVAL, control_value);
-    aom_codec_control(&codec_ctx, AV1E_SET_AUTO_INTRA_TOOLS_OFF, control_value);
-    aom_codec_control(&codec_ctx, AV1E_SET_TILE_COLUMNS, control_value);
-    aom_codec_control(&codec_ctx, AV1E_SET_CDF_UPDATE_MODE, control_value);
-
-    // Cleanup
-    aom_codec_destroy(&codec_ctx);
+    fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_PAETH_INTRA(&codec, Data, Size);
+    fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_REF_FRAME_MVS(&codec, Data, Size);
+    fuzz_aom_codec_control_typechecked_AV1E_SET_REDUCED_TX_TYPE_SET(&codec, Data, Size);
+    fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_CHROMA_DELTAQ(&codec, Data, Size);
+    fuzz_aom_codec_control_typechecked_AV1E_SET_ENABLE_DIAGONAL_INTRA(&codec, Data, Size);
+    fuzz_aom_codec_control_typechecked_AV1E_SET_SVC_REF_FRAME_COMP_PRED(&codec, Data, Size);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_85(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

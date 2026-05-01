@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalattach_new_from_url at icalattach.c:20:13 in icalattach.h
-// icalattach_get_url at icalattach.c:117:13 in icalattach.h
-// icalattach_new_from_data at icalattach.c:51:13 in icalattach.h
-// icalattach_ref at icalattach.c:82:6 in icalattach.h
-// icalattach_unref at icalattach.c:90:6 in icalattach.h
-// icalattach_get_is_url at icalattach.c:110:6 in icalattach.h
+// icalcomponent_vanew at icalcomponent.c:105:16 in icalcomponent.h
+// icalcomponent_new at icalcomponent.c:100:16 in icalcomponent.h
+// icalcomponent_new_xvote at icalcomponent.c:2105:16 in icalcomponent.h
+// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
+// icalcomponent_new_from_string at icalcomponent.c:124:16 in icalcomponent.h
+// icalcomponent_new_vavailability at icalcomponent.c:2085:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,66 +14,75 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
+#include <cstdint>
+#include <cstddef>
+#include <cstdlib>
+#include <cstdio>
+#include <cstdarg>
+#include <iostream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalattach.h"
+#include "icalcomponent.h"
+
+static void fuzz_icalcomponent_new() {
+    for (int kind = ICAL_NO_COMPONENT; kind < ICAL_NUM_COMPONENT_TYPES; ++kind) {
+        icalcomponent *comp = icalcomponent_new(static_cast<icalcomponent_kind>(kind));
+        if (comp) {
+            icalcomponent_free(comp);
+        }
+    }
 }
 
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
+static void fuzz_icalcomponent_new_from_string(const uint8_t *Data, size_t Size) {
+    char *str = static_cast<char *>(malloc(Size + 1));
+    if (!str) return;
+    memcpy(str, Data, Size);
+    str[Size] = '\0';
 
-static void free_fn(char *data, void *free_fn_data) {
-    // Custom free function for icalattach_new_from_data
-    if (data) {
-        free(data);
+    icalcomponent *comp = icalcomponent_new_from_string(str);
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+
+    free(str);
+}
+
+static void fuzz_icalcomponent_new_vavailability() {
+    icalcomponent *comp = icalcomponent_new_vavailability();
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+}
+
+static void fuzz_icalcomponent_new_xvote() {
+    icalcomponent *comp = icalcomponent_new_xvote();
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+}
+
+static void fuzz_icalcomponent_vanew() {
+    icalcomponent *comp = icalcomponent_vanew(ICAL_VEVENT_COMPONENT, NULL);
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+}
+
+static void fuzz_icalcomponent_new_xpatch() {
+    icalcomponent *comp = icalcomponent_new_xpatch();
+    if (comp) {
+        icalcomponent_free(comp);
     }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_41(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
-
-    // Create a null-terminated string from the input data
-    char *url = static_cast<char *>(malloc(Size + 1));
-    if (!url) {
-        return 0;
-    }
-    memcpy(url, Data, Size);
-    url[Size] = '\0';
-
-    // Test icalattach_new_from_url
-    icalattach *attach_url = icalattach_new_from_url(url);
-    if (attach_url) {
-        bool is_url = icalattach_get_is_url(attach_url);
-        if (is_url) {
-            const char *retrieved_url = icalattach_get_url(attach_url);
-            if (retrieved_url) {
-                // Compare with the original URL
-                (void)strcmp(retrieved_url, url);
-            }
-        }
-        icalattach_unref(attach_url);
-    }
-
-    // Test icalattach_new_from_data
-    char *data = static_cast<char *>(malloc(Size));
-    if (data) {
-        memcpy(data, Data, Size);
-        icalattach *attach_data = icalattach_new_from_data(data, free_fn, nullptr);
-        if (attach_data) {
-            icalattach_ref(attach_data);
-            icalattach_unref(attach_data);
-            icalattach_unref(attach_data); // This should free the attach_data
-        } else {
-            free(data); // Free manually if attach creation failed
-        }
-    }
-
-    free(url);
+    fuzz_icalcomponent_new();
+    fuzz_icalcomponent_new_from_string(Data, Size);
+    fuzz_icalcomponent_new_vavailability();
+    fuzz_icalcomponent_new_xvote();
+    fuzz_icalcomponent_vanew();
+    fuzz_icalcomponent_new_xpatch();
     return 0;
 }
     #ifdef INC_MAIN

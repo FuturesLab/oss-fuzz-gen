@@ -1,74 +1,29 @@
-#include <string.h>
 #include <sys/stat.h>
-#include "libical/ical.h"
+#include <string.h>
+#include <cstddef>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
+
+extern "C" {
+    #include "libical/ical.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
-    // Initialize a memory context for icalcomponent
-    icalcomponent *component = nullptr;
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_vvoter();
 
-    // Ensure the data size is sufficient to create a valid icalcomponent
-    if (size > 0) {
-        // Create a string from the input data
-        char *inputData = (char *)malloc(size + 1);
-        if (inputData == nullptr) {
-            return 0; // Memory allocation failed
-        }
-        memcpy(inputData, data, size);
-        inputData[size] = '\0'; // Null-terminate the string
-
-        // Parse the input data into an icalcomponent
-        component = icalparser_parse_string(inputData);
-
-        // Free the input data as it's no longer needed
-        free(inputData);
-    }
-
-    // If a valid icalcomponent was created, use it
-    if (component != nullptr) {
-        // Call the function-under-test
-        char *icalString = icalcomponent_as_ical_string_r(component);
-
-        // Free the returned string if not NULL
-        if (icalString != nullptr) {
-            free(icalString);
+    // Perform operations on the component if necessary
+    if (component != NULL) {
+        // For example, you could convert it to a string and print it
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // Print the component string (or perform other operations)
+            // printf("%s\n", component_str);  // Uncomment for debugging
         }
 
-        // Free the icalcomponent
+        // Free the component string if it was allocated
+        icalmemory_free_buffer(component_str);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string_r to icaltimezone_get_builtin_timezone_from_offset
-        size_t ret_icallimit_get_pauii = icallimit_get(ICAL_LIMIT_PARSE_SEARCH);
-        if (ret_icallimit_get_pauii < 0){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!icalString) {
-        	return 0;
-        }
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icallimit_get to icalparameter_get_member_nth
-        icalparameter* ret_icalparameter_new_scheduleagent_cslep = icalparameter_new_scheduleagent(ICAL_SCHEDULEAGENT_SERVER);
-        if (ret_icalparameter_new_scheduleagent_cslep == NULL){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalparameter_new_scheduleagent_cslep) {
-        	return 0;
-        }
-        const char* ret_icalparameter_get_member_nth_ejpqy = icalparameter_get_member_nth(ret_icalparameter_new_scheduleagent_cslep, ret_icallimit_get_pauii);
-        if (ret_icalparameter_get_member_nth_ejpqy == NULL){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        icaltimezone* ret_icaltimezone_get_builtin_timezone_from_offset_bsaji = icaltimezone_get_builtin_timezone_from_offset((int )ret_icallimit_get_pauii, icalString);
-        if (ret_icaltimezone_get_builtin_timezone_from_offset_bsaji == NULL){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
+        // Free the component to avoid memory leaks
         icalcomponent_free(component);
     }
 
@@ -96,7 +51,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -106,7 +61,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_69(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_69(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

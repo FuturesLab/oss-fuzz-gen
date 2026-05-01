@@ -1,48 +1,127 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <cstring>
+#include <cstdlib>
+#include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <iostream>
+#include <fstream>
+#include <cstring>
+#include <cstdlib>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_26(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Ensure we create VCALENDAR components for merging
-    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    icalcomponent *component_to_merge = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-
-    // Fuzz icalcomponent_get_current_component
-    icalcomponent *current_component = icalcomponent_get_current_component(component);
-
-    // Fuzz icalcomponent_merge_component
-    if (component && component_to_merge) {
-        icalcomponent_merge_component(component, component_to_merge);
-        component_to_merge = nullptr; // No longer valid after merging
+    if (Size < 1) {
+        return 0;
     }
 
-    // Fuzz icalcomponent_get_inner
-    icalcomponent *inner_component = icalcomponent_get_inner(component);
+    // Create a string from the input data
+    std::string icalStr(reinterpret_cast<const char*>(Data), Size);
 
-    // Fuzz icalcomponent_set_parent
-    if (inner_component) {
-        icalcomponent_set_parent(inner_component, component);
-    }
+    // Use the icalcomponent_new_from_string function
+    icalcomponent *component = icalcomponent_new_from_string(icalStr.c_str());
 
-    // Fuzz icalcomponent_clone
-    icalcomponent *cloned_component = icalcomponent_clone(component);
-
-    // Cleanup
     if (component) {
-        icalcomponent_free(component);
-    }
-    if (cloned_component) {
-        icalcomponent_free(cloned_component);
+        // Use the icalcomponent_get_location function
+        const char *location = icalcomponent_get_location(component);
+
+        // Use the icalcomponent_isa function
+        icalcomponent_kind kind = icalcomponent_isa(component);
+
+        // Use the icalcomponent_get_recurrenceid function
+        struct icaltimetype recurrenceId = icalcomponent_get_recurrenceid(component);
+
+        // Loop through different component kinds for icalcomponent_get_first_component
+        for (int kindIndex = ICAL_NO_COMPONENT; kindIndex < ICAL_NUM_COMPONENT_TYPES; ++kindIndex) {
+            icalcomponent *firstComponent = icalcomponent_get_first_component(component, static_cast<icalcomponent_kind>(kindIndex));
+            // Just to simulate usage
+            if (firstComponent) {
+                const char *comment = icalcomponent_get_comment(firstComponent);
+            
+                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_comment to icalcomponent_set_duration
+                // Ensure dataflow is valid (i.e., non-null)
+                if (!firstComponent) {
+                	return 0;
+                }
+                struct icaldurationtype ret_icalcomponent_get_duration_qchvp = icalcomponent_get_duration(firstComponent);
+                // Ensure dataflow is valid (i.e., non-null)
+                if (!firstComponent) {
+                	return 0;
+                }
+                icalcomponent_set_duration(firstComponent, ret_icalcomponent_get_duration_qchvp);
+                // End mutation: Producer.APPEND_MUTATOR
+                
+
+                // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_set_duration to icalcomponent_set_due using the plateau pool
+                // Ensure dataflow is valid (i.e., non-null)
+                if (!firstComponent) {
+                	return 0;
+                }
+                icalcomponent_set_due(firstComponent, recurrenceId);
+                // End mutation: Producer.SPLICE_MUTATOR
+                
+
+                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_due to icalproperty_recurrence_is_excluded
+                struct icaltimetype ret_icalcomponent_get_dtstart_dvcrx = icalcomponent_get_dtstart(NULL);
+                // Ensure dataflow is valid (i.e., non-null)
+                if (!firstComponent) {
+                	return 0;
+                }
+                struct icaltimetype ret_icalcomponent_get_dtstamp_jizqr = icalcomponent_get_dtstamp(firstComponent);
+                // Ensure dataflow is valid (i.e., non-null)
+                if (!firstComponent) {
+                	return 0;
+                }
+                bool ret_icalproperty_recurrence_is_excluded_ypngs = icalproperty_recurrence_is_excluded(firstComponent, &ret_icalcomponent_get_dtstart_dvcrx, &ret_icalcomponent_get_dtstamp_jizqr);
+                if (ret_icalproperty_recurrence_is_excluded_ypngs == 0){
+                	return 0;
+                }
+                // End mutation: Producer.APPEND_MUTATOR
+                
+}
+        }
+
+        // Use the icalcomponent_get_comment function
+        const char *comment = icalcomponent_get_comment(component);
+
+        // Free the component
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
 
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new_from_string to icalcomponent_get_timezone
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!component) {
+    	return 0;
+    }
+    char* ret_icalcomponent_as_ical_string_vtbic = icalcomponent_as_ical_string(component);
+    if (ret_icalcomponent_as_ical_string_vtbic == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!component) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_icalcomponent_as_ical_string_vtbic) {
+    	return 0;
+    }
+    icaltimezone* ret_icalcomponent_get_timezone_pqykh = icalcomponent_get_timezone(component, ret_icalcomponent_as_ical_string_vtbic);
+    if (ret_icalcomponent_get_timezone_pqykh == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     return 0;
 }
 #ifdef INC_MAIN
@@ -67,7 +146,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -77,7 +156,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_26(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_26(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

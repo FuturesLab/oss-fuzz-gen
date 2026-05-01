@@ -1,62 +1,66 @@
 #include <sys/stat.h>
-#include "libical/ical.h"
-#include <stdint.h>
-#include <stddef.h>
 #include <string.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+
+extern "C" {
+    #include "libical/ical.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_66(const uint8_t *data, size_t size) {
-    // Ensure the input data is large enough to be meaningful
-    if (size == 0) {
+    // Ensure the input size is sufficient to create a valid string for the timezone.
+    if (size < 1) {
         return 0;
     }
 
-    // Create a new VAlarm component
-    icalcomponent *component = icalcomponent_new_valarm();
+    // Create a dummy icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    if (component == NULL) {
+        return 0;
+    }
 
-    // Check if the component is created successfully
-    if (component != NULL) {
-        // Convert the input data to a string and ensure it is null-terminated
-        char *inputData = (char *)malloc(size + 1);
-        if (inputData == NULL) {
-            icalcomponent_free(component);
-            return 0;
-        }
-        memcpy(inputData, data, size);
-        inputData[size] = '\0';
-
-        // Parse the input data as an iCalendar property
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalproperty_new_from_string with icalproperty_new_organizer
-        icalproperty *property = icalproperty_new_organizer(inputData);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-        if (property != NULL) {
-            // Add the property to the component
-            icalcomponent_add_property(component, property);
-        }
-
-        // Free the allocated input data
-        free(inputData);
-
-        // Free the allocated component to avoid memory leaks
+    // Create a null-terminated string from the input data for the timezone name
+    char *timezone_name = (char *)malloc(size + 1);
+    if (timezone_name == NULL) {
         icalcomponent_free(component);
+        return 0;
+    }
+    memcpy(timezone_name, data, size);
+    timezone_name[size] = '\0';
+
+    // Create a timezone using the input data
+    icaltimezone *timezone = icaltimezone_get_builtin_timezone(timezone_name);
+
+    // If the timezone is valid, add it to the component
+    if (timezone != NULL) {
+        icalproperty *tz_property = icalproperty_new_tzid(timezone_name);
+        if (tz_property != NULL) {
+            icalcomponent_add_property(component, tz_property);
+        
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_add_property to icalcomponent_remove_component
+            icalcomponent* ret_icalcomponent_new_xstandard_lcwze = icalcomponent_new_xstandard();
+            if (ret_icalcomponent_new_xstandard_lcwze == NULL){
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!ret_icalcomponent_new_xstandard_lcwze) {
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!component) {
+            	return 0;
+            }
+            icalcomponent_remove_component(ret_icalcomponent_new_xstandard_lcwze, component);
+            // End mutation: Producer.APPEND_MUTATOR
+            
+}
     }
 
+    // Free allocated resources
+    free(timezone_name);
+    icalcomponent_free(component);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new_valarm to icalcomponent_set_parent
-    icalcomponent* ret_icalparser_clean_lvubv = icalparser_clean(NULL);
-    if (ret_icalparser_clean_lvubv == NULL){
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!ret_icalparser_clean_lvubv) {
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
-    }
-    icalcomponent_set_parent(ret_icalparser_clean_lvubv, component);
-    // End mutation: Producer.APPEND_MUTATOR
-    
     return 0;
 }
 #ifdef INC_MAIN
@@ -81,7 +85,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -91,7 +95,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_66(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_66(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

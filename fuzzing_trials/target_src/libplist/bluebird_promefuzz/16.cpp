@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,52 +9,84 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstring>
 #include "plist/plist.h"
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(int64_t)) return 0;
 
-    // Ensure null-termination for string operations
-    std::vector<char> safeData(Data, Data + Size);
-    safeData.push_back('\0');
+    int64_t unix_timestamp;
+    memcpy(&unix_timestamp, Data, sizeof(int64_t));
 
-    // Create a dummy PLIST_STRING node
-    plist_t plist_string_node = plist_new_string(safeData.data());
+    // Test plist_new_null
+    plist_t null_node = plist_new_null();
+    if (null_node) {
+        plist_free(null_node);
+    }
 
-    // Create a dummy PLIST_KEY node
-    plist_t plist_key_node = plist_new_string(safeData.data());
+    // Test plist_new_unix_date
+    plist_t date_node = plist_new_unix_date(unix_timestamp);
+    if (date_node) {
+        // Test plist_set_unix_date_val
+        plist_set_unix_date_val(date_node, unix_timestamp);
 
-    // Use part of the data as a comparison string
-    const char* cmpval = safeData.data();
-    size_t cmpval_size = Size > 1 ? Size - 1 : 0;
+        // Test plist_date_val_compare
+        plist_date_val_compare(date_node, static_cast<int32_t>(unix_timestamp), 0);
 
-    // Fuzz plist_string_val_compare
-    plist_string_val_compare(plist_string_node, cmpval);
+        // Test plist_unix_date_val_compare
+        plist_unix_date_val_compare(date_node, unix_timestamp);
 
-    // Fuzz plist_key_val_compare
-    plist_key_val_compare(plist_key_node, cmpval);
+        // Test plist_to_openstep_with_options
+        char *openstep_output = nullptr;
+        uint32_t length = 0;
+        plist_err_t err = plist_to_openstep_with_options(date_node, &openstep_output, &length, PLIST_OPT_COERCE);
+        if (err == PLIST_ERR_SUCCESS && openstep_output) {
+            free(openstep_output);
+        }
 
-    // Fuzz plist_string_val_contains
-    plist_string_val_contains(plist_string_node, cmpval);
-
-    // Fuzz plist_string_val_compare_with_size
-    plist_string_val_compare_with_size(plist_string_node, cmpval, cmpval_size);
-
-    // Fuzz plist_key_val_compare_with_size
-    plist_key_val_compare_with_size(plist_key_node, cmpval, cmpval_size);
-
-    // Create another dummy PLIST_STRING node for comparison
-    plist_t another_plist_string_node = plist_new_string(safeData.data() + cmpval_size);
-
-    // Fuzz plist_compare_node_value
-    plist_compare_node_value(plist_string_node, another_plist_string_node);
-
-    // Clean up
-    plist_free(plist_string_node);
-    plist_free(plist_key_node);
-    plist_free(another_plist_string_node);
+        plist_free(date_node);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

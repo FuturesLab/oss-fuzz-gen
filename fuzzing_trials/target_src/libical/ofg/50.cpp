@@ -1,40 +1,46 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <string.h>
-#include <stdlib.h>  // Include for malloc and free
 
 extern "C" {
-    // Declare the function signature for icalrecur_string_to_freq
-    typedef enum icalrecurrencetype_frequency {
-        ICAL_NO_RECURRENCE = 0,
-        ICAL_SECONDLY_RECURRENCE,
-        ICAL_MINUTELY_RECURRENCE,
-        ICAL_HOURLY_RECURRENCE,
-        ICAL_DAILY_RECURRENCE,
-        ICAL_WEEKLY_RECURRENCE,
-        ICAL_MONTHLY_RECURRENCE,
-        ICAL_YEARLY_RECURRENCE
-    } icalrecurrencetype_frequency;
-
-    // Assuming this function is defined in the C project
-    icalrecurrencetype_frequency icalrecur_string_to_freq(const char *str);
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated to safely convert to a C-style string
-    char *inputString = (char *)malloc(size + 1);
-    if (inputString == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Check if the input size is sufficient to create a valid string
+    if (size < 1) {
+        return 0;
     }
-    memcpy(inputString, data, size);
-    inputString[size] = '\0';
 
-    // Call the function-under-test
-    icalrecurrencetype_frequency freq = icalrecur_string_to_freq(inputString);
+    // Create a null-terminated string from the input data
+    char *input_data = (char *)malloc(size + 1);
+    if (input_data == NULL) {
+        return 0;
+    }
+    memcpy(input_data, data, size);
+    input_data[size] = '\0';
+
+    // Initialize a dummy icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    
+    // Ensure the component is not NULL
+    if (component == NULL) {
+        free(input_data);
+        return 0;
+    }
+
+    // Add a duration property to the component using fuzzed data
+    icalproperty *duration_prop = icalproperty_new_duration(icaldurationtype_from_string(input_data));
+    if (duration_prop != NULL) {
+        icalcomponent_add_property(component, duration_prop);
+
+        // Call the function-under-test
+        struct icaldurationtype duration = icalcomponent_get_duration(component);
+    }
 
     // Clean up
-    free(inputString);
+    icalcomponent_free(component);
+    free(input_data);
 
     return 0;
 }
@@ -60,7 +66,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -70,7 +76,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_50(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_50(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

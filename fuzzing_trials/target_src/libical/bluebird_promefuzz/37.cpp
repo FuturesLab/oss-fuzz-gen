@@ -9,93 +9,104 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <iostream>
 #include <fstream>
+#include <cstring>
+#include <cstdlib>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
-#include "/src/libical/src/libical/icaltimezone.h"
+#include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_37(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Prepare a null-terminated string from the input data
-    char *inputString = (char *)malloc(Size + 1);
-    if (!inputString) {
-        return 0;
-    }
-    memcpy(inputString, Data, Size);
-    inputString[Size] = '\0';
+    // Create a string from the input data
+    std::string icalStr(reinterpret_cast<const char*>(Data), Size);
 
-    // Test icaltimezone_get_builtin_timezone
-    icaltimezone *builtinTimezone = icaltimezone_get_builtin_timezone(inputString);
-    if (builtinTimezone) {
-        // Test icaltimezone_copy
-        icaltimezone *copiedTimezone = icaltimezone_copy(builtinTimezone);
-        if (copiedTimezone) {
-            // Test icaltimezone_get_latitude
-            double latitude = icaltimezone_get_latitude(copiedTimezone);
-            (void)latitude; // Suppress unused variable warning
+    // Use the icalcomponent_new_from_string function
+    icalcomponent *component = icalcomponent_new_from_string(icalStr.c_str());
 
-            // Test icaltimezone_get_longitude
-            double longitude = icaltimezone_get_longitude(copiedTimezone);
-            (void)longitude; // Suppress unused variable warning
+    if (component) {
+        // Use the icalcomponent_get_location function
+        const char *location = icalcomponent_get_location(component);
 
-            // Free the copied timezone
-            icaltimezone_free(copiedTimezone, 1);
-        }
-    }
+        // Use the icalcomponent_isa function
+        icalcomponent_kind kind = icalcomponent_isa(component);
 
-    // Test icaltimezone_new
-    icaltimezone *newTimezone = icaltimezone_new();
-    if (newTimezone) {
-        // Test icaltimezone_get_latitude
-        double latitude = icaltimezone_get_latitude(newTimezone);
-        (void)latitude; // Suppress unused variable warning
+        // Use the icalcomponent_get_recurrenceid function
+        struct icaltimetype recurrenceId = icalcomponent_get_recurrenceid(component);
 
-        // Test icaltimezone_get_longitude
-        double longitude = icaltimezone_get_longitude(newTimezone);
-        (void)longitude; // Suppress unused variable warning
+        // Loop through different component kinds for icalcomponent_get_first_component
 
-        // Free the new timezone
-        icaltimezone_free(newTimezone, 1);
-    }
-
-    // Test icaltimezone_get_builtin_timezone_from_tzid
-    icaltimezone *builtinTimezoneFromTzid = icaltimezone_get_builtin_timezone_from_tzid(inputString);
-    if (builtinTimezoneFromTzid) {
-        // Test icaltimezone_get_latitude
-        double latitude = icaltimezone_get_latitude(builtinTimezoneFromTzid);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icaltimezone_get_latitude to icalparameter_get_member_nth
-        const char gtdzlebd[1024] = "pzqvs";
-        icalparameter* ret_icalparameter_new_delegatedto_pamns = icalparameter_new_delegatedto(gtdzlebd);
-        if (ret_icalparameter_new_delegatedto_pamns == NULL){
-        	return 0;
-        }
+        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_get_recurrenceid to icalcomponent_count_errors using the plateau pool
         // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalparameter_new_delegatedto_pamns) {
+        if (!component) {
         	return 0;
         }
-        const char* ret_icalparameter_get_member_nth_tmdbd = icalparameter_get_member_nth(ret_icalparameter_new_delegatedto_pamns, (size_t )latitude);
-        if (ret_icalparameter_get_member_nth_tmdbd == NULL){
+        int ret_icalcomponent_count_errors_hxtya = icalcomponent_count_errors(component);
+        if (ret_icalcomponent_count_errors_hxtya < 0){
         	return 0;
         }
-        // End mutation: Producer.APPEND_MUTATOR
+        // End mutation: Producer.SPLICE_MUTATOR
         
-        (void)latitude; // Suppress unused variable warning
+        for (int kindIndex = ICAL_NO_COMPONENT; kindIndex < ICAL_NUM_COMPONENT_TYPES; ++kindIndex) {
+            icalcomponent *firstComponent = icalcomponent_get_first_component(component, static_cast<icalcomponent_kind>(kindIndex));
+            // Just to simulate usage
+            if (firstComponent) {
+                const char *comment = icalcomponent_get_comment(firstComponent);
+            
+                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_comment to icalcomponent_set_duration
+                // Ensure dataflow is valid (i.e., non-null)
+                if (!firstComponent) {
+                	return 0;
+                }
+                struct icaldurationtype ret_icalcomponent_get_duration_qchvp = icalcomponent_get_duration(firstComponent);
+                // Ensure dataflow is valid (i.e., non-null)
+                if (!firstComponent) {
+                	return 0;
+                }
+                icalcomponent_set_duration(firstComponent, ret_icalcomponent_get_duration_qchvp);
+                // End mutation: Producer.APPEND_MUTATOR
+                
+}
+        }
 
-        // Test icaltimezone_get_longitude
-        double longitude = icaltimezone_get_longitude(builtinTimezoneFromTzid);
-        (void)longitude; // Suppress unused variable warning
+        // Use the icalcomponent_get_comment function
+        const char *comment = icalcomponent_get_comment(component);
+
+        // Free the component
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
 
-    // Clean up
-    free(inputString);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new_from_string to icalcomponent_get_timezone
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!component) {
+    	return 0;
+    }
+    char* ret_icalcomponent_as_ical_string_vtbic = icalcomponent_as_ical_string(component);
+    if (ret_icalcomponent_as_ical_string_vtbic == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!component) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_icalcomponent_as_ical_string_vtbic) {
+    	return 0;
+    }
+    icaltimezone* ret_icalcomponent_get_timezone_pqykh = icalcomponent_get_timezone(component, ret_icalcomponent_as_ical_string_vtbic);
+    if (ret_icalcomponent_get_timezone_pqykh == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     return 0;
 }
 #ifdef INC_MAIN
@@ -120,7 +131,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -130,7 +141,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_37(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_37(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

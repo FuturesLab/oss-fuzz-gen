@@ -1,41 +1,63 @@
-#include <string.h>
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stdlib.h>
-
-extern "C" {
-    #include "libical/ical.h"
-}
+#include <string.h>
+#include "libical/ical.h"
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_58(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
+    // Ensure that the input data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Create an icaltimetype from the input data
-    struct icaltimetype dtstamp;
-    if (size >= sizeof(struct icaltimetype)) {
-        // Use the input data to initialize the icaltimetype
-        dtstamp.year = ((int16_t *)data)[0];
-        dtstamp.month = ((int8_t *)data)[2] % 12 + 1; // Ensure month is 1-12
-        dtstamp.day = ((int8_t *)data)[3] % 31 + 1;   // Ensure day is 1-31
-        dtstamp.hour = ((int8_t *)data)[4] % 24;      // Ensure hour is 0-23
-        dtstamp.minute = ((int8_t *)data)[5] % 60;    // Ensure minute is 0-59
-        dtstamp.second = ((int8_t *)data)[6] % 60;    // Ensure second is 0-59
-        dtstamp.is_date = 0;                          // Set to 0 for date-time
-        dtstamp.zone = icaltimezone_get_utc_timezone(); // Set the timezone to UTC
-    } else {
-        // Use default values if input data is insufficient
-        dtstamp = icaltime_current_time_with_zone(icaltimezone_get_utc_timezone());
+    // Create a temporary buffer to hold the input data
+    char *buffer = static_cast<char *>(malloc(size + 1));
+    if (buffer == nullptr) {
+        return 0;
     }
 
-    // Call the function-under-test
-    icalcomponent_set_dtstamp(component, dtstamp);
+    // Copy the input data into the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
 
-    // Clean up
-    icalcomponent_free(component);
+    // Parse the buffer into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(buffer);
+
+    // If parsing was successful, call the function-under-test
+    if (component != nullptr) {
+        char *icalString = icalcomponent_as_ical_string_r(component);
+
+        // Free the returned string if it's not null
+        if (icalString != nullptr) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_remove_component
+        icalcomponent* ret_icalcomponent_new_vlocation_zurbw = icalcomponent_new_vlocation();
+        if (ret_icalcomponent_new_vlocation_zurbw == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalcomponent_new_vlocation_zurbw) {
+        	return 0;
+        }
+        icalcomponent_remove_component(component, ret_icalcomponent_new_vlocation_zurbw);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Free the buffer
+    free(buffer);
 
     return 0;
 }
@@ -61,7 +83,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -71,7 +93,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_58(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_58(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

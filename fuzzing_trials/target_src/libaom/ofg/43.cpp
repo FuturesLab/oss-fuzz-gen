@@ -1,39 +1,72 @@
-#include <cstdint>
-#include <cstdlib>
-#include <aom/aom_codec.h>
-#include <aom/aomcx.h> // Include the encoder header for aom_codec_av1_cx and aom_codec_enc_init
-
 extern "C" {
     #include <aom/aom_codec.h>
-    #include <aom/aomcx.h>
+    #include <aom/aom_decoder.h>
+    #include <aom/aomdx.h> // Include the header for AV1 decoder interface
 }
 
 extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    // Initialize the codec context
+    if (size == 0) {
+        return 0; // Avoid processing if there's no data
+    }
+
     aom_codec_ctx_t codec_ctx;
+    aom_codec_err_t result;
+    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
 
-    // Ensure that the codec context is non-NULL by allocating memory
-    aom_codec_iface_t *iface = aom_codec_av1_cx();
-    if (iface == NULL) {
-        return 0;
+    // Initialize the codec context
+    result = aom_codec_dec_init(&codec_ctx, iface, NULL, 0);
+    if (result != AOM_CODEC_OK) {
+        return 0; // Initialization failed, exit early
     }
 
-    // Initialize the codec context with the interface
-    if (aom_codec_enc_init(&codec_ctx, iface, NULL, 0) != AOM_CODEC_OK) {
-        return 0;
+    // Decode the input data
+    result = aom_codec_decode(&codec_ctx, data, size, NULL);
+    if (result != AOM_CODEC_OK) {
+        aom_codec_destroy(&codec_ctx);
+        return 0; // Decoding failed, exit early
     }
 
-    // Call the function-under-test
-    const char *error_detail = aom_codec_error_detail(&codec_ctx);
-
-    // Check the result (optional, for debugging purposes)
-    if (error_detail != NULL) {
-        // Print the error detail (in a real fuzzing environment, you might log this)
-        // printf("Error Detail: %s\n", error_detail);
-    }
-
-    // Destroy the codec context to clean up
+    // Clean up and destroy the codec context
     aom_codec_destroy(&codec_ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_43(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

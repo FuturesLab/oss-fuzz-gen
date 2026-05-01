@@ -1,28 +1,63 @@
-extern "C" {
-    #include <stdint.h>
-    #include <plist/plist.h>
-}
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <plist/plist.h>
 
 extern "C" int LLVMFuzzerTestOneInput_142(const uint8_t *data, size_t size) {
-    // Initialize plist_t
+    // Initialize plist_t object
     plist_t plist = plist_new_dict();
 
-    // Ensure plist is not NULL and has some data
-    if (size > 0) {
-        plist_dict_set_item(plist, "key", plist_new_data((const char*)data, size));
-    } else {
-        plist_dict_set_item(plist, "key", plist_new_uint(42)); // Default non-null value
-    }
+    // Add some dummy data to the plist
+    plist_dict_set_item(plist, "key", plist_new_string("value"));
+
+    // Initialize a uint64_t variable
+    uint64_t length = 0;
 
     // Call the function-under-test
-    uint64_t value = 0;
-    plist_t node = plist_dict_get_item(plist, "key");
-    if (node) {
-        plist_get_uint_val(node, &value);
-    }
+    const char *result = plist_get_string_ptr(plist, &length);
 
     // Clean up
     plist_free(plist);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_142(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

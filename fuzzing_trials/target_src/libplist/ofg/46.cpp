@@ -1,47 +1,61 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <plist/plist.h>
-#include <stdlib.h> // Include the standard library for free
-
-extern "C" {
-    #include <plist/plist.h>
-}
 
 extern "C" int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to create a plist
-    if (size < 1) {
+    if (size == 0) {
         return 0;
     }
 
-    // Create a plist from the input data
     plist_t plist = NULL;
     plist_from_bin((const char*)data, size, &plist);
 
-    if (plist == NULL) {
-        return 0;
-    }
+    // Normally, you would do something with `plist` here, such as checking its properties,
+    // manipulating it, or performing operations that could trigger different code paths.
 
-    // Create an iterator for the plist array
-    plist_array_iter iter = NULL;
-    plist_array_new_iter(plist, &iter);
-
-    if (iter == NULL) {
+    // Clean up the plist object
+    if (plist != NULL) {
         plist_free(plist);
-        return 0;
     }
-
-    // Prepare a variable to hold the next item
-    plist_t next_item = NULL;
-
-    // Call the function-under-test
-    plist_array_next_item(plist, iter, &next_item);
-
-    // Clean up
-    if (next_item != NULL) {
-        plist_free(next_item);
-    }
-    free(iter);
-    plist_free(plist);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_46(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

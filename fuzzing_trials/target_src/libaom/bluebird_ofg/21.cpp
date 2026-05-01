@@ -1,36 +1,27 @@
 #include <string.h>
 #include <sys/stat.h>
-#include <cstddef>
 #include <cstdint>
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
+#include <cstdlib>
+#include "/src/aom/aom/aom_image.h"
 
 extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec;
-    aom_codec_err_t res;
-    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
-    void *user_priv = (void*)1; // Non-NULL user private data
-
-    // Initialize the codec context
-    res = aom_codec_dec_init(&codec, iface, NULL, 0);
-    if (res != AOM_CODEC_OK) {
-        return 0; // Initialization failed
+    // Ensure we have enough data to extract all parameters
+    if (size < sizeof(unsigned int) * 5) {
+        return 0;
     }
+
+    // Initialize parameters for aom_img_set_rect
+    aom_image_t img;
+    unsigned int x = static_cast<unsigned int>(data[0]);
+    unsigned int y = static_cast<unsigned int>(data[1]);
+    unsigned int w = static_cast<unsigned int>(data[2]);
+    unsigned int h = static_cast<unsigned int>(data[3]);
+    unsigned int stride = static_cast<unsigned int>(data[4]);
 
     // Call the function-under-test
-    res = aom_codec_decode(&codec, data, size, user_priv);
+    int result = aom_img_set_rect(&img, x, y, w, h, stride);
 
-    // Destroy the codec context
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_get_frame
-    aom_image_t* ret_aom_codec_get_frame_zzokr = aom_codec_get_frame(&codec, NULL);
-    if (ret_aom_codec_get_frame_zzokr == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_destroy(&codec);
-
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
 #ifdef INC_MAIN

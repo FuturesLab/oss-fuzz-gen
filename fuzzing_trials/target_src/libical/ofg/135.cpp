@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 extern "C" {
@@ -7,25 +8,26 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_135(const uint8_t *data, size_t size) {
-    // Ensure that the input data is large enough to be used as a string
+    // Ensure the data is null-terminated
     if (size == 0) {
         return 0;
     }
 
-    // Create a null-terminated string from the input data
-    char *patchdelete_str = new char[size + 1];
-    memcpy(patchdelete_str, data, size);
-    patchdelete_str[size] = '\0';
-
-    // Initialize an icalproperty
-    icalproperty *property = icalproperty_new(ICAL_ANY_PROPERTY);
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0;
+    }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
     // Call the function-under-test
-    icalproperty_set_patchdelete(property, patchdelete_str);
+    icalcomponent *component = icalcomponent_new_from_string(null_terminated_data);
 
     // Clean up
-    icalproperty_free(property);
-    delete[] patchdelete_str;
+    if (component != NULL) {
+        icalcomponent_free(component);
+    }
+    free(null_terminated_data);
 
     return 0;
 }
@@ -51,7 +53,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -61,7 +63,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_135(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_135(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

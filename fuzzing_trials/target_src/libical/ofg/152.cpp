@@ -1,39 +1,29 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
-#include <string.h> // Include string.h for memcpy
+#include <cstddef>
+#include <cstdint>
 
 extern "C" {
-    // Assuming the icaltime_span structure and icaltime_span_contains function are defined in the project
-    typedef struct {
-        int64_t start;
-        int64_t end;
-        int is_busy;
-    } icaltime_span;
-
-    // Function under test
-    bool icaltime_span_contains(const icaltime_span *span1, const icaltime_span *span2);
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_152(const uint8_t *data, size_t size) {
-    if (size < sizeof(icaltime_span) * 2) {
-        return 0; // Not enough data to create two icaltime_span structures
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_vvoter();
+
+    // Perform operations on the component if necessary
+    if (component != NULL) {
+        // For example, you could convert it to a string and print it
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // Print the component string (or perform other operations)
+            // printf("%s\n", component_str);  // Uncomment for debugging
+        }
+
+        // Free the component string if it was allocated
+        icalmemory_free_buffer(component_str);
+
+        // Free the component to avoid memory leaks
+        icalcomponent_free(component);
     }
-
-    // Create two icaltime_span structures from the input data
-    icaltime_span span1;
-    icaltime_span span2;
-
-    // Copy data into the icaltime_span structures
-    // Ensure that the data is correctly aligned and non-NULL
-    memcpy(&span1, data, sizeof(icaltime_span));
-    memcpy(&span2, data + sizeof(icaltime_span), sizeof(icaltime_span));
-
-    // Call the function under test
-    bool result = icaltime_span_contains(&span1, &span2);
-
-    // Use the result to avoid any compiler optimizations that might skip the call
-    volatile bool avoid_optimization = result;
 
     return 0;
 }
@@ -59,7 +49,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -69,7 +59,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_152(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_152(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

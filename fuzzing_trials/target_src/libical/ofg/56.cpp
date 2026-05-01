@@ -1,41 +1,44 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <libical/ical.h>
+#include <cstring>  // Include for memcpy
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_56(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract values for icaltimetype
-    if (size < sizeof(int) * 6 + sizeof(char)) {
+    // Ensure data size is sufficient to create a valid string
+    if (size < 2) return 0;
+
+    // Create a temporary null-terminated string from the input data
+    char *ical_str = new char[size + 1];
+    memcpy(ical_str, data, size);
+    ical_str[size] = '\0';
+
+    // Initialize an icalcomponent from the string
+    icalcomponent *component = icalparser_parse_string(ical_str);
+    if (component == NULL) {
+        delete[] ical_str;
         return 0;
     }
 
-    // Extract values from the data for icaltimetype
-    int year = (int)data[0];
-    int month = (int)data[1] % 12 + 1; // Ensure month is between 1 and 12
-    int day = (int)data[2] % 31 + 1;   // Ensure day is between 1 and 31
-    int hour = (int)data[3] % 24;      // Ensure hour is between 0 and 23
-    int minute = (int)data[4] % 60;    // Ensure minute is between 0 and 59
-    int second = (int)data[5] % 60;    // Ensure second is between 0 and 59
-    char is_date = (char)data[6] % 2;  // Boolean value for is_date
+    // Create a dummy icalproperty to remove
+    icalproperty *property = icalproperty_new_comment("Dummy comment");
+    if (property == NULL) {
+        icalcomponent_free(component);
+        delete[] ical_str;
+        return 0;
+    }
 
-    // Create icaltimetype structure
-    struct icaltimetype tt;
-    tt.year = year;
-    tt.month = month;
-    tt.day = day;
-    tt.hour = hour;
-    tt.minute = minute;
-    tt.second = second;
-    tt.is_date = is_date;
-    tt.is_daylight = 0;
-    tt.zone = NULL;
+    // Add the property to the component
+    icalcomponent_add_property(component, property);
 
     // Call the function-under-test
-    icalproperty *prop = icalproperty_new_mindate(tt);
+    icalcomponent_remove_property(component, property);
 
     // Clean up
-    if (prop != NULL) {
-        icalproperty_free(prop);
-    }
+    icalcomponent_free(component);
+    delete[] ical_str;
 
     return 0;
 }
@@ -61,7 +64,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -71,7 +74,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_56(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_56(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

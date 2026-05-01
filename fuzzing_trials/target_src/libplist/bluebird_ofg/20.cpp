@@ -1,46 +1,88 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include "plist/plist.h"
 
-extern "C" {
-    // Include the necessary function signature from the library
-    plist_err_t plist_to_openstep(plist_t plist, char **plist_xml, uint32_t *length, int format);
-
-    // Correct function signature for plist_from_memory
-    plist_err_t plist_from_memory(const char *plist_data, uint32_t length, plist_t *plist, plist_format_t *format);
-}
-
 extern "C" int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Initialize variables
-    plist_t plist = NULL;
-    char *plist_xml = NULL;
-    uint32_t length = 0;
-    int format = 0; // Assuming 0 is a valid format for demonstration
-    plist_format_t plist_format = PLIST_FORMAT_XML; // Assuming XML format for demonstration
-
-    // Create a plist from the input data
-    plist_from_memory((const char *)data, size, &plist, &plist_format);
-
-    // Check if plist creation was successful
-    if (plist != NULL) {
-        // Call the function-under-test
-
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of plist_to_openstep
-        plist_err_t result = plist_to_openstep(plist, &plist_xml, &length, size);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-        // Free the plist
-        plist_free(plist);
-
-        // Free the plist_xml if it was allocated
-        if (plist_xml != NULL) {
-            free(plist_xml);
-        }
+    // Ensure the data size is sufficient for a null-terminated string
+    if (size < 1) {
+        return 0;
     }
+
+    // Create a plist node
+    plist_t node = plist_new_string("");
+
+    // Copy data to a new buffer and ensure null-termination
+    char *str = (char *)malloc(size + 1);
+    if (str == NULL) {
+        plist_free(node);
+        return 0;
+    }
+    memcpy(str, data, size);
+    str[size] = '\0';
+
+    // Call the function-under-test
+    plist_set_string_val(node, str);
+
+    // Additional code to increase code coverage
+    char *retrieved_str = NULL;
+    plist_get_string_val(node, &retrieved_str);
+    if (retrieved_str) {
+        // Perform some operations on the retrieved string to ensure it's used
+        size_t retrieved_len = strlen(retrieved_str);
+        if (retrieved_len > 0) {
+            // Do something with the retrieved string to increase coverage
+            // For example, check if it matches the original string
+            if (strcmp(retrieved_str, str) == 0) {
+                // Strings match, this is an expected case
+            }
+        }
+        free(retrieved_str);
+    }
+
+    // Clean up
+    free(str);
+    plist_free(node);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

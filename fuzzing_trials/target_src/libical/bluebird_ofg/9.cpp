@@ -1,40 +1,46 @@
-#include <string.h>
 #include <sys/stat.h>
+#include <string.h>
+#include "libical/ical.h"
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
-extern "C" {
-#include "libical/ical.h"
-}
-
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-    // Ensure the input size is reasonable to avoid excessive memory usage
-    if (size == 0 || size > 1024) {
+    // Ensure that the input data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Create an icalproperty object from the input data
-    char *ical_data = (char *)malloc(size + 1);
-    if (ical_data == NULL) {
-        return 0;
-    }
-    memcpy(ical_data, data, size);
-    ical_data[size] = '\0'; // Null-terminate the string
-
-    // Parse the input data as an iCalendar property
-    icalproperty *property = icalproperty_new_from_string(ical_data);
-    free(ical_data);
-
-    if (property == NULL) {
+    // Create a temporary buffer to hold the input data
+    char *buffer = static_cast<char *>(malloc(size + 1));
+    if (buffer == nullptr) {
         return 0;
     }
 
-    // Call the function-under-test
-    struct icaltimetype dtend = icalproperty_get_dtend(property);
+    // Copy the input data into the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
 
-    // Clean up
-    icalproperty_free(property);
+    // Parse the buffer into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(buffer);
+
+    // If parsing was successful, call the function-under-test
+    if (component != nullptr) {
+        char *icalString = icalcomponent_as_ical_string_r(component);
+
+        // Free the returned string if it's not null
+        if (icalString != nullptr) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_convert_errors
+        icalcomponent_convert_errors(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    }
+
+    // Free the buffer
+    free(buffer);
 
     return 0;
 }
@@ -60,7 +66,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -70,7 +76,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_9(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

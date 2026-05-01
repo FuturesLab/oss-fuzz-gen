@@ -9,65 +9,113 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstddef>
-#include <cassert>
+#include <iostream>
+#include <fstream>
 #include <cstring>
+#include <cstdlib>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
-#include "/src/libical/src/libical/icaltypes.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icalduration.h"
+#include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_42(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Convert input data to a string for string-based functions
-    char *inputStr = new char[Size + 1];
-    memcpy(inputStr, Data, Size);
-    inputStr[Size] = '\0';
+    // Create a string from the input data
+    std::string icalStr(reinterpret_cast<const char*>(Data), Size);
 
-    // 1. Test icaltriggertype_from_string
-    struct icaltriggertype triggerFromString = icaltriggertype_from_string(inputStr);
+    // Use the icalcomponent_new_from_string function
+    icalcomponent *component = icalcomponent_new_from_string(icalStr.c_str());
 
-    // 2. Test icaltriggertype_is_null_trigger
-    bool isNullTrigger = icaltriggertype_is_null_trigger(triggerFromString);
+    if (component) {
+        // Use the icalcomponent_get_location function
+        const char *location = icalcomponent_get_location(component);
 
-    // 3. Test icaldurationtype_from_string
-    struct icaldurationtype durationFromString = icaldurationtype_from_string(inputStr);
+        // Use the icalcomponent_isa function
+        icalcomponent_kind kind = icalcomponent_isa(component);
 
-    // 4. Test icaldurationtype_is_null_duration
+        // Use the icalcomponent_get_recurrenceid function
+        struct icaltimetype recurrenceId = icalcomponent_get_recurrenceid(component);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icaldurationtype_from_string to icalproperty_set_duration
-    const char nzusacuv[1024] = "nfcun";
-    icalproperty* ret_icalproperty_vanew_query_gyikq = icalproperty_vanew_query(nzusacuv);
-    if (ret_icalproperty_vanew_query_gyikq == NULL){
+        // Loop through different component kinds for icalcomponent_get_first_component
+        for (int kindIndex = ICAL_NO_COMPONENT; kindIndex < ICAL_NUM_COMPONENT_TYPES; ++kindIndex) {
+            icalcomponent *firstComponent = icalcomponent_get_first_component(component, static_cast<icalcomponent_kind>(kindIndex));
+            // Just to simulate usage
+            if (firstComponent) {
+                const char *comment = icalcomponent_get_comment(firstComponent);
+            
+                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_comment to icalcomponent_set_duration
+                // Ensure dataflow is valid (i.e., non-null)
+                if (!firstComponent) {
+                	return 0;
+                }
+                struct icaldurationtype ret_icalcomponent_get_duration_qchvp = icalcomponent_get_duration(firstComponent);
+                // Ensure dataflow is valid (i.e., non-null)
+                if (!firstComponent) {
+                	return 0;
+                }
+                icalcomponent_set_duration(firstComponent, ret_icalcomponent_get_duration_qchvp);
+                // End mutation: Producer.APPEND_MUTATOR
+                
+
+                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_duration to icalcomponent_add_component
+                // Ensure dataflow is valid (i.e., non-null)
+                if (!firstComponent) {
+                	return 0;
+                }
+                icalcomponent* ret_icalcomponent_get_current_component_yzvzm = icalcomponent_get_current_component(firstComponent);
+                if (ret_icalcomponent_get_current_component_yzvzm == NULL){
+                	return 0;
+                }
+                // Ensure dataflow is valid (i.e., non-null)
+                if (!firstComponent) {
+                	return 0;
+                }
+                // Ensure dataflow is valid (i.e., non-null)
+                if (!ret_icalcomponent_get_current_component_yzvzm) {
+                	return 0;
+                }
+                icalcomponent_add_component(firstComponent, ret_icalcomponent_get_current_component_yzvzm);
+                // End mutation: Producer.APPEND_MUTATOR
+                
+}
+        }
+
+        // Use the icalcomponent_get_comment function
+        const char *comment = icalcomponent_get_comment(component);
+
+        // Free the component
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new_from_string to icalcomponent_get_timezone
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!component) {
+    	return 0;
+    }
+    char* ret_icalcomponent_as_ical_string_vtbic = icalcomponent_as_ical_string(component);
+    if (ret_icalcomponent_as_ical_string_vtbic == NULL){
     	return 0;
     }
     // Ensure dataflow is valid (i.e., non-null)
-    if (!ret_icalproperty_vanew_query_gyikq) {
+    if (!component) {
     	return 0;
     }
-    icalproperty_set_duration(ret_icalproperty_vanew_query_gyikq, durationFromString);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_icalcomponent_as_ical_string_vtbic) {
+    	return 0;
+    }
+    icaltimezone* ret_icalcomponent_get_timezone_pqykh = icalcomponent_get_timezone(component, ret_icalcomponent_as_ical_string_vtbic);
+    if (ret_icalcomponent_get_timezone_pqykh == NULL){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
     
-    bool isNullDuration = icaldurationtype_is_null_duration(durationFromString);
-
-    // 5. Test icaltriggertype_from_seconds
-    int seconds = static_cast<int>(Data[0]); // Use first byte as a simple integer
-    struct icaltriggertype triggerFromSeconds = icaltriggertype_from_seconds(seconds);
-
-    // 6. Test icaltriggertype_is_bad_trigger
-    bool isBadTrigger = icaltriggertype_is_bad_trigger(triggerFromString);
-
-    // Cleanup
-    delete[] inputStr;
-
     return 0;
 }
 #ifdef INC_MAIN
@@ -92,7 +140,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -102,7 +150,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_42(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_42(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

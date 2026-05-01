@@ -1,49 +1,36 @@
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
-    // Include the header where icalmemory_append_string is declared
-    void icalmemory_append_string(char **str, char **pos, size_t *buf_size, const char *append);
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_173(const uint8_t *data, size_t size) {
+    // Ensure the input size is sufficient to create a valid icalcomponent
     if (size < 1) {
         return 0;
     }
-
-    // Initialize the parameters for icalmemory_append_string
-    size_t initial_buf_size = size + 20; // Allow extra space for appending
-    char *str = (char *)malloc(initial_buf_size);
-    if (str == NULL) {
-        return 0; // Handle memory allocation failure
+    
+    // Create a string buffer from the input data
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
+        return 0;
     }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0'; // Null-terminate the string
 
-    char *pos;
-    size_t buf_size = initial_buf_size;
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputData);
+    free(inputData);
 
-    // Ensure the string is null-terminated
-    memcpy(str, data, size);
-    str[size] = '\0';
+    if (component != NULL) {
+        // Call the function-under-test
+        icalcomponent *parent = icalcomponent_get_parent(component);
 
-    // Initialize pos to point to the end of the current string
-    pos = str + size;
-
-    // Use a non-null constant string to append
-    const char *append = "append_string";
-
-    // Call the function-under-test
-    icalmemory_append_string(&str, &pos, &buf_size, append);
-
-    // Check if the function made changes to the string
-    if (pos != str + size) {
-        // If pos has moved, it indicates that the function appended something
-        // This is a basic check to ensure that the function is doing something
+        // Clean up the component
+        icalcomponent_free(component);
     }
-
-    // Free allocated memory
-    free(str);
 
     return 0;
 }
@@ -69,7 +56,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -79,7 +66,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_173(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_173(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

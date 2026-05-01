@@ -1,34 +1,45 @@
 #include <string.h>
 #include <sys/stat.h>
-#include <cstddef>
-#include <cstdint>
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
+#include <stdint.h>
+#include <stddef.h>
+
+extern "C" {
+    #include "/src/aom/aom/aom_codec.h"
+    #include "/src/aom/aom/aom_encoder.h"
+    #include "/src/aom/aom/aomcx.h" // Include the header that declares aom_codec_av1_cx
+}
 
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec;
-    aom_codec_err_t res;
-    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
-    void *user_priv = (void*)1; // Non-NULL user private data
-
-    // Initialize the codec context
-    res = aom_codec_dec_init(&codec, iface, NULL, 0);
-    if (res != AOM_CODEC_OK) {
-        return 0; // Initialization failed
+    // Ensure the input size is sufficient for our needs
+    if (size < sizeof(int)) {
+        return 0;
     }
 
-    // Call the function-under-test
-    res = aom_codec_decode(&codec, data, size, user_priv);
+    // Initialize the codec context
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_iface_t *iface = aom_codec_av1_cx(); // Correctly declared after including aomcx.h
+    aom_codec_enc_cfg_t cfg;
+    aom_codec_err_t res = aom_codec_enc_config_default(iface, &cfg, 0);
+    if (res != AOM_CODEC_OK) {
+        return 0;
+    }
 
-    // Destroy the codec context
+    res = aom_codec_enc_init(&codec_ctx, iface, &cfg, 0);
+    if (res != AOM_CODEC_OK) {
+        return 0;
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_get_stream_info
-    aom_codec_stream_info_t gheyqpcb;
-    memset(&gheyqpcb, 0, sizeof(gheyqpcb));
-    aom_codec_err_t ret_aom_codec_get_stream_info_zxcna = aom_codec_get_stream_info(&codec, &gheyqpcb);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_destroy(&codec);
+    // Extract an integer from the input data
+    int control_id = *(reinterpret_cast<const int*>(data));
+
+    // Use the remaining data as the control data
+    const void *control_data = static_cast<const void*>(data + sizeof(int));
+
+    // Call the function under test
+    aom_codec_err_t result = aom_codec_control(&codec_ctx, control_id, const_cast<void*>(control_data));
+
+    // Clean up the codec context
+    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }

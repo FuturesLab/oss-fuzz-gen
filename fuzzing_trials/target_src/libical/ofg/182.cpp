@@ -1,27 +1,23 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstdlib>  // Include for size_t
+#include <cstdint>
+#include <cstddef>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_182(const uint8_t *data, size_t size) {
-    // Since icalcomponent_new_xdaylight does not take any parameters,
-    // we can directly call it without needing to use the input data.
-    
     // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_xdaylight();
-    
-    // Perform some operations on the returned component if needed
-    // For example, we can convert it to a string and then free it
+    icalcomponent *component = icalcomponent_new_vreply();
+
+    // Perform operations on the component if needed
     if (component != NULL) {
+        // Example operation: Convert component to string and print (for debugging)
         char *component_str = icalcomponent_as_ical_string(component);
         if (component_str != NULL) {
-            // Normally, we would do something with the string here
-            // For fuzzing purposes, we can just print it or ignore it
-            // printf("%s\n", component_str);
+            // Print the component string (for debugging purposes)
+            // printf("%s\n", component_str);  // Uncomment for debugging
         }
-        
+
         // Free the component after use
         icalcomponent_free(component);
     }
@@ -50,7 +46,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -60,7 +56,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_182(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_182(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

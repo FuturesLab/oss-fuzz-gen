@@ -1,28 +1,31 @@
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h> // Include for memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_96(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for initializing icaldurationtype
-    if (size < sizeof(struct icaldurationtype)) {
-        return 0;
+    // Initialize the icalcomponent and icalproperty
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalproperty *property = icalproperty_new_comment("Sample comment");
+
+    // Add the property to the component
+    icalcomponent_add_property(component, property);
+
+    // Initialize the icalproperty iterator
+    icalproperty *result = NULL;
+    for (icalproperty *prop = icalcomponent_get_first_property(component, ICAL_ANY_PROPERTY);
+         prop != NULL;
+         prop = icalcomponent_get_next_property(component, ICAL_ANY_PROPERTY)) {
+        result = prop;
     }
 
-    // Cast the input data to an icaldurationtype
-    struct icaldurationtype duration;
-    memcpy(&duration, data, sizeof(struct icaldurationtype));
-
-    // Call the function-under-test
-    icalproperty *property = icalproperty_vanew_estimatedduration(duration, NULL);
-
-    // Cleanup
-    if (property != NULL) {
-        icalproperty_free(property);
+    // Clean up
+    if (result != NULL) {
+        icalproperty_free(result);
     }
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -48,7 +51,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -58,7 +61,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_96(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_96(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

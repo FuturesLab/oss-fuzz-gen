@@ -1,14 +1,10 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_enc_config_default at aom_encoder.c:100:17 in aom_encoder.h
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
 // aom_codec_control at aom_codec.c:88:17 in aom_codec.h
 // aom_codec_control at aom_codec.c:88:17 in aom_codec.h
 // aom_codec_control at aom_codec.c:88:17 in aom_codec.h
 // aom_codec_control at aom_codec.c:88:17 in aom_codec.h
 // aom_codec_control at aom_codec.c:88:17 in aom_codec.h
 // aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -18,63 +14,101 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
-#include <fstream>
-#include "aomdx.h"
-#include "aom_frame_buffer.h"
-#include "aom_external_partition.h"
-#include "aom_encoder.h"
-#include "aom_codec.h"
-#include "aomcx.h"
-#include "aom_integer.h"
-#include "aom_image.h"
 #include "aom.h"
+#include "aom_codec.h"
 #include "aom_decoder.h"
+#include "aom_encoder.h"
+#include "aomcx.h"
+#include "aomdx.h"
+#include "aom_external_partition.h"
+#include "aom_frame_buffer.h"
+#include "aom_image.h"
+#include "aom_integer.h"
 
 extern "C" int LLVMFuzzerTestOneInput_104(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return 0;
+    if (Size < 10) {
+        return 0;
+    }
 
     aom_codec_ctx_t codec;
-    aom_codec_iface_t *iface = aom_codec_av1_cx();
-    aom_codec_enc_cfg_t cfg;
-    aom_svc_params_t svc_params;
+    memset(&codec, 0, sizeof(codec));
 
-    // Initialize codec
-    if (aom_codec_enc_config_default(iface, &cfg, 0)) {
-        return 0;
-    }
+    int ctrl_id;
+    int data_value;
 
-    if (aom_codec_enc_init(&codec, iface, &cfg, 0)) {
-        return 0;
-    }
+    // Fuzzing AV1E_SET_ENABLE_SMOOTH_INTERINTRA
+    ctrl_id = AV1E_SET_ENABLE_SMOOTH_INTERINTRA;
+    data_value = Data[0] % 2;
+    aom_codec_control(&codec, ctrl_id, data_value);
 
-    // Prepare the input data
-    int input_value;
-    std::memcpy(&input_value, Data, sizeof(int));
+    // Fuzzing AV1E_SET_ENABLE_INTERINTRA_WEDGE
+    ctrl_id = AV1E_SET_ENABLE_INTERINTRA_WEDGE;
+    data_value = Data[1] % 2;
+    aom_codec_control(&codec, ctrl_id, data_value);
 
-    // 1. Fuzz aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR
-    aom_codec_control(&codec, AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR, &input_value);
+    // Fuzzing AV1E_SET_ENABLE_ONESIDED_COMP
+    ctrl_id = AV1E_SET_ENABLE_ONESIDED_COMP;
+    data_value = Data[2] % 2;
+    aom_codec_control(&codec, ctrl_id, data_value);
 
-    // 2. Fuzz aom_codec_control_typechecked_AV1E_SET_S_FRAME_MODE
-    aom_codec_control(&codec, AV1E_SET_S_FRAME_MODE, &input_value);
+    // Fuzzing AV1E_SET_ENABLE_WARPED_MOTION
+    ctrl_id = AV1E_SET_ENABLE_WARPED_MOTION;
+    data_value = Data[3] % 2;
+    aom_codec_control(&codec, ctrl_id, data_value);
 
-    // 3. Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_OVERLAY
-    aom_codec_control(&codec, AV1E_SET_ENABLE_OVERLAY, &input_value);
+    // Fuzzing AV1E_SET_ENABLE_SUPERRES
+    ctrl_id = AV1E_SET_ENABLE_SUPERRES;
+    data_value = Data[4] % 2;
+    aom_codec_control(&codec, ctrl_id, data_value);
 
-    // 4. Fuzz aom_codec_control_typechecked_AV1E_SET_QUANTIZER_ONE_PASS
-    aom_codec_control(&codec, AV1E_SET_QUANTIZER_ONE_PASS, &input_value);
-
-    // 5. Fuzz aom_codec_control_typechecked_AV1E_SET_SVC_PARAMS
-    svc_params.number_spatial_layers = input_value % 3 + 1; // Valid range: [1, 3]
-    aom_codec_control(&codec, AV1E_SET_SVC_PARAMS, &svc_params);
-
-    // 6. Fuzz aom_codec_control_typechecked_AV1E_SET_LOOPFILTER_CONTROL
-    aom_codec_control(&codec, AV1E_SET_LOOPFILTER_CONTROL, &input_value);
-
-    // Cleanup
-    aom_codec_destroy(&codec);
+    // Fuzzing AV1E_GET_GOP_INFO
+    aom_gop_info_t gop_info;
+    ctrl_id = AV1E_GET_GOP_INFO;
+    aom_codec_control(&codec, ctrl_id, &gop_info);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_104(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

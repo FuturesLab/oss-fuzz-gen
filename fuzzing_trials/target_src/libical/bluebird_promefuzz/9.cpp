@@ -9,88 +9,57 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
+#include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icalvalue.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icalduration.h"
-
-static icaltimetype random_icaltimetype(const uint8_t *Data, size_t &offset, size_t Size) {
-    icaltimetype time;
-    if (offset + sizeof(int) <= Size) {
-        memcpy(&time.year, Data + offset, sizeof(int));
-        offset += sizeof(int);
-    } else {
-        time.year = 2023; // Default year
-    }
-    time.zone = nullptr; // Simplification for fuzzing
-    return time;
-}
-
-static icaldurationtype random_icaldurationtype(const uint8_t *Data, size_t &offset, size_t Size) {
-    icaldurationtype duration;
-    if (offset < Size) {
-        duration.is_neg = Data[offset] % 2;
-        offset++;
-    } else {
-        duration.is_neg = 0;
-    }
-    if (offset + sizeof(unsigned int) <= Size) {
-        memcpy(&duration.days, Data + offset, sizeof(unsigned int));
-        offset += sizeof(unsigned int);
-    } else {
-        duration.days = 1; // Default days
-    }
-    return duration;
-}
-
-static icalcomponent* random_icalcomponent(const uint8_t *Data, size_t &offset, size_t Size) {
-    icalcomponent_kind kind = ICAL_VTODO_COMPONENT;
-    if (offset < Size) {
-        kind = static_cast<icalcomponent_kind>(Data[offset] % ICAL_NUM_COMPONENT_TYPES);
-        offset++;
-    }
-    return icalcomponent_new(kind);
-}
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
-    size_t offset = 0;
+    if (Size == 0) {
+        return 0;
+    }
 
-    // Fuzz icalduration_extend
-    icaltimetype time = random_icaltimetype(Data, offset, Size);
-    icaldurationtype duration = random_icaldurationtype(Data, offset, Size);
-    icaltimetype new_time = icalduration_extend(time, duration);
+    // Ensure null-terminated string for icalcomponent_new_from_string
+    char *icalStr = static_cast<char*>(malloc(Size + 1));
+    if (!icalStr) {
+        return 0;
+    }
+    memcpy(icalStr, Data, Size);
+    icalStr[Size] = '\0';
 
-    // Fuzz icalcomponent_set_due
-    icalcomponent *comp = random_icalcomponent(Data, offset, Size);
-    icalcomponent_set_due(comp, new_time);
+    // Create icalcomponent from string
+    icalcomponent *comp = icalcomponent_new_from_string(icalStr);
+    free(icalStr);
 
-    // Fuzz print_datetime_to_string
-    char datetime_str[100] = {0};
-    print_datetime_to_string(datetime_str, &new_time);
+    if (comp) {
+        // Test icalcomponent_isa_component
+        icalcomponent_isa_component(comp);
 
-    // Fuzz icalcomponent_set_dtstamp
-    icalcomponent_set_dtstamp(comp, new_time);
+        // Setup a dummy icaltimetype for testing
+        struct icaltimetype dtstart = {0};
+        struct icaltimetype recurtime = {0};
 
-    // Fuzz print_date_to_string
-    char date_str[100] = {0};
-    print_date_to_string(date_str, &new_time);
+        // Test icalproperty_recurrence_is_excluded
+        icalproperty_recurrence_is_excluded(comp, &dtstart, &recurtime);
 
-    // Fuzz icalcomponent_set_recurrenceid
-    icalcomponent_set_recurrenceid(comp, new_time);
+        // Test icalcomponent_set_description
+        icalcomponent_set_description(comp, "Sample Description");
 
-    // Cleanup
-    icalcomponent_free(comp);
+        // Test icalcomponent_kind_is_valid
+        icalcomponent_kind kind = icalcomponent_isa(comp);
+        icalcomponent_kind_is_valid(kind);
+
+        // Test icalcomponent_is_valid
+        icalcomponent_is_valid(comp);
+
+        // Cleanup the component
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_convert_errors
+        icalcomponent_convert_errors(comp);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    }
 
     return 0;
 }
@@ -116,7 +85,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -126,7 +95,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_9(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

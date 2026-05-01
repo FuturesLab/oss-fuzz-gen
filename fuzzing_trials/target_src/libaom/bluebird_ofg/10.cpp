@@ -1,34 +1,35 @@
 #include <string.h>
 #include <sys/stat.h>
-#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include "/src/aom/aom/aom_codec.h"
 #include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
+
+extern "C" {
+    // Include necessary C headers and declare functions
+    aom_codec_iface_t *aom_codec_av1_dx(); // Declare the AV1 decoder interface function
+}
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec;
-    aom_codec_err_t res;
+    // Declare and initialize the necessary variables
     aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
-    void *user_priv = (void*)1; // Non-NULL user private data
+    aom_codec_stream_info_t stream_info;
+    aom_codec_err_t result;
 
-    // Initialize the codec context
-    res = aom_codec_dec_init(&codec, iface, NULL, 0);
-    if (res != AOM_CODEC_OK) {
-        return 0; // Initialization failed
-    }
+    // Initialize stream_info structure
+    stream_info.is_kf = 0; // Just an example initialization
+    stream_info.w = 0;
+    stream_info.h = 0;
 
     // Call the function-under-test
-    res = aom_codec_decode(&codec, data, size, user_priv);
+    result = aom_codec_peek_stream_info(iface, data, size, &stream_info);
 
-    // Destroy the codec context
+    // Optionally, you can check the result or use stream_info for further processing
+    // if (result == AOM_CODEC_OK) {
+    //     // Process stream_info if needed
+    // }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_set_option
-    aom_codec_err_t ret_aom_codec_set_option_miwxn = aom_codec_set_option(&codec, (const char *)data, (const char *)user_priv);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_destroy(&codec);
-
-    return 0;
+    return 0; // Return 0 to indicate successful execution
 }
 #ifdef INC_MAIN
 #include <stdio.h>

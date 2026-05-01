@@ -1,11 +1,18 @@
 // This fuzz driver is generated for library libplist, aiming to fuzz the following functions:
-// plist_from_json at jplist.c:835:13 in plist.h
-// plist_write_to_stream at plist.c:1996:13 in plist.h
-// plist_from_memory at plist.c:225:13 in plist.h
-// plist_from_bin at bplist.c:847:13 in plist.h
-// plist_read_from_file at plist.c:306:13 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// libplist_version at plist.c:2059:13 in plist.h
+// plist_new_uid at plist.c:627:9 in plist.h
+// plist_new_string at plist.c:569:9 in plist.h
+// plist_new_string at plist.c:569:9 in plist.h
+// plist_new_int at plist.c:614:9 in plist.h
+// plist_uid_val_compare at plist.c:2129:5 in plist.h
+// plist_string_val_compare at plist.c:2224:5 in plist.h
+// plist_key_val_compare_with_size at plist.c:2260:5 in plist.h
+// plist_key_val_compare at plist.c:2251:5 in plist.h
+// plist_int_val_compare at plist.c:2093:5 in plist.h
+// plist_uint_val_compare at plist.c:2111:5 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -20,43 +27,84 @@
 extern "C" int LLVMFuzzerTestOneInput_28(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Prepare a dummy plist_t pointer
-    plist_t plist = nullptr;
+    // Ensure null-terminated string for plist_new_string
+    std::vector<char> safeString(Data, Data + Size);
+    safeString.push_back('\0');
 
-    // Fuzz plist_from_json
-    plist_from_json(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist);
+    // Create dummy plist nodes for testing
+    plist_t uidnode = plist_new_uid(Size > 7 ? *reinterpret_cast<const uint64_t*>(Data) : 0);
+    plist_t strnode = plist_new_string(safeString.data());
+    plist_t keynode = plist_new_string(safeString.data()); // Use plist_new_string for keynode
+    plist_t intnode = plist_new_int(Size > 7 ? *reinterpret_cast<const int64_t*>(Data) : 0);
 
-    // Prepare a dummy file for plist_write_to_stream
-    FILE *file = fopen("./dummy_file", "w");
-    if (file) {
-        // Fuzz plist_write_to_stream with different formats
-        plist_format_t formats[] = { PLIST_FORMAT_XML, PLIST_FORMAT_BINARY, PLIST_FORMAT_JSON };
-        plist_write_options_t options = static_cast<plist_write_options_t>(0);
+    // Prepare comparison values
+    uint64_t cmpval_uint64 = Size > 7 ? *reinterpret_cast<const uint64_t*>(Data) : 0;
+    int64_t cmpval_int64 = Size > 7 ? *reinterpret_cast<const int64_t*>(Data) : 0;
+    const char* cmpval_str = safeString.data();
 
-        for (auto format : formats) {
-            plist_write_to_stream(plist, file, format, options);
-        }
+    // Fuzz plist_uid_val_compare
+    plist_uid_val_compare(uidnode, cmpval_uint64);
 
-        fclose(file);
-    }
+    // Fuzz plist_string_val_compare
+    plist_string_val_compare(strnode, cmpval_str);
 
-    // Fuzz plist_from_memory
-    plist_format_t detected_format;
-    plist_from_memory(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist, &detected_format);
+    // Fuzz plist_key_val_compare_with_size
+    plist_key_val_compare_with_size(keynode, cmpval_str, Size);
 
-    // Fuzz plist_from_bin
-    plist_from_bin(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist);
+    // Fuzz plist_key_val_compare
+    plist_key_val_compare(keynode, cmpval_str);
 
-    // Fuzz plist_read_from_file
-    plist_read_from_file("./dummy_file", &plist, &detected_format);
+    // Fuzz plist_int_val_compare
+    plist_int_val_compare(intnode, cmpval_int64);
 
-    // Clean up plist if it was created
-    if (plist) {
-        plist_free(plist);
-    }
+    // Fuzz plist_uint_val_compare
+    plist_uint_val_compare(intnode, cmpval_uint64);
 
-    // Use libplist_version for logging or compatibility checks
-    const char* version = libplist_version();
+    // Free the plist nodes
+    plist_free(uidnode);
+    plist_free(strnode);
+    plist_free(keynode);
+    plist_free(intnode);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_28(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

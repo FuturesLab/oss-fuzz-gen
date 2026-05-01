@@ -1,39 +1,40 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <libical/ical.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
-extern "C" {
+extern "C" int LLVMFuzzerTestOneInput_160(const uint8_t *data, size_t size) {
+    // Ensure the input size is reasonable
+    if (size == 0) {
+        return 0;
+    }
 
-// Dummy structures and typedefs to simulate the missing header
-typedef struct icalpvl_list_struct* icalpvl_list;
-typedef struct icalpvl_elem_struct* icalpvl_elem;
-typedef int (*icalpvl_find_f)(void*, void*);
+    // Create a temporary buffer to hold the input data
+    char *buffer = static_cast<char *>(malloc(size + 1));
+    if (buffer == nullptr) {
+        return 0;
+    }
 
-// Dummy find function to be used with icalpvl_find_160
-int dummy_find_function(void *data, void *user_data) {
-    // Implement a simple comparison or return a constant value
+    // Copy the input data into the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
+
+    // Use the buffer to create an icalcomponent
+    icalcomponent *component = icalparser_parse_string(buffer);
+
+    // Check if the component was created successfully
+    if (component != nullptr) {
+        // Call the function-under-test
+        icalcomponent_convert_errors(component);
+
+        // Clean up the created component
+        icalcomponent_free(component);
+    }
+
+    // Free the allocated buffer
+    free(buffer);
+
     return 0;
-}
-
-// Dummy function to simulate icalpvl_find_160 behavior
-icalpvl_elem icalpvl_find_160(icalpvl_list list, icalpvl_find_f find_function, void *user_data) {
-    // Simulate finding an element and returning it
-    return nullptr; // Return nullptr as a placeholder
-}
-
-int LLVMFuzzerTestOneInput_160(const uint8_t *data, size_t size) {
-    // Declare and initialize necessary variables
-    icalpvl_list list = nullptr; // Initialize list to nullptr
-    icalpvl_find_f find_function = dummy_find_function;
-    void *user_data = (void *)data; // Use data as user_data for the find function
-
-    // Call the function-under-test
-    icalpvl_elem result = icalpvl_find_160(list, find_function, user_data);
-
-    // The result can be used for further operations or checks if needed
-
-    return 0;
-}
-
 }
 #ifdef INC_MAIN
 #include <stdio.h>
@@ -57,7 +58,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -67,7 +68,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_160(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_160(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

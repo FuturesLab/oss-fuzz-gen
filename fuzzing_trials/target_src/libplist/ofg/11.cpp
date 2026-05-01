@@ -1,31 +1,66 @@
-extern "C" {
-    #include <plist/plist.h>
-}
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <plist/plist.h>
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for creating a plist node
-    if (size < 1) {
-        return 0;
+    // Initialize plist_t variable
+    plist_t plist = NULL;
+
+    // Create a new plist from the input data
+    if (size > 0) {
+        plist_from_bin((const char*)data, size, &plist);
     }
 
-    // Create a plist array
-    plist_t plist_array = plist_new_array();
+    // Initialize a uint64_t variable
+    uint64_t length = 0;
 
-    // Add multiple dummy items to the plist array
-    plist_t item1 = plist_new_string("item1");
-    plist_t item2 = plist_new_string("item2");
-    plist_t item3 = plist_new_string("item3");
-    plist_array_append_item(plist_array, item1);
-    plist_array_append_item(plist_array, item2);
-    plist_array_append_item(plist_array, item3);
-
-    // Use the fuzz input to determine which item to remove
-    size_t index_to_remove = data[0] % 3; // Choose an index based on fuzz input
-    plist_t item_to_remove = plist_array_get_item(plist_array, index_to_remove);
-    plist_array_item_remove(item_to_remove);
+    // Call the function-under-test
+    const char *result = plist_get_data_ptr(plist, &length);
 
     // Cleanup
-    plist_free(plist_array);
+    if (plist != NULL) {
+        plist_free(plist);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

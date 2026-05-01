@@ -1,12 +1,14 @@
 // This fuzz driver is generated for library libplist, aiming to fuzz the following functions:
-// plist_from_memory at plist.c:225:13 in plist.h
-// plist_write_to_stream at plist.c:1996:13 in plist.h
-// plist_write_to_file at plist.c:2040:13 in plist.h
-// plist_write_to_string at plist.c:1966:13 in plist.h
-// plist_mem_free at plist.c:561:6 in plist.h
-// plist_read_from_file at plist.c:306:13 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_free at plist.c:553:6 in plist.h
+// plist_dict_get_bool at plist.c:1453:9 in plist.h
+// plist_dict_copy_bool at plist.c:1592:13 in plist.h
+// plist_new_bool at plist.c:588:9 in plist.h
+// plist_bool_val_is_true at plist.c:2068:5 in plist.h
+// plist_get_bool_val at plist.c:1783:6 in plist.h
+// plist_set_bool_val at plist.c:2026:6 in plist.h
+// plist_new_dict at plist.c:527:9 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,53 +18,116 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+extern "C" {
+#include <plist/plist.h>
+}
+
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "plist.h"
+
+static void fuzz_plist_dict_get_bool(plist_t dict, const char *key) {
+    uint8_t result = plist_dict_get_bool(dict, key);
+}
+
+static void fuzz_plist_dict_copy_bool(plist_t target_dict, plist_t source_dict, const char *key, const char *alt_source_key) {
+    plist_err_t result = plist_dict_copy_bool(target_dict, source_dict, key, alt_source_key);
+}
+
+static plist_t fuzz_plist_new_bool(uint8_t val) {
+    return plist_new_bool(val);
+}
+
+static void fuzz_plist_bool_val_is_true(plist_t boolnode) {
+    int result = plist_bool_val_is_true(boolnode);
+}
+
+static void fuzz_plist_get_bool_val(plist_t node, uint8_t *val) {
+    plist_get_bool_val(node, val);
+}
+
+static void fuzz_plist_set_bool_val(plist_t node, uint8_t val) {
+    plist_set_bool_val(node, val);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < 1) return 0;
 
-    // Create a plist from memory
-    plist_t plist = nullptr;
-    plist_format_t format;
-    plist_err_t err = plist_from_memory(reinterpret_cast<const char*>(Data), static_cast<uint32_t>(Size), &plist, &format);
-    if (err != PLIST_ERR_SUCCESS || !plist) {
-        return 0;
+    uint8_t choice = Data[0];
+    const char *key = "test_key";
+    const char *alt_key = "alt_key";
+    uint8_t val = Data[0] % 2;
+
+    plist_t dict = plist_new_dict();
+    plist_t boolnode = fuzz_plist_new_bool(val);
+
+    switch (choice % 6) {
+        case 0:
+            fuzz_plist_dict_get_bool(dict, key);
+            break;
+        case 1:
+            fuzz_plist_dict_copy_bool(dict, dict, key, alt_key);
+            break;
+        case 2:
+            fuzz_plist_bool_val_is_true(boolnode);
+            break;
+        case 3:
+            fuzz_plist_get_bool_val(boolnode, &val);
+            break;
+        case 4:
+            fuzz_plist_set_bool_val(boolnode, val);
+            break;
+        case 5: {
+            plist_t new_bool = fuzz_plist_new_bool(val);
+            plist_free(new_bool);
+            break;
+        }
+        default:
+            break;
     }
 
-    // Define valid options for plist_write functions
-    plist_write_options_t options = static_cast<plist_write_options_t>(0);
-
-    // Write the plist to stream
-    FILE *stream = fopen("./dummy_file", "w");
-    if (stream) {
-        plist_write_to_stream(plist, stream, format, options);
-        fclose(stream);
-    }
-
-    // Write the plist to a file
-    plist_write_to_file(plist, "./dummy_file", format, options);
-
-    // Write the plist to a string
-    char *output = nullptr;
-    uint32_t output_length = 0;
-    err = plist_write_to_string(plist, &output, &output_length, format, options);
-    if (err == PLIST_ERR_SUCCESS && output) {
-        plist_mem_free(output);
-    }
-
-    // Read the plist from a file
-    plist_t file_plist = nullptr;
-    plist_read_from_file("./dummy_file", &file_plist, nullptr);
-    if (file_plist) {
-        plist_free(file_plist);
-    }
-
-    // Cleanup
-    plist_free(plist);
+    plist_free(boolnode);
+    plist_free(dict);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

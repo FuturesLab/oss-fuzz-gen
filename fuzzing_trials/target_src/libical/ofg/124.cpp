@@ -1,27 +1,24 @@
-#include <libical/ical.h>
 #include <cstdint>
-#include <cstddef>
-#include <cstring>
+#include <cstdlib>
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_124(const uint8_t *data, size_t size) {
-    // Ensure that the data is null-terminated and not empty
-    if (size == 0) return 0;
+    // Initialize the icalcomponent and icalproperty
+    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalproperty *prop = icalproperty_new_summary("Sample Summary");
+    icalcomponent_add_property(comp, prop);
 
-    // Create a buffer with an extra byte for the null terminator
-    char *null_terminated_data = new char[size + 1];
-    // Copy the input data into the buffer
-    memcpy(null_terminated_data, data, size);
-    // Null-terminate the string
-    null_terminated_data[size] = '\0';
+    // Use the icalcomponent_get_first_property to initialize the icalpropiter
+    icalproperty *first_prop = icalcomponent_get_first_property(comp, ICAL_ANY_PROPERTY);
 
     // Call the function-under-test
-    icalproperty *prop = icalproperty_new_xlicerror(null_terminated_data);
+    icalproperty *next_prop = icalcomponent_get_next_property(comp, ICAL_ANY_PROPERTY);
 
-    // Clean up
-    if (prop != nullptr) {
-        icalproperty_free(prop);
-    }
-    delete[] null_terminated_data;
+    // Cleanup
+    icalcomponent_free(comp);
 
     return 0;
 }
@@ -47,7 +44,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -57,7 +54,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_124(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_124(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

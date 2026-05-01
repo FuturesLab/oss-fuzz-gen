@@ -1,48 +1,55 @@
 #include <sys/stat.h>
-#include "libical/ical.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 
+extern "C" {
+    #include "libical/ical.h"
+}
+
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated to prevent buffer overflow issues
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        return 0; // Handle allocation failure gracefully
+    icalcomponent *component = nullptr;
+    icaltimetype due_time;
+
+    // Ensure the data is not empty and can be used to create a component
+    if (size > 0) {
+        // Create a temporary buffer to hold the data
+        char *temp_buffer = new char[size + 1];
+        memcpy(temp_buffer, data, size);
+        temp_buffer[size] = '\0'; // Null-terminate the buffer
+
+        // Parse the data into an icalcomponent
+        component = icalparser_parse_string(temp_buffer);
+
+        // Clean up the temporary buffer
+        delete[] temp_buffer;
     }
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
 
-    // Initialize an icalcomponent from the input data
-    icalcomponent *component = icalcomponent_new_from_string(null_terminated_data);
-
-    if (component != NULL) {
+    // Ensure the component is not NULL before calling the function-under-test
+    if (component != nullptr) {
         // Call the function-under-test
-        bool result = icalcomponent_check_restrictions(component);
+        due_time = icalcomponent_get_due(component);
 
-        // Clean up the created icalcomponent
+        // Free the component after use
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_check_restrictions to icalproperty_set_parent
-        icalproperty* ret_icalproperty_new_carlevel_mbadp = icalproperty_new_carlevel(ICAL_CARLEVEL_NONE);
-        if (ret_icalproperty_new_carlevel_mbadp == NULL){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalproperty_new_carlevel_mbadp) {
-        	return 0;
-        }
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_due to icalcomponent_set_dtstamp
         // Ensure dataflow is valid (i.e., non-null)
         if (!component) {
         	return 0;
         }
-        icalproperty_set_parent(ret_icalproperty_new_carlevel_mbadp, component);
+        icalcomponent* ret_icalcomponent_clone_vsyge = icalcomponent_clone(component);
+        if (ret_icalcomponent_clone_vsyge == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalcomponent_clone_vsyge) {
+        	return 0;
+        }
+        icalcomponent_set_dtstamp(ret_icalcomponent_clone_vsyge, due_time);
         // End mutation: Producer.APPEND_MUTATOR
         
         icalcomponent_free(component);
     }
-
-    // Free the allocated memory for null-terminated data
-    free(null_terminated_data);
 
     return 0;
 }
@@ -68,7 +75,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -78,7 +85,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_7(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

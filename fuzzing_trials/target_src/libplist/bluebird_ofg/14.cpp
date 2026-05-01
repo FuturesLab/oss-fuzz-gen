@@ -1,55 +1,79 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
-#include "plist/plist.h"
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
-    // Include necessary C headers and functions here
     #include "plist/plist.h"
+
+    int plist_uid_val_compare(plist_t node, uint64_t value);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *data, size_t size) {
-    // Initialize plist_t variable
-    plist_t plist = NULL;
-    
-    // Create a plist from the input data
+    plist_t node = nullptr;
+    uint64_t uid_value = 0;
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function plist_from_bin with plist_from_xml
-    plist_from_xml((const char*)data, size, &plist);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Prepare variables for plist_to_bin
-    char *bin_data = NULL;
-    uint32_t bin_size = 0;
-
-    // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function plist_to_bin with plist_to_xml
-    plist_err_t result = plist_to_xml(plist, &bin_data, &bin_size);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Clean up
-    if (bin_data != NULL) {
-        free(bin_data);
+    if (size > 0) {
+        // Create a plist node from the input data
+        plist_from_bin((const char *)data, size, &node);
     }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_to_xml to plist_from_openstep
-    plist_t ret_plist_new_null_pgdlj = plist_new_null();
+    // Ensure node is not null
+    if (node == nullptr) {
+        // If node creation failed, create a default node
+        node = plist_new_uid(0);
+    }
 
+    // Extract a uint64_t value from the input data if possible
+    if (size >= sizeof(uint64_t)) {
+        memcpy(&uid_value, data, sizeof(uint64_t));
+    }
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function plist_from_openstep with plist_from_json
-    plist_err_t ret_plist_from_openstep_gkxpu = plist_from_json((const char *)"w", bin_size, &ret_plist_new_null_pgdlj);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Call the function-under-test
+    int result = plist_uid_val_compare(node, uid_value);
 
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    plist_free(plist);
+    // Clean up
+    plist_free(node);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

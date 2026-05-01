@@ -1,26 +1,42 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
-    #include <libical/icaltimezone.h>  // Correct header for icaltimezone functions
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_74(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0;  // Not enough data to extract an int and a string
+    // Ensure the input size is sufficient to create a valid string for the timezone.
+    if (size < 1) return 0;
+
+    // Create a dummy icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    if (component == NULL) return 0;
+
+    // Create a null-terminated string from the input data for the timezone name
+    char *timezone_name = (char *)malloc(size + 1);
+    if (timezone_name == NULL) {
+        icalcomponent_free(component);
+        return 0;
+    }
+    memcpy(timezone_name, data, size);
+    timezone_name[size] = '\0';
+
+    // Create a timezone using the input data
+    icaltimezone *timezone = icaltimezone_get_builtin_timezone(timezone_name);
+
+    // If the timezone is valid, add it to the component
+    if (timezone != NULL) {
+        icalproperty *tz_property = icalproperty_new_tzid(timezone_name);
+        if (tz_property != NULL) {
+            icalcomponent_add_property(component, tz_property);
+        }
     }
 
-    // Extract an integer from the data
-    int offset = static_cast<int>(data[0]);
-
-    // Create a null-terminated string from the remaining data
-    const char *tz_name = reinterpret_cast<const char*>(data + 1);
-
-    // Call the function-under-test
-    icaltimezone *timezone = icaltimezone_get_builtin_timezone_from_offset(offset, tz_name);
-
-    // Normally, you would do something with the result here, but for fuzzing,
-    // we are just interested in whether it crashes or not.
+    // Free allocated resources
+    free(timezone_name);
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -46,7 +62,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -56,7 +72,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_74(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_74(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

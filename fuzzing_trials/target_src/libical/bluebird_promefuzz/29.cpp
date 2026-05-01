@@ -1,110 +1,62 @@
 #include <sys/stat.h>
 #include <string.h>
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <cstring>
-#include <cstdlib>
-#include <cstdio>
+extern "C" {
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalcomponent.h"
+}
+
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <fstream>
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icaltimezone.h"
 
 extern "C" int LLVMFuzzerTestOneInput_29(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
+    if (Size < 1) return 0; // Ensure there is at least 1 byte to use
 
-    // Prepare a null-terminated string from the input data
-    char *inputString = (char *)malloc(Size + 1);
-    if (!inputString) {
-        return 0;
-    }
-    memcpy(inputString, Data, Size);
-    inputString[Size] = '\0';
+    // Create a new VAVAILABILITY component
+    icalcomponent *vavailability = icalcomponent_new_vavailability();
+    if (!vavailability) return 0;
 
-    // Test icaltimezone_get_builtin_timezone
-    icaltimezone *builtinTimezone = icaltimezone_get_builtin_timezone(inputString);
-    if (builtinTimezone) {
-        // Test icaltimezone_copy
-        icaltimezone *copiedTimezone = icaltimezone_copy(builtinTimezone);
-        if (copiedTimezone) {
-            // Test icaltimezone_get_latitude
-            double latitude = icaltimezone_get_latitude(copiedTimezone);
+    // Use the first byte of Data as a simple description
+    char description[2] = {static_cast<char>(Data[0]), '\0'};
+    icalcomponent_set_description(vavailability, description);
 
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icaltimezone_get_latitude to icalproperty_set_pollitemid
-            icalproperty* ret_icalproperty_new_response_smvdh = icalproperty_new_response(ICAL_BY_SECOND_SIZE);
-            if (ret_icalproperty_new_response_smvdh == NULL){
-            	return 0;
-            }
-            // Ensure dataflow is valid (i.e., non-null)
-            if (!ret_icalproperty_new_response_smvdh) {
-            	return 0;
-            }
-            icalproperty_set_pollitemid(ret_icalproperty_new_response_smvdh, (int )latitude);
-            // End mutation: Producer.APPEND_MUTATOR
-            
-            (void)latitude; // Suppress unused variable warning
-
-            // Test icaltimezone_get_longitude
-            double longitude = icaltimezone_get_longitude(copiedTimezone);
-
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icaltimezone_get_longitude to icalparameter_set_response
-            icalparameter* ret_icalparameter_new_role_jlmwy = icalparameter_new_role(ICAL_ROLE_OPTPARTICIPANT);
-            if (ret_icalparameter_new_role_jlmwy == NULL){
-            	return 0;
-            }
-            // Ensure dataflow is valid (i.e., non-null)
-            if (!ret_icalparameter_new_role_jlmwy) {
-            	return 0;
-            }
-            icalparameter_set_response(ret_icalparameter_new_role_jlmwy, (int )longitude);
-            // End mutation: Producer.APPEND_MUTATOR
-            
-            (void)longitude; // Suppress unused variable warning
-
-            // Free the copied timezone
-            icaltimezone_free(copiedTimezone, 1);
+    // Create a new XAVAILABLE component
+    icalcomponent *xavailable = icalcomponent_new_xavailable();
+    if (xavailable) {
+        // Set summary using the second byte of Data if available
+        if (Size > 1) {
+            char summary[2] = {static_cast<char>(Data[1]), '\0'};
+            icalcomponent_set_summary(xavailable, summary);
         }
     }
 
-    // Test icaltimezone_new
-    icaltimezone *newTimezone = icaltimezone_new();
-    if (newTimezone) {
-        // Test icaltimezone_get_latitude
-        double latitude = icaltimezone_get_latitude(newTimezone);
-        (void)latitude; // Suppress unused variable warning
-
-        // Test icaltimezone_get_longitude
-        double longitude = icaltimezone_get_longitude(newTimezone);
-        (void)longitude; // Suppress unused variable warning
-
-        // Free the new timezone
-        icaltimezone_free(newTimezone, 1);
+    // Create a new XVOTE component
+    icalcomponent *xvote = icalcomponent_new_xvote();
+    if (xvote) {
+        // Set description using the third byte of Data if available
+        if (Size > 2) {
+            char xvote_desc[2] = {static_cast<char>(Data[2]), '\0'};
+            icalcomponent_set_description(xvote, xvote_desc);
+        }
     }
 
-    // Test icaltimezone_get_builtin_timezone_from_tzid
-    icaltimezone *builtinTimezoneFromTzid = icaltimezone_get_builtin_timezone_from_tzid(inputString);
-    if (builtinTimezoneFromTzid) {
-        // Test icaltimezone_get_latitude
-        double latitude = icaltimezone_get_latitude(builtinTimezoneFromTzid);
-        (void)latitude; // Suppress unused variable warning
-
-        // Test icaltimezone_get_longitude
-        double longitude = icaltimezone_get_longitude(builtinTimezoneFromTzid);
-        (void)longitude; // Suppress unused variable warning
+    // Create a new XPATCH component
+    icalcomponent *xpatch = icalcomponent_new_xpatch();
+    if (xpatch) {
+        // Set summary using the fourth byte of Data if available
+        if (Size > 3) {
+            char xpatch_summary[2] = {static_cast<char>(Data[3]), '\0'};
+            icalcomponent_set_summary(xpatch, xpatch_summary);
+        }
     }
 
-    // Clean up
-    free(inputString);
+    // Cleanup
+    icalcomponent_free(vavailability);
+    icalcomponent_free(xavailable);
+    icalcomponent_free(xvote);
+    icalcomponent_free(xpatch);
+
     return 0;
 }
 #ifdef INC_MAIN
@@ -129,7 +81,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -139,7 +91,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_29(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_29(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

@@ -1,12 +1,13 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_codec_error at aom_codec.c:56:13 in aom_codec.h
+// aom_codec_set_option at aom_codec.c:119:17 in aom_codec.h
+// aom_codec_err_to_string at aom_codec.c:36:13 in aom_codec.h
+// aom_codec_err_to_string at aom_codec.c:36:13 in aom_codec.h
+// aom_codec_decode at aom_decoder.c:94:17 in aom_decoder.h
+// aom_codec_err_to_string at aom_codec.c:36:13 in aom_codec.h
+// aom_codec_error_detail at aom_codec.c:61:13 in aom_codec.h
+// aom_codec_encode at aom_encoder.c:168:17 in aom_encoder.h
+// aom_codec_err_to_string at aom_codec.c:36:13 in aom_codec.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -17,49 +18,129 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "aom/aom_codec.h"
-#include "aom/aom_encoder.h"
-#include "aom/aomcx.h"
+#include <iostream>
+#include "aom.h"
+#include "aom_codec.h"
+#include "aom_decoder.h"
+#include "aom_encoder.h"
+#include "aom_image.h"
+#include "aom_integer.h"
+#include "aom_frame_buffer.h"
+#include "aom_external_partition.h"
+#include "aomdx.h"
+#include "aomcx.h"
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    aom_codec_ctx_t codec;
-    aom_codec_err_t res;
-    int enable_cfl_intra = Data[0] % 2; // 0 or 1
-    int max_consec_frame_drop_cbr = Data[0];
-    int enable_palette = Data[0] % 2; // 0 or 1
-    int matrix_coefficients = Data[0];
-    int quantizer_one_pass = Data[0];
+    // Initialize a codec context
+    aom_codec_ctx_t codec_ctx;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
 
-    // Initialize codec
-    res = aom_codec_enc_init(&codec, aom_codec_av1_cx(), NULL, 0);
-    if (res != AOM_CODEC_OK) return 0;
+    // Fuzz the aom_codec_error function
+    const char *error_message = aom_codec_error(&codec_ctx);
+    if (error_message) {
+        std::cout << "Error message: " << error_message << std::endl;
+    }
 
-    // Set ENABLE_CFL_INTRA
-    aom_codec_control(&codec, AV1E_SET_ENABLE_CFL_INTRA, enable_cfl_intra);
+    // Fuzz the aom_codec_set_option function
+    const char *option_name = "example_option";
+    const char *option_value = reinterpret_cast<const char *>(Data);
+    aom_codec_err_t set_option_result = aom_codec_set_option(&codec_ctx, option_name, option_value);
+    const char *set_option_error = aom_codec_err_to_string(set_option_result);
+    if (set_option_error) {
+        std::cout << "Set option error: " << set_option_error << std::endl;
+    }
 
-    // Set MAX_CONSEC_FRAME_DROP_CBR
-    aom_codec_control(&codec, AV1E_SET_MAX_CONSEC_FRAME_DROP_CBR, max_consec_frame_drop_cbr);
+    // Fuzz the aom_codec_err_to_string function
+    const char *error_str = aom_codec_err_to_string(set_option_result);
+    if (error_str) {
+        std::cout << "Error string: " << error_str << std::endl;
+    }
 
-    // Set ENABLE_PALETTE
-    aom_codec_control(&codec, AV1E_SET_ENABLE_PALETTE, enable_palette);
+    // Fuzz the aom_codec_decode function
+    void *user_priv = nullptr;
+    aom_codec_err_t decode_result = aom_codec_decode(&codec_ctx, Data, Size, user_priv);
+    const char *decode_error = aom_codec_err_to_string(decode_result);
+    if (decode_error) {
+        std::cout << "Decode error: " << decode_error << std::endl;
+    }
 
-    // Set MATRIX_COEFFICIENTS
-    aom_codec_control(&codec, AV1E_SET_MATRIX_COEFFICIENTS, matrix_coefficients);
+    // Fuzz the aom_codec_error_detail function
+    const char *error_detail = aom_codec_error_detail(&codec_ctx);
+    if (error_detail) {
+        std::cout << "Error detail: " << error_detail << std::endl;
+    }
 
-    // Get HIGH_MOTION_CONTENT_SCREEN_RTC
-    int high_motion_content;
-    aom_codec_control(&codec, AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC, &high_motion_content);
+    // Prepare a dummy image for encoding
+    aom_image_t img;
+    memset(&img, 0, sizeof(img));
+    img.fmt = AOM_IMG_FMT_I420;
+    img.w = 640;
+    img.h = 480;
+    img.planes[0] = new unsigned char[img.w * img.h];
+    img.planes[1] = new unsigned char[img.w * img.h / 4];
+    img.planes[2] = new unsigned char[img.w * img.h / 4];
+    img.stride[0] = img.w;
+    img.stride[1] = img.w / 2;
+    img.stride[2] = img.w / 2;
 
-    // Set QUANTIZER_ONE_PASS
-    aom_codec_control(&codec, AV1E_SET_QUANTIZER_ONE_PASS, quantizer_one_pass);
+    // Fuzz the aom_codec_encode function
+    aom_codec_pts_t pts = 0;
+    unsigned long duration = 1;
+    aom_enc_frame_flags_t flags = 0;
+    aom_codec_err_t encode_result = aom_codec_encode(&codec_ctx, &img, pts, duration, flags);
+    const char *encode_error = aom_codec_err_to_string(encode_result);
+    if (encode_error) {
+        std::cout << "Encode error: " << encode_error << std::endl;
+    }
 
-    // Destroy codec
-    aom_codec_destroy(&codec);
+    // Cleanup
+    delete[] img.planes[0];
+    delete[] img.planes[1];
+    delete[] img.planes[2];
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

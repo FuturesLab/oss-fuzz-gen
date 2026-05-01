@@ -1,28 +1,23 @@
-#include <cstdint> // Include for uint8_t
-#include <cstddef> // Include for size_t
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_vfreebusy();
-    
-    // Check if the component was created successfully
+    // Initialize the library
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalproperty *property = icalproperty_new(ICAL_VERSION_PROPERTY);
+
+    // Ensure that the property and component are not NULL
+    if (property != NULL && component != NULL) {
+        // Call the function-under-test
+        icalproperty_set_parent(property, component);
+    }
+
+    // Clean up
+    if (property != NULL) {
+        icalproperty_free(property);
+    }
     if (component != NULL) {
-        // Perform operations on the component if needed
-        // For example, you can convert it to a string and print
-        char *component_str = icalcomponent_as_ical_string(component);
-        if (component_str != NULL) {
-            // Print the component string (for debugging purposes)
-            // printf("%s\n", component_str);
-        }
-
-        // Free the component string if allocated
-        icalmemory_free_buffer(component_str);
-
-        // Free the component to avoid memory leaks
         icalcomponent_free(component);
     }
 
@@ -50,7 +45,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -60,7 +55,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_16(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

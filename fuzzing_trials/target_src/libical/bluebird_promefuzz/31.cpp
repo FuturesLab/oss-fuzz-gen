@@ -10,87 +10,67 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstddef>
+#include <cstdlib>
 #include <cstring>
-#include <cassert>
+#include <iostream>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icalparser.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icalerror.h"
 
 extern "C" int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size) {
-    // Ensure the input data is null-terminated for string processing functions
-    char *icalString = new char[Size + 1];
-    memcpy(icalString, Data, Size);
-    icalString[Size] = '\0';
-
-    // Test icalparser_parse_string
-    icalcomponent *component = icalparser_parse_string(icalString);
-    if (component != NULL) {
-        // Test icalcomponent_convert_errors
-        icalcomponent_convert_errors(component);
-
-        // Free the component
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_convert_errors to icalcomponent_set_parent
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
-        	return 0;
-        }
-        enum icalproperty_status ret_icalcomponent_get_status_hykkp = icalcomponent_get_status(component);
-        if (ret_icalcomponent_get_status_hykkp == ICAL_STATUS_FAILED){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
-        	return 0;
-        }
-
-        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_get_status to icalcomponent_end_component using the plateau pool
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
-        	return 0;
-        }
-        icalcompiter ret_icalcomponent_end_component_aofty = icalcomponent_end_component(component, ICAL_VEVENT_COMPONENT);
-        // End mutation: Producer.SPLICE_MUTATOR
-        
-        icalcomponent_set_parent(component, component);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        icalcomponent_normalize(component);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    if (Size < sizeof(icalcomponent_kind)) {
+        return 0;
     }
 
-    // Check for errors and print backtrace if any
-    if (*icalerror_icalerrno() != ICAL_NO_ERROR) {
-        icalerror_backtrace();
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+
+    // Create a dummy icalcomponent using the library's creation function
+    icalcomponent *comp = icalcomponent_new(kind);
+
+    if (comp == NULL) {
+        return 0;
     }
 
-    // Test icalerror_error_from_string with the input string
-    icalerrorenum errorEnum = icalerror_error_from_string(icalString);
-    assert(errorEnum >= ICAL_NO_ERROR && errorEnum <= ICAL_UNKNOWN_ERROR);
-
-    // Test icalcomponent_new_from_string
-    component = icalcomponent_new_from_string(icalString);
-    if (component != NULL) {
-        // Free the component
-        icalcomponent_free(component);
+    // Test icalcomponent_get_component_name_r
+    char *component_name_r = icalcomponent_get_component_name_r(comp);
+    if (component_name_r != NULL) {
+        free(component_name_r);
     }
 
-    delete[] icalString;
+    // Test icalcomponent_get_location
+    const char *location = icalcomponent_get_location(comp);
+    if (location != NULL) {
+        // Process location if needed
+    }
+
+    // Test icalcomponent_get_description
+    const char *description = icalcomponent_get_description(comp);
+    if (description != NULL) {
+        // Process description if needed
+    }
+
+    // Test icalcomponent_get_component_name
+    const char *component_name = icalcomponent_get_component_name(comp);
+    if (component_name != NULL) {
+        // Process component_name if needed
+    }
+
+    // Test icalcomponent_get_first_component
+    icalcomponent *first_component = icalcomponent_get_first_component(comp, kind);
+    if (first_component != NULL) {
+        // Process first_component if needed
+    }
+
+    // Test icalcomponent_get_comment
+    const char *comment = icalcomponent_get_comment(comp);
+    if (comment != NULL) {
+        // Process comment if needed
+    }
+
+    // Clean up
+    icalcomponent_free(comp);
+
     return 0;
 }
 #ifdef INC_MAIN
@@ -115,7 +95,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -125,7 +105,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_31(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_31(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

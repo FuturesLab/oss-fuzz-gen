@@ -1,39 +1,25 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <libical/ical.h>
+#include <cstdint> // Include for uint8_t
+#include <cstddef> // Include for size_t
 
 extern "C" {
-    #include <libical/ical.h>
+#include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_114(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to extract values for icaltimetype
-    if (size < 7) {
+    // Initialize variables for the function-under-test
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalcomponent_kind kind = ICAL_VEVENT_COMPONENT;
+
+    // Ensure the component is not NULL
+    if (component == NULL) {
         return 0;
     }
-
-    // Create a new icalproperty
-    icalproperty *prop = icalproperty_new(ICAL_LASTMODIFIED_PROPERTY);
-    if (prop == NULL) {
-        return 0;
-    }
-
-    // Extract values from data for icaltimetype
-    struct icaltimetype lastmodified;
-    lastmodified.year = (int16_t)data[0] + ((int16_t)data[1] << 8);
-    lastmodified.month = data[2] % 12 + 1;  // Ensure month is between 1 and 12
-    lastmodified.day = data[3] % 31 + 1;    // Ensure day is between 1 and 31
-    lastmodified.hour = data[4] % 24;       // Ensure hour is between 0 and 23
-    lastmodified.minute = data[5] % 60;     // Ensure minute is between 0 and 59
-    lastmodified.second = data[6] % 60;     // Ensure second is between 0 and 59
-    lastmodified.is_date = 0;               // Set to 0 for date-time
-    lastmodified.zone = icaltimezone_get_utc_timezone(); // Set to UTC timezone
 
     // Call the function-under-test
-    icalproperty_set_lastmodified(prop, lastmodified);
+    icalcompiter iter = icalcomponent_begin_component(component, kind);
 
-    // Clean up
-    icalproperty_free(prop);
+    // Perform cleanup
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -59,7 +45,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -69,7 +55,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_114(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_114(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

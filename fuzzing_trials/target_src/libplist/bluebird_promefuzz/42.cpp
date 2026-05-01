@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -7,88 +9,130 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
-#include "plist/plist.h"
-}
-
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <fstream>
-
-static void fuzz_plist_set_debug(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) {
-        return;
-    }
-    int debug_level = *reinterpret_cast<const int*>(Data);
-    plist_set_debug(debug_level);
-}
-
-static void fuzz_plist_to_json(const uint8_t *Data, size_t Size) {
-    plist_t plist = nullptr;
-    char *json_output = nullptr;
-    uint32_t length = 0;
-
-    plist_from_memory(reinterpret_cast<const char*>(Data), Size, &plist, nullptr);
-    if (plist) {
-        plist_to_json(plist, &json_output, &length, 0);
-        if (json_output) {
-            plist_mem_free(json_output);
-        }
-        plist_free(plist);
-    }
-}
-
-static void fuzz_plist_from_json(const uint8_t *Data, size_t Size) {
-    plist_t plist = nullptr;
-    plist_from_json(reinterpret_cast<const char*>(Data), Size, &plist);
-    if (plist) {
-        plist_free(plist);
-    }
-}
-
-static void fuzz_plist_from_memory(const uint8_t *Data, size_t Size) {
-    plist_t plist = nullptr;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of plist_from_memory
-    plist_from_memory(reinterpret_cast<const char*>(Data), 0, &plist, NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (plist) {
-        plist_free(plist);
-    }
-}
-
-static void fuzz_plist_from_xml(const uint8_t *Data, size_t Size) {
-    plist_t plist = nullptr;
-    plist_from_xml(reinterpret_cast<const char*>(Data), Size, &plist);
-    if (plist) {
-        plist_free(plist);
-    }
-}
-
-static void fuzz_plist_read_from_file(const uint8_t *Data, size_t Size) {
-    std::ofstream file("./dummy_file", std::ios::binary);
-    if (!file) {
-        return;
-    }
-    file.write(reinterpret_cast<const char*>(Data), Size);
-    file.close();
-
-    plist_t plist = nullptr;
-    plist_read_from_file("./dummy_file", &plist, nullptr);
-    if (plist) {
-        plist_free(plist);
-    }
-}
+#include "plist/plist.h"
 
 extern "C" int LLVMFuzzerTestOneInput_42(const uint8_t *Data, size_t Size) {
-    fuzz_plist_set_debug(Data, Size);
-    fuzz_plist_to_json(Data, Size);
-    fuzz_plist_from_json(Data, Size);
-    fuzz_plist_from_memory(Data, Size);
-    fuzz_plist_from_xml(Data, Size);
-    fuzz_plist_read_from_file(Data, Size);
+    if (Size == 0) {
+        return 0;
+    }
+
+    // Testing plist_from_memory
+    {
+        plist_t plist = nullptr;
+        plist_format_t format;
+        plist_err_t err = plist_from_memory(reinterpret_cast<const char*>(Data), Size, &plist, &format);
+        if (err == PLIST_ERR_SUCCESS && plist) {
+            plist_free(plist);
+        }
+    }
+
+    // Testing plist_from_openstep
+    {
+        plist_t plist = nullptr;
+        plist_err_t err = plist_from_openstep(reinterpret_cast<const char*>(Data), Size, &plist);
+        if (err == PLIST_ERR_SUCCESS && plist) {
+            plist_free(plist);
+        }
+    }
+
+    // Testing plist_from_bin
+    {
+        plist_t plist = nullptr;
+        plist_err_t err = plist_from_bin(reinterpret_cast<const char*>(Data), Size, &plist);
+        if (err == PLIST_ERR_SUCCESS && plist) {
+            plist_free(plist);
+        }
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_from_bin to plist_data_val_contains
+        uint32_t ret_plist_array_get_size_rrbfv = plist_array_get_size(plist);
+        if (ret_plist_array_get_size_rrbfv < 0){
+        	return 0;
+        }
+        uint32_t ret_plist_array_get_item_index_jnlli = plist_array_get_item_index(0);
+        if (ret_plist_array_get_item_index_jnlli < 0){
+        	return 0;
+        }
+        int ret_plist_data_val_contains_fpsye = plist_data_val_contains(plist, (const uint8_t *)&ret_plist_array_get_size_rrbfv, (size_t )ret_plist_array_get_item_index_jnlli);
+        if (ret_plist_data_val_contains_fpsye < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Testing plist_from_json
+    {
+        plist_t plist = nullptr;
+        plist_err_t err = plist_from_json(reinterpret_cast<const char*>(Data), Size, &plist);
+        if (err == PLIST_ERR_SUCCESS && plist) {
+            plist_free(plist);
+        }
+    }
+
+    // Testing plist_from_xml
+    {
+        plist_t plist = nullptr;
+        plist_err_t err = plist_from_xml(reinterpret_cast<const char*>(Data), Size, &plist);
+        if (err == PLIST_ERR_SUCCESS && plist) {
+            plist_free(plist);
+        }
+    }
+
+    // Testing plist_write_to_file
+    {
+        plist_t plist = nullptr;
+        plist_err_t err = plist_from_memory(reinterpret_cast<const char*>(Data), Size, &plist, nullptr);
+        if (err == PLIST_ERR_SUCCESS && plist) {
+            const char *filename = "./dummy_file";
+            plist_err_t write_err = plist_write_to_file(plist, filename, PLIST_FORMAT_XML, PLIST_OPT_NONE);
+            if (write_err == PLIST_ERR_SUCCESS) {
+                // File written successfully, handle further if needed
+            }
+            plist_free(plist);
+        }
+    }
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_42(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,26 +1,30 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>  // Include for uint8_t
+#include <cstddef>  // Include for size_t
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_171(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated to be used as a string.
-    char *inputString = (char *)malloc(size + 1);
-    if (inputString == NULL) {
-        return 0; // Memory allocation failed, exit early.
+    // Ensure that the size is sufficient for extracting an integer
+    if (size < sizeof(int)) {
+        return 0;
     }
-    memcpy(inputString, data, size);
-    inputString[size] = '\0';
 
-    // Call the function-under-test with the input string.
-    icalerrorstate result = icalerror_supress(inputString);
+    // Initialize an icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
+        return 0;
+    }
 
-    // Clean up allocated memory.
-    free(inputString);
+    // Extract an integer from the data
+    int sequence = *(reinterpret_cast<const int*>(data));
+
+    // Call the function-under-test
+    icalcomponent_set_sequence(component, sequence);
+
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -46,7 +50,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -56,7 +60,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_171(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_171(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

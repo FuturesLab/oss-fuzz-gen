@@ -1,9 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalmemory_set_mem_alloc_funcs at icalmemory.c:279:6 in icalmemory.h
-// icalmemory_free_ring at icalmemory.c:197:6 in icalmemory.h
-// icalmemory_free_buffer at icalmemory.c:348:6 in icalmemory.h
-// icalmemory_add_tmp_buffer at icalmemory.c:151:6 in icalmemory.h
-// icalmemory_append_char at icalmemory.c:399:6 in icalmemory.h
+// icalcomponent_get_next_component at icalcomponent.c:627:16 in icalcomponent.h
+// icalcomponent_get_first_component at icalcomponent.c:611:16 in icalcomponent.h
+// icalcomponent_isa at icalcomponent.c:304:20 in icalcomponent.h
+// icalcomponent_get_first_real_component at icalcomponent.c:647:16 in icalcomponent.h
+// icalcomponent_get_inner at icalcomponent.c:1490:16 in icalcomponent.h
+// icalcomponent_get_dtend at icalcomponent.c:1566:21 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -13,59 +14,75 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
+#include <iostream>
+#include <fstream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalmemory.h"
-}
-
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-
-static void custom_free(void *ptr) {
-    free(ptr);
-}
-
-static void* custom_malloc(size_t size) {
-    return malloc(size);
-}
-
-static void* custom_realloc(void *ptr, size_t size) {
-    return realloc(ptr, size);
-}
+#include <libical/icalcomponent.h>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icaltime.h>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icaltimezone.h>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icalarray.h>
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(icalcomponent_kind)) return 0;
 
-    // Set custom memory allocation functions
-    icalmemory_set_mem_alloc_funcs(custom_malloc, custom_realloc, custom_free);
+    // Create a dummy VCALENDAR component
+    icalcomponent *root = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    if (!root) return 0;
 
-    // Test icalmemory_add_tmp_buffer and icalmemory_free_ring
-    char *buffer = static_cast<char*>(custom_malloc(Size));
-    if (buffer) {
-        memcpy(buffer, Data, Size);
-        icalmemory_add_tmp_buffer(buffer);
-        icalmemory_free_ring();
+    // Create a dummy VEVENT component
+    icalcomponent *event = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (!event) {
+        icalcomponent_free(root);
+        return 0;
     }
 
-    // Test icalmemory_append_char
-    size_t buffer_len = 15;
-    char *append_buffer = static_cast<char*>(custom_malloc(buffer_len));
-    if (append_buffer) {
-        strcpy(append_buffer, "My number is: ");
-        size_t buffer_end = strlen(append_buffer);
-        char *buffer_end_pos = append_buffer + buffer_end;
-        if (buffer_end_pos < append_buffer + buffer_len) {
-            icalmemory_append_char(&append_buffer, &buffer_end_pos, &buffer_len, Data[0]);
-        }
-        icalmemory_free_buffer(append_buffer);
+    // Add the VEVENT to the VCALENDAR
+    icalcomponent_add_component(root, event);
+
+    // Read a kind from the input data
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0]);
+
+    // Invoke icalcomponent_get_next_component
+    icalcomponent *next_component = icalcomponent_get_next_component(root, kind);
+    if (next_component) {
+        icalcomponent_isa(next_component);
     }
 
-    // Reset memory allocation functions to default
-    icalmemory_set_mem_alloc_funcs(nullptr, nullptr, nullptr);
+    // Invoke icalcomponent_get_first_component
+    icalcomponent *first_component = icalcomponent_get_first_component(root, kind);
+    if (first_component) {
+        icalcomponent_isa(first_component);
+    }
+
+    // Invoke icalcomponent_get_first_real_component
+    const icalcomponent *first_real_component = icalcomponent_get_first_real_component(root);
+    if (first_real_component) {
+        icalcomponent_isa(first_real_component);
+    }
+
+    // Invoke icalcomponent_get_inner
+    icalcomponent *inner_component = icalcomponent_get_inner(root);
+    if (inner_component) {
+        icalcomponent_isa(inner_component);
+    }
+
+    // Invoke icalcomponent_get_dtend
+    struct icaltimetype dtend = icalcomponent_get_dtend(event);
+    (void)dtend; // Use dtend to avoid unused variable warning
+
+    // Clean up
+    icalcomponent_free(root);
 
     return 0;
 }

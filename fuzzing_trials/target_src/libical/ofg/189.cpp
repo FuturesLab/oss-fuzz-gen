@@ -1,56 +1,53 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Include the header for memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_189(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for creating a null-terminated string
-    if (size < 1) {
-        return 0;
-    }
+    // Initialize an icalcomponent and icalcompiter
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalcompiter iter;
 
-    // Allocate memory for the icalproperty
-    icalproperty *property = icalproperty_new(ICAL_XLICMIMEOPTINFO_PROPERTY);
-    if (property == NULL) {
-        return 0;
-    }
-
-    // Create a null-terminated string from the input data
-    char *mime_info = (char *)malloc(size + 1);
-    if (mime_info == NULL) {
-        icalproperty_free(property);
-        return 0;
-    }
-    memcpy(mime_info, data, size);
-    mime_info[size] = '\0';
-
-    // Call the function under test
-    icalproperty_set_xlicmimeoptinfo(property, mime_info);
-
-    // Additional operations to ensure code coverage
-    const char *retrieved_mime_info = icalproperty_get_xlicmimeoptinfo(property);
-    if (retrieved_mime_info != NULL) {
-        // Perform a simple check to increase code coverage
-        if (strcmp(mime_info, retrieved_mime_info) == 0) {
-            // Do something trivial to ensure this code path is hit
-            (void)retrieved_mime_info;
+    // Ensure that the data size is sufficient to create some properties
+    if (size > 0) {
+        // Create a string from the input data
+        char *summary = static_cast<char*>(malloc(size + 1));
+        if (summary == nullptr) {
+            icalcomponent_free(component);
+            return 0;
         }
+        memcpy(summary, data, size);
+        summary[size] = '\0';
+
+        // Add properties to the component
+        icalcomponent_set_summary(component, summary);
+        free(summary);
     }
 
-    // Attempt to parse the mime_info to increase code coverage
-    icalcomponent *comp = icalparser_parse_string(mime_info);
-    if (comp != NULL) {
-        // Perform operations on the component to increase code coverage
-        icalcomponent_free(comp);
+    // Initialize the iterator
+    iter = icalcomponent_begin_component(component, ICAL_ANY_COMPONENT);
+
+    // Use the iterator to traverse components
+    if (icalcompiter_deref(&iter) != nullptr) {
+        do {
+            // Call the function-under-test
+            icalcomponent *prior_component = icalcompiter_prior(&iter);
+
+            // Clean up
+            if (prior_component != nullptr) {
+                icalcomponent_free(prior_component);
+            }
+
+            // Move to the next component
+            icalcompiter_next(&iter);
+        } while (icalcompiter_deref(&iter) != nullptr);
     }
 
-    // Clean up
-    free(mime_info);
-    icalproperty_free(property);
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -76,7 +73,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -86,7 +83,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_189(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_189(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

@@ -1,29 +1,27 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h> // Include the missing header for memcpy
+#include <cstdint> // Include for uint8_t
+#include <cstddef> // Include for size_t
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to work with
-    if (size < sizeof(struct icaltimetype)) {
-        return 0;
-    }
-
-    // Initialize the icalproperty and icaltimetype structures
-    icalproperty *prop = icalproperty_new(ICAL_EXDATE_PROPERTY);
-    struct icaltimetype exdate;
-
-    // Copy data into the icaltimetype structure
-    memcpy(&exdate, data, sizeof(struct icaltimetype));
-
     // Call the function-under-test
-    icalproperty_set_exdate(prop, exdate);
+    icalcomponent *component = icalcomponent_new_xdaylight();
 
-    // Clean up
-    icalproperty_free(prop);
+    // Perform any other operations or checks on the component if needed
+    if (component != NULL) {
+        // Example: Convert the component to a string and print it
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // Normally you might use the component_str for further processing
+            // For fuzzing purposes, we just ensure it is not NULL
+            // In a real fuzzing scenario, you might want to log or check this string
+        }
+
+        // Free the component after use
+        icalcomponent_free(component);
+    }
 
     return 0;
 }
@@ -49,7 +47,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -59,7 +57,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_14(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

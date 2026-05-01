@@ -1,45 +1,70 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>  // Include for 'unlink' and 'close'
 #include <plist/plist.h>
 
 extern "C" {
-    plist_err_t plist_from_openstep(const char *, uint32_t, plist_t *);
+    #include <string.h> // Include the library for memcpy
+
+    int plist_real_val_compare(plist_t node, double value);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_157(const uint8_t *data, size_t size) {
-    if (size == 0) {
+    // Ensure there is enough data to extract a double value
+    if (size < sizeof(double)) {
         return 0;
     }
 
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
+    // Create a plist node with a real value
+    plist_t node = plist_new_real(0.0);
 
-    // Initialize plist_t variable
-    plist_t plist = NULL;
+    // Extract a double value from the input data
+    double extracted_value;
+    memcpy(&extracted_value, data, sizeof(double));
 
     // Call the function-under-test
-    plist_err_t result = plist_from_openstep(tmpl, (uint32_t)size, &plist);
+    int result = plist_real_val_compare(node, extracted_value);
 
     // Clean up
-    if (plist) {
-        plist_free(plist);
-    }
-    unlink(tmpl);
+    plist_free(node);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_157(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

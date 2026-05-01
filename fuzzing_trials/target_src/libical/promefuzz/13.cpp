@@ -1,75 +1,58 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalparameter_get_xvalue at icalparameter.c:329:13 in icalparameter.h
-// icalparameter_set_xvalue at icalparameter.c:316:6 in icalparameter.h
-// icalparameter_get_iana_value at icalparameter.c:341:13 in icalparameter.h
-// icalparameter_set_iana_value at icalparameter.c:336:6 in icalparameter.h
-// icalparameter_as_ical_string_r at icalparameter.c:190:7 in icalparameter.h
-// icalparameter_set_xname at icalparameter.c:296:6 in icalparameter.h
+// icalcomponent_get_x_name at icalcomponent.c:337:13 in icalcomponent.h
+// icalcomponent_get_comment at icalcomponent.c:1781:13 in icalcomponent.h
+// icalcomponent_get_description at icalcomponent.c:1897:13 in icalcomponent.h
+// icalcomponent_get_relcalid at icalcomponent.c:2591:13 in icalcomponent.h
+// icalcomponent_get_uid at icalcomponent.c:1816:13 in icalcomponent.h
+// icalcomponent_get_summary at icalcomponent.c:1746:13 in icalcomponent.h
 #include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <cstring>
-#include <cstdlib>
-#include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <cassert>
-#include <cstring>
-#include <cstdlib>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalparameter.h"
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
-
-    // Convert input data to a null-terminated string
-    char *input = (char *)malloc(Size + 1);
-    if (!input) return 0; // Handle memory allocation failure
-    memcpy(input, Data, Size);
-    input[Size] = '\0';
-
-    // Create a new icalparameter from the input string
-    icalparameter *param = icalparameter_new_from_string(input);
-    if (param) {
-        // Test icalparameter_as_ical_string_r
-        char *icalString = icalparameter_as_ical_string_r(param);
-        if (icalString) {
-            // Use the resulting string
-            printf("%s\n", icalString);
-            icalmemory_free_buffer(icalString);
-        }
-
-        // Test icalparameter_set_iana_value
-        icalparameter_set_iana_value(param, input);
-        const char *ianaValue = icalparameter_get_iana_value(param);
-        if (ianaValue) {
-            printf("%s\n", ianaValue);
-        }
-
-        // Test icalparameter_set_xvalue
-        icalparameter_set_xvalue(param, input);
-        const char *xValue = icalparameter_get_xvalue(param);
-        if (xValue) {
-            printf("%s\n", xValue);
-        }
-
-        // Test icalparameter_set_xname
-        icalparameter_set_xname(param, input);
-        // Assuming there's a function to get xname, similar to get_xvalue
-        // const char *xName = icalparameter_get_xname(param);
-        // if (xName) {
-        //     printf("%s\n", xName);
-        // }
-
-        // Free the parameter
-        icalparameter_free(param);
+    if (Size < sizeof(icalcomponent_kind)) {
+        return 0;
     }
 
-    free(input);
+    // Create a dummy icalcomponent with the kind from the input data
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+    icalcomponent *comp = icalcomponent_new(kind);
+
+    // Invoke each target function with the component
+    const char *x_name = icalcomponent_get_x_name(comp);
+    const char *relcalid = icalcomponent_get_relcalid(comp);
+    const char *uid = icalcomponent_get_uid(comp);
+    const char *description = icalcomponent_get_description(comp);
+    const char *summary = icalcomponent_get_summary(comp);
+    const char *comment = icalcomponent_get_comment(comp);
+
+    // Check returned values (not strictly necessary for fuzzing, but good practice)
+    if (x_name) {
+        // Process x_name if needed
+    }
+    if (relcalid) {
+        // Process relcalid if needed
+    }
+    if (uid) {
+        // Process uid if needed
+    }
+    if (description) {
+        // Process description if needed
+    }
+    if (summary) {
+        // Process summary if needed
+    }
+    if (comment) {
+        // Process comment if needed
+    }
+
+    // Clean up
+    icalcomponent_free(comp);
+
     return 0;
 }
     #ifdef INC_MAIN

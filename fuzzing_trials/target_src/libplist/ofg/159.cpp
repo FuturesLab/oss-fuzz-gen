@@ -1,27 +1,59 @@
+#include <stdio.h>
+#include <stdint.h> // Include for uint8_t
+#include <stddef.h> // Include for size_t
+
+// Assuming the function is defined in an external C library
 extern "C" {
-    #include <plist/plist.h>
+    const char * libplist_version();
 }
 
-#include <cstring> // Include the necessary C++ library for memcpy
-
 extern "C" int LLVMFuzzerTestOneInput_159(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to create a plist and an int64_t value
-    if (size < sizeof(int64_t)) {
-        return 0;
-    }
-
-    // Create a plist node with an integer value
-    plist_t plist_node = plist_new_int((int64_t)data[0]);
-
-    // Extract an int64_t value from the input data
-    int64_t int_value;
-    memcpy(&int_value, data, sizeof(int64_t));
-
     // Call the function-under-test
-    int result = plist_int_val_compare(plist_node, int_value);
+    const char *version = libplist_version();
 
-    // Clean up the plist node
-    plist_free(plist_node);
+    // Print the version for debugging purposes
+    if (version != NULL) {
+        printf("libplist version: %s\n", version);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_159(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

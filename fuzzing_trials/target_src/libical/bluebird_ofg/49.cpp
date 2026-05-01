@@ -1,38 +1,30 @@
 #include <sys/stat.h>
-#include "libical/ical.h"
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
+#include <stdbool.h>
+#include <string.h> // Include for memcpy
+
+extern "C" {
+    #include "libical/ical.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    // Create a string from the input data to use with libical functions
-    char *input = (char *)malloc(size + 1);
-    if (input == NULL) {
-        return 0; // Memory allocation failed, return early
-    }
-    memcpy(input, data, size);
-    input[size] = '\0'; // Null-terminate the string
-
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(input);
-
-    // If parsing was successful, explore further with the component
-    if (component != NULL) {
-        // Example: Iterate over properties or components
-        icalproperty *prop;
-        for (prop = icalcomponent_get_first_property(component, ICAL_ANY_PROPERTY);
-             prop != NULL;
-             prop = icalcomponent_get_next_property(component, ICAL_ANY_PROPERTY)) {
-            // Just access the property name to simulate some processing
-            const char *propName = icalproperty_get_property_name(prop);
-        }
-
-        // Clean up the created component
-        icalcomponent_free(component);
+    // Ensure there's enough data to initialize icalpropiter
+    if (size < sizeof(icalpropiter)) {
+        return 0;
     }
 
-    // Free the allocated input string
-    free(input);
+    // Initialize icalpropiter from the input data
+    icalpropiter iter;
+    memcpy(&iter, data, sizeof(icalpropiter));
+
+    // Call the function-under-test
+    bool is_valid = icalpropiter_is_valid(&iter);
+
+    // Use the result in some way to prevent compiler optimizations
+    if (is_valid) {
+        // Do something if valid (no-op)
+    }
 
     return 0;
 }
@@ -58,7 +50,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -68,7 +60,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_49(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_49(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

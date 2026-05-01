@@ -1,18 +1,15 @@
 // This fuzz driver is generated for library libplist, aiming to fuzz the following functions:
-// plist_new_string at plist.c:460:9 in plist.h
-// plist_string_val_compare at plist.c:1791:5 in plist.h
-// plist_string_val_contains at plist.c:1809:5 in plist.h
-// plist_get_string_val at plist.c:1326:6 in plist.h
-// plist_mem_free at plist.c:561:6 in plist.h
-// plist_set_string_val at plist.c:1588:6 in plist.h
-// plist_new_dict at plist.c:436:9 in plist.h
-// plist_new_dict at plist.c:436:9 in plist.h
-// plist_copy at plist.c:652:9 in plist.h
-// plist_dict_set_item at plist.c:941:6 in plist.h
-// plist_dict_copy_string at plist.c:1211:13 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_free at plist.c:553:6 in plist.h
+// plist_new_bool at plist.c:588:9 in plist.h
+// plist_bool_val_is_true at plist.c:2068:5 in plist.h
+// plist_get_bool_val at plist.c:1783:6 in plist.h
+// plist_set_bool_val at plist.c:2026:6 in plist.h
+// plist_new_dict at plist.c:527:9 in plist.h
+// plist_dict_set_item at plist.c:1314:6 in plist.h
+// plist_dict_get_bool at plist.c:1453:9 in plist.h
+// plist_new_dict at plist.c:527:9 in plist.h
+// plist_dict_copy_bool at plist.c:1592:13 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -23,52 +20,84 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstddef>
+#include <cstdlib>
 #include <cstring>
-#include "plist.h"
+#include <plist/plist.h>
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Convert the input data into a C-string
-    char *cstr = new char[Size + 1];
-    memcpy(cstr, Data, Size);
-    cstr[Size] = '\0';
+    // Create a new boolean plist node
+    uint8_t bool_val = Data[0] % 2; // Ensure boolean value is 0 or 1
+    plist_t bool_node = plist_new_bool(bool_val);
 
-    // Create a plist string node
-    plist_t strnode = plist_new_string(cstr);
+    // Check if the boolean value is true
+    int is_true = plist_bool_val_is_true(bool_node);
 
-    // Compare the plist string node value with another string
-    plist_string_val_compare(strnode, "compare_string");
+    // Retrieve the boolean value
+    uint8_t retrieved_val = 0;
+    plist_get_bool_val(bool_node, &retrieved_val);
 
-    // Check if the plist string node contains a substring
-    plist_string_val_contains(strnode, "substring");
+    // Modify the boolean value
+    uint8_t new_val = (Data[0] + 1) % 2;
+    plist_set_bool_val(bool_node, new_val);
 
-    // Retrieve and free the string value from the plist node
-    char *retrieved_val = nullptr;
-    plist_get_string_val(strnode, &retrieved_val);
-    if (retrieved_val) {
-        plist_mem_free(retrieved_val);
-    }
+    // Create a dictionary and add the boolean node
+    plist_t dict = plist_new_dict();
+    plist_dict_set_item(dict, "test_key", bool_node);
 
-    // Set a new string value to the plist node
-    plist_set_string_val(strnode, "new_value");
+    // Retrieve the boolean value using the key
+    uint8_t dict_bool_val = plist_dict_get_bool(dict, "test_key");
 
-    // Create source and target dictionaries
-    plist_t source_dict = plist_new_dict();
+    // Create another dictionary for copying
     plist_t target_dict = plist_new_dict();
 
-    // Insert the string node into the source dictionary
-    plist_dict_set_item(source_dict, "key", plist_copy(strnode));
-
-    // Copy string node from source to target dictionary
-    plist_dict_copy_string(target_dict, source_dict, "key", nullptr);
+    // Attempt to copy the boolean value to the target dictionary
+    plist_err_t copy_result = plist_dict_copy_bool(target_dict, dict, "test_key", nullptr);
 
     // Clean up
-    plist_free(strnode);
-    plist_free(source_dict);
+    plist_free(dict);
     plist_free(target_dict);
-    delete[] cstr;
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_12(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -9,50 +9,58 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
+extern "C" {
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
+}
+
+#include <cstdint>
+#include <cstdlib>
+
+static icalcomponent* create_dummy_component() {
+    icalcomponent* component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalcomponent* vevent = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalcomponent_add_component(component, vevent);
+    return component;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
-
-    // Convert input data to a string
-    std::string input(reinterpret_cast<const char*>(Data), Size);
-
-    // Create icalcomponent from input string
-    icalcomponent *comp = icalcomponent_new_from_string(input.c_str());
-
-    if (comp != NULL) {
-        // Fuzz icalcomponent_set_description
-        icalcomponent_set_description(comp, "Sample Description");
-
-        // Fuzz icalcomponent_get_description
-        const char *description = icalcomponent_get_description(comp);
-        if (description) {
-            std::cout << "Description: " << description << std::endl;
-        }
-
-        // Fuzz icalcomponent_set_location
-        icalcomponent_set_location(comp, "Sample Location");
-
-        // Fuzz icalcomponent_get_location
-        const char *location = icalcomponent_get_location(comp);
-        if (location) {
-            std::cout << "Location: " << location << std::endl;
-        }
-
-        // Fuzz icalcomponent_get_x_name
-        const char *x_name = icalcomponent_get_x_name(comp);
-        if (x_name) {
-            std::cout << "X-Name: " << x_name << std::endl;
-        }
-
-        // Clean up
-        icalcomponent_free(comp);
+    if (Size < 1) {
+        return 0;
     }
+
+    // Create a dummy component to work with
+    icalcomponent* component = create_dummy_component();
+
+    // Choose a component kind based on fuzzing data
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+
+    // Begin component iteration
+    icalcompiter iter = icalcomponent_begin_component(component, kind);
+
+    // Traverse components using the iterator
+    while (icalcompiter_deref(&iter)) {
+        icalcomponent* current_component = icalcompiter_deref(&iter);
+        if (current_component) {
+            // Use icalcomponent_get_current_component
+            icalcomponent_get_current_component(current_component);
+        }
+        icalcompiter_next(&iter);
+    }
+
+    // End component iteration
+    iter = icalcomponent_end_component(component, kind);
+
+    // Use icalcomponent_get_first_component
+    icalcomponent* first_component = icalcomponent_get_first_component(component, kind);
+    if (first_component) {
+        icalcomponent_get_current_component(first_component);
+    }
+
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }
@@ -78,7 +86,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -88,7 +96,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_10(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

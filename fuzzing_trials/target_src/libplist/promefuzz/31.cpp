@@ -1,16 +1,20 @@
 // This fuzz driver is generated for library libplist, aiming to fuzz the following functions:
-// plist_new_data at plist.c:514:9 in plist.h
-// plist_get_data_val at plist.c:1406:6 in plist.h
-// plist_mem_free at plist.c:561:6 in plist.h
-// plist_set_data_val at plist.c:1618:6 in plist.h
-// plist_data_val_compare_with_size at plist.c:1862:5 in plist.h
-// plist_get_data_ptr at plist.c:1416:13 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_new_dict at plist.c:436:9 in plist.h
-// plist_new_uint at plist.c:478:9 in plist.h
-// plist_dict_set_item at plist.c:941:6 in plist.h
-// plist_dict_get_uint at plist.c:1120:10 in plist.h
-// plist_free at plist.c:553:6 in plist.h
+// plist_new_uid at plist.c:627:9 in plist.h
+// plist_new_string at plist.c:569:9 in plist.h
+// plist_new_dict at plist.c:527:9 in plist.h
+// plist_new_string at plist.c:569:9 in plist.h
+// plist_dict_set_item at plist.c:1314:6 in plist.h
+// plist_new_int at plist.c:614:9 in plist.h
+// plist_uid_val_compare at plist.c:2129:5 in plist.h
+// plist_string_val_compare at plist.c:2224:5 in plist.h
+// plist_key_val_compare_with_size at plist.c:2260:5 in plist.h
+// plist_key_val_compare at plist.c:2251:5 in plist.h
+// plist_int_val_compare at plist.c:2093:5 in plist.h
+// plist_uint_val_compare at plist.c:2111:5 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_free at plist.c:712:6 in plist.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -21,46 +25,97 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
-#include "plist.h"
+#include <fstream>
+#include <plist/plist.h>
 
 extern "C" int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Fuzz plist_new_data
-    plist_t dataNode = plist_new_data(reinterpret_cast<const char*>(Data), Size);
-    
-    // Fuzz plist_get_data_val
-    char *retrievedData = nullptr;
-    uint64_t retrievedLength = 0;
-    plist_get_data_val(dataNode, &retrievedData, &retrievedLength);
-    if (retrievedData) {
-        plist_mem_free(retrievedData);
+    // Create dummy plist nodes for testing
+    plist_t uidnode = plist_new_uid(12345);
+    plist_t strnode = plist_new_string("test_string");
+    plist_t keynode = plist_new_dict(); // Use a dictionary for key testing
+    plist_dict_set_item(keynode, "test_key", plist_new_string("value"));
+    plist_t intnode = plist_new_int(12345);
+
+    // Prepare comparison values
+    uint64_t cmpval_uint64 = 12345;
+    int64_t cmpval_int64 = 12345;
+    const char* cmpval_str = "test_string";
+
+    // Fuzz plist_uid_val_compare
+    plist_uid_val_compare(uidnode, cmpval_uint64);
+
+    // Fuzz plist_string_val_compare
+    if (Size > 1) {
+        char* fuzz_str = new char[Size];
+        memcpy(fuzz_str, Data, Size - 1);
+        fuzz_str[Size - 1] = '\0';
+        plist_string_val_compare(strnode, fuzz_str);
+        delete[] fuzz_str;
     }
 
-    // Fuzz plist_set_data_val
-    plist_set_data_val(dataNode, reinterpret_cast<const char*>(Data), Size);
+    // Fuzz plist_key_val_compare_with_size
+    if (Size > 2) {
+        size_t n = Data[0] % Size; // Limit n to the size of the input
+        plist_key_val_compare_with_size(keynode, cmpval_str, n);
+    }
 
-    // Fuzz plist_data_val_compare_with_size
-    plist_data_val_compare_with_size(dataNode, Data, Size);
+    // Fuzz plist_key_val_compare
+    plist_key_val_compare(keynode, cmpval_str);
 
-    // Fuzz plist_get_data_ptr
-    uint64_t dataLength = 0;
-    const char* dataPtr = plist_get_data_ptr(dataNode, &dataLength);
+    // Fuzz plist_int_val_compare
+    plist_int_val_compare(intnode, cmpval_int64);
 
-    // Clean up
-    plist_free(dataNode);
-
-    // Creating a dictionary plist for fuzzing plist_dict_get_uint
-    plist_t dict = plist_new_dict();
-    plist_dict_set_item(dict, "key", plist_new_uint(Size));
-
-    // Fuzz plist_dict_get_uint
-    plist_dict_get_uint(dict, "key");
+    // Fuzz plist_uint_val_compare
+    plist_uint_val_compare(intnode, cmpval_uint64);
 
     // Clean up
-    plist_free(dict);
+    plist_free(uidnode);
+    plist_free(strnode);
+    plist_free(keynode);
+    plist_free(intnode);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_31(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

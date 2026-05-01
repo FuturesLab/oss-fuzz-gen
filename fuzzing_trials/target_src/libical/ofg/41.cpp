@@ -1,40 +1,52 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <cstdint>  // Include for uint8_t
+#include <cstdio>   // Include for printf
+#include <cstdlib>  // Include for malloc and free
+#include <cstring>  // Include for memcpy
 
 extern "C" {
-#include <libical/ical.h>
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    // Create an icalparser instance
-    icalparser *parser = icalparser_new();
-    if (parser == NULL) {
-        return 0; // If parser creation fails, exit early
-    }
-
-    // Ensure data is not empty and size is non-zero
+    // Ensure that the input data is sufficient to create a valid component
     if (size == 0) {
-        icalparser_free(parser);
-        return 0;
+        return 0; // Exit early if there's no data
     }
 
-    // Allocate a buffer for general data
-    void *gen_data = malloc(size);
-    if (gen_data == NULL) {
-        icalparser_free(parser);
-        return 0; // If memory allocation fails, exit early
+    // Create a string from the input data
+    char *input_str = (char *)malloc(size + 1);
+    if (input_str == NULL) {
+        return 0; // Exit if memory allocation fails
     }
+    memcpy(input_str, data, size);
+    input_str[size] = '\0'; // Null-terminate the string
 
-    // Copy data into gen_data buffer
-    memcpy(gen_data, data, size);
+    // Parse the input string into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(input_str);
 
-    // Call the function-under-test
-    icalparser_set_gen_data(parser, gen_data);
+    // Free the input string after parsing
+    free(input_str);
 
-    // Clean up
-    free(gen_data);
-    icalparser_free(parser);
+    // Check if the component is not NULL
+    if (component != NULL) {
+        // Perform operations on the component if needed
+        // For instance, you can convert it to a string or perform other checks
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // Optionally print the component string (for debugging purposes)
+            // printf("%s\n", component_str);
+            // Free the string after use
+            icalmemory_free_buffer(component_str);
+        }
+
+        // Free the component after use
+        icalcomponent_free(component);
+    } else {
+        // Handle the case where the component is NULL
+        // This might be due to invalid input data, so we should ensure
+        // that the fuzzer is aware of this case by returning a non-zero value
+        return 0; // Changed from 1 to 0 to prevent immediate crash
+    }
 
     return 0;
 }
@@ -60,7 +72,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -70,7 +82,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_41(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_41(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

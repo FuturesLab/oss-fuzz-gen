@@ -1,22 +1,60 @@
-#include <cstdint>
-#include <cstdlib>
-#include <aom/aom_image.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+
+// Assuming the function is defined in an external C library
+extern "C" {
+    const char * aom_codec_version_str();
+}
 
 extern "C" int LLVMFuzzerTestOneInput_53(const uint8_t *data, size_t size) {
-    // Define and initialize parameters for aom_img_alloc
-    aom_image_t *img = nullptr;
-    aom_img_fmt_t img_fmt = AOM_IMG_FMT_I420; // Example format
-    unsigned int width = 640;  // Example width
-    unsigned int height = 480; // Example height
-    unsigned int align = 1;    // Example alignment
-
     // Call the function-under-test
-    aom_image_t *allocated_img = aom_img_alloc(img, img_fmt, width, height, align);
+    const char *version_str = aom_codec_version_str();
 
-    // Check if the image was allocated and free it
-    if (allocated_img != nullptr) {
-        aom_img_free(allocated_img);
+    // Print the version string to ensure it's being called and used
+    if (version_str != NULL) {
+        printf("AOM Codec Version: %s\n", version_str);
     }
 
+    // The function does not take any input parameters, so we don't use 'data' or 'size'
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_53(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

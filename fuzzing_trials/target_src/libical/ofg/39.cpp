@@ -1,37 +1,26 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h> // Include for memcpy
+#include <cstdint>  // Include for uint8_t
+#include <cstddef>  // Include for size_t
 
 extern "C" {
-    #include <libical/ical.h> // Correct include path for libical
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Create a new icalproperty object
-    icalproperty *prop = icalproperty_new(ICAL_ANY_PROPERTY);
-
-    // Ensure that the property is not NULL
-    if (prop == NULL) {
+    // Ensure that the size is sufficient to create a valid icalcomponent
+    if (size < 1) {
         return 0;
     }
 
-    // Use the provided data to set a property value
-    if (size > 0) {
-        char *value = (char *)malloc(size + 1);
-        if (value != NULL) {
-            memcpy(value, data, size);
-            value[size] = '\0'; // Null-terminate the string
-            icalproperty_set_comment(prop, value);
-            free(value);
-        }
-    }
+    // Create a dummy icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
 
     // Call the function-under-test
-    int max_results = icalproperty_get_maxresults(prop);
+    char *component_name = icalcomponent_get_component_name_r(component);
 
     // Clean up
-    icalproperty_free(prop);
+    icalcomponent_free(component);
 
+    // Since component_name is a static string, no need to free it
     return 0;
 }
 #ifdef INC_MAIN
@@ -56,7 +45,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -66,7 +55,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_39(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_39(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

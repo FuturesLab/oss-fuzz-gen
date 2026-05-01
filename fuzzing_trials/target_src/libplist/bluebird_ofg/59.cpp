@@ -1,50 +1,61 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
-#include "plist/plist.h"
+#include <stdio.h>
+#include <stdint.h> // Include for uint8_t
+#include <stddef.h> // Include for size_t
 
+// Assuming the function is defined in an external C library
 extern "C" {
-    // Include necessary C headers and functions here
-    #include "plist/plist.h"
+    const char * libplist_version();
 }
 
 extern "C" int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    // Initialize plist_t variable
-    plist_t plist = NULL;
-    
-    // Create a plist from the input data
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function plist_from_bin with plist_from_xml
-    plist_from_xml((const char*)data, size, &plist);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Prepare variables for plist_to_bin
-    char *bin_data = NULL;
-    uint32_t bin_size = 0;
-
     // Call the function-under-test
+    const char *version = libplist_version();
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function plist_to_bin with plist_to_xml
-    plist_err_t result = plist_to_xml(plist, &bin_data, &bin_size);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Clean up
-    if (bin_data != NULL) {
-        free(bin_data);
+    // Print the version for debugging purposes
+    if (version != NULL) {
+        printf("libplist version: %s\n", version);
     }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from plist_to_xml to plist_from_openstep
-    plist_t ret_plist_new_null_pgdlj = plist_new_null();
-
-    plist_err_t ret_plist_from_openstep_gkxpu = plist_from_openstep((const char *)"w", bin_size, &ret_plist_new_null_pgdlj);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    plist_free(plist);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_59(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

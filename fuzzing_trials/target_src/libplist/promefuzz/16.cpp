@@ -1,18 +1,11 @@
 // This fuzz driver is generated for library libplist, aiming to fuzz the following functions:
-// plist_new_bool at plist.c:469:9 in plist.h
-// plist_set_bool_val at plist.c:1593:6 in plist.h
-// plist_bool_val_is_true at plist.c:1635:5 in plist.h
-// plist_get_bool_val at plist.c:1353:6 in plist.h
-// plist_new_dict at plist.c:436:9 in plist.h
-// plist_new_dict at plist.c:436:9 in plist.h
-// plist_dict_set_item at plist.c:941:6 in plist.h
-// plist_new_bool at plist.c:469:9 in plist.h
-// plist_dict_set_item at plist.c:941:6 in plist.h
-// plist_dict_copy_bool at plist.c:1171:13 in plist.h
-// plist_dict_get_bool at plist.c:1032:9 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_free at plist.c:553:6 in plist.h
+// plist_new_unix_date at plist.c:686:9 in plist.h
+// plist_set_unix_date_val at plist.c:2062:6 in plist.h
+// plist_get_unix_date_val at plist.c:1878:6 in plist.h
+// plist_get_date_val at plist.c:1858:6 in plist.h
+// plist_date_val_compare at plist.c:2182:5 in plist.h
+// plist_unix_date_val_compare at plist.c:2206:5 in plist.h
+// plist_free at plist.c:712:6 in plist.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -24,45 +17,81 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
-#include <plist/plist.h>
+#include <iostream>
+#include "plist.h"
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(int64_t)) {
+        return 0;
+    }
 
-    // Prepare the environment
-    uint8_t bool_val = Data[0];
-    plist_t node = plist_new_bool(bool_val);
+    int64_t timestamp = *reinterpret_cast<const int64_t*>(Data);
 
-    // Fuzz plist_set_bool_val
-    plist_set_bool_val(node, bool_val);
+    // Fuzz plist_new_unix_date
+    plist_t date_node = plist_new_unix_date(timestamp);
+    if (date_node == nullptr) {
+        return 0;
+    }
 
-    // Fuzz plist_bool_val_is_true
-    int is_true = plist_bool_val_is_true(node);
+    // Fuzz plist_set_unix_date_val
+    plist_set_unix_date_val(date_node, timestamp);
 
-    // Fuzz plist_get_bool_val
-    uint8_t retrieved_val = 0;
-    plist_get_bool_val(node, &retrieved_val);
+    // Fuzz plist_get_unix_date_val
+    int64_t extracted_timestamp = 0;
+    plist_get_unix_date_val(date_node, &extracted_timestamp);
 
-    // Create dictionaries for fuzzing plist_dict_copy_bool and plist_dict_get_bool
-    plist_t source_dict = plist_new_dict();
-    plist_t target_dict = plist_new_dict();
-    const char *key = "test_key";
-    const char *alt_key = "alt_test_key";
+    // Fuzz plist_get_date_val (deprecated)
+    int32_t sec = 0, usec = 0;
+    plist_get_date_val(date_node, &sec, &usec);
 
-    plist_dict_set_item(source_dict, key, node);
-    plist_dict_set_item(source_dict, alt_key, plist_new_bool(!bool_val));
+    // Fuzz plist_date_val_compare (deprecated)
+    int compare_result = plist_date_val_compare(date_node, sec, usec);
 
-    // Fuzz plist_dict_copy_bool
-    plist_err_t copy_err = plist_dict_copy_bool(target_dict, source_dict, key, alt_key);
+    // Fuzz plist_unix_date_val_compare
+    int unix_compare_result = plist_unix_date_val_compare(date_node, timestamp);
 
-    // Fuzz plist_dict_get_bool
-    uint8_t dict_bool_val = plist_dict_get_bool(source_dict, key);
-
-    // Cleanup
-    plist_free(node);
-    plist_free(source_dict);
-    plist_free(target_dict);
+    // Clean up
+    plist_free(date_node);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

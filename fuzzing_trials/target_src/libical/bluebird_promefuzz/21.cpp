@@ -11,88 +11,56 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
-#include <fstream>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
-#include "/src/libical/src/libical/icaltimezone.h"
+#include "/src/libical/src/libical/icalcomponent.h"
+#include <iostream>
 
 extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
+    // Initialize components using the target API functions
+    icalcomponent *vresource = nullptr;
+    icalcomponent *xstandard = nullptr;
+    icalcomponent *vvoter = nullptr;
+    icalcomponent *xdaylight = nullptr;
+    icalcomponent *xpatch = nullptr;
 
-    // Prepare a null-terminated string from the input data
-    char *inputString = (char *)malloc(Size + 1);
-    if (!inputString) {
-        return 0;
-    }
-    memcpy(inputString, Data, Size);
-    inputString[Size] = '\0';
+    try {
+        vresource = icalcomponent_new_vresource();
+        xstandard = icalcomponent_new_xstandard();
+        vvoter = icalcomponent_new_vvoter();
+        xdaylight = icalcomponent_new_xdaylight();
+        xpatch = icalcomponent_new_xpatch();
 
-    // Test icaltimezone_get_builtin_timezone
-    icaltimezone *builtinTimezone = icaltimezone_get_builtin_timezone(inputString);
-    if (builtinTimezone) {
-        // Test icaltimezone_copy
-        icaltimezone *copiedTimezone = icaltimezone_copy(builtinTimezone);
-        if (copiedTimezone) {
-            // Test icaltimezone_get_latitude
-            double latitude = icaltimezone_get_latitude(copiedTimezone);
-            (void)latitude; // Suppress unused variable warning
+        // Create an array of components to add to a parent
+        icalcomponent *components[] = {vresource, xstandard, vvoter, xdaylight, xpatch};
 
-            // Test icaltimezone_get_longitude
-            double longitude = icaltimezone_get_longitude(copiedTimezone);
-            (void)longitude; // Suppress unused variable warning
+        // Create a parent component
+        icalcomponent *parent = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
 
-            // Free the copied timezone
-            icaltimezone_free(copiedTimezone, 1);
+        // Add each component to the parent
+        for (icalcomponent *child : components) {
+            if (child != nullptr && parent != nullptr) {
+                icalcomponent_add_component(parent, child);
+            }
         }
+
+        // Clean up by freeing the parent component, which should recursively free children
+        if (parent != nullptr) {
+            icalcomponent_free(parent);
+        } else {
+            // Free components individually if parent creation failed
+            for (icalcomponent *child : components) {
+                if (child != nullptr) {
+                    icalcomponent_free(child);
+                }
+            }
+        }
+    } catch (...) {
+        // Catch all exceptions to prevent fuzzer from crashing
+        std::cerr << "Exception caught during fuzzing" << std::endl;
     }
 
-    // Test icaltimezone_new
-    icaltimezone *newTimezone = icaltimezone_new();
-    if (newTimezone) {
-        // Test icaltimezone_get_latitude
-        double latitude = icaltimezone_get_latitude(newTimezone);
-        (void)latitude; // Suppress unused variable warning
-
-        // Test icaltimezone_get_longitude
-        double longitude = icaltimezone_get_longitude(newTimezone);
-        (void)longitude; // Suppress unused variable warning
-
-        // Free the new timezone
-        icaltimezone_free(newTimezone, 1);
-    }
-
-    // Test icaltimezone_get_builtin_timezone_from_tzid
-    icaltimezone *builtinTimezoneFromTzid = icaltimezone_get_builtin_timezone_from_tzid(inputString);
-    if (builtinTimezoneFromTzid) {
-        // Test icaltimezone_get_latitude
-        double latitude = icaltimezone_get_latitude(builtinTimezoneFromTzid);
-        (void)latitude; // Suppress unused variable warning
-
-        // Test icaltimezone_get_longitude
-        double longitude = icaltimezone_get_longitude(builtinTimezoneFromTzid);
-        (void)longitude; // Suppress unused variable warning
-    }
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icaltimezone_get_builtin_timezone_from_tzid to icaltime_set_timezone
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!builtinTimezone) {
-    	return 0;
-    }
-    struct icaltimetype ret_icaltime_current_time_with_zone_qhwbp = icaltime_current_time_with_zone(builtinTimezone);
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!builtinTimezoneFromTzid) {
-    	return 0;
-    }
-    struct icaltimetype ret_icaltime_set_timezone_qnyyz = icaltime_set_timezone(&ret_icaltime_current_time_with_zone_qhwbp, builtinTimezoneFromTzid);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(inputString);
     return 0;
 }
 #ifdef INC_MAIN
@@ -117,7 +85,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -127,7 +95,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_21(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_21(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

@@ -2,19 +2,20 @@
 #include <cstddef> // Include for size_t
 
 extern "C" {
-    #include <libical/icaltimezone.h>
+#include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_147(const uint8_t *data, size_t size) {
     // Call the function-under-test
-    icaltimezone *timezone = icaltimezone_new();
+    icalcomponent *component = icalcomponent_new_vagenda();
 
-    // Perform any necessary operations on the timezone object
-    // In this case, we don't have any specific operations to perform
+    // Check if the component was created successfully
+    if (component != NULL) {
+        // Perform any additional operations on the component if necessary
+        // For example, you might want to convert it to a string or manipulate it
 
-    // Free the allocated timezone object to prevent memory leaks
-    if (timezone != NULL) {
-        icaltimezone_free(timezone, 1);
+        // Free the component to avoid memory leaks
+        icalcomponent_free(component);
     }
 
     return 0;
@@ -41,7 +42,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -51,7 +52,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_147(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_147(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

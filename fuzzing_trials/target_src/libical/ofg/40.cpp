@@ -1,30 +1,15 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
 
-extern "C" {
-    #include <libical/ical.h> // Assuming the correct path for the ical header
-
-    // Function signature for the function-under-test
-    int icalproperty_get_maxresults(const icalproperty *);
-}
-
 extern "C" int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    // Ensure that we have enough data to work with
-    if (size < 1) {
-        return 0;
-    }
-
-    // Create a dummy icalproperty object for testing
-    icalproperty *prop = icalproperty_new(ICAL_ANY_PROPERTY);
-    if (prop == NULL) {
-        return 0;
-    }
-
     // Call the function-under-test
-    int result = icalproperty_get_maxresults(prop);
+    icalcomponent *component = icalcomponent_new_vresource();
 
-    // Clean up
-    icalproperty_free(prop);
+    // Perform cleanup if necessary
+    if (component != NULL) {
+        icalcomponent_free(component);
+    }
 
     return 0;
 }
@@ -50,7 +35,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -60,7 +45,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_40(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_40(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_new_vfreebusy at icalcomponent.c:2050:16 in icalcomponent.h
-// icalcomponent_new_xdaylight at icalcomponent.c:2065:16 in icalcomponent.h
-// icalcomponent_new_vpatch at icalcomponent.c:2110:16 in icalcomponent.h
-// icalcomponent_new_xstandard at icalcomponent.c:2060:16 in icalcomponent.h
-// icalcomponent_new_vtimezone at icalcomponent.c:2055:16 in icalcomponent.h
-// icalcomponent_new_vcalendar at icalcomponent.c:2025:16 in icalcomponent.h
+// icalcomponent_isa_component at icalcomponent.c:311:6 in icalcomponent.h
+// icalcomponent_kind_is_valid at icalcomponent.c:1293:6 in icalcomponent.h
+// icalcomponent_is_valid at icalcomponent.c:295:6 in icalcomponent.h
+// icalcomponent_new_from_string at icalcomponent.c:124:16 in icalcomponent.h
+// icalcomponent_set_description at icalcomponent.c:1885:6 in icalcomponent.h
+// icalproperty_recurrence_is_excluded at icalcomponent.c:738:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,40 +14,50 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <icalcomponent.h>
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
-    // Create various calendar components
-    icalcomponent *xstandard = icalcomponent_new_xstandard();
-    icalcomponent *vcalendar = icalcomponent_new_vcalendar();
-    icalcomponent *vtimezone = icalcomponent_new_vtimezone();
-    icalcomponent *vfreebusy = icalcomponent_new_vfreebusy();
-    icalcomponent *vpatch = icalcomponent_new_vpatch();
-    icalcomponent *xdaylight = icalcomponent_new_xdaylight();
+    if (Size == 0) return 0;
 
-    // Perform cleanup by freeing the created components
-    if (xstandard) {
-        icalcomponent_free(xstandard);
-    }
-    if (vcalendar) {
-        icalcomponent_free(vcalendar);
-    }
-    if (vtimezone) {
-        icalcomponent_free(vtimezone);
-    }
-    if (vfreebusy) {
-        icalcomponent_free(vfreebusy);
-    }
-    if (vpatch) {
-        icalcomponent_free(vpatch);
-    }
-    if (xdaylight) {
-        icalcomponent_free(xdaylight);
+    // Ensure null-terminated string for icalcomponent_new_from_string
+    char *icalStr = static_cast<char*>(malloc(Size + 1));
+    if (!icalStr) return 0;
+    memcpy(icalStr, Data, Size);
+    icalStr[Size] = '\0';
+
+    // Create icalcomponent from string
+    icalcomponent *comp = icalcomponent_new_from_string(icalStr);
+    free(icalStr);
+
+    if (comp) {
+        // Test icalcomponent_isa_component
+        icalcomponent_isa_component(comp);
+
+        // Setup a dummy icaltimetype for testing
+        struct icaltimetype dtstart = {0};
+        struct icaltimetype recurtime = {0};
+
+        // Test icalproperty_recurrence_is_excluded
+        icalproperty_recurrence_is_excluded(comp, &dtstart, &recurtime);
+
+        // Test icalcomponent_set_description
+        icalcomponent_set_description(comp, "Sample Description");
+
+        // Test icalcomponent_kind_is_valid
+        icalcomponent_kind kind = icalcomponent_isa(comp);
+        icalcomponent_kind_is_valid(kind);
+
+        // Test icalcomponent_is_valid
+        icalcomponent_is_valid(comp);
+
+        // Cleanup the component
+        icalcomponent_free(comp);
     }
 
     return 0;

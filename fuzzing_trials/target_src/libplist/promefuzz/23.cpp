@@ -1,95 +1,101 @@
 // This fuzz driver is generated for library libplist, aiming to fuzz the following functions:
-// plist_new_array at plist.c:443:9 in plist.h
-// plist_new_string at plist.c:460:9 in plist.h
-// plist_array_get_size at plist.c:657:10 in plist.h
-// plist_array_get_item at plist.c:667:9 in plist.h
-// plist_free at plist.c:553:6 in plist.h
-// plist_array_set_item at plist.c:714:6 in plist.h
-// plist_array_get_size at plist.c:657:10 in plist.h
-// plist_array_get_item at plist.c:667:9 in plist.h
-// plist_array_item_remove at plist.c:790:6 in plist.h
-// plist_array_get_size at plist.c:657:10 in plist.h
-// plist_array_remove_item at plist.c:774:6 in plist.h
-// plist_array_get_size at plist.c:657:10 in plist.h
-// plist_array_insert_item at plist.c:758:6 in plist.h
-// plist_array_append_item at plist.c:742:6 in plist.h
-// plist_array_get_size at plist.c:657:10 in plist.h
-// plist_array_get_item at plist.c:667:9 in plist.h
-// plist_free at plist.c:553:6 in plist.h
+// plist_new_uid at plist.c:627:9 in plist.h
+// plist_uid_val_compare at plist.c:2129:5 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_new_string at plist.c:569:9 in plist.h
+// plist_string_val_compare at plist.c:2224:5 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_new_string at plist.c:569:9 in plist.h
+// plist_key_val_compare at plist.c:2251:5 in plist.h
+// plist_key_val_compare_with_size at plist.c:2260:5 in plist.h
+// plist_free at plist.c:712:6 in plist.h
+// plist_new_int at plist.c:614:9 in plist.h
+// plist_int_val_compare at plist.c:2093:5 in plist.h
+// plist_uint_val_compare at plist.c:2111:5 in plist.h
+// plist_free at plist.c:712:6 in plist.h
 #include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
 #include <cstring>
-#include <cstdlib>
-#include <cstdio>
-#include <cstdint>
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cassert>
 #include <plist/plist.h>
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Ensure there's at least some data
+    if (Size < 1) return 0;
 
-    // Create a PLIST_ARRAY node
-    plist_t array_node = plist_new_array();
+    // Ensure null-termination for string operations
+    char* dataCopy = new char[Size + 1];
+    memcpy(dataCopy, Data, Size);
+    dataCopy[Size] = '\0';
 
-    // Use the first byte to determine the operation
-    uint8_t operation = Data[0];
-    uint32_t index = 0;
-    if (Size > 4) {
-        index = *(reinterpret_cast<const uint32_t*>(Data + 1)) % (Size - 1);
-    }
+    // Prepare a dummy PLIST_UID node
+    plist_t uidnode = plist_new_uid(0);
+    uint64_t cmpval = 0;
+    if (Size >= sizeof(uint64_t))
+        memcpy(&cmpval, Data, sizeof(uint64_t));
+    plist_uid_val_compare(uidnode, cmpval);
+    plist_free(uidnode);
 
-    // Create a dummy item to be used in operations
-    plist_t dummy_item = plist_new_string("dummy");
+    // Prepare a dummy PLIST_STRING node
+    plist_t strnode = plist_new_string(dataCopy);
+    plist_string_val_compare(strnode, dataCopy);
+    plist_free(strnode);
 
-    switch (operation % 6) {
-        case 0: { // plist_array_set_item
-            if (index < plist_array_get_size(array_node)) {
-                plist_t existing_item = plist_array_get_item(array_node, index);
-                plist_free(existing_item);
-                plist_array_set_item(array_node, dummy_item, index);
-            }
-            break;
-        }
-        case 1: { // plist_array_item_remove
-            if (index < plist_array_get_size(array_node)) {
-                plist_t item = plist_array_get_item(array_node, index);
-                plist_array_item_remove(item);
-            }
-            break;
-        }
-        case 2: { // plist_array_remove_item
-            if (index < plist_array_get_size(array_node)) {
-                plist_array_remove_item(array_node, index);
-            }
-            break;
-        }
-        case 3: { // plist_array_insert_item
-            if (index <= plist_array_get_size(array_node)) {
-                plist_array_insert_item(array_node, dummy_item, index);
-            }
-            break;
-        }
-        case 4: { // plist_array_append_item
-            plist_array_append_item(array_node, dummy_item);
-            break;
-        }
-        case 5: { // plist_array_get_item
-            if (index < plist_array_get_size(array_node)) {
-                plist_t item = plist_array_get_item(array_node, index);
-                // Do something with item if needed
-            }
-            break;
-        }
-        default:
-            break;
-    }
+    // Prepare a dummy PLIST_KEY node using plist_new_string
+    plist_t keynode = plist_new_string(dataCopy);
+    plist_key_val_compare(keynode, dataCopy);
+    plist_key_val_compare_with_size(keynode, dataCopy, Size);
+    plist_free(keynode);
 
-    // Cleanup
-    plist_free(array_node);
+    // Prepare a dummy PLIST_INT node
+    plist_t intnode = plist_new_int(0);
+    int64_t cmpint = 0;
+    uint64_t cmpuint = 0;
+    if (Size >= sizeof(int64_t))
+        memcpy(&cmpint, Data, sizeof(int64_t));
+    if (Size >= sizeof(uint64_t))
+        memcpy(&cmpuint, Data, sizeof(uint64_t));
+    plist_int_val_compare(intnode, cmpint);
+    plist_uint_val_compare(intnode, cmpuint);
+    plist_free(intnode);
+
+    delete[] dataCopy;
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_23(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

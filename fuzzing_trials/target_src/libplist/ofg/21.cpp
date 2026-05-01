@@ -1,34 +1,64 @@
 extern "C" {
+    #include <stdint.h>
     #include <plist/plist.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for creating non-empty strings
-    if (size < 4) return 0;
+    // Initialize the plist_t variable
+    plist_t plist = NULL;
 
-    // Initialize plist_t variables
-    plist_t source_dict = plist_new_dict();
-    plist_t dest_dict = plist_new_dict();
+    // Create a plist from the input data
+    plist_from_bin((const char*)data, (uint32_t)size, &plist);
 
-    // Create strings from the input data
-    char key1[3] = {0};
-    char key2[3] = {0};
-
-    key1[0] = data[0];
-    key1[1] = data[1];
-    key2[0] = data[2];
-    key2[1] = data[3];
-
-    // Add some integer values to the source dictionary
-    plist_dict_set_item(source_dict, key1, plist_new_uint(42));
-    plist_dict_set_item(source_dict, key2, plist_new_uint(84));
+    // Initialize the uint64_t variable
+    uint64_t uid_val = 0;
 
     // Call the function-under-test
-    plist_err_t result = plist_dict_copy_int(source_dict, dest_dict, key1, key2);
+    plist_get_uid_val(plist, &uid_val);
 
-    // Clean up
-    plist_free(source_dict);
-    plist_free(dest_dict);
+    // Free the plist object
+    if (plist != NULL) {
+        plist_free(plist);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_21(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

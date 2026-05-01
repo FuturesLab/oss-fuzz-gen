@@ -10,109 +10,78 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
+#include <cstddef>
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalcomponent.h"
 #include <cstring>
-#include <iostream>
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icalmemory.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icalvalue.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icalparameter.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icaltypes.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icalrecur.h"
+#include <cstdarg>
+#include <cstdio>
+
+static void test_icalcomponent_new() {
+    for (int kind = ICAL_NO_COMPONENT; kind <= ICAL_NUM_COMPONENT_TYPES; ++kind) {
+        icalcomponent *comp = icalcomponent_new(static_cast<icalcomponent_kind>(kind));
+        if (comp) {
+            icalcomponent_free(comp);
+        }
+    }
+}
+
+static void test_icalcomponent_new_vlocation() {
+    icalcomponent *comp = icalcomponent_new_vlocation();
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+}
+
+static void test_icalcomponent_new_from_string(const char *str) {
+    icalcomponent *comp = icalcomponent_new_from_string(str);
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+}
+
+static void test_icalcomponent_new_xvote() {
+    icalcomponent *comp = icalcomponent_new_xvote();
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+}
+
+static void test_icalcomponent_vanew() {
+    icalcomponent *comp = icalcomponent_vanew(ICAL_VEVENT_COMPONENT, NULL);
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+}
+
+static void test_icalcomponent_new_xpatch() {
+    icalcomponent *comp = icalcomponent_new_xpatch();
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *Data, size_t Size) {
     if (Size == 0) {
         return 0;
     }
 
-    // Convert the input data to a string
-    char *inputStr = static_cast<char *>(malloc(Size + 1));
-    if (!inputStr) {
-        return 0;
-    }
-    memcpy(inputStr, Data, Size);
-    inputStr[Size] = '\0';
+    // Ensure null-termination for string input
+    char *str = new char[Size + 1];
+    memcpy(str, Data, Size);
+    str[Size] = '\0';
 
-    // Ensure the inputStr is null-terminated for functions that expect C-style strings
-    if (inputStr[Size - 1] != '\0') {
-        inputStr[Size - 1] = '\0';
-    }
+    // Test various functions
+    test_icalcomponent_new();
+    test_icalcomponent_new_vlocation();
+    test_icalcomponent_new_from_string(str);
+    test_icalcomponent_new_xvote();
+    test_icalcomponent_vanew();
+    test_icalcomponent_new_xpatch();
 
-    // 1. Test icalvalue_new_from_string
-    for (int kind = ICAL_ANY_VALUE; kind <= ICAL_XMLREFERENCE_VALUE; ++kind) {
-        icalvalue *value = icalvalue_new_from_string(static_cast<icalvalue_kind>(kind), inputStr);
-        if (value) {
-            icalvalue_free(value);
-        }
-    }
-
-    // 2. Test icalrecurrencetype_new_from_string
-    icalrecurrencetype *recurType = icalrecurrencetype_new_from_string(inputStr);
-    if (recurType) {
-        free(recurType);
-    }
-
-    // 3. Test icaltriggertype_from_string
-    icaltriggertype triggerType = icaltriggertype_from_string(inputStr);
-    // No need for cleanup as icaltriggertype_from_string does not allocate memory
-
-    // 4. Test icalmemory_append_decoded_string
-    char *buf = nullptr;
-    char *pos = nullptr;
-    size_t buf_size = 0;
-    icalmemory_append_decoded_string(&buf, &pos, &buf_size, inputStr);
-    if (buf) {
-        free(buf);
-    }
-
-    // 5. Test icalvalue_decode_ical_string
-    if (Size > 0) {
-        char decodedText[1024];
-        bool success = icalvalue_decode_ical_string(inputStr, decodedText, sizeof(decodedText));
-        if (!success) {
-            // Handle decoding failure if necessary
-        }
-    
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalvalue_decode_ical_string to icalparameter_set_iana
-        icalparameter* ret_icalparameter_new_feature_hxboj = icalparameter_new_feature(ICAL_FEATURE_FEED);
-        if (ret_icalparameter_new_feature_hxboj == NULL){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalparameter_new_feature_hxboj) {
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!decodedText) {
-        	return 0;
-        }
-        icalparameter_set_iana(ret_icalparameter_new_feature_hxboj, decodedText);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-}
-
-    // 6. Test icalparameter_decode_value
-    char *mutableStr = strdup(inputStr);
-    if (mutableStr) {
-        icalparameter_decode_value(mutableStr);
-        free(mutableStr);
-    }
-
-    free(inputStr);
+    delete[] str;
     return 0;
 }
 #ifdef INC_MAIN
@@ -137,7 +106,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -147,7 +116,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_8(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_8(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);
