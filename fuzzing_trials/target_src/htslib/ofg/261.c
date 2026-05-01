@@ -1,31 +1,34 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <string.h>
-#include <htslib/sam.h>
+
+// Declaration of the function-under-test
+int hts_file_type(const char *filename);
 
 int LLVMFuzzerTestOneInput_261(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    sam_hdr_t *hdr = sam_hdr_init();
-    const char *type = "SQ";  // Assuming a common type, e.g., "SQ" for sequence
-    int pos = 0;  // Start with position 0
-
-    // Ensure hdr is not NULL
-    if (hdr == NULL) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Add some dummy header lines to hdr for testing
-    if (sam_hdr_add_line(hdr, type, "ID", "test", NULL) < 0) {
-        sam_hdr_destroy(hdr);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
         return 0;
     }
+    close(fd);
 
-    // Call the function-under-test
-    int result = sam_hdr_remove_line_pos(hdr, type, pos);
+    // Call the function-under-test with the temporary filename
+    hts_file_type(tmpl);
 
-    // Clean up
-    sam_hdr_destroy(hdr);
+    // Clean up the temporary file
+    unlink(tmpl);
 
     return 0;
 }

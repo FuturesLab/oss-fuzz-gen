@@ -1,45 +1,30 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include "htslib/hfile.h" // Include the necessary header for hFILE and hdopen
+#include <htslib/hts.h>
 
+// Assuming the function under test is hts_open, which is part of HTSlib
 int LLVMFuzzerTestOneInput_199(const uint8_t *data, size_t size) {
-    int fd;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    char *mode = "r"; // Default mode
-
-    // Create a temporary file and write the fuzz data into it
-    fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // If file creation fails, exit
+    // Allocate memory for a null-terminated string
+    char *filename = (char *)malloc(size + 1);
+    if (filename == NULL) {
+        return 0;
     }
 
-    // Write the fuzz data to the file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmpl);
-        return 0; // If writing fails, clean up and exit
+    // Copy the data into the filename and null-terminate it
+    if (size > 0) {
+        memcpy(filename, data, size);
+    }
+    filename[size] = '\0';
+
+    // Fuzz the function-under-test: attempt to open a file with the given filename
+    htsFile *file = hts_open(filename, "r");
+    if (file != NULL) {
+        hts_close(file);
     }
 
-    // Reopen the file descriptor as hdopen will open it
-    fd = open(tmpl, O_RDONLY);
-    if (fd == -1) {
-        unlink(tmpl);
-        return 0; // If reopening fails, clean up and exit
-    }
-
-    // Call the function-under-test
-    hFILE *hfile = hdopen(fd, mode);
-
-    // Clean up
-    if (hfile != NULL) {
-        hclose(hfile);
-    }
-    unlink(tmpl);
+    // Free any allocated memory
+    free(filename);
 
     return 0;
 }

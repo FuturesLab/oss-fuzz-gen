@@ -1,33 +1,23 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
-#include <htslib/sam.h>
+#include "/src/htslib/htslib/sam.h" // Correct path for bam_plp_t and related functions
+
+typedef void (*DW_TAG_subroutine_typeInfinite_loop)(void);
 
 int LLVMFuzzerTestOneInput_186(const uint8_t *data, size_t size) {
-    // Initialize sam_hdr_t
-    sam_hdr_t *hdr = sam_hdr_init();
+    // Initialize bam_plp_t and DW_TAG_subroutine_typeInfinite_loop
+    bam_plp_t plp = bam_plp_init(NULL, NULL); // Assuming bam_plp_init initializes bam_plp_t
+    DW_TAG_subroutine_typeInfinite_loop callback = NULL; // Assuming a valid function pointer or NULL
 
-    // Ensure the data is not empty
-    if (size == 0) {
-        sam_hdr_destroy(hdr);
-        return 0;
+    if (plp == NULL) {
+        return 0; // If initialization fails, exit early
     }
 
-    // Create a null-terminated string from the input data
-    char *line_name = (char *)malloc(size + 1);
-    memcpy(line_name, data, size);
-    line_name[size] = '\0';
-
-    // Use a fixed integer for the third parameter
-    int index = 0;
-
     // Call the function-under-test
-    const char *result = sam_hdr_line_name(hdr, line_name, index);
+    bam_plp_destructor(plp, callback);
 
-    // Clean up
-    free(line_name);
-    sam_hdr_destroy(hdr);
+    // Clean up if necessary
+    bam_plp_destroy(plp); // Assuming bam_plp_destroy cleans up bam_plp_t
 
     return 0;
 }

@@ -1,101 +1,29 @@
 #include <sys/stat.h>
-#include <string.h>
+#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include "htslib/hts.h"
-#include "/src/htslib/htslib/thread_pool.h"
-#include "htslib/sam.h" // Include for SAM/BAM/CRAM file operations
+#include <stdio.h>
+#include <stdlib.h>  // For malloc and free
+#include <string.h>  // For memcpy
 
-// Function to create a temporary file from the fuzzing input
-static htsFile* create_temp_file_from_input(const uint8_t *data, size_t size) {
-    char filename[] = "/tmp/fuzz_input_XXXXXX";
-    int fd = mkstemp(filename);
-    if (fd == -1) {
-        return NULL;
-    }
-
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(filename);
-        return NULL;
-    }
-    close(fd);
-
-    // Open the file with htslib
-    htsFile *file = hts_open(filename, "r");
-
-    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from hts_open to hts_set_cache_size using the plateau pool
-    int cache_size = *((int *)data);
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!file) {
-    	return 0;
-    }
-    hts_set_cache_size(file, cache_size);
-    // End mutation: Producer.SPLICE_MUTATOR
-    
-    unlink(filename); // Remove the file after opening
-    return file;
-}
+// Assuming the function is declared in some header file
+int bam_str2flag(const char *str);
 
 int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
-    // Check if the input size is reasonable for a SAM/BAM/CRAM file
-    if (size < 4) {
-        return 0; // Return early if the input size is too small
-    }
-
-    // Create a temporary file from the input data
-    htsFile *file = create_temp_file_from_input(data, size);
-    if (file == NULL) {
-        return 0; // If file opening fails, return early
+    // Ensure the input data is null-terminated
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        return 0;
     }
     
-    htsThreadPool thread_pool;
-    struct hts_tpool *tpool = hts_tpool_init(2); // Initialize a thread pool with 2 threads
-    if (tpool == NULL) {
-        hts_close(file);
-        return 0; // If thread pool initialization fails, return early
-    }
-    thread_pool.pool = tpool;
-    thread_pool.qsize = 0; // Default queue size
+    // Copy the data and null-terminate it
+    memcpy(input, data, size);
+    input[size] = '\0';
 
-    // Call the function-under-test
-    int result = hts_set_thread_pool(file, &thread_pool);
-    if (result != 0) {
-        hts_tpool_destroy(tpool);
-        hts_close(file);
-        return 0; // If setting the thread pool fails, return early
-    }
+    // Call the function-under-test with the input
+    bam_str2flag(input);
 
-    // Read the header to ensure the file is valid
-    bam_hdr_t *header = sam_hdr_read(file);
-    if (header == NULL) {
-        hts_tpool_destroy(tpool);
-        hts_close(file);
-        return 0; // If reading the header fails, return early
-    }
-
-    // Perform operations that require the thread pool
-    bam1_t *aln = bam_init1();
-    if (aln == NULL) {
-        bam_hdr_destroy(header);
-        hts_tpool_destroy(tpool);
-        hts_close(file);
-        return 0; // If bam initialization fails, return early
-    }
-
-    while (sam_read1(file, header, aln) >= 0) {
-        // Process each alignment
-    }
-    bam_destroy1(aln);
-    bam_hdr_destroy(header);
-
-    // Ensure all operations are completed before destroying the thread pool
-
-    // Clean up
-    hts_close(file);
-    hts_tpool_destroy(tpool);
+    // Free the allocated memory
+    free(input);
 
     return 0;
 }

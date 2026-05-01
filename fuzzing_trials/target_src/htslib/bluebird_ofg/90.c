@@ -1,23 +1,44 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <stdio.h>
-#include "htslib/sam.h" // Assuming bam_plp_t is defined in this library
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h> // Include this for mkstemp and unlink
+#include "htslib/hts.h"
 
 int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
-    // Assuming bam_plp_t is a pointer type, initialize it properly
-    bam_plp_t plp = bam_plp_init(NULL, NULL); // Initialize with NULL callbacks
-
-    if (plp == NULL) {
-        return 0; // If initialization fails, return early
+    // Ensure the input size is sufficient for two filenames
+    if (size < 4) {
+        return 0;
     }
 
-    // Call the function-under-test
-    bam_plp_reset(plp);
+    // Create temporary files for the function inputs
+    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
+    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
+    int fd1 = mkstemp(tmpl1);
+    int fd2 = mkstemp(tmpl2);
 
-    // Clean up resources
-    bam_plp_destroy(plp);
+    if (fd1 == -1 || fd2 == -1) {
+        return 0;
+    }
+
+    // Write data to the first temporary file
+    write(fd1, data, size / 2);
+    close(fd1);
+
+    // Write data to the second temporary file
+    write(fd2, data + size / 2, size - size / 2);
+    close(fd2);
+
+    // Call the function-under-test
+    hts_idx_t *idx = hts_idx_load2(tmpl1, tmpl2);
+
+    // Clean up
+    if (idx != NULL) {
+        hts_idx_destroy(idx);
+    }
+    unlink(tmpl1);
+    unlink(tmpl2);
 
     return 0;
 }

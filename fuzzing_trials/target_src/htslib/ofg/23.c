@@ -1,32 +1,27 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-
-// Assuming the definition of hts_base_mod_state is available
-typedef struct {
-    // Placeholder structure members
-    int dummy;
-} hts_base_mod_state;
-
-// Function prototype
-int bam_mods_query_type(hts_base_mod_state *, int, int *, int *, char *);
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-    // Initialize the parameters
-    hts_base_mod_state mod_state;
-    int query_type = size > 0 ? data[0] : 0; // Use the first byte of data as the query type
-    int result1 = 0;
-    int result2 = 0;
-    char buffer[256];
+    // Ensure the size is sufficient for extracting an integer value
+    if (size < sizeof(int)) {
+        return 0;
+    }
 
-    // Ensure the buffer is null-terminated and not empty
-    size_t copy_size = size < sizeof(buffer) - 1 ? size : sizeof(buffer) - 1;
-    memcpy(buffer, data, copy_size);
-    buffer[copy_size] = '\0';
+    // Create an htsFile object
+    htsFile *file = hts_open("test.bam", "wb");
+    if (file == NULL) {
+        return 0;
+    }
+
+    // Extract an integer from the data
+    int num_threads = *(const int *)data;
 
     // Call the function-under-test
-    bam_mods_query_type(&mod_state, query_type, &result1, &result2, buffer);
+    hts_set_threads(file, num_threads);
+
+    // Close the htsFile
+    hts_close(file);
 
     return 0;
 }

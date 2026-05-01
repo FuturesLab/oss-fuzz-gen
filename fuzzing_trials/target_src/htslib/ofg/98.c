@@ -1,24 +1,33 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <htslib/sam.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>  // Include for malloc and free
+#include <string.h>
+
+// Function-under-test declaration
+const char *hts_parse_reg(const char *region, int *beg, int *end);
 
 int LLVMFuzzerTestOneInput_98(const uint8_t *data, size_t size) {
-    // Ensure there is at least enough data for one uint32_t element
-    if (size < sizeof(uint32_t)) {
-        return 0;
+    // Ensure the input data is null-terminated
+    char *region = (char *)malloc(size + 1);
+    if (region == NULL) {
+        return 0; // Exit if memory allocation fails
     }
+    memcpy(region, data, size);
+    region[size] = '\0';
 
-    // Calculate the number of uint32_t elements we can use from the input data
-    int n_cigar = size / sizeof(uint32_t);
-
-    // Cast the input data to a uint32_t pointer
-    const uint32_t *cigar = (const uint32_t *)data;
+    // Initialize begin and end pointers
+    int beg = 0;
+    int end = 0;
 
     // Call the function-under-test
-    hts_pos_t result = bam_cigar2rlen(n_cigar, cigar);
+    const char *result = hts_parse_reg(region, &beg, &end);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    (void)result;
+    // Print the result and parsed values for debugging purposes
+    printf("Result: %s, Begin: %d, End: %d\n", result ? result : "NULL", beg, end);
+
+    // Free allocated memory
+    free(region);
 
     return 0;
 }

@@ -1,39 +1,33 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <htslib/sam.h>
 
-extern int bam_aux_update_float(bam1_t *, const char *, float);
+// Include the correct path for the header file
+#include "/src/htslib/htslib/hfile.h"
 
+// Remove 'extern "C"' as it is not needed in C code
 int LLVMFuzzerTestOneInput_141(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for the operation
-    if (size < sizeof(float) + 2) {
-        return 0;
-    }
+    // Ensure the input size is sufficient to avoid out-of-bounds access
+    if (size < 3) return 0;
 
-    // Allocate and initialize bam1_t structure
-    bam1_t *b = bam_init1();
-    if (b == NULL) {
-        return 0;
-    }
+    // Allocate memory for the char* parameter
+    char *scheme = (char *)malloc(size + 1);
+    if (!scheme) return 0;
 
-    // Extract a float value from the input data
-    float f;
-    memcpy(&f, data, sizeof(float));
+    // Copy data to scheme and null-terminate it
+    memcpy(scheme, data, size);
+    scheme[size] = '\0';
 
-    // Extract a two-character tag from the input data
-    char tag[3];
-    tag[0] = (char)data[sizeof(float)];
-    tag[1] = (char)data[sizeof(float) + 1];
-    tag[2] = '\0';
+    // Prepare the other parameters
+    const char *schemes[] = {"http", "https", "ftp", "file"};
+    int count = 0;
 
-    // Call the function under test
-    bam_aux_update_float(b, tag, f);
+    // Call the function-under-test
+    hfile_list_schemes(scheme, schemes, &count);
 
-    // Clean up
-    bam_destroy1(b);
+    // Free allocated memory
+    free(scheme);
 
     return 0;
 }

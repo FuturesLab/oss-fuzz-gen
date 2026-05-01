@@ -1,39 +1,65 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <unistd.h> // Include this for mkstemp, write, close, and unlink
+#include <stddef.h>
 #include <htslib/hts.h>
+#include <htslib/sam.h>
+#include <htslib/bgzf.h>
+#include <htslib/kseq.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+// Initialize kseq structure for reading sequences
+KSEQ_INIT(BGZF*, bgzf_read)
 
 int LLVMFuzzerTestOneInput_171(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate an htsFile input
-    char tmpl[] = "/tmp/fuzz_htsfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // Unable to create temporary file
+    // Create a BGZF file in memory
+    BGZF *bgzf = bgzf_open("/dev/null", "w");
+    if (bgzf == NULL) {
+        return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
-        return 0; // Failed to write data to the file
+    // Write the input data to the BGZF file
+    if (bgzf_write(bgzf, data, size) < 0) {
+        bgzf_close(bgzf);
+        return 0;
     }
 
-    // Close the file descriptor to reopen it with hts_open
-    close(fd);
-
-    // Open the temporary file as an htsFile
-    htsFile *hts_fp = hts_open(tmpl, "r");
-    if (hts_fp == NULL) {
-        unlink(tmpl);
-        return 0; // Failed to open the file as an htsFile
+    // Close and reopen the BGZF file for reading
+    bgzf_close(bgzf);
+    bgzf = bgzf_open("/dev/null", "r");
+    if (bgzf == NULL) {
+        return 0;
     }
 
-    // Call the function-under-test
-    int result = hts_check_EOF(hts_fp);
+    // Initialize kseq for reading sequences
+    kseq_t *seq = kseq_init(bgzf);
+
+    // Read sequences and process them
+    while (kseq_read(seq) >= 0) {
+        // Initialize necessary structures with correct parameters
+        hts_idx_t *index = hts_idx_init(0, HTS_FMT_BAI, 0, 14, 5);
+        hts_itr_t *iterator = hts_itr_query(index, 0, 0, 0, NULL);
+
+        // Check if initialization was successful
+        if (index == NULL || iterator == NULL) {
+            if (index != NULL) hts_idx_destroy(index);
+            if (iterator != NULL) hts_itr_destroy(iterator);
+            kseq_destroy(seq);
+            bgzf_close(bgzf);
+            return 0;
+        }
+
+        // Call the function under test with non-null input
+        int result = hts_itr_next(NULL, iterator, NULL, NULL);
+
+        // Clean up
+        hts_idx_destroy(index);
+        hts_itr_destroy(iterator);
+    }
 
     // Clean up
-    hts_close(hts_fp);
-    unlink(tmpl);
+    kseq_destroy(seq);
+    bgzf_close(bgzf);
 
     return 0;
 }

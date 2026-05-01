@@ -1,48 +1,37 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <htslib/hts.h>
-#include <htslib/regidx.h> // Include the necessary header for hts_reglist_t
+#include <stdio.h>
+#include "htslib/sam.h"  // Assuming sam_hdr_t is defined in this header
 
 int LLVMFuzzerTestOneInput_200(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0; // Exit early if size is zero to prevent unnecessary operations
+    // Ensure that the input size is sufficient for creating a valid string
+    if (size < 2) {
+        return 0;
     }
 
-    // Allocate memory for hts_reglist_t
-    hts_reglist_t *reglist = (hts_reglist_t *)malloc(sizeof(hts_reglist_t));
-    if (reglist == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Initialize sam_hdr_t structure
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (!hdr) {
+        return 0;
     }
 
-    // Initialize the hts_reglist_t structure
-    reglist->reg = (char *)malloc(size + 1);
-    if (reglist->reg == NULL) {
-        free(reglist);
-        return 0; // Exit if memory allocation fails
+    // Create a null-terminated string from the input data
+    char *pg_line = (char *)malloc(size + 1);
+    if (!pg_line) {
+        sam_hdr_destroy(hdr);
+        return 0;
     }
-    memcpy((char *)reglist->reg, data, size);
-    ((char *)reglist->reg)[size] = '\0'; // Null-terminate the string
+    memcpy(pg_line, data, size);
+    pg_line[size] = '\0';
 
-    reglist->intervals = (hts_pair_pos_t *)malloc(sizeof(hts_pair_pos_t));
-    if (reglist->intervals == NULL) {
-        free((char *)reglist->reg);
-        free(reglist);
-        return 0; // Exit if memory allocation fails
-    }
-    reglist->count = 1; // Set the count of intervals
-
-    // Properly initialize the interval to avoid use-after-free
-    reglist->intervals[0].beg = 0;
-    reglist->intervals[0].end = size; // Set some valid range
-
-    // Call the function under test
-    // Note: hts_reglist_free should handle freeing reglist->reg and reglist->intervals
-    hts_reglist_free(reglist, 1);
+    // Call the function to fuzz
+    sam_hdr_add_pg(hdr, pg_line, NULL);
 
     // Clean up
-    // Remove the manual free of reglist, as hts_reglist_free should handle it
-    // free(reglist);
+    free(pg_line);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

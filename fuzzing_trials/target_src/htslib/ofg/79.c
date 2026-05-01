@@ -1,34 +1,27 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
-
-// Function signature for the function-under-test
-const char *hts_parse_reg(const char *region, int *beg, int *end);
+#include <stdio.h>
+#include <stdlib.h>
+#include "htslib/sam.h"
 
 int LLVMFuzzerTestOneInput_79(const uint8_t *data, size_t size) {
-    // Ensure that the input data is not empty
-    if (size == 0) {
-        return 0;
-    }
+    // Declare and initialize variables
+    bam1_t *b = bam_init1();
+    const char *tag = "XX";  // Example tag, should be 2 characters long
+    int64_t value = 0;
 
-    // Allocate memory for the region string and ensure it is null-terminated
-    char *region = (char *)malloc(size + 1);
-    if (region == NULL) {
-        return 0;
+    // Ensure the size is sufficient to extract an int64_t value
+    if (size >= sizeof(int64_t)) {
+        // Copy the first 8 bytes of data into value
+        memcpy(&value, data, sizeof(int64_t));
     }
-    memcpy(region, data, size);
-    region[size] = '\0';
-
-    // Initialize beg and end to non-NULL values
-    int beg = 0;
-    int end = 0;
 
     // Call the function-under-test
-    const char *result = hts_parse_reg(region, &beg, &end);
+    int result = bam_aux_update_int(b, tag, value);
 
-    // Free the allocated memory for the region
-    free(region);
+    // Clean up
+    bam_destroy1(b);
 
     return 0;
 }

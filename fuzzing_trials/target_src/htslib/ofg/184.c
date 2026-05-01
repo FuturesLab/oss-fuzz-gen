@@ -1,38 +1,42 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <htslib/sam.h>
+#include <unistd.h>
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_184(const uint8_t *data, size_t size) {
-    sam_hdr_t *header = NULL;
-    char *header_data = NULL;
+    char tmpl1[] = "/tmp/fuzzfileXXXXXX";
+    char tmpl2[] = "/tmp/fuzzmodeXXXXXX";
+    int fd1 = mkstemp(tmpl1);
+    int fd2 = mkstemp(tmpl2);
 
-    // Ensure size is non-zero and data is not NULL
-    if (size == 0 || data == NULL) {
+    if (fd1 == -1 || fd2 == -1) {
         return 0;
     }
 
-    // Allocate memory for header data and copy input data
-    header_data = (char *)malloc(size + 1);
-    if (header_data == NULL) {
-        return 0;
-    }
-    memcpy(header_data, data, size);
-    header_data[size] = '\0'; // Null-terminate the string
+    FILE *file1 = fdopen(fd1, "wb");
+    FILE *file2 = fdopen(fd2, "wb");
 
-    // Create a SAM header from the input data
-    header = sam_hdr_parse(size, header_data);
-    if (header == NULL) {
-        free(header_data);
+    if (file1 == NULL || file2 == NULL) {
+        close(fd1);
+        close(fd2);
         return 0;
     }
 
-    // Call the function-under-test
-    const char *result = sam_hdr_str(header);
+    fwrite(data, 1, size, file1);
+    fwrite(data, 1, size, file2);
+    fclose(file1);
+    fclose(file2);
 
-    // Clean up
-    sam_hdr_destroy(header);
-    free(header_data);
+    htsFile *hts_file = hts_open(tmpl1, tmpl2);
+
+    if (hts_file != NULL) {
+        hts_close(hts_file);
+    }
+
+    unlink(tmpl1);
+    unlink(tmpl2);
 
     return 0;
 }

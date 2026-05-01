@@ -1,47 +1,42 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <htslib/hts.h>
-#include <string.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include "/src/htslib/htslib/hts.h"  // Correct path for htsFile structure and hts_close function
 
 int LLVMFuzzerTestOneInput_239(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create a meaningful string
-    if (size < 1) {
-        return 0;
+    // Create a temporary file to be used with htsFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // Exit if file creation fails
     }
 
-    // Create a temporary file to act as the htsFile
-    const char *filename = "/tmp/fuzz_htsfile.bam";
-    FILE *file = fopen(filename, "wb");
-    if (!file) {
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the temporary file as an htsFile
-    htsFile *hts_file = hts_open(filename, "r");
-    if (!hts_file) {
-        return 0;
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0; // Exit if writing fails
     }
 
-    // Create a null-terminated string from the data for the filter expression
-    char *filter_expression = (char *)malloc(size + 1);
-    if (!filter_expression) {
-        hts_close(hts_file);
-        return 0;
+    // Rewind the file descriptor to the beginning
+    lseek(fd, 0, SEEK_SET);
+
+    // Open the file using htsFile structure
+    htsFile *htsfile = hts_open(tmpl, "r");
+    if (htsfile == NULL) {
+        close(fd);
+        return 0; // Exit if htsFile creation fails
     }
-    memcpy(filter_expression, data, size);
-    filter_expression[size] = '\0';
 
     // Call the function-under-test
-    hts_set_filter_expression(hts_file, filter_expression);
+    hts_close(htsfile);
 
     // Clean up
-    free(filter_expression);
-    hts_close(hts_file);
-    remove(filename);
+    close(fd);
+    unlink(tmpl); // Remove the temporary file
 
     return 0;
 }

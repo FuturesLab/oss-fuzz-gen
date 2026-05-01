@@ -1,26 +1,40 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
+#include <htslib/sam.h>
 
-// Function-under-test declaration
-int hisremote(const char *);
-
-// Fuzzing harness
 int LLVMFuzzerTestOneInput_150(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        return 0; // Exit if memory allocation fails
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (!hdr) {
+        return 0;
     }
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
+
+    // Ensure data is not empty and is null-terminated for use as a string
+    if (size == 0) {
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+
+    // Create a null-terminated string from the input data
+    char *str = (char *)malloc(size + 1);
+    if (!str) {
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+    memcpy(str, data, size);
+    str[size] = '\0';
+
+    // Use a fixed position for fuzzing
+    int pos = 0;
 
     // Call the function-under-test
-    hisremote(null_terminated_data);
+    sam_hdr_remove_line_pos(hdr, str, pos);
 
-    // Free the allocated memory
-    free(null_terminated_data);
+    // Clean up
+    free(str);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

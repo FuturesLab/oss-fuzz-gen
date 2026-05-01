@@ -1,59 +1,56 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include "htslib/hts.h"
-#include "/src/htslib/htslib/tbx.h"
-#include "/src/htslib/htslib/bgzf.h"
-#include "/src/htslib/htslib/kseq.h" // Include kseq.h for sequence handling if needed
+#include "htslib/sam.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
-    // Initialize variables for the function parameters
-    hts_idx_t *index;
-    uint32_t meta_size;
-    uint8_t *meta_data;
-
-    // Create a temporary file to simulate a BGZF file from input data
-    char tmp_filename[] = "tmp_bgzf_XXXXXX";
-    int fd = mkstemp(tmp_filename);
-    if (fd == -1) {
-        return 0; // Exit if temporary file creation fails
+    // Ensure size is sufficient for meaningful operations
+    if (size < 1) {
+        return 0;
     }
 
-    // Write input data to the temporary file
+    // Create a temporary file to write the fuzz data
+    char filename[] = "/tmp/fuzz_inputXXXXXX";
+    int fd = mkstemp(filename);
+    if (fd == -1) {
+        return 0;
+    }
+
+    // Write the fuzz data to the temporary file
     if (write(fd, data, size) != size) {
         close(fd);
-        remove(tmp_filename);
-        return 0; // Exit if writing to file fails
+        unlink(filename);
+        return 0;
     }
+
+    // Close the file descriptor
     close(fd);
 
-    // Open the BGZF file using the temporary file
-    BGZF *bgzf = bgzf_open(tmp_filename, "r");
-    if (bgzf == NULL) {
-        remove(tmp_filename);
-        return 0; // Exit if BGZF file opening fails
+    // Initialize htsFile to read from the temporary file
+    htsFile *file = hts_open(filename, "r");
+    if (!file) {
+        unlink(filename);
+        return 0;
     }
 
-    // Create an index for the BGZF file
-    index = tbx_index_load2(tmp_filename, NULL);
-    if (index == NULL) {
-        bgzf_close(bgzf);
-        remove(tmp_filename);
-        return 0; // Exit if index creation fails
+    // Initialize bam1_t for reading alignment records
+    bam1_t *b = bam_init1();
+    if (!b) {
+        hts_close(file);
+        unlink(filename);
+        return 0;
     }
 
     // Call the function-under-test
-    meta_data = hts_idx_get_meta(index, &meta_size);
+    int result = sam_read1(file, NULL, b);
 
-    // Free allocated resources
-    hts_idx_destroy(index);
-    bgzf_close(bgzf);
-    remove(tmp_filename);
+    // Cleanup
+    bam_destroy1(b);
+    hts_close(file);
+    unlink(filename);
 
-    // Return 0 to indicate successful completion of the fuzzer test
     return 0;
 }
 #ifdef INC_MAIN

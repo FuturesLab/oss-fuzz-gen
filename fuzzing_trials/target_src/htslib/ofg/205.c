@@ -1,51 +1,55 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <htslib/hts.h>
-#include <htslib/hfile.h> // Include for hFILE, hopen, and hclose
+#include <htslib/sam.h>
+#include <htslib/cram.h>  // Include this for CRAM specific functions
+#include <string.h>       // Include this for memcpy
 
 int LLVMFuzzerTestOneInput_205(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for a meaningful test
-    if (size < 1) {
+    // Create a memory buffer from the input data
+    htsFile *file = hts_open_format("mem:", "rc", NULL);  // Use "rc" for read CRAM
+    if (!file) return 0;
+
+    // Create a temporary buffer to hold the data
+    char *buffer = (char *)malloc(size);
+    if (!buffer) {
+        hts_close(file);
+        return 0;
+    }
+    memcpy(buffer, data, size);
+
+    // Write input data to the htsFile buffer
+    if (hts_set_opt(file, CRAM_OPT_DECODE_MD, 0) < 0) {
+        free(buffer);
+        hts_close(file);
         return 0;
     }
 
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Initialize the hts_idx_t and hts_itr_t structures
+    hts_idx_t *idx = hts_idx_load(file->fn, HTS_FMT_CRAI);
+    if (!idx) {
+        free(buffer);
+        hts_close(file);
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
+    hts_itr_t *itr = hts_itr_query(idx, 0, 0, 0, 0);
+    if (!itr) {
+        hts_idx_destroy(idx);
+        free(buffer);
+        hts_close(file);
         return 0;
     }
-
-    // Close the file descriptor as hts_open will open it again
-    close(fd);
-
-    // Open the file using htslib
-    struct hFILE *hfile = hopen(tmpl, "r");
-    if (hfile == NULL) {
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Prepare a format structure
-    htsFormat format;
-    memset(&format, 0, sizeof(htsFormat));
 
     // Call the function-under-test
-    int result = hts_detect_format2(hfile, tmpl, &format);
+    hts_itr_multi_cram(idx, itr);
 
-    // Clean up
-    hclose(hfile);
-    unlink(tmpl);
+    // Clean up allocated memory
+    hts_itr_destroy(itr);
+    hts_idx_destroy(idx);
+    free(buffer);
+    hts_close(file);
 
     return 0;
 }

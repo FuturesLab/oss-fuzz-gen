@@ -1,49 +1,59 @@
 #include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <stdio.h>
+#include "htslib/sam.h"
 #include "htslib/hts.h"
-#include "/src/htslib/htslib/regidx.h" // Include the necessary header for hts_reglist_t
+#include "/src/htslib/htslib/bgzf.h" // Include necessary library for BGZF
 
 int LLVMFuzzerTestOneInput_85(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0; // Exit early if size is zero to prevent unnecessary operations
+    // Initialize variables
+    bam_plp_t plp = NULL; // Assuming bam_plp_t is a pointer type
+    int ref_id = 0;
+    int pos = 0;
+    int n_plp = 0;
+
+    // Create a dummy BAM file in memory using BGZF
+    BGZF *bgzf = bgzf_open("/dev/null", "w");
+    if (bgzf == NULL) {
+        return 0;
     }
 
-    // Allocate memory for hts_reglist_t
-    hts_reglist_t *reglist = (hts_reglist_t *)malloc(sizeof(hts_reglist_t));
-    if (reglist == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Write the input data to the BGZF file
+    if (bgzf_write(bgzf, data, size) < 0) {
+        bgzf_close(bgzf);
+        return 0;
     }
 
-    // Initialize the hts_reglist_t structure
-    reglist->reg = (char *)malloc(size + 1);
-    if (reglist->reg == NULL) {
-        free(reglist);
-        return 0; // Exit if memory allocation fails
+    // Rewind the BGZF file to the beginning for reading
+    if (bgzf_flush(bgzf) < 0 || bgzf_seek(bgzf, 0, SEEK_SET) < 0) {
+        bgzf_close(bgzf);
+        return 0;
     }
-    memcpy((char *)reglist->reg, data, size);
-    ((char *)reglist->reg)[size] = '\0'; // Null-terminate the string
 
-    reglist->intervals = (hts_pair_pos_t *)malloc(sizeof(hts_pair_pos_t));
-    if (reglist->intervals == NULL) {
-        free((char *)reglist->reg);
-        free(reglist);
-        return 0; // Exit if memory allocation fails
+    // Create a BAM file header
+    bam_hdr_t *header = bam_hdr_init();
+    if (header == NULL) {
+        bgzf_close(bgzf);
+        return 0;
     }
-    reglist->count = 1; // Set the count of intervals
 
-    // Properly initialize the interval to avoid use-after-free
-    reglist->intervals[0].beg = 0;
-    reglist->intervals[0].end = size; // Set some valid range
+    // Initialize the pileup iterator with the BGZF file and header
+    plp = bam_plp_init((bam_plp_auto_f)bam_read1, bgzf);
+    if (plp == NULL) {
+        bam_hdr_destroy(header);
+        bgzf_close(bgzf);
+        return 0;
+    }
 
-    // Call the function under test
-    // Note: hts_reglist_free should handle freeing reglist->reg and reglist->intervals
-    hts_reglist_free(reglist, 1);
+    // Call the function-under-test
+    const bam_pileup1_t *result = bam_plp_auto(plp, &ref_id, &pos, &n_plp);
 
     // Clean up
-    // Remove the manual free of reglist, as hts_reglist_free should handle it
-    // free(reglist);
+    bam_plp_destroy(plp);
+    bam_hdr_destroy(header);
+    bgzf_close(bgzf);
 
     return 0;
 }

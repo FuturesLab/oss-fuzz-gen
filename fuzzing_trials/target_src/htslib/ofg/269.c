@@ -1,41 +1,31 @@
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>  // For mkstemp, write, close, remove
 #include <htslib/hts.h>
 
+// Remove 'extern "C"' as it is not needed in C code
 int LLVMFuzzerTestOneInput_269(const uint8_t *data, size_t size) {
-    // Ensure data size is sufficient for creating two non-empty filenames
-    if (size < 4) return 0;
+    // Declare and initialize variables for the function parameters
+    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_CSI, 0, 0, 0); // Initialize index with dummy values
+    int tid = 0; // Thread ID
+    hts_pos_t beg = 0; // Beginning position
+    hts_pos_t end = 0; // Ending position
+    uint64_t offset = 0; // Offset
+    int is_mapped = 1; // Is mapped flag
 
-    // Create temporary files for the input filenames
-    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
-    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
-    int fd1 = mkstemp(tmpl1);
-    int fd2 = mkstemp(tmpl2);
-
-    if (fd1 == -1 || fd2 == -1) {
-        if (fd1 != -1) close(fd1);
-        if (fd2 != -1) close(fd2);
-        return 0;
+    if (size >= sizeof(int) + 2 * sizeof(hts_pos_t) + sizeof(uint64_t) + sizeof(int)) {
+        // Extract values from the input data if the size is sufficient
+        tid = *(int *)data;
+        beg = *(hts_pos_t *)(data + sizeof(int));
+        end = *(hts_pos_t *)(data + sizeof(int) + sizeof(hts_pos_t));
+        offset = *(uint64_t *)(data + sizeof(int) + 2 * sizeof(hts_pos_t));
+        is_mapped = *(int *)(data + sizeof(int) + 2 * sizeof(hts_pos_t) + sizeof(uint64_t));
     }
 
-    // Write some data to the first file
-    write(fd1, data, size / 2);
-    write(fd2, data + size / 2, size - size / 2);
-
-    // Close the file descriptors
-    close(fd1);
-    close(fd2);
-
-    // Call the function under test
-    hts_idx_t *idx = hts_idx_load2(tmpl1, tmpl2);
+    // Call the function-under-test
+    hts_idx_push(idx, tid, beg, end, offset, is_mapped);
 
     // Clean up
-    if (idx) hts_idx_destroy(idx);
-    remove(tmpl1);
-    remove(tmpl2);
+    hts_idx_destroy(idx);
 
     return 0;
 }

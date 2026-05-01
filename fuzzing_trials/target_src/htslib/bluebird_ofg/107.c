@@ -1,67 +1,23 @@
 #include <sys/stat.h>
-#include "htslib/hts.h"
-#include "htslib/sam.h"
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
-#include <unistd.h> // For close() and unlink()
+#include <stdint.h>
+#include <stddef.h>
+
+extern int64_t bam_auxB2i(const uint8_t *data, uint32_t size);
 
 int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for creating necessary structures
-    if (size < 1) {
+    // Ensure that size is within the range of uint32_t
+    if (size > UINT32_MAX) {
         return 0;
     }
+    
+    // Call the function-under-test with the provided data and size
+    int64_t result = bam_auxB2i(data, (uint32_t)size);
 
-    // Create a temporary file to simulate an htsFile
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
+    // Use the result in some way to avoid compiler optimizations that might remove the call
+    (void)result;
 
-    // Write the fuzz data to the temporary file
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the temporary file as an htsFile
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (!hts_file) {
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Read the header
-    bam_hdr_t *header = sam_hdr_read(hts_file);
-    if (!header) {
-        hts_close(hts_file);
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Initialize a BAM record
-    bam1_t *b = bam_init1();
-    if (!b) {
-        bam_hdr_destroy(header);
-        hts_close(hts_file);
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Read a record from the file
-    int result = sam_read1(hts_file, header, b);
-
-    // Clean up
-    bam_destroy1(b);
-    bam_hdr_destroy(header);
-    hts_close(hts_file);
-    unlink(tmpl);
-
-    return result;
+    return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

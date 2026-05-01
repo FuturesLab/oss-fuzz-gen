@@ -2,51 +2,42 @@
 #include <stdlib.h>
 #include <string.h>
 #include <htslib/hts.h>
-#include <htslib/sam.h>
-#include <htslib/bgzf.h> // Include additional headers if necessary
+#include <htslib/sam.h>  // Include the library that defines hts_base_mod_state
+
+extern int bam_mods_queryi(hts_base_mod_state *state, int pos, int *strand, int *mod, char *canonical_base);
 
 int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-    hts_idx_t *index = NULL;
-    htsFile *hts_file = NULL;
-    bam_hdr_t *header = NULL;
-    int result = 0;
+    // Declare and initialize variables
+    hts_base_mod_state *state = hts_base_mod_state_alloc();
+    int pos = 0;
+    int strand = 0;
+    int mod = 0;
+    char canonical_base = 'A';  // Initialize with a valid base character
 
-    // Open a memory-based htsFile for reading
-    hts_file = hts_open_format("mem:", "r", NULL);
-    if (hts_file == NULL) {
-        return 0;
+    // Ensure data is not empty
+    if (size > 0) {
+        // Use the first byte of data as position
+        pos = data[0];
+
+        // Use additional bytes if available to set other parameters
+        if (size > 1) {
+            strand = data[1] % 2;  // Assuming strand is a binary value
+        }
+        if (size > 2) {
+            mod = data[2];  // Use third byte to set mod
+        }
+        if (size > 3) {
+            canonical_base = "ACGT"[data[3] % 4];  // Map to one of the canonical bases
+        }
     }
-
-    // Create a header for the file
-    header = bam_hdr_init();
-    if (header == NULL) {
-        hts_close(hts_file);
-        return 0;
-    }
-
-    // Initialize index from the data
-    // Correct the function call with appropriate arguments
-    index = hts_idx_init(0, HTS_FMT_BAI, 0, 14, 5);
-    if (index == NULL) {
-        bam_hdr_destroy(header);
-        hts_close(hts_file);
-        return 0;
-    }
-
-    // Use the data to simulate operations on the index
-    // For example, you might want to add a mock record to the index
-    // This is a placeholder for actual logic
-    // result = hts_idx_push(index, tid, beg, end, offset, is_mapped);
 
     // Call the function-under-test
-    result = hts_idx_nseq(index);
+    bam_mods_queryi(state, pos, &strand, &mod, &canonical_base);
 
-    // Clean up resources
-    hts_idx_destroy(index);
-    bam_hdr_destroy(header);
-    hts_close(hts_file);
+    // Free allocated resources
+    hts_base_mod_state_free(state);
 
-    return result;
+    return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

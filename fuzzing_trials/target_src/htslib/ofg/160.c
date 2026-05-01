@@ -1,37 +1,49 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <htslib/sam.h>
+#include <stdio.h>
+#include <unistd.h>
 #include <string.h>
+#include "htslib/hfile.h" // Assuming the function is part of the HTSlib library
 
 int LLVMFuzzerTestOneInput_160(const uint8_t *data, size_t size) {
-    if (size < sizeof(bam1_t)) {
-        return 0; // Not enough data to create a bam1_t structure
+    hFILE *file = NULL;
+
+    // Create a temporary file and write the input data to it
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    FILE *fp = fdopen(fd, "wb");
+    if (fp == NULL) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, fp);
+    fclose(fp);
+
+    // Open the temporary file with htslib's hfile API
+    file = hopen(tmpl, "rb");
+    if (file == NULL) {
+        remove(tmpl);
+        return 0;
     }
 
-    // Allocate memory for bam1_t
-    bam1_t *bam_record = (bam1_t *)malloc(sizeof(bam1_t));
-    if (bam_record == NULL) {
-        return 0; // Memory allocation failed
+    // Read data from the hfile to ensure code paths are exercised
+    char buffer[1024];
+    ssize_t bytes_read;
+    while ((bytes_read = hread(file, buffer, sizeof(buffer))) > 0) {
+        // Process the buffer to simulate usage and ensure coverage
+        // Example: print the first few bytes of the buffer
+        for (ssize_t i = 0; i < bytes_read && i < 10; ++i) {
+            printf("%02x ", (unsigned char)buffer[i]);
+        }
+        printf("\n");
     }
-
-    // Allocate memory for the data field in bam1_t
-    bam_record->data = (uint8_t *)malloc(size);
-    if (bam_record->data == NULL) {
-        free(bam_record);
-        return 0; // Memory allocation failed
-    }
-
-    // Copy the input data into bam_record->data
-    memcpy(bam_record->data, data, size);
-    bam_record->m_data = size;
-    bam_record->l_data = size;
-
-    // Call the function-under-test
-    hts_pos_t end_position = bam_endpos(bam_record);
 
     // Clean up
-    free(bam_record->data);
-    free(bam_record);
+    hclose(file);
+    remove(tmpl);
 
     return 0;
 }

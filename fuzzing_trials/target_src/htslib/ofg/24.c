@@ -1,45 +1,35 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-// Assuming the definition of hts_base_mod_state is available
-typedef struct {
-    // Dummy structure for example purposes
-    int dummy;
-} hts_base_mod_state;
-
-// Dummy implementation of bam_mods_query_type_24 for compilation
-int bam_mods_query_type_24(hts_base_mod_state *state, int type, int *mod_type, int *mod_strand, char *canonical) {
-    // Actual implementation would be here
-    return 0;
-}
+#include <htslib/hts.h>
+#include <htslib/hts_defs.h>
+#include <unistd.h>
 
 int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hts_base_mod_state state;
-    
-    // Ensure the input size is sufficient to extract meaningful data
-    if (size < 4) { // Adjusted to ensure we have enough data for meaningful input
-        return 0; // Not enough data to proceed
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Extract values from the input data
-    int type = data[0]; // Use the first byte for type
-    int mod_type = data[1]; // Use the second byte for mod_type
-    int mod_strand = data[2]; // Use the third byte for mod_strand
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
 
-    // Prepare the canonical string
-    char canonical[10];
-    size_t copy_size = size - 3 < sizeof(canonical) ? size - 3 : sizeof(canonical) - 1;
-    memcpy(canonical, data + 3, copy_size);
-    canonical[copy_size] = '\0'; // Null-terminate the string
+    // Load the index using the temporary file
+    int flags = HTS_IDX_SAVE_REMOTE; // Example flag, you can modify as needed
+    hts_idx_t *idx = hts_idx_load(tmpl, flags);
 
-    // Introduce variability by modifying the state or parameters
-    state.dummy = data[3]; // Use another byte to influence the state
-
-    // Call the function-under-test
-    bam_mods_query_type_24(&state, type, &mod_type, &mod_strand, canonical);
+    // Clean up
+    if (idx != NULL) {
+        hts_idx_destroy(idx);
+    }
+    unlink(tmpl);
 
     return 0;
 }

@@ -1,57 +1,50 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include <string.h>
 #include "htslib/sam.h"
-#include "htslib/hts.h"
 
 int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate an htsFile input
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the temporary file using hts_open
-    htsFile *hts_fp = hts_open(tmpl, "r");
-    if (!hts_fp) {
-        remove(tmpl);
+    // Initialize sam_hdr_t object
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
         return 0;
     }
 
-    // Initialize sam_hdr_t and bam1_t structures
-    sam_hdr_t *sam_hdr = sam_hdr_init();
-    if (!sam_hdr) {
-        hts_close(hts_fp);
-        remove(tmpl);
+    // Ensure the data is not empty
+    if (size == 0) {
+        sam_hdr_destroy(hdr);
         return 0;
     }
 
-    bam1_t *bam_record = bam_init1();
-    if (!bam_record) {
-        sam_hdr_destroy(sam_hdr);
-        hts_close(hts_fp);
-        remove(tmpl);
+    // Create non-NULL strings from the provided data
+    const char *arg1 = "HD";
+    const char *arg2 = "VN";
+    const char *arg3 = "1.0";
+
+    // Copy some data into a buffer to use as a header text
+    char *header_text = (char *)malloc(size + 1);
+    if (header_text == NULL) {
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+    memcpy(header_text, data, size);
+    header_text[size] = '\0';
+
+    // Add the header text to the sam_hdr_t object
+    if (sam_hdr_add_lines(hdr, header_text, size) < 0) {
+        free(header_text);
+        sam_hdr_destroy(hdr);
         return 0;
     }
 
     // Call the function-under-test
-    int result = sam_read1(hts_fp, sam_hdr, bam_record);
+    sam_hdr_remove_except(hdr, arg1, arg2, arg3);
 
     // Clean up
-    bam_destroy1(bam_record);
-    sam_hdr_destroy(sam_hdr);
-    hts_close(hts_fp);
-    remove(tmpl);
+    free(header_text);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

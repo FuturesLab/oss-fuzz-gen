@@ -1,39 +1,29 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <htslib/sam.h>
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_258(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient for meaningful input
-    if (size < 2) {
+    // Ensure size is sufficient to initialize htsFormat
+    if (size < sizeof(htsFormat)) {
         return 0;
     }
 
-    // Create a sam_hdr_t object
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
+    // Allocate memory for htsFormat and copy data into it
+    htsFormat *format = (htsFormat *)malloc(sizeof(htsFormat));
+    if (format == NULL) {
         return 0;
     }
+    memcpy(format, data, sizeof(htsFormat));
 
-    // Allocate memory for the string, ensuring it's null-terminated
-    char *pg_str = (char *)malloc(size + 1);
-    if (pg_str == NULL) {
-        sam_hdr_destroy(hdr);
-        return 0;
+    // Call the function under test
+    char *description = hts_format_description(format);
+
+    // Free allocated memory
+    if (description != NULL) {
+        free(description);
     }
-
-    // Copy data into the string and null-terminate
-    memcpy(pg_str, data, size);
-    pg_str[size] = '\0';
-
-    // Call the function-under-test
-    sam_hdr_add_pg(hdr, pg_str, NULL);
-
-    // Cleanup
-    free(pg_str);
-    sam_hdr_destroy(hdr);
+    free(format);
 
     return 0;
 }

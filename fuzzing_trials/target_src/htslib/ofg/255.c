@@ -1,21 +1,34 @@
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <htslib/sam.h> // Assuming bam_plp_t is defined in this library
+
+extern int hfile_list_plugins(const char **, int *);
 
 int LLVMFuzzerTestOneInput_255(const uint8_t *data, size_t size) {
-    // Assuming bam_plp_t is a pointer type, initialize it properly
-    bam_plp_t plp = bam_plp_init(NULL, NULL); // Initialize with NULL callbacks
-
-    if (plp == NULL) {
-        return 0; // If initialization fails, return early
+    // Ensure that we have enough data to work with
+    if (size < 2) {
+        return 0;
     }
 
-    // Call the function-under-test
-    bam_plp_reset(plp);
+    // Allocate memory for the plugin names array
+    const char *plugin_names[2] = {NULL, NULL};
 
-    // Clean up resources
-    bam_plp_destroy(plp);
+    // Allocate memory for the plugin count
+    int plugin_count = 0;
+
+    // Create a temporary buffer for plugin name
+    char plugin_name[256];
+    size_t name_length = size < 255 ? size : 255;
+    for (size_t i = 0; i < name_length; i++) {
+        plugin_name[i] = (char)data[i];
+    }
+    plugin_name[name_length] = '\0';
+
+    // Assign the plugin name to the array
+    plugin_names[0] = plugin_name;
+
+    // Call the function-under-test
+    hfile_list_plugins(plugin_names, &plugin_count);
 
     return 0;
 }

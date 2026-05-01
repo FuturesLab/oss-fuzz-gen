@@ -1,41 +1,51 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>  // Include for memcpy
-#include <htslib/hts.h>
-#include <htslib/sam.h>
+#include "htslib/sam.h"  // Assuming the sam_hdr_t type is defined in this library
 
 int LLVMFuzzerTestOneInput_113(const uint8_t *data, size_t size) {
-    // Initialize htsFile pointer
-    htsFile *file = hts_open("test.bam", "r");
-    if (!file) {
+    // Initialize variables
+    sam_hdr_t *hdr = sam_hdr_init();
+
+    // Ensure the hdr is not NULL
+    if (hdr == NULL || size < 2) {
         return 0;
     }
 
-    // Initialize hts_itr_t pointer
-    hts_itr_t *itr = sam_itr_querys(file, "chr1:0-1000", NULL);
-    if (!itr) {
-        hts_close(file);
+    // Extract key and value from the input data
+    // Ensure that the input data is large enough to provide both key and value
+    size_t key_len = data[0] % (size - 1);  // Ensure key_len is within bounds
+    size_t value_len = size - 1 - key_len;  // Remaining bytes for value
+
+    if (key_len == 0 || value_len == 0) {
         return 0;
     }
 
-    // Allocate a buffer for the data
-    void *buffer = malloc(size);
-    if (!buffer) {
-        hts_itr_destroy(itr);
-        hts_close(file);
+    char *key = (char *)malloc(key_len + 1);
+    char *value = (char *)malloc(value_len + 1);
+
+    if (key == NULL || value == NULL) {
+        free(key);
+        free(value);
+        sam_hdr_destroy(hdr);
         return 0;
     }
 
-    // Copy the input data to the buffer
-    memcpy(buffer, data, size);
+    // Copy key and value from data
+    memcpy(key, data + 1, key_len);
+    key[key_len] = '\0';
+    memcpy(value, data + 1 + key_len, value_len);
+    value[value_len] = '\0';
 
     // Call the function-under-test
-    int result = hts_itr_multi_next(file, itr, buffer);
+    int result = sam_hdr_change_HD(hdr, key, value);
 
     // Clean up
-    free(buffer);
-    hts_itr_destroy(itr);
-    hts_close(file);
+    free(key);
+    free(value);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

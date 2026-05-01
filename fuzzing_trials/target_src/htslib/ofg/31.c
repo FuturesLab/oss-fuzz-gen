@@ -1,25 +1,27 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
+#include <stddef.h>
+#include <htslib/hts.h>
 
-// Function-under-test declaration
-unsigned int hts_features(const uint8_t *data, size_t size);
-
-// Fuzzing harness
 int LLVMFuzzerTestOneInput_31(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0; // Avoid calling the function with no data
+    htsFile *file = hts_open("dummy.bam", "wb"); // Open a dummy file
+    if (file == NULL) {
+        return 0;
     }
 
-    // Call the function-under-test with the provided data
-    unsigned int features = hts_features(data, size);
+    enum hts_fmt_option option = (enum hts_fmt_option)(data[0] % 3); // Example: Modulo to limit option values
+    void *arg = (void *)(data + 1); // Use the rest of the data as the argument
 
-    // Use the result in some way to avoid compiler optimizations
-    // that might remove the call to the function-under-test
-    // For example, print the result or use it in a condition
-    if (features > 0) {
-        printf("Features: %u\n", features);
+    // Ensure the size is sufficient for the argument
+    if (size < 2) {
+        hts_close(file);
+        return 0;
     }
+
+    // Call the function-under-test
+    hts_set_opt(file, option, arg);
+
+    // Clean up
+    hts_close(file);
 
     return 0;
 }

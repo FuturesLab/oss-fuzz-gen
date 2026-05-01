@@ -2,22 +2,41 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h> // Include string.h for memcpy
 #include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_66(const uint8_t *data, size_t size) {
     // Call the function-under-test
-    bam1_t *bam = bam_init1();
+    sam_hdr_t *hdr = sam_hdr_init();
 
-    // Check if bam is not NULL
-    if (bam != NULL) {
-        // Perform some operations on the bam1_t object if needed
-        // For now, we will just print a message
-        printf("bam1_t object initialized.\n");
+    // Check if the header was initialized successfully
+    if (hdr != NULL) {
+        // Attempt to parse the input data as a SAM header
+        if (size > 0) {
+            // Create a null-terminated string from the input data
+            char *input_data = (char *)malloc(size + 1);
+            if (input_data != NULL) {
+                memcpy(input_data, data, size);
+                input_data[size] = '\0';
 
-        // Free the bam1_t object
-        bam_destroy1(bam);
-    } else {
-        printf("Failed to initialize bam1_t object.\n");
+                // Parse the input data as a SAM header
+                sam_hdr_t *parsed_hdr = sam_hdr_parse(size, input_data);
+
+                // Check if parsing was successful
+                if (parsed_hdr != NULL) {
+                    // Do something with parsed_hdr if needed
+
+                    // Free the parsed header to prevent memory leaks
+                    sam_hdr_destroy(parsed_hdr);
+                }
+
+                // Free the allocated input data
+                free(input_data);
+            }
+        }
+
+        // Free the allocated header to prevent memory leaks
+        sam_hdr_destroy(hdr);
     }
 
     return 0;

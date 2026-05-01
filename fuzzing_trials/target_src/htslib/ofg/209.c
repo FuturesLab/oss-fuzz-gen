@@ -1,23 +1,30 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <stdio.h>
-
-// Function-under-test declaration
-char * bam_aux2Z(const uint8_t *data);
+#include <string.h>
+#include <htslib/sam.h> // Ensure to include the correct header for bam1_t and related types
 
 int LLVMFuzzerTestOneInput_209(const uint8_t *data, size_t size) {
-    // Ensure the input data is not NULL and has a non-zero size
-    if (data == NULL || size == 0) {
-        return 0;
-    }
+    // Declare and initialize all variables before using them
+    bam1_t bam;
+    size_t l_qname = 1; // Minimum valid size for a QNAME
+    char qname[] = "Q"; // Simple QNAME
+    uint16_t flag = 0; // Example flag
+    int32_t tid = 0; // Example target ID
+    hts_pos_t pos = 0; // Example position
+    uint8_t mapq = 0; // Example mapping quality
+    size_t n_cigar = 1; // Example number of CIGAR operations
+    uint32_t cigar[] = {0}; // Example CIGAR array
+    int32_t mtid = 0; // Example mate target ID
+    hts_pos_t mpos = 0; // Example mate position
+    hts_pos_t isize = 0; // Example insert size
+    size_t l_seq = 1; // Example sequence length
+    char seq[] = "A"; // Example sequence
+    char qual[] = "!"; // Example quality
+    size_t l_aux = size; // Use the size of the input data for auxiliary data
 
     // Call the function-under-test
-    char *result = bam_aux2Z(data);
-
-    // If the function returns a non-NULL result, free it
-    if (result != NULL) {
-        free(result);
-    }
+    int result = bam_set1(&bam, l_qname, qname, flag, tid, pos, mapq, n_cigar, cigar, mtid, mpos, isize, l_seq, seq, qual, l_aux);
 
     return 0;
 }

@@ -1,34 +1,25 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <htslib/sam.h> // Ensure that the htslib library is included for sam_hdr_t
+#include <htslib/hts.h>  // Include the HTSlib header for hts_md5_context
 
-int LLVMFuzzerTestOneInput_240(const uint8_t *data, size_t size) {
-    // Ensure size is non-zero and data is not NULL
-    if (size == 0 || data == NULL) {
-        return 0;
+// Removing the non-existent htslib/md5.h and using htslib/hts.h for MD5 functions
+#include <htslib/hts.h>  // Include the HTSlib header for hts_md5 functions
+
+extern int LLVMFuzzerTestOneInput_240(const uint8_t *data, size_t size) {
+    // Declare and initialize the hts_md5_context
+    hts_md5_context *md5_ctx = hts_md5_init();
+
+    if (md5_ctx != NULL) {
+        // Feed the input data to the MD5 context
+        hts_md5_update(md5_ctx, data, size);
+
+        // Finalize the MD5 computation
+        unsigned char digest[16];
+        hts_md5_final(digest, md5_ctx);
+
+        // Free the MD5 context
+        hts_md5_destroy(md5_ctx);
     }
-
-    // Allocate memory for the header string
-    char *header_str = (char *)malloc(size + 1);
-    if (header_str == NULL) {
-        return 0;
-    }
-
-    // Copy the data into header_str and null-terminate it
-    memcpy(header_str, data, size);
-    header_str[size] = '\0';
-
-    // Call the function-under-test
-    sam_hdr_t *header = sam_hdr_parse(size, header_str);
-
-    // Clean up
-    if (header != NULL) {
-        sam_hdr_destroy(header);
-    }
-    free(header_str);
 
     return 0;
 }

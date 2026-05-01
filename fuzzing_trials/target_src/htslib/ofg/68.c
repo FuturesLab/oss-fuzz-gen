@@ -1,34 +1,45 @@
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>  // Include for close() and unlink()
+#include <fcntl.h>   // Include for mkstemp()
 #include <htslib/sam.h>
-#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_68(const uint8_t *data, size_t size) {
-    sam_hdr_t *header = sam_hdr_init();
-    bam1_t *b = bam_init1();
-
-    if (header == NULL || b == NULL) {
-        if (header != NULL) sam_hdr_destroy(header);
-        if (b != NULL) bam_destroy1(b);
+    // Create a temporary file to write the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Initialize bam1_t with some data
-    if (size > 0) {
-        b->data = (uint8_t *)malloc(size);
-        if (b->data != NULL) {
-            memcpy(b->data, data, size);
-            b->l_data = size;
-        }
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
     }
 
-    // Call the function-under-test
-    // Assuming sam_passes_filter is a valid function, but without hts_filter_t
-    // int result = sam_passes_filter(header, b, NULL); // Placeholder for actual usage
+    // Close the file descriptor
+    close(fd);
+
+    // Open the temporary file as a SAM/BAM file
+    samFile *infile = sam_open(tmpl, "r");
+    if (infile == NULL) {
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Call the function under test
+    sam_hdr_t *header = sam_hdr_get(infile);
 
     // Clean up
-    sam_hdr_destroy(header);
-    bam_destroy1(b);
+    if (header != NULL) {
+        sam_hdr_destroy(header);
+    }
+    sam_close(infile);
+    unlink(tmpl);
 
     return 0;
 }

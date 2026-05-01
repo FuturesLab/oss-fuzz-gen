@@ -1,59 +1,52 @@
 #include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>  // Include for memcpy
-#include <unistd.h>  // Include for close and unlink
-#include "htslib/sam.h"
+#include <unistd.h>  // For mkstemp, write, close, and remove
+#include "htslib/hts.h"
 
 int LLVMFuzzerTestOneInput_66(const uint8_t *data, size_t size) {
-    samFile *file = NULL;
-    sam_hdr_t *header = NULL;
-    int option = 0;  // Initialize with a default option value
-
-    // Create a temporary file to simulate a samFile
+    // Create a temporary file to simulate an htsFile
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        return 0;  // If file creation fails, exit
+        return 0;
     }
 
-    // Open the temporary file as a samFile
-    file = sam_open(tmpl, "w");
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+
+    // Close the file descriptor so hts_open can open it
+    close(fd);
+
+    // Open the temporary file with hts_open
+    htsFile *file = hts_open(tmpl, "r");
     if (file == NULL) {
-        close(fd);
         return 0;
-    }
-
-    // Initialize a sam_hdr_t object
-    header = sam_hdr_init();
-    if (header == NULL) {
-        sam_close(file);
-        close(fd);
-        return 0;
-    }
-
-    // Set some data in the header using the input data
-    if (size > 0) {
-        // Use the input data to set the header text
-        char *header_text = (char *)malloc(size + 1);
-        if (header_text != NULL) {
-            memcpy(header_text, data, size);
-            header_text[size] = '\0';  // Null-terminate the string
-            sam_hdr_add_lines(header, header_text, size);
-            free(header_text);
-        }
     }
 
     // Call the function-under-test
-    int result = sam_hdr_set(file, header, option);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to hts_set_opt
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    int ret_hts_set_opt_rulvd = hts_set_opt(file, HTS_OPT_NTHREADS);
+    if (ret_hts_set_opt_rulvd < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hts_flush(file);
 
     // Clean up
-    sam_hdr_destroy(header);
-    sam_close(file);
-    close(fd);
-    unlink(tmpl);  // Remove the temporary file
+    hts_close(file);
+    remove(tmpl);
 
     return 0;
 }

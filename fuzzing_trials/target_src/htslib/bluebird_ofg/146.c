@@ -1,51 +1,36 @@
 #include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include "htslib/sam.h" // Correct path for sam_hdr_t and sam_hdr_str
+#include "htslib/hts.h"
+#include "/src/htslib/htslib/tbx.h"
+
+// Initialize hts_idx_t with appropriate parameters
+hts_idx_t *hts_idx_init(int n, int fmt, uint64_t offset0, int min_shift, int n_lvls);
 
 int LLVMFuzzerTestOneInput_146(const uint8_t *data, size_t size) {
-    // Create a sam_hdr_t object
-    sam_hdr_t *header = sam_hdr_init();
-
-    // Ensure header is not NULL
-    if (header == NULL) {
+    if (size < sizeof(int) * 2 + sizeof(uint64_t) + sizeof(int) * 2) {
         return 0;
     }
 
-    // Check if the input data is null-terminated before passing it to sam_hdr_add_lines
-    // Allocate a new buffer with an extra byte for the null terminator
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        sam_hdr_destroy(header);
+    // Extract parameters from the input data
+    int n = *(int *)data;
+    int fmt = *(int *)(data + sizeof(int));
+    uint64_t offset0 = *(uint64_t *)(data + 2 * sizeof(int));
+    int min_shift = *(int *)(data + 2 * sizeof(int) + sizeof(uint64_t));
+    int n_lvls = *(int *)(data + 2 * sizeof(int) + sizeof(uint64_t) + sizeof(int));
+
+    // Initialize a hts_idx_t structure using the extracted parameters
+    hts_idx_t *index = hts_idx_init(n, fmt, offset0, min_shift, n_lvls);
+    if (index == NULL) {
         return 0;
     }
-
-    // Copy the input data into the new buffer and add a null terminator
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
-
-    // Initialize the header with the null-terminated data
-    if (sam_hdr_add_lines(header, null_terminated_data, size) < 0) {
-        free(null_terminated_data);
-        sam_hdr_destroy(header);
-        return 0;
-    }
-
-    // Free the allocated buffer
-    free(null_terminated_data);
 
     // Call the function-under-test
-    const char *result = sam_hdr_str(header);
-
-    // Use the result in some way to prevent optimization out
-    if (result != NULL) {
-        volatile char c = result[0];
-        (void)c;
-    }
+    int result = hts_idx_fmt(index);
 
     // Clean up
-    sam_hdr_destroy(header);
+    hts_idx_destroy(index);
 
     return 0;
 }

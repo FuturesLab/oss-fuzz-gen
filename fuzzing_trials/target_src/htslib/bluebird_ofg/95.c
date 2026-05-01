@@ -1,55 +1,129 @@
 #include <sys/stat.h>
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h> // For close, unlink
-#include <fcntl.h>  // For mkstemp
-#include "htslib/hfile.h" // Correct path for hfile.h
+#include "htslib/sam.h"
+#include "htslib/hts.h"
+#include <unistd.h>
+#include <fcntl.h>
 
-// Remove the 'extern "C"' linkage specification as it is not needed in C
 int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
-    // Ensure that we have enough data to extract meaningful values
-    if (size < sizeof(off_t) + sizeof(int)) {
+    // Ensure the data size is sufficient for meaningful processing
+    if (size < 4) {
         return 0;
     }
 
-    // Create a temporary file to work with hFILE
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
+    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
+    int fd1 = mkstemp(tmpl1);
+    int fd2 = mkstemp(tmpl2);
+
+    if (fd1 == -1 || fd2 == -1) {
+        if (fd1 != -1) {
+                close(fd1);
+        }
+        if (fd2 != -1) {
+                close(fd2);
+        }
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
+    // Write the fuzzing data to the first temporary file
+    if (write(fd1, data, size) != size) {
+        close(fd1);
+        close(fd2);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+    close(fd1);
+
+    // Open the file using htslib
+    htsFile *hts_file = hts_open(tmpl1, "r");
+    if (!hts_file) {
+        unlink(tmpl1);
+        unlink(tmpl2);
         return 0;
     }
 
-    // Open the temporary file as an hFILE
-    hFILE *hfile = hopen(tmpl, "rb");
-    if (hfile == NULL) {
-        close(fd);
-        unlink(tmpl);
+    // Check if the file is a valid SAM/BAM format
+    bam_hdr_t *header = sam_hdr_read(hts_file);
+    if (!header) {
+        hts_close(hts_file);
+        unlink(tmpl1);
+        unlink(tmpl2);
         return 0;
     }
 
-    // Extract an off_t value from the data
-    off_t offset = *((off_t *)data);
+    // Attempt to read the first alignment
 
-    // Extract an int value from the data
-    int whence = *((int *)(data + sizeof(off_t)));
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_read to hts_set_fai_filename
+    char* ret_bam_flag2str_qpbrt = bam_flag2str(BAM_FQCFAIL);
+    if (ret_bam_flag2str_qpbrt == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bam_flag2str_qpbrt) {
+    	return 0;
+    }
+    int ret_hts_set_fai_filename_zyano = hts_set_fai_filename(hts_file, ret_bam_flag2str_qpbrt);
+    if (ret_hts_set_fai_filename_zyano < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from hts_set_fai_filename to sam_hdr_remove_lines using the plateau pool
+    const char *type = "HD";
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!header) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bam_flag2str_qpbrt) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+    int ret_sam_hdr_remove_lines_nudvq = sam_hdr_remove_lines(header, type, ret_bam_flag2str_qpbrt, (void *)hts_file);
+    if (ret_sam_hdr_remove_lines_nudvq < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    bam1_t *aln = bam_init1();
+    if (sam_read1(hts_file, header, aln) < 0) {
+        bam_destroy1(aln);
+        bam_hdr_destroy(header);
+        hts_close(hts_file);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
 
     // Call the function-under-test
-    off_t result = hseek(hfile, offset, whence);
+    hts_idx_t *index = sam_index_load2(hts_file, tmpl1, tmpl2);
+
+    // Ensure that the index is valid before proceeding
+    if (index) {
+        // Perform additional operations if needed
+        hts_idx_destroy(index);
+    }
 
     // Clean up
-    hclose(hfile);
-    close(fd);
-    unlink(tmpl);
+    bam_destroy1(aln);
+    bam_hdr_destroy(header);
+    hts_close(hts_file);
+    unlink(tmpl1);
+    unlink(tmpl2);
 
     return 0;
 }

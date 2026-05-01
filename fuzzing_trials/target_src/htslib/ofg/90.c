@@ -1,35 +1,12 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include "htslib/sam.h"  // Assuming bam_mplp_auto is defined in this library
+#include <stddef.h>
+
+// Function-under-test declaration
+void hts_lib_shutdown();
 
 int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
-    bam_mplp_t mplp;
-    int tid = 0;
-    int pos = 0;
-    int n_plp = 0;
-    const bam_pileup1_t *plp = NULL;
-
-    // Initialize bam_mplp_t object
-    mplp = bam_mplp_init(1, NULL, NULL);  // Assuming a simple initialization
-
-    if (mplp == NULL) {
-        return 0;  // Handle initialization failure
-    }
-
-    // Use the input data in some way to ensure it's non-null
-    // For example, simulate a read process or manipulate the mplp object
-    // Note: This is a placeholder for actual meaningful use of `data` and `size`
-    if (size > 0) {
-        // Simulate some operation with data
-        // This is a placeholder; actual use will depend on the library's API
-    }
-
     // Call the function-under-test
-    int result = bam_mplp_auto(mplp, &tid, &pos, &n_plp, &plp);
-
-    // Clean up
-    bam_mplp_destroy(mplp);
+    hts_lib_shutdown();
 
     return 0;
 }

@@ -1,60 +1,56 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <sys/stat.h>
 #include <string.h>
-#include <unistd.h>
-#include <htslib/sam.h>
-#include <htslib/hts.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <unistd.h> // for close() and unlink()
+#include <fcntl.h>  // for mkstemp()
+#include "/src/htslib/ref_cache/types.h" // for ssize_t
+#include "htslib/sam.h"
+#include "htslib/hts.h"
 
-int LLVMFuzzerTestOneInput_287(const uint8_t *data, size_t size) {
-    // Ensure there is enough data for the filename
-    if (size < 5) {
-        return 0;
-    }
-
-    // Create a temporary file to simulate an htsFile
+int LLVMFuzzerTestOneInput_150(const uint8_t *data, size_t size) {
+    // Create a temporary file to store the input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
-    FILE *fp = fdopen(fd, "wb");
-    if (!fp) {
+
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
         close(fd);
         return 0;
     }
-    fwrite(data, 1, size, fp);
-    fclose(fp);
+    close(fd);
 
     // Open the temporary file as an htsFile
     htsFile *hts_file = hts_open(tmpl, "r");
-    if (!hts_file) {
-        remove(tmpl);
+    if (hts_file == NULL) {
         return 0;
     }
 
-    // Create a dummy sam_hdr_t
-    sam_hdr_t *sam_hdr = sam_hdr_init();
-    if (!sam_hdr) {
+    // Initialize the sam_hdr_t and bam1_t structures
+    sam_hdr_t *header = sam_hdr_read(hts_file);
+    if (header == NULL) {
         hts_close(hts_file);
-        remove(tmpl);
         return 0;
     }
 
-    // Use a non-zero integer for options
-    int options = 1;
+    bam1_t *b = bam_init1();
+    if (b == NULL) {
+        sam_hdr_destroy(header);
+        hts_close(hts_file);
+        return 0;
+    }
 
-    // Use the filename as the string parameter
-    const char *str_param = tmpl;
-
-    // Call the function-under-test
-    sam_idx_init(hts_file, sam_hdr, options, str_param);
+    // Call the function under test
+    sam_read1(hts_file, header, b);
 
     // Clean up
-    sam_hdr_destroy(sam_hdr);
+    bam_destroy1(b);
+    sam_hdr_destroy(header);
     hts_close(hts_file);
-    remove(tmpl);
+    unlink(tmpl);
 
     return 0;
 }
@@ -80,7 +76,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -90,7 +86,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_287(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_150(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

@@ -1,35 +1,55 @@
-#include <stddef.h>
-#include <stdint.h>
 #include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
-extern int hfile_has_plugin(const char *);
+#include "/src/htslib/htslib/hfile.h" // Correct path for hfile.h
 
 int LLVMFuzzerTestOneInput_236(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX.txt"; // Append a common file extension
-    int fd = mkstemp(tmpl);
+    if (size < sizeof(off_t) + sizeof(int)) {
+        return 0; // Not enough data to extract required parameters
+    }
+
+    // Create a temporary file to use with hFILE
+    FILE *temp_file = tmpfile();
+    if (temp_file == NULL) {
+        return 0; // Failed to create a temporary file
+    }
+
+    // Write data to the temporary file
+    fwrite(data, 1, size, temp_file);
+    fflush(temp_file);
+
+    // Rewind the file to the beginning
+    rewind(temp_file);
+
+    // Open the temporary file as an hFILE using hopen with a file descriptor
+    char temp_filename[] = "/tmp/tempfileXXXXXX";
+    int fd = mkstemp(temp_filename);
     if (fd == -1) {
-        return 0;
+        fclose(temp_file);
+        return 0; // Failed to create a temporary file descriptor
     }
 
-    // Ensure the data is written to the file
-    if (write(fd, data, size) != size) {
+    hFILE *hfile = hopen(temp_filename, "r+");
+    if (hfile == NULL) {
         close(fd);
-        unlink(tmpl);
-        return 0;
+        fclose(temp_file);
+        return 0; // Failed to open as hFILE
     }
 
-    // Close the file descriptor
+    // Extract off_t and int from data
+    off_t offset = *(off_t *)(data);
+    int whence = *(int *)(data + sizeof(off_t));
+
+    // Call the function-under-test
+    off_t result = hseek(hfile, offset, whence);
+
+    // Clean up
+    hclose(hfile);
     close(fd);
-
-    // Call the function-under-test with the temporary filename
-    hfile_has_plugin(tmpl);
-
-    // Clean up the temporary file
-    unlink(tmpl);
+    fclose(temp_file);
+    unlink(temp_filename); // Remove the temporary file
 
     return 0;
 }

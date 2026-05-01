@@ -1,65 +1,44 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-
-// Assuming hFILE is a file-like structure, similar to FILE
-typedef struct {
-    FILE *file;
-} hFILE;
-
-// Mock implementation of hgets_18 for demonstration purposes
-char *hgets_18(char *str, int num, hFILE *stream) {
-    if (fgets(str, num, stream->file) == NULL) {
-        return NULL;
-    }
-    return str;
-}
+#include <stdio.h>
+#include <string.h> // Include for memcpy
+#include <htslib/sam.h>
+#include <htslib/kstring.h> // Include for kstring_t
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Ensure size is non-zero to avoid creating zero-length buffers
-    if (size == 0) return 0;
+    // Initialize kstring_t
+    kstring_t ks;
+    ks.l = size;
+    ks.m = size + 1; // Ensure there is space for a null terminator
+    ks.s = (char *)malloc(ks.m);
+    if (ks.s == NULL) {
+        return 0; // Exit if memory allocation fails
+    }
+    memcpy(ks.s, data, size);
+    ks.s[size] = '\0'; // Null-terminate the string
 
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) return 0;
-
-    FILE *f = fdopen(fd, "w+");
-    if (!f) {
-        close(fd);
-        return 0;
+    // Initialize sam_hdr_t
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
+        free(ks.s);
+        return 0; // Exit if header initialization fails
     }
 
-    // Write the data to the file
-    fwrite(data, 1, size, f);
-    rewind(f);
-
-    // Initialize hFILE structure
-    hFILE hfile;
-    hfile.file = f;
-
-    // Allocate a buffer for hgets_18 to use
-    int buffer_size = size + 1; // Ensure buffer can hold the data plus a null terminator
-    char *buffer = (char *)malloc(buffer_size);
-    if (!buffer) {
-        fclose(f);
-        return 0;
+    // Initialize bam1_t
+    bam1_t *b = bam_init1();
+    if (b == NULL) {
+        sam_hdr_destroy(hdr);
+        free(ks.s);
+        return 0; // Exit if bam1_t initialization fails
     }
 
     // Call the function-under-test
-    if (hgets_18(buffer, buffer_size, &hfile) != NULL) {
-        // Process the buffer if needed
-        // For demonstration, we can print it or perform other operations
-        printf("Read line: %s\n", buffer);
-    }
+    int result = sam_parse1(&ks, hdr, b);
 
     // Clean up
-    free(buffer);
-    fclose(f);
-    remove(tmpl);
+    bam_destroy1(b);
+    sam_hdr_destroy(hdr);
+    free(ks.s);
 
     return 0;
 }

@@ -1,20 +1,37 @@
 #include <stdint.h>
 #include <stddef.h>
-
-// Function prototype for the function-under-test
-int64_t bam_aux2i(const uint8_t *aux);
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "htslib/sam.h"  // Ensure you have the HTSlib library installed and included
 
 int LLVMFuzzerTestOneInput_249(const uint8_t *data, size_t size) {
-    // Ensure that the input data is not NULL and has at least one byte
-    if (data == NULL || size == 0) {
+    // Ensure size is sufficient for a null-terminated string
+    if (size < 1) {
         return 0;
     }
 
-    // Call the function-under-test with the provided data
-    int64_t result = bam_aux2i(data);
+    // Initialize bam1_t structure
+    bam1_t *bam_record = bam_init1();
+    if (bam_record == NULL) {
+        return 0;
+    }
 
-    // Use the result in some way to prevent compiler optimizations from removing the call
-    (void)result;
+    // Allocate memory for the qname and ensure it is null-terminated
+    char *qname = (char *)malloc(size + 1);
+    if (qname == NULL) {
+        bam_destroy1(bam_record);
+        return 0;
+    }
+    memcpy(qname, data, size);
+    qname[size] = '\0';
+
+    // Call the function-under-test
+    int result = bam_set_qname(bam_record, qname);
+
+    // Clean up
+    free(qname);
+    bam_destroy1(bam_record);
 
     return 0;
 }

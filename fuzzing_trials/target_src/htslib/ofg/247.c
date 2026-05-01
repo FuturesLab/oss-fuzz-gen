@@ -1,36 +1,43 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdio.h>
-
-// Assuming the necessary headers and definitions for sam_hdr_t and sam_hdr_update_line_247 are included
-typedef struct {
-    // ... (details of sam_hdr_t structure)
-} sam_hdr_t;
-
-// Mock implementation of sam_hdr_update_line_247 for demonstration purposes
-int sam_hdr_update_line_247(sam_hdr_t *hdr, const char *key, const char *value, const char *type, void *extra) {
-    // Dummy implementation
-    printf("Updating line with key: %s, value: %s, type: %s\n", key, value, type);
-    return 0;
-}
+#include <string.h> // Include string.h for memcpy
+#include <htslib/hts.h>
+#include <htslib/hts_defs.h>
+#include <htslib/sam.h> // Include for hts_idx_t and related functions
 
 int LLVMFuzzerTestOneInput_247(const uint8_t *data, size_t size) {
-    if (size < 6) {
-        return 0; // Not enough data to create meaningful strings
+    // Check if size is enough to proceed with meaningful data
+    if (size < sizeof(int)) {
+        return 0;
     }
 
-    sam_hdr_t hdr; // Assuming default initialization is valid
+    // Allocate memory for hts_idx_t using a valid function
+    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_BAI, 0, 0, 0);
+    if (!idx) {
+        return 0;
+    }
 
-    // Create more meaningful strings from input data
-    char key[3] = { (char)data[0], (char)data[1], '\0' };
-    char value[3] = { (char)data[2], (char)data[3], '\0' };
-    char type[3] = { (char)data[4], (char)data[5], '\0' };
-    void *extra = (void *)(data + 6); // Point to the rest of the data
+    // Dummy function for hts_id2name_f
+    const char *dummy_name = "dummy_name";
+    hts_id2name_f id2name_func = (hts_id2name_f)dummy_name;
 
-    // Invoke the function with the constructed inputs
-    sam_hdr_update_line_247(&hdr, key, value, type, extra);
+    int num_seqs = 0;
+
+    // Call the function-under-test
+    const char **seqnames = hts_idx_seqnames(idx, &num_seqs, id2name_func, NULL);
+
+    // Clean up
+    hts_idx_destroy(idx);
+
+    // If seqnames is not NULL, free the allocated memory
+    if (seqnames) {
+        for (int i = 0; i < num_seqs; i++) {
+            free((void *)seqnames[i]);
+        }
+        free(seqnames);
+    }
 
     return 0;
 }

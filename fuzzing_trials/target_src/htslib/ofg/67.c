@@ -1,21 +1,26 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <htslib/sam.h>  // Include the htslib header for bam1_t
+#include "/src/htslib/htslib/sam.h" // Correct path for sam.h
 
 int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
     // Call the function-under-test
-    bam1_t *bam_record = bam_init1();
+    sam_hdr_t *hdr = sam_hdr_init();
 
-    // Check if bam_record is not NULL
-    if (bam_record != NULL) {
-        // Perform operations on bam_record if needed
-        // For example, you can print the memory address of bam_record
-        printf("bam_record initialized at address: %p\n", (void *)bam_record);
+    // Check if hdr is not NULL and perform any necessary operations
+    if (hdr != NULL) {
+        // Attempt to parse the input data as a SAM header
+        if (size > 0) {
+            // Correct the function call to match the expected parameters
+            sam_hdr_t *parsed_hdr = sam_hdr_parse(size, (const char *)data);
+            if (parsed_hdr != NULL) {
+                // If parsing was successful, replace the original header
+                sam_hdr_destroy(hdr);
+                hdr = parsed_hdr;
+            }
+        }
 
-        // Free the allocated bam_record to avoid memory leaks
-        bam_destroy1(bam_record);
+        // Free or cleanup hdr if needed
+        sam_hdr_destroy(hdr);
     }
 
     return 0;

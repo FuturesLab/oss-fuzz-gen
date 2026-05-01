@@ -1,45 +1,28 @@
 #include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>  // Include for memcpy
-#include "htslib/sam.h"  // Correct path for sam.h
+#include <string.h>
+#include "htslib/hts.h" // Assuming htslib/hts.h contains the definition for hts_md5_context
 
 int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    // Initialize a sam_hdr_t object from the input data
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
-        return 0;
+    unsigned char result[16]; // MD5 produces a 16-byte hash
+    hts_md5_context *ctx;
+
+    // Initialize the MD5 context
+    ctx = hts_md5_init();
+    if (ctx == NULL) {
+        return 0; // Exit if context initialization fails
     }
 
-    // Allocate memory for a null-terminated string
-    char *text = (char *)malloc(size + 1);
-    if (text == NULL) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
+    // Simulate processing data with MD5
+    hts_md5_update(ctx, data, size);
 
-    // Copy data to text and null-terminate it
-    memcpy(text, data, size);
-    text[size] = '\0';
-
-    // Parse the text into a sam_hdr_t structure
-    sam_hdr_t *parsed_hdr = sam_hdr_parse(size, text);
-    free(text);
-
-    if (parsed_hdr == NULL) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-
-    // Call the function-under-test
-    sam_hdr_t *dup_hdr = sam_hdr_dup(parsed_hdr);
+    // Finalize the MD5 hash
+    hts_md5_final(result, ctx);
 
     // Clean up
-    if (dup_hdr != NULL) {
-        sam_hdr_destroy(dup_hdr);
-    }
-    sam_hdr_destroy(parsed_hdr);
-    sam_hdr_destroy(hdr);
+    hts_md5_destroy(ctx);
 
     return 0;
 }

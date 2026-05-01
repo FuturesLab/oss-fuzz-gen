@@ -1,34 +1,37 @@
 #include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
-#include "htslib/hts.h"
+#include "htslib/sam.h"
 
+// Remove 'extern "C"' as it is not needed in C code
 int LLVMFuzzerTestOneInput_134(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a null-terminated string
-    if (size == 0) {
+    // Ensure the input size is sufficient for creating a sam_hdr_t object
+    if (size < 1) {
         return 0;
     }
 
-    // Allocate memory for the input string and ensure it is null-terminated
-    char *input_str = (char *)malloc(size + 1);
-    if (input_str == NULL) {
+    // Create a sam_hdr_t object from the input data
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
         return 0;
     }
-    memcpy(input_str, data, size);
-    input_str[size] = '\0';
 
-    // Initialize htsFormat structure
-    htsFormat format;
-    memset(&format, 0, sizeof(htsFormat));
+    // Initialize the sam_hdr_t object with the input data
+    if (sam_hdr_add_lines(hdr, (const char *)data, size) < 0) {
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
 
-    // Call the function under test
-    hts_parse_format(&format, input_str);
+    // Call the function-under-test
+    sam_hdr_t *dup_hdr = sam_hdr_dup(hdr);
 
-    // Free allocated memory
-    free(input_str);
+    // Clean up
+    sam_hdr_destroy(hdr);
+    if (dup_hdr != NULL) {
+        sam_hdr_destroy(dup_hdr);
+    }
 
     return 0;
 }

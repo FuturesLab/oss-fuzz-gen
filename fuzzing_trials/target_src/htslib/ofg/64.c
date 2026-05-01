@@ -1,34 +1,35 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <htslib/sam.h>
+#include <inttypes.h> // Include this for PRId64
+
+typedef int64_t hts_pos_t;
+
+extern const char *hts_parse_reg64(const char *region, hts_pos_t *beg, hts_pos_t *end);
 
 int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for bam_set1 function parameters
-    bam1_t *b = bam_init1();
-    size_t l_data = size > 0 ? size : 1;  // Ensure non-zero size
-    const char *qname = "query_name";
-    uint16_t flag = 0;
-    int32_t rname = 0;
-    hts_pos_t pos = 0;
-    uint8_t mapq = 0;
-    size_t n_cigar = 1;
-    uint32_t cigar_data[1] = {0};
-    int32_t rnext = 0;
-    hts_pos_t pnext = 0;
-    hts_pos_t tlen = 0;
-    size_t l_seq = 1;
-    const char *seq = "A";
-    const char *qual = "!";
-    size_t l_aux = 0;
+    // Ensure the input data is null-terminated for string operations
+    char *region = (char *)malloc(size + 1);
+    if (region == NULL) {
+        return 0; // Memory allocation failed
+    }
+    memcpy(region, data, size);
+    region[size] = '\0';
 
-    // Call the function-under-test
-    bam_set1(b, l_data, qname, flag, rname, pos, mapq, n_cigar, cigar_data, rnext, pnext, tlen, l_seq, seq, qual, l_aux);
+    hts_pos_t beg = 0;
+    hts_pos_t end = 0;
 
-    // Clean up
-    bam_destroy1(b);
+    // Fuzz the hts_parse_reg64 function
+    const char *result = hts_parse_reg64(region, &beg, &end);
 
+    // Use the result to prevent compiler optimizations
+    if (result != NULL) {
+        printf("Parsed region: %s, beg: %" PRId64 ", end: %" PRId64 "\n", result, beg, end);
+    }
+
+    free(region);
     return 0;
 }
 #ifdef INC_MAIN

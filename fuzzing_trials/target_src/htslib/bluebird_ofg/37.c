@@ -1,47 +1,80 @@
 #include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
-
-// Function-under-test declaration
-char *sam_open_mode_opts(const char *path, const char *mode, const char *opts);
+#include <string.h>
+#include <unistd.h>      // Include for close() and unlink()
+#include <fcntl.h>       // Include for mkstemp()
+#include "htslib/sam.h"
+#include "htslib/hts.h"
 
 int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to extract three non-NULL strings
-    if (size < 3) {
+    htsFile *hts_file = NULL;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Split the input data into three parts
-    size_t part_size = size / 3;
-    size_t remainder = size % 3;
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
 
-    // Allocate memory for the strings
-    char *path = (char *)malloc(part_size + 1);
-    char *mode = (char *)malloc(part_size + 1);
-    char *opts = (char *)malloc(part_size + remainder + 1);
+    // Open the temporary file using hts_open
+    hts_file = hts_open(tmpl, "r");
+    if (hts_file == NULL) {
+        return 0;
+    }
 
-    // Copy data into the strings and null-terminate them
-    memcpy(path, data, part_size);
-    path[part_size] = '\0';
+    // Define non-NULL strings for the second and third parameters
 
-    memcpy(mode, data + part_size, part_size);
-    mode[part_size] = '\0';
-
-    memcpy(opts, data + 2 * part_size, part_size + remainder);
-    opts[part_size + remainder] = '\0';
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to sam_index_load3
+    char* ret_bam_flag2str_xwpgv = bam_flag2str(BAM_FPAIRED);
+    if (ret_bam_flag2str_xwpgv == NULL){
+    	return 0;
+    }
+    char* ret_bam_flag2str_suoef = bam_flag2str(BAM_CPAD);
+    if (ret_bam_flag2str_suoef == NULL){
+    	return 0;
+    }
+    sam_hdr_t bgeislvm;
+    memset(&bgeislvm, 0, sizeof(bgeislvm));
+    size_t ret_sam_hdr_length_uulvs = sam_hdr_length(&bgeislvm);
+    if (ret_sam_hdr_length_uulvs < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bam_flag2str_xwpgv) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bam_flag2str_suoef) {
+    	return 0;
+    }
+    hts_idx_t* ret_sam_index_load3_gcvmh = sam_index_load3(hts_file, ret_bam_flag2str_xwpgv, ret_bam_flag2str_suoef, (int )ret_sam_hdr_length_uulvs);
+    if (ret_sam_index_load3_gcvmh == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    const char *fnidx = "index_file";
+    const char *fnref = "reference_file";
 
     // Call the function-under-test
-    char *result = sam_open_mode_opts(path, mode, opts);
+    hts_idx_t *index = sam_index_load3(hts_file, fnidx, fnref, 0);
 
-    // Free the allocated memory
-    free(path);
-    free(mode);
-    free(opts);
-
-    // Free the result if it's dynamically allocated (assuming it needs to be freed)
-    free(result);
+    // Clean up
+    if (index != NULL) {
+        hts_idx_destroy(index);
+    }
+    hts_close(hts_file);
+    unlink(tmpl);
 
     return 0;
 }

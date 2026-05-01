@@ -1,77 +1,42 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h> // For mkstemp, write, close, lseek, unlink
-#include <fcntl.h> // For open, O_RDWR
-#include "/src/htslib/htslib/hfile.h" // Correct path for hfile.h
-
-// Mock implementation of the hypothetical function to be tested
-int process_data(hFILE *file) {
-    // For demonstration purposes, we'll just read some data from the file
-    char buffer[1024];
-    ssize_t bytes_read = hread(file, buffer, sizeof(buffer));
-    if (bytes_read < 0) {
-        return -1; // Indicate an error
-    }
-
-    // Process the data (mock processing)
-    // In a real scenario, this would be replaced by actual logic
-    // For example, let's simulate processing by checking for a specific pattern
-    for (ssize_t i = 0; i < bytes_read; ++i) {
-        if (buffer[i] == 'A') { // Example condition
-            // Simulate some processing logic
-            printf("Found 'A' at position %zd\n", i);
-        }
-    }
-
-    return 0; // Indicate success
-}
+#include <htslib/sam.h>
+#include <htslib/hts.h>
+#include <htslib/bgzf.h> // Include this for BGZF-related functions
 
 int LLVMFuzzerTestOneInput_58(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0; // Avoid processing empty input
-    }
+    // Initialize necessary structures
+    // Instead of allocating memory for hts_idx_t, we should use a function that returns an index
+    BGZF *bgzf = bgzf_open("-", "r"); // Open a BGZF stream for reading
+    hts_idx_t *index = hts_idx_load("-", HTS_FMT_BAI); // Load an index
+    sam_hdr_t *header = sam_hdr_init();
+    hts_reglist_t *reglist = (hts_reglist_t *)malloc(sizeof(hts_reglist_t));
+    unsigned int flags = 0;
 
-    hFILE *file = NULL;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd;
-
-    // Create a temporary file
-    fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure the data is not empty and large enough for meaningful fuzzing
+    if (size < sizeof(hts_reglist_t)) {
+        if (index != NULL) hts_idx_destroy(index);
+        free(reglist);
+        sam_hdr_destroy(header);
+        bgzf_close(bgzf);
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
+    // Assign some values to the reglist structure from the input data
+    reglist->reg = (char *)data;
+    reglist->count = 1; // Set a non-zero count to avoid NULL issues
 
-    // Rewind the file descriptor's offset to the beginning
-    lseek(fd, 0, SEEK_SET);
-
-    // Open the file using hopen with read+write mode
-    file = hopen(tmpl, "r+");
-    if (file == NULL) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Call the hypothetical function-under-test
-    int result = process_data(file);
-
-    // Optionally, handle the result of process_data
-    if (result != 0) {
-        // Handle error or specific condition
-    }
+    // Fuzz the function-under-test
+    hts_itr_t *itr = sam_itr_regions(index, header, reglist, flags);
 
     // Clean up
-    hclose(file);
-    close(fd);
-    unlink(tmpl);
+    if (itr != NULL) {
+        hts_itr_destroy(itr);
+    }
+    if (index != NULL) hts_idx_destroy(index);
+    free(reglist);
+    sam_hdr_destroy(header);
+    bgzf_close(bgzf);
 
     return 0;
 }

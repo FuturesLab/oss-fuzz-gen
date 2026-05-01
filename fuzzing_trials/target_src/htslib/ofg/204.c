@@ -1,47 +1,25 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
+#include <stdio.h>
 
-// Function-under-test declaration
-char * sam_open_mode_opts(const char *mode, const char *type, const char *options);
+// Function-under-test
+char *bam_aux2Z(const uint8_t *data);
 
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_204(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to split into three parts
-    if (size < 3) {
+    // Ensure the data is not NULL and has a non-zero size
+    if (data == NULL || size == 0) {
         return 0;
     }
 
-    // Divide the input data into three parts for mode, type, and options
-    size_t part_size = size / 3;
-    size_t remainder = size % 3;
-
-    // Allocate memory for the strings
-    char *mode = (char *)malloc(part_size + 1);
-    char *type = (char *)malloc(part_size + 1);
-    char *options = (char *)malloc(part_size + remainder + 1);
-
-    // Copy data into the strings and null-terminate them
-    memcpy(mode, data, part_size);
-    mode[part_size] = '\0';
-
-    memcpy(type, data + part_size, part_size);
-    type[part_size] = '\0';
-
-    memcpy(options, data + 2 * part_size, part_size + remainder);
-    options[part_size + remainder] = '\0';
-
     // Call the function-under-test
-    char *result = sam_open_mode_opts(mode, type, options);
+    char *result = bam_aux2Z(data);
 
-    // Free the allocated memory
-    free(mode);
-    free(type);
-    free(options);
-
-    // Free the result if it's dynamically allocated
-    free(result);
+    // If a non-NULL result is returned, free it
+    if (result != NULL) {
+        free(result);
+    }
 
     return 0;
 }

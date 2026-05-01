@@ -1,46 +1,34 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h> // Include for mkstemp and close
-#include <sys/types.h> // Include for ssize_t
-#include <fcntl.h> // Include for open flags
-
-// Function under test
-int hfile_has_plugin(const char *filename);
+#include <htslib/sam.h> // Ensure the HTSlib library is installed and included
 
 int LLVMFuzzerTestOneInput_237(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a valid string
+    // Initialize the sam_hdr_t structure
+    sam_hdr_t *hdr = sam_hdr_init();
+
+    // Ensure the data size is non-zero to avoid empty string issues
     if (size == 0) {
+        sam_hdr_destroy(hdr);
         return 0;
     }
 
-    // Create a temporary file to store the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Create a null-terminated string from the input data
+    char *str = (char *)malloc(size + 1);
+    if (str == NULL) {
+        sam_hdr_destroy(hdr);
         return 0;
     }
+    memcpy(str, data, size);
+    str[size] = '\0';
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        remove(tmpl); // Ensure the file is removed if write fails
-        return 0;
-    }
+    // Call the function under test
+    int result = sam_hdr_add_lines(hdr, str, 0);
 
-    // Close the file descriptor
-    close(fd);
-
-    // Ensure the file is not empty and contains data that can be processed
-    if (size > 0) {
-        // Call the function under test with the temporary file path
-        hfile_has_plugin(tmpl);
-    }
-
-    // Remove the temporary file
-    remove(tmpl);
+    // Clean up
+    free(str);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

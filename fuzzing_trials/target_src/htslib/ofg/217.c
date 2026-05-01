@@ -1,28 +1,54 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
-#include <htslib/hts.h>
+#include <unistd.h>      // Include for close() and unlink()
+#include <fcntl.h>       // Include for mkstemp()
+#include <htslib/sam.h>  // Include the necessary header for sam_hdr_t
 
 int LLVMFuzzerTestOneInput_217(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to initialize htsFormat
-    if (size < sizeof(htsFormat)) {
+    // Check if size is sufficient to create a valid sam_hdr_t object
+    if (size < 1) {
         return 0;
     }
 
-    // Initialize htsFormat using the input data
-    htsFormat format;
-    // Copy data into format, ensuring it doesn't exceed the size of htsFormat
-    memcpy(&format, data, sizeof(htsFormat));
+    // Create a temporary file to write the data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
+
+    // Open the SAM/BAM file using htslib
+    samFile *in = sam_open(tmpl, "r");
+    if (in == NULL) {
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Read the header from the SAM/BAM file
+    sam_hdr_t *hdr = sam_hdr_read(in);
+    if (hdr == NULL) {
+        sam_close(in);
+        unlink(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    const char *extension = hts_format_file_extension(&format);
+    int nref = sam_hdr_nref(hdr);
 
-    // Use the result (extension) in some way to avoid compiler optimizations removing the call
-    if (extension) {
-        // For fuzzing purposes, we can just check the length or do a simple operation
-        size_t ext_length = strlen(extension);
-        (void)ext_length; // Suppress unused variable warning
-    }
+    // Clean up
+    sam_hdr_destroy(hdr);
+    sam_close(in);
+    unlink(tmpl);
 
     return 0;
 }

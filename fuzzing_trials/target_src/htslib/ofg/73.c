@@ -1,33 +1,50 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "htslib/sam.h"  // Include the necessary header for sam_hdr_t
+#include <string.h>
+#include <unistd.h>
+#include <htslib/sam.h>
+#include <htslib/bgzf.h>
 
 int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size) {
-    // Ensure size is large enough to extract an integer
-    if (size < sizeof(int)) {
+    // Create a temporary file to write the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    
+    // Write the data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (file == NULL) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Open the BGZF file
+    BGZF *bgzf = bgzf_open(tmpl, "r");
+    if (bgzf == NULL) {
+        remove(tmpl);
         return 0;
     }
 
-    // Create a dummy sam_hdr_t object
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
+    // Initialize bam1_t structure
+    bam1_t *b = bam_init1();
+    if (b == NULL) {
+        bgzf_close(bgzf);
+        remove(tmpl);
         return 0;
     }
-
-    // Extract an integer from the input data
-    int tid = *(int *)data;
 
     // Call the function-under-test
-    const char *name = sam_hdr_tid2name(hdr, tid);
-
-    // For fuzzing, we don't need to do anything with the result, but we can print it for debug purposes
-    if (name != NULL) {
-        printf("TID %d corresponds to name: %s\n", tid, name);
-    }
+    bam_read1(bgzf, b);
 
     // Clean up
-    sam_hdr_destroy(hdr);
+    bam_destroy1(b);
+    bgzf_close(bgzf);
+    remove(tmpl);
 
     return 0;
 }

@@ -1,35 +1,37 @@
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <htslib/sam.h>
+#include <htslib/hts.h>
 
-// Function signature for the function-under-test
-int hfile_list_schemes(const char *, const char **, int *);
-
-// LLVMFuzzerTestOneInput function to fuzz hfile_list_schemes
 int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for at least one character string
-    if (size < 1) {
-        return 0;
+    bam_plp_t pileup = NULL;
+    int tid = 0;
+    hts_pos_t pos = 0;
+    int n_plp = 0;
+
+    // Initialize a dummy bam_plp_t object
+    pileup = bam_plp_init(NULL, NULL);
+
+    // Ensure the data size is sufficient for processing
+    if (size > 0) {
+        // Call the function-under-test
+        const bam_pileup1_t *result = bam_plp64_auto(pileup, &tid, &pos, &n_plp);
+
+        // Process the result if needed (for fuzzing purposes, we just call the function)
+        if (result != NULL) {
+            // Example processing: iterate over the pileup entries
+            for (int i = 0; i < n_plp; ++i) {
+                // Access each bam_pileup1_t entry
+                const bam_pileup1_t *entry = &result[i];
+                // Perform some dummy operations
+                (void)entry->b;
+                (void)entry->qpos;
+            }
+        }
     }
-
-    // Allocate memory for the string input and ensure it is null-terminated
-    char *input_str = (char *)malloc(size + 1);
-    if (input_str == NULL) {
-        return 0;
-    }
-    memcpy(input_str, data, size);
-    input_str[size] = '\0';
-
-    // Prepare the output parameters for the function-under-test
-    const char *schemes[10]; // Assuming a maximum of 10 schemes for testing
-    int count = 0;
-
-    // Call the function-under-test
-    hfile_list_schemes(input_str, schemes, &count);
 
     // Clean up
-    free(input_str);
+    bam_plp_destroy(pileup);
 
     return 0;
 }

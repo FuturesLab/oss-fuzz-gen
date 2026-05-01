@@ -1,19 +1,20 @@
+#include <stddef.h>  // For size_t and NULL
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 
-// Function prototype for the function-under-test
-uint32_t hts_crc32(uint32_t crc, const void *buf, size_t len);
+// Assuming the function bam_aux2A is declared somewhere
+extern char bam_aux2A(const uint8_t *);
 
 int LLVMFuzzerTestOneInput_212(const uint8_t *data, size_t size) {
-    // Initialize crc with a non-zero value for meaningful CRC calculation
-    uint32_t crc = 0xFFFFFFFF;
+    // Ensure the data is not NULL and has at least one byte
+    if (data == NULL || size == 0) {
+        return 0;
+    }
 
     // Call the function-under-test with the provided data
-    uint32_t result = hts_crc32(crc, (const void *)data, size);
+    char result = bam_aux2A(data);
 
-    // Optionally print the result for debugging purposes
-    printf("CRC32 Result: %u\n", result);
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)result;
 
     return 0;
 }

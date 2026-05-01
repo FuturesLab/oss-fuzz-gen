@@ -1,55 +1,49 @@
 #include <stdint.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <htslib/hts.h>
 #include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for file paths
-    if (size < 3) {
+    // Initialize sam_hdr_t object
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
         return 0;
     }
 
-    // Create temporary filenames for testing
-    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
-    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
-    int fd1 = mkstemp(tmpl1);
-    int fd2 = mkstemp(tmpl2);
-
-    // Write the fuzz data to the first temporary file
-    FILE *file1 = fdopen(fd1, "wb");
-    if (file1 == NULL) {
+    // Ensure the data is not empty
+    if (size == 0) {
+        sam_hdr_destroy(hdr);
         return 0;
     }
-    fwrite(data, 1, size / 2, file1);
-    fclose(file1);
 
-    // Write the remaining fuzz data to the second temporary file
-    FILE *file2 = fdopen(fd2, "wb");
-    if (file2 == NULL) {
+    // Create non-NULL strings from the provided data
+    const char *arg1 = "HD";
+    const char *arg2 = "VN";
+    const char *arg3 = "1.0";
+
+    // Copy some data into a buffer to use as a header text
+    char *header_text = (char *)malloc(size + 1);
+    if (header_text == NULL) {
+        sam_hdr_destroy(hdr);
         return 0;
     }
-    fwrite(data + size / 2, 1, size - (size / 2), file2);
-    fclose(file2);
+    memcpy(header_text, data, size);
+    header_text[size] = '\0';
 
-    // Open the first file as an htsFile
-    htsFile *hts_fp = hts_open(tmpl1, "r");
-    if (!hts_fp) {
+    // Add the header text to the sam_hdr_t object
+    if (sam_hdr_add_lines(hdr, header_text, size) < 0) {
+        free(header_text);
+        sam_hdr_destroy(hdr);
         return 0;
     }
 
     // Call the function-under-test
-    hts_idx_t *idx = sam_index_load3(hts_fp, tmpl1, tmpl2, 0);
+    sam_hdr_remove_except(hdr, arg1, arg2, arg3);
 
     // Clean up
-    if (idx) {
-        hts_idx_destroy(idx);
-    }
-    hts_close(hts_fp);
-    remove(tmpl1);
-    remove(tmpl2);
+    free(header_text);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

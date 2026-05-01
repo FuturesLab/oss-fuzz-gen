@@ -1,62 +1,60 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
-#include <htslib/sam.h>
+#include <stdio.h>
+#include <htslib/sam.h> // Include the necessary header for bam_mplp_t
+#include <htslib/hts.h> // Include the header for hts functions
+
+// Dummy callback function for bam_mplp_init
+static int read_bam(void *data, bam1_t *b) {
+    // Fuzzing harness doesn't actually read data, so return -1 to indicate no more data
+    return -1;
+}
 
 int LLVMFuzzerTestOneInput_109(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to be split into meaningful parts
-    if (size < 4) {
+    // Check if size is sufficient to proceed
+    if (size < 1) {
         return 0;
     }
 
-    // Initialize a sam_hdr_t structure
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (!hdr) {
-        return 0;
+    // Create a dummy bam1_t structure to use with bam_mplp_init
+    bam1_t *b = bam_init1();
+    if (b == NULL) {
+        return 0; // If initialization fails, return early
     }
 
-    // Split the input data into parts for the function parameters
-    size_t part_size = size / 4;
-    const char *arg1 = (const char *)data;
-    const char *arg2 = (const char *)(data + part_size);
-    const char *arg3 = (const char *)(data + 2 * part_size);
-    const char *arg4 = (const char *)(data + 3 * part_size);
+    // Declare and initialize the bam_mplp_t variable with a valid callback
+    bam_mplp_t mplp = bam_mplp_init(1, read_bam, (void *)data); // Provide a valid callback function
 
-    // Null-terminate the strings
-    char *arg1_str = (char *)malloc(part_size + 1);
-    char *arg2_str = (char *)malloc(part_size + 1);
-    char *arg3_str = (char *)malloc(part_size + 1);
-    char *arg4_str = (char *)malloc(part_size + 1);
-
-    if (!arg1_str || !arg2_str || !arg3_str || !arg4_str) {
-        sam_hdr_destroy(hdr);
-        free(arg1_str);
-        free(arg2_str);
-        free(arg3_str);
-        free(arg4_str);
-        return 0;
+    if (mplp == NULL) {
+        bam_destroy1(b);
+        return 0; // If initialization fails, return early
     }
 
-    memcpy(arg1_str, arg1, part_size);
-    memcpy(arg2_str, arg2, part_size);
-    memcpy(arg3_str, arg3, part_size);
-    memcpy(arg4_str, arg4, part_size);
+    // Create a dummy array of bam1_t pointers and add the dummy bam1_t
+    bam1_t *bams[1] = {b};
+    bam_mplp_set_maxcnt(mplp, 1);
 
-    arg1_str[part_size] = '\0';
-    arg2_str[part_size] = '\0';
-    arg3_str[part_size] = '\0';
-    arg4_str[part_size] = '\0';
+    // Prepare additional arguments for bam_mplp_auto
+    int tid = 0;
+    int pos = 0;
+    int n_plp = 0;
+    const bam_pileup1_t *plp = NULL;
 
-    // Call the function-under-test
-    sam_hdr_remove_except(hdr, arg1_str, arg2_str, arg3_str);
+    // Call the function-under-test using the dummy bam1_t
+    int ret = bam_mplp_auto(mplp, &tid, &pos, &n_plp, &plp);
+
+    if (ret < 0) {
+        bam_mplp_destroy(mplp);
+        bam_destroy1(b);
+        return 0; // If the operation fails, return early
+    }
+
+    // Reset the mplp
+    bam_mplp_reset(mplp);
 
     // Clean up
-    sam_hdr_destroy(hdr);
-    free(arg1_str);
-    free(arg2_str);
-    free(arg3_str);
-    free(arg4_str);
+    bam_mplp_destroy(mplp);
+    bam_destroy1(b);
 
     return 0;
 }

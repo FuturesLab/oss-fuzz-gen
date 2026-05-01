@@ -2,40 +2,39 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <htslib/sam.h>
+#include "/src/htslib/htslib/sam.h" // Correct path for sam.h
 
 int LLVMFuzzerTestOneInput_47(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for meaningful input
-    if (size < 10) {
-        return 0;
-    }
-
-    // Allocate and initialize sam_hdr_t
+    // Initialize a sam_hdr_t object
     sam_hdr_t *hdr = sam_hdr_init();
-    if (!hdr) {
+
+    // Ensure hdr is not NULL
+    if (hdr == NULL) {
         return 0;
     }
 
-    // Create a null-terminated string for the region
-    char *region = (char *)malloc(size + 1);
-    if (!region) {
+    // Create a string from the input data
+    char *name = (char *)malloc(size + 1);
+    if (name == NULL) {
         sam_hdr_destroy(hdr);
         return 0;
     }
-    memcpy(region, data, size);
-    region[size] = '\0';
+    memcpy(name, data, size);
+    name[size] = '\0'; // Null-terminate the string
 
-    // Initialize other parameters
-    int tid = 0;
-    hts_pos_t beg = 0;
-    hts_pos_t end = 0;
-    int flags = 0;  // You can vary this if needed
+    // Add a dummy sequence header to hdr to make sam_hdr_name2tid meaningful
+    const char *dummy_seq = "@SQ\tSN:dummy\tLN:1000\n";
+    if (sam_hdr_add_lines(hdr, dummy_seq, strlen(dummy_seq)) < 0) {
+        free(name);
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
 
     // Call the function-under-test
-    const char *result = sam_parse_region(hdr, region, &tid, &beg, &end, flags);
+    int result = sam_hdr_name2tid(hdr, name);
 
     // Clean up
-    free(region);
+    free(name);
     sam_hdr_destroy(hdr);
 
     return 0;

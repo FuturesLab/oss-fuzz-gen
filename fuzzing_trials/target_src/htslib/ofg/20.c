@@ -1,30 +1,40 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <htslib/hts.h>
-#include <htslib/hts_defs.h>
-#include <htslib/tbx.h>
-#include "/src/htslib/htslib/tbx.h"  // Use this path for hts_itr_query
+#include <htslib/sam.h> // Correct path for sam.h
+#include <string.h> // Include for memcpy
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for our needs
-    if (size < sizeof(int) + 2 * sizeof(hts_pos_t)) {
+    sam_hdr_t *hdr = NULL;
+
+    // Check if the size is greater than zero to avoid unnecessary operations
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize variables
-    const hts_idx_t *idx = NULL;  // Initialize as NULL, as we can't directly cast from data
-    int tid = *(const int *)(data);
-    hts_pos_t beg = *(const hts_pos_t *)(data + sizeof(int));
-    hts_pos_t end = *(const hts_pos_t *)(data + sizeof(int) + sizeof(hts_pos_t));
-    hts_readrec_func *readrec_func = NULL;  // Assuming a NULL function pointer for fuzzing
-
-    // Call the function-under-test
-    hts_itr_t *itr = hts_itr_query(idx, tid, beg, end, readrec_func);
-
-    // Clean up if necessary
-    if (itr != NULL) {
-        hts_itr_destroy(itr);
+    // Use the input data to create a SAM header
+    // Create a null-terminated string from the input data
+    char *sam_header_str = (char *)malloc(size + 1);
+    if (sam_header_str == NULL) {
+        return 0; // Exit if memory allocation fails
     }
+    memcpy(sam_header_str, data, size);
+    sam_header_str[size] = '\0'; // Null-terminate the string
+
+    // Attempt to parse the SAM header from the input data
+    hdr = sam_hdr_parse(size, sam_header_str);
+    free(sam_header_str);
+
+    if (hdr == NULL) {
+        return 0; // Exit if parsing fails
+    }
+
+    // Perform operations on the parsed header
+    // For example, you can invoke functions that operate on the header
+    // This is a placeholder for actual operations on the header
+    // Example: int num_refs = sam_hdr_nref(hdr);
+
+    // Clean up
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

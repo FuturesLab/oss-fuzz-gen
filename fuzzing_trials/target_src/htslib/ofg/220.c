@@ -1,43 +1,39 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <htslib/hts.h>
-#include <htslib/sam.h> // Include the header where hts_base_mod_state is defined
-#include <htslib/hts_defs.h> // Include additional headers if necessary
+#include <stdio.h>
+#include <string.h>
+#include "htslib/kstring.h"
+#include "htslib/sam.h"
 
-// Function prototype for hts_base_mod_state_free
-void hts_base_mod_state_free(hts_base_mod_state *mod_state);
+// Assuming bam_pileup1_t and kstring_t are defined in the included headers
 
-// Function prototype for hts_base_mod_state_alloc
-hts_base_mod_state *hts_base_mod_state_alloc(void);
-
-// Hypothetical function prototype for initializing mod_state
-// Since `hts_base_mod_state_init_220` is not defined, we need to define it ourselves
-int hts_base_mod_state_init_220(hts_base_mod_state *mod_state, const uint8_t *data, size_t size) {
-    // Hypothetical initialization logic
-    // Return 0 for successful initialization, non-zero for failure
-    return 0;
-}
+extern int bam_plp_insertion(const bam_pileup1_t *, kstring_t *, int *);
 
 int LLVMFuzzerTestOneInput_220(const uint8_t *data, size_t size) {
-    // Declare and initialize hts_base_mod_state
-    hts_base_mod_state *mod_state = hts_base_mod_state_alloc();
+    // Initialize bam_pileup1_t structure
+    bam_pileup1_t pileup;
+    memset(&pileup, 0, sizeof(bam_pileup1_t));
 
-    // Ensure mod_state is not NULL
-    if (mod_state == NULL) {
-        return 0;
+    // Initialize kstring_t structure
+    kstring_t kstr;
+    kstr.l = 0;
+    kstr.m = size;
+    kstr.s = (char *)malloc(size + 1);
+    if (kstr.s == NULL) {
+        return 0; // Exit if memory allocation fails
     }
+    memcpy(kstr.s, data, size);
+    kstr.s[size] = '\0'; // Null-terminate the string
 
-    // Initialize mod_state with data
-    // Using a hypothetical init function to ensure mod_state is properly initialized
-    if (hts_base_mod_state_init_220(mod_state, data, size) != 0) {
-        hts_base_mod_state_free(mod_state);
-        return 0;
-    }
+    // Initialize an integer
+    int result_value = 0;
 
     // Call the function-under-test
-    hts_base_mod_state_free(mod_state);
+    bam_plp_insertion(&pileup, &kstr, &result_value);
 
-    // Return success
+    // Clean up
+    free(kstr.s);
+
     return 0;
 }
 #ifdef INC_MAIN

@@ -1,36 +1,48 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <inttypes.h>
-#include <htslib/hts.h>
-#include <htslib/hts_defs.h>
+#include <string.h>
+#include <htslib/sam.h>
 
-// Mock function to create a non-NULL hts_idx_t pointer for testing
-hts_idx_t* create_test_hts_idx() {
-    // In a real scenario, you would create or load an actual index
-    // Here, we simply return a dummy pointer for testing
-    return (hts_idx_t*)0x1; // Return a non-NULL dummy pointer
+// Function to initialize a sam_hdr_t object with some default values
+sam_hdr_t *initialize_sam_hdr() {
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
+        return NULL;
+    }
+
+    // Add some default header lines to ensure it's not NULL
+    if (sam_hdr_add_line(hdr, "HD", "VN", "1.6", NULL) < 0) {
+        sam_hdr_destroy(hdr);
+        return NULL;
+    }
+
+    if (sam_hdr_add_line(hdr, "SQ", "SN", "chr1", "LN", "248956422", NULL) < 0) {
+        sam_hdr_destroy(hdr);
+        return NULL;
+    }
+
+    return hdr;
 }
 
 int LLVMFuzzerTestOneInput_235(const uint8_t *data, size_t size) {
-    hts_idx_t *idx = create_test_hts_idx();
-    int tid = 0; // Example value, as the actual value depends on the index
-    uint64_t mapped = 0;
-    uint64_t unmapped = 0;
-
-    if (idx == NULL) {
-        return 0; // Exit if index creation failed
+    // Initialize sam_hdr_t
+    sam_hdr_t *hdr = initialize_sam_hdr();
+    if (hdr == NULL) {
+        return 0;
     }
 
     // Call the function-under-test
-    int result = hts_idx_get_stat(idx, tid, &mapped, &unmapped);
+    const char *result = sam_hdr_str(hdr);
 
-    // Output the result and stats for debugging purposes
-    printf("Result: %d, Mapped: %" PRIu64 ", Unmapped: %" PRIu64 "\n", result, mapped, unmapped);
+    // Optionally, print the result for debugging
+    if (result != NULL) {
+        printf("Header String: %s\n", result);
+    }
 
-    // Free the allocated index
-    // Note: Since we used a dummy pointer, we should not actually free it.
-    // free(idx);
+    // Clean up
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

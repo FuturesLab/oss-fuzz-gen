@@ -1,31 +1,74 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <htslib/hts.h>
+#include <htslib/hfile.h>
 
 int LLVMFuzzerTestOneInput_161(const uint8_t *data, size_t size) {
-    htsFile *file = NULL;
-    int cache_size;
+    hFILE *hfile = NULL;
+    char *mode = NULL;
+    char *format = NULL;
+    htsFile *htsfile = NULL;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd;
 
-    // Ensure we have enough data to extract an integer for cache size
-    if (size < sizeof(int)) {
+    if (size < 2) {
         return 0;
     }
 
-    // Initialize cache_size from the input data
-    cache_size = *((int *)data);
-
-    // Open a temporary file as an htsFile
-    file = hts_open("/tmp/fuzzfile.bam", "wb");
-    if (file == NULL) {
+    // Create a temporary file
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Call the function-under-test with the parameters
-    hts_set_cache_size(file, cache_size);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0;
+    }
 
-    // Close the file
-    hts_close(file);
+    // Close the file descriptor
+    close(fd);
+
+    // Open the file using hFILE
+    hfile = hopen(tmpl, "r");
+    if (hfile == NULL) {
+        return 0;
+    }
+
+    // Allocate and initialize mode and format strings
+    mode = (char *)malloc(2);
+    format = (char *)malloc(2);
+    if (mode == NULL || format == NULL) {
+        hclose(hfile);
+        return 0;
+    }
+
+    // Set mode and format based on fuzz data
+    mode[0] = (char)data[0];
+    mode[1] = '\0';
+    format[0] = (char)data[1];
+    format[1] = '\0';
+
+    // Call the function-under-test
+    htsfile = hts_hopen(hfile, mode, format);
+
+    // Clean up
+    if (htsfile != NULL) {
+        hts_close(htsfile);
+    } else {
+        hclose(hfile);
+    }
+    free(mode);
+    free(format);
+
+    // Remove the temporary file
+    remove(tmpl);
 
     return 0;
 }

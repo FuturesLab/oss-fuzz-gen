@@ -1,47 +1,34 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h> // Include for close() and unlink()
-#include <fcntl.h>  // Include for mkstemp()
-#include <htslib/bgzf.h>
+#include <stddef.h>
 #include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_233(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Initialize a sam_hdr_t structure
+    sam_hdr_t *header = sam_hdr_init();
+    if (!header) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        return 0;
-    }
-    close(fd);
-
-    // Open the temporary file with BGZF
-    BGZF *bgzf = bgzf_open(tmpl, "r");
-    if (bgzf == NULL) {
+    // Add a dummy reference sequence to the header
+    if (sam_hdr_add_line(header, "SQ", "SN:ref", "LN:1000", NULL) < 0) {
+        sam_hdr_destroy(header);
         return 0;
     }
 
-    // Initialize bam1_t structure
-    bam1_t *b = bam_init1();
-    if (b == NULL) {
-        bgzf_close(bgzf);
+    // Ensure the size is non-zero to avoid division by zero or invalid access
+    if (size == 0) {
+        sam_hdr_destroy(header);
         return 0;
     }
+
+    // Use the first byte of data to determine the index
+    int tid = data[0] % sam_hdr_nref(header);
 
     // Call the function-under-test
-    bam_read1(bgzf, b);
+    hts_pos_t length = sam_hdr_tid2len(header, tid);
 
     // Clean up
-    bam_destroy1(b);
-    bgzf_close(bgzf);
-    unlink(tmpl); // Use unlink instead of remove for POSIX compliance
+    sam_hdr_destroy(header);
 
     return 0;
 }

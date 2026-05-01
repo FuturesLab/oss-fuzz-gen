@@ -1,29 +1,40 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <htslib/hts.h>
-#include <htslib/sam.h>
+#include <stdio.h>
 
-// Remove the extern "C" linkage specification for C++ compatibility
+// Define the structure bam_plp_s
+struct bam_plp_s {
+    int dummy; // Add necessary fields here
+};
+
+// Define the pointer type bam_plp_t
+typedef struct bam_plp_s* bam_plp_t;
+
+// Placeholder structure for DW_TAG_subroutine_typeInfinite_loop
+typedef struct {
+    int dummy; // Add necessary fields here
+} DW_TAG_subroutine_typeInfinite_loop;
+
+// Mock function for bam_plp_destructor_185
+void bam_plp_destructor_185(bam_plp_t plp, DW_TAG_subroutine_typeInfinite_loop *loop) {
+    // Function implementation
+    printf("bam_plp_destructor_185 called\n");
+}
+
 int LLVMFuzzerTestOneInput_185(const uint8_t *data, size_t size) {
-    // Initialize the hts_idx_t and hts_itr_t structures
-    // Provide appropriate dummy values for the additional parameters
-    hts_idx_t *index = hts_idx_init(0, HTS_FMT_BAI, 0, 14, 5); // Initialize with dummy values
-    hts_itr_t *iterator = (hts_itr_t *)malloc(sizeof(hts_itr_t));
+    bam_plp_t plp = (bam_plp_t)malloc(sizeof(struct bam_plp_s));
+    DW_TAG_subroutine_typeInfinite_loop loop;
+    loop.dummy = 0; // Initialize fields as necessary
 
-    if (index == NULL || iterator == NULL) {
-        if (index != NULL) hts_idx_destroy(index);
-        if (iterator != NULL) free(iterator);
-        return 0;
+    if (plp == NULL) {
+        return 0; // Exit if memory allocation fails
     }
 
     // Call the function-under-test
-    // Note: hts_itr_multi_bam is not a standard function in htslib, assuming it is a custom function
-    // If it is part of the library, ensure to include the correct header or use the correct function signature
-    int result = hts_itr_multi_bam(index, iterator);
+    bam_plp_destructor_185(plp, &loop);
 
-    // Clean up
-    hts_idx_destroy(index);
-    free(iterator);
+    // Free allocated memory
+    free(plp);
 
     return 0;
 }

@@ -1,28 +1,52 @@
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>  // For mkstemp, write, close, and remove
 #include "htslib/hts.h"
-#include "/src/htslib/htslib/hts_defs.h" // Include this if hts_parse_reg64 is defined here
 
 int LLVMFuzzerTestOneInput_135(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated for string operations
-    char *input = (char *)malloc(size + 1);
-    if (input == NULL) {
+    // Create a temporary file to simulate an htsFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
-    memcpy(input, data, size);
-    input[size] = '\0';
 
-    hts_pos_t beg = 0;
-    hts_pos_t end = 0;
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+
+    // Close the file descriptor so hts_open can open it
+    close(fd);
+
+    // Open the temporary file with hts_open
+    htsFile *file = hts_open(tmpl, "r");
+    if (file == NULL) {
+        return 0;
+    }
 
     // Call the function-under-test
-    const char *result = hts_parse_reg64(input, &beg, &end);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to hts_set_opt
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    int ret_hts_set_opt_cphcu = hts_set_opt(file, HTS_OPT_CACHE_SIZE);
+    if (ret_hts_set_opt_cphcu < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hts_flush(file);
 
     // Clean up
-    free(input);
+    hts_close(file);
+    remove(tmpl);
 
     return 0;
 }

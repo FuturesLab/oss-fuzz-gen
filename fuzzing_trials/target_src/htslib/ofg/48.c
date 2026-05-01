@@ -1,63 +1,43 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <stdio.h>
-#include <unistd.h> // For close() and remove()
-#include <htslib/hts.h>
-#include <htslib/bgzf.h>
-#include <htslib/hts_defs.h>
-#include <htslib/sam.h>
+#include <string.h>
+#include <stdlib.h> // Include for malloc and free
+#include "htslib/sam.h"  // Assuming the sam_hdr_t is defined in this header
 
 int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size) {
-    BGZF *bgzf = NULL;
-    hts_itr_t *iter = NULL;
-    void *data_container = NULL;
-    void *aux = NULL;
-    int result;
-
-    // Create a temporary file to simulate BGZF input
-    char tmpl[] = "/tmp/fuzzbgzfXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) return 0;
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    fwrite(data, 1, size, file);
-    fclose(file);
+    // Ensure the data is null-terminated to safely use as a string
+    char *name = (char *)malloc(size + 1);
+    if (name == NULL) {
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+    memcpy(name, data, size);
+    name[size] = '\0';
 
-    // Open the BGZF file
-    bgzf = bgzf_open(tmpl, "r");
-    if (!bgzf) {
-        remove(tmpl);
+    // Populate the header with some dummy data for testing
+    // This should be replaced with actual logic to initialize the header
+    // appropriately for your use case
+    if (sam_hdr_add_line(hdr, "SQ", "SN", "chr1", "LN", "1000", NULL) < 0) {
+        free(name);
+        sam_hdr_destroy(hdr);
         return 0;
     }
 
-    // Initialize the iterator
-    iter = hts_itr_query(bgzf, 0, 0, 0, 0);
-    if (!iter) {
-        bgzf_close(bgzf);
-        remove(tmpl);
-        return 0;
-    }
+    // Call the function-under-test
+    int tid = sam_hdr_name2tid(hdr, name);
 
-    // Allocate memory for data_container and aux
-    data_container = malloc(1024);  // Allocate a buffer for the data
-    aux = malloc(1024);  // Allocate a buffer for auxiliary data
-
-    if (data_container && aux) {
-        // Call the function under test
-        result = hts_itr_next(bgzf, iter, data_container, aux);
-    }
+    // Print the result for debugging purposes
+    printf("TID: %d\n", tid);
 
     // Clean up
-    free(data_container);
-    free(aux);
-    hts_itr_destroy(iter);
-    bgzf_close(bgzf);
-    remove(tmpl);
+    free(name);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

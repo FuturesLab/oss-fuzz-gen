@@ -1,65 +1,27 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <htslib/sam.h>
 #include <htslib/hts.h>
-#include <htslib/kstring.h>
-
-// Function to create a dummy BAM record for testing
-bam1_t *create_dummy_bam_record(const uint8_t *data, size_t size) {
-    bam1_t *b = bam_init1();
-    if (b == NULL) {
-        return NULL;
-    }
-    // Allocate memory for BAM record data
-    b->data = (uint8_t *)malloc(size);
-    if (b->data == NULL) {
-        bam_destroy1(b);
-        return NULL;
-    }
-    memcpy(b->data, data, size);
-    b->l_data = size;
-    b->core.l_qname = 1; // Minimal valid QNAME length
-    b->core.n_cigar = 1; // Minimal valid CIGAR length
-    b->core.l_qseq = 1;  // Minimal valid sequence length
-    return b;
-}
 
 int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    // Check if size is sufficient for testing
-    if (size < sizeof(bam1_t)) {
-        return 0; // Not enough data to form a valid BAM record
+    // Ensure the data size is sufficient for extracting an integer
+    if (size < sizeof(int)) {
+        return 0;
     }
 
-    // Create a dummy BAM record
-    bam1_t *b = create_dummy_bam_record(data, size);
-    if (b == NULL) {
-        return 0; // Failed to create BAM record
+    // Create a dummy htsFile object
+    htsFile *file = hts_open("/dev/null", "w");
+    if (file == NULL) {
+        return 0;
     }
 
-    // Initialize the pileup iterator
-    bam_plp_t pileup_iterator = bam_plp_init(NULL, NULL);
+    // Extract an integer from the input data
+    int threads = *(int *)data;
 
-    // Push the BAM record into the pileup iterator
-    bam_plp_push(pileup_iterator, b);
+    // Call the function under test
+    hts_set_threads(file, threads);
 
-    // Variables for bam_plp_next
-    int tid = 0;
-    int pos = 0;
-    int n_plp = 0;
-
-    // Call the function-under-test
-    const bam_pileup1_t *result = bam_plp_next(pileup_iterator, &tid, &pos, &n_plp);
-
-    // Check if result is not NULL to ensure the function is being tested
-    if (result != NULL) {
-        // Process the result if needed
-    }
-
-    // Clean up
-    bam_plp_destroy(pileup_iterator);
-    bam_destroy1(b);
+    // Close the htsFile
+    hts_close(file);
 
     return 0;
 }

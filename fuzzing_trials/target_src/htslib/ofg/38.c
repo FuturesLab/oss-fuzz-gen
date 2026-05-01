@@ -1,32 +1,33 @@
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdio.h>
-
-// Function-under-test
-ssize_t sam_parse_cigar(const char *cigar_str, char **end, uint32_t **cigar, size_t *n_cigar);
+#include <string.h>  // Include this for memcpy
+#include "htslib/sam.h"  // Assuming bam_parse_cigar is declared in this header
 
 int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
+    if (size == 0) return 0;
+
     // Ensure the input data is null-terminated for string operations
     char *cigar_str = (char *)malloc(size + 1);
-    if (cigar_str == NULL) {
-        return 0;
-    }
+    if (cigar_str == NULL) return 0;
     memcpy(cigar_str, data, size);
     cigar_str[size] = '\0';
 
-    // Initialize the other parameters
+    // Prepare the other parameters for bam_parse_cigar
     char *end = NULL;
-    uint32_t *cigar = NULL;
-    size_t n_cigar = 0;
+    bam1_t *bam_record = bam_init1(); // Initialize bam1_t structure
+
+    if (bam_record == NULL) {
+        free(cigar_str);
+        return 0;
+    }
 
     // Call the function-under-test
-    ssize_t result = sam_parse_cigar(cigar_str, &end, &cigar, &n_cigar);
+    ssize_t result = bam_parse_cigar(cigar_str, &end, bam_record);
 
     // Clean up
+    bam_destroy1(bam_record);
     free(cigar_str);
-    free(cigar);
 
     return 0;
 }

@@ -1,45 +1,71 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <htslib/sam.h> // Correct path for sam_hdr_t and sam_hdr_name2tid
+#include <string.h> // Include for memcpy
+#include <htslib/sam.h>
+#include <htslib/hts.h>
+#include <htslib/hts_expr.h> // Include for hts_filter_t and related functions
 
 int LLVMFuzzerTestOneInput_253(const uint8_t *data, size_t size) {
-    // Initialize sam_hdr_t structure
-    sam_hdr_t *header = sam_hdr_init();
+    sam_hdr_t *header = NULL;
+    bam1_t *alignment = NULL;
+    hts_filter_t *filter = NULL;
+    int result;
+
+    // Initialize the header with a dummy header text
+    const char *header_text = "@HD\tVN:1.0\n";
+    header = sam_hdr_parse(strlen(header_text), header_text);
     if (header == NULL) {
-        return 0; // Return if initialization fails
+        return 0;
     }
 
-    // Add a dummy header line to the sam_hdr_t structure
-    const char *dummy_header_line = "@SQ\tSN:chr1\tLN:248956422";
-    if (sam_hdr_add_lines(header, dummy_header_line, strlen(dummy_header_line)) < 0) {
-        sam_hdr_destroy(header);
-        return 0; // Return if adding header line fails
-    }
-
-    // Ensure there's at least one byte for the string
-    if (size == 0) {
+    // Initialize the alignment
+    alignment = bam_init1();
+    if (alignment == NULL) {
         sam_hdr_destroy(header);
         return 0;
     }
 
-    // Allocate memory for the string and ensure null-termination
-    char *name = (char *)malloc(size + 1);
-    if (name == NULL) {
+    // Initialize the filter with a dummy expression (e.g., "1")
+    filter = hts_filter_init("1");
+    if (filter == NULL) {
         sam_hdr_destroy(header);
-        return 0; // Return if allocation fails
+        bam_destroy1(alignment);
+        return 0;
     }
-    memcpy(name, data, size);
-    name[size] = '\0'; // Null-terminate the string
+
+    // Ensure the data size is sufficient for setting up the alignment
+    if (size > 4) { // Ensure there's enough data for meaningful processing
+        // Assuming data is in the correct format for bam1_t
+        bam1_core_t *core = &alignment->core;
+        core->l_qname = data[0] % 255 + 1;  // Set a valid qname length
+        core->flag = data[1]; // Set some flags
+        core->n_cigar = data[2] % 10; // Set a reasonable number of CIGAR operations
+        core->l_qseq = data[3] % 100; // Set a reasonable sequence length
+
+        alignment->l_data = size - 4;
+        alignment->data = (uint8_t *)malloc(alignment->l_data);
+        if (alignment->data == NULL) {
+            sam_hdr_destroy(header);
+            bam_destroy1(alignment);
+            hts_filter_free(filter);
+            return 0;
+        }
+        memcpy(alignment->data, data + 4, alignment->l_data);
+    } else {
+        // If size is too small, we cannot proceed with meaningful fuzzing
+        sam_hdr_destroy(header);
+        bam_destroy1(alignment);
+        hts_filter_free(filter);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = sam_hdr_name2tid(header, name);
+    result = sam_passes_filter(header, alignment, filter);
 
     // Clean up
-    free(name);
     sam_hdr_destroy(header);
+    bam_destroy1(alignment);
+    hts_filter_free(filter);
 
     return 0;
 }

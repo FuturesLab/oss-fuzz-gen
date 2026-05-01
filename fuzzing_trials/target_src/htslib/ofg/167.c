@@ -1,29 +1,47 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include "htslib/sam.h" // Assuming the function is part of the HTSlib library
 
-// Function-under-test declaration
-const char * hts_test_feature(unsigned int feature);
-
-// Fuzzing harness
 int LLVMFuzzerTestOneInput_167(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract an unsigned int
-    if (size < sizeof(unsigned int)) {
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
         return 0;
     }
 
-    // Extract an unsigned int from the input data
-    unsigned int feature = *((unsigned int *)data);
+    // Ensure that size is large enough to create valid strings
+    if (size < 2) {
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+
+    // Split the data into two parts for the two string arguments
+    size_t mid = size / 2;
+    char *str1 = (char *)malloc(mid + 1);
+    char *str2 = (char *)malloc(size - mid + 1);
+
+    if (str1 == NULL || str2 == NULL) {
+        free(str1);
+        free(str2);
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+
+    memcpy(str1, data, mid);
+    str1[mid] = '\0';
+
+    memcpy(str2, data + mid, size - mid);
+    str2[size - mid] = '\0';
 
     // Call the function-under-test
-    const char *result = hts_test_feature(feature);
+    int result = sam_hdr_line_index(hdr, str1, str2);
 
-    // Use the result in some way to avoid compiler optimizations
-    if (result != NULL) {
-        // Do something trivial with the result, like checking its length
-        while (*result) {
-            result++;
-        }
-    }
+    // Clean up
+    free(str1);
+    free(str2);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

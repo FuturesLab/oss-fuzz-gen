@@ -1,53 +1,47 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include "/src/htslib/htslib/sam.h" // Correct path to the HTSlib SAM library
+#include <unistd.h> // For close() and unlink()
+#include <fcntl.h>  // For mkstemp()
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_86(const uint8_t *data, size_t size) {
-    // Check if the size is sufficient for splitting into parameters
-    if (size < 4) {
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize bam1_t structure
-    bam1_t *bam_record = bam_init1();
-    if (bam_record == NULL) {
+    // Create a temporary file to store the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Extract parts of the data for the parameters
-    const char *tag = (const char *)data; // Using first few bytes as tag
-    int tag_len = 2; // BAM tags are typically 2 characters long
-
-    // Ensure null-termination for the tag
-    char tag_buffer[3];
-    memcpy(tag_buffer, tag, tag_len);
-    tag_buffer[2] = '\0';
-
-    // Use a portion of the data as the length of the string
-    int str_length = (int)data[2];
-
-    // Use the remaining data as the string, ensuring null-termination
-    const char *str_data = (const char *)(data + 3);
-    size_t str_data_length = size - 3;
-
-    // Allocate memory for the string and ensure null-termination
-    char *str_buffer = (char *)malloc(str_data_length + 1);
-    if (str_buffer == NULL) {
-        bam_destroy1(bam_record);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
         return 0;
     }
-    memcpy(str_buffer, str_data, str_data_length);
-    str_buffer[str_data_length] = '\0';
+    close(fd);
 
-    // Call the function-under-test
-    int result = bam_aux_update_str(bam_record, tag_buffer, str_length, str_buffer);
+    // Open the temporary file with hts_open
+    htsFile *file = hts_open(tmpl, "r");
+    if (file == NULL) {
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Attempt to read from the file to trigger code paths
+    // Assuming there's a function to read data, e.g., hts_read_data
+    // This is a placeholder for the actual function that processes the file
+    // size_t bytes_read = hts_read_data(file);
 
     // Clean up
-    free(str_buffer);
-    bam_destroy1(bam_record);
+    hts_close(file);
+    unlink(tmpl);
 
     return 0;
 }

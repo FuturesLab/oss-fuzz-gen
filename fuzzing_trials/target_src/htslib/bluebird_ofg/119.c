@@ -1,54 +1,36 @@
 #include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // For close() and unlink()
-#include <fcntl.h>  // For mkstemp()
-#include "htslib/hts.h"
 #include "htslib/sam.h"
 
 int LLVMFuzzerTestOneInput_119(const uint8_t *data, size_t size) {
-    char tmpl1[] = "/tmp/fuzzfileXXXXXX";
-    char tmpl2[] = "/tmp/fuzzfileXXXXXX";
-    char tmpl3[] = "/tmp/fuzzfileXXXXXX";
-    int fd1 = mkstemp(tmpl1);
-    int fd2 = mkstemp(tmpl2);
-    int fd3 = mkstemp(tmpl3);
+    bam1_t *bam_record = bam_init1();
+    char tag[3] = "XX"; // Initialize with a default tag
+    int64_t value = 0;
 
-    if (fd1 == -1 || fd2 == -1 || fd3 == -1) {
+    if (size < 2) {
+        // Not enough data to set a tag and value, so clean up and return
+        bam_destroy1(bam_record);
         return 0;
     }
 
-    // Write the fuzz data to the temporary files
-    write(fd1, data, size);
-    write(fd2, data, size);
-    write(fd3, data, size);
+    // Use the first two bytes of data as a tag
+    tag[0] = (char)data[0];
+    tag[1] = (char)data[1];
 
-    // Open the first file as an htsFile
-    htsFile *hts_file = hts_open(tmpl1, "r");
-    if (hts_file == NULL) {
-        close(fd1);
-        close(fd2);
-        close(fd3);
-        return 0;
+    // Use the remaining bytes as an int64_t value
+    if (size >= 10) {
+        memcpy(&value, data + 2, sizeof(int64_t));
     }
 
     // Call the function-under-test
-    hts_idx_t *index = sam_index_load2(hts_file, tmpl2, tmpl3);
+    int result = bam_aux_update_int(bam_record, tag, value);
 
     // Clean up
-    if (index != NULL) {
-        hts_idx_destroy(index);
-    }
-    hts_close(hts_file);
-    close(fd1);
-    close(fd2);
-    close(fd3);
-    unlink(tmpl1);
-    unlink(tmpl2);
-    unlink(tmpl3);
+    bam_destroy1(bam_record);
 
     return 0;
 }

@@ -1,63 +1,67 @@
 #include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <stdio.h>
 
-// Assuming hFILE is defined in a header file included here
-#include "htslib/hfile.h"
-
-// Mock implementation of hgets for compilation purposes
-char *hgets(char *str, int num, hFILE *stream);
+// Assuming the necessary headers for sam_hdr_t and kstring_t are included
+#include "htslib/sam.h"
+#include "/src/htslib/htslib/kstring.h"
 
 int LLVMFuzzerTestOneInput_94(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0; // Not enough data to perform the test
+    // Ensure the input size is large enough to split into multiple strings
+    if (size < 5) {
+        return 0;
     }
 
-    // Allocate memory for the string buffer
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == NULL) {
-        return 0; // Memory allocation failed
+    // Initialize sam_hdr_t
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
+        return 0;
     }
 
-    // Copy the data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
+    // Allocate memory for strings
+    char *str1 = (char *)malloc(size + 1);
+    char *str2 = (char *)malloc(size + 1);
+    char *str3 = (char *)malloc(size + 1);
+    char *str4 = (char *)malloc(size + 1);
 
-    // Create a temporary file to simulate hFILE
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        free(buffer);
-        return 0; // Failed to create a temporary file
+    if (!str1 || !str2 || !str3 || !str4) {
+        free(str1);
+        free(str2);
+        free(str3);
+        free(str4);
+        sam_hdr_destroy(hdr);
+        return 0;
     }
 
-    // Write the data to the temporary file
-    write(fd, data, size);
-    lseek(fd, 0, SEEK_SET); // Reset file pointer to the beginning
+    // Split the input data into four parts
+    size_t part_size = size / 4;
+    memcpy(str1, data, part_size);
+    str1[part_size] = '\0';
+    memcpy(str2, data + part_size, part_size);
+    str2[part_size] = '\0';
+    memcpy(str3, data + 2 * part_size, part_size);
+    str3[part_size] = '\0';
+    memcpy(str4, data + 3 * part_size, size - 3 * part_size);
+    str4[size - 3 * part_size] = '\0';
 
-    // Open the temporary file using standard file operations
-    FILE *file = fdopen(fd, "r");
-    if (file == NULL) {
-        close(fd);
-        free(buffer);
-        return 0; // Failed to open file
-    }
-
-    // Mock hFILE structure to use standard FILE operations
-    hFILE *hfile = (hFILE *)file;
+    // Initialize kstring_t
+    kstring_t ks;
+    ks.s = NULL;
+    ks.l = ks.m = 0;
 
     // Call the function-under-test
-    hgets(buffer, size, hfile);
+    sam_hdr_find_tag_id(hdr, str1, str2, str3, str4, &ks);
 
     // Clean up
-    fclose(file);
-    unlink(tmpl);
-    free(buffer);
+    free(str1);
+    free(str2);
+    free(str3);
+    free(str4);
+    free(ks.s);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

@@ -1,52 +1,51 @@
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-
-typedef struct {
-    size_t l, m;
-    char *s;
-} kstring_t;
-
-char * haddextension(kstring_t *str, const char *ext, int flag, const char *sep);
+#include <stdio.h>
+#include "/src/htslib/htslib/sam.h" // Correct path for sam.h
 
 int LLVMFuzzerTestOneInput_114(const uint8_t *data, size_t size) {
-    if (size < 4) {
-        return 0; // Ensure there's enough data for the inputs
+    // Check if the input size is sufficient for processing
+    if (size < 2) {
+        return 0;
     }
 
-    // Initialize kstring_t
-    kstring_t kstr;
-    kstr.l = size / 2;
-    kstr.m = size;
-    kstr.s = (char *)malloc(kstr.m + 1);
-    memcpy(kstr.s, data, kstr.l);
-    kstr.s[kstr.l] = '\0';
+    // Declare and initialize variables
+    sam_hdr_t *hdr = sam_hdr_init(); // Assuming sam_hdr_init() initializes a sam_hdr_t object
 
-    // Extract ext from the input data
-    const char *ext = (const char *)(data + kstr.l);
-    int ext_len = (size - kstr.l) / 2;
-    char *ext_str = (char *)malloc(ext_len + 1);
-    memcpy(ext_str, ext, ext_len);
-    ext_str[ext_len] = '\0';
+    // Ensure the header is not NULL
+    if (hdr == NULL) {
+        return 0;
+    }
 
-    // Extract sep from the input data
-    const char *sep = (const char *)(data + kstr.l + ext_len);
-    int sep_len = size - kstr.l - ext_len;
-    char *sep_str = (char *)malloc(sep_len + 1);
-    memcpy(sep_str, sep, sep_len);
-    sep_str[sep_len] = '\0';
+    // Use part of the input data to create dynamic key and value
+    // This will allow the fuzzer to generate different keys and values
+    size_t key_len = data[0] % (size - 1) + 1; // Ensure key_len is at least 1
+    size_t value_len = size - key_len - 1; // Remaining data for value
 
-    // Use a fixed flag value for simplicity
-    int flag = 1;
+    char *key = (char *)malloc(key_len + 1);
+    char *value = (char *)malloc(value_len + 1);
+
+    if (key == NULL || value == NULL) {
+        sam_hdr_destroy(hdr);
+        free(key);
+        free(value);
+        return 0;
+    }
+
+    memcpy(key, data + 1, key_len);
+    key[key_len] = '\0'; // Null-terminate the key
+
+    memcpy(value, data + 1 + key_len, value_len);
+    value[value_len] = '\0'; // Null-terminate the value
 
     // Call the function-under-test
-    char *result = haddextension(&kstr, ext_str, flag, sep_str);
+    int result = sam_hdr_change_HD(hdr, key, value);
 
-    // Free allocated memory
-    free(kstr.s);
-    free(ext_str);
-    free(sep_str);
+    // Clean up
+    sam_hdr_destroy(hdr);
+    free(key);
+    free(value);
 
     return 0;
 }

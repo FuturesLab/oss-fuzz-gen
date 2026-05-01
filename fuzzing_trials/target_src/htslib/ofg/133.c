@@ -1,19 +1,43 @@
 #include <stdint.h>
 #include <stddef.h>
-#include "/src/htslib/htslib/hts.h"  // Include the correct path for the htslib header
+#include <string.h>
+#include <stdlib.h>
+#include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_133(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    hts_md5_context *ctx = hts_md5_init();
-
-    // Ensure the context is not NULL
-    if (ctx != NULL) {
-        // Feed the input data to the MD5 context
-        hts_md5_update(ctx, data, size);
-
-        // Clean up the context after use
-        hts_md5_destroy(ctx);
+    sam_hdr_t *hdr = NULL;
+    char *type = NULL;
+    int pos = 0;
+    
+    // Ensure there is enough data to initialize parameters
+    if (size < sizeof(int) + 1) {
+        return 0;
     }
+
+    // Allocate memory for the type string and copy data into it
+    type = (char *)malloc(size + 1);
+    if (type == NULL) {
+        return 0;
+    }
+    memcpy(type, data, size);
+    type[size] = '\0'; // Null-terminate the string
+
+    // Use the first few bytes of data for the integer position
+    memcpy(&pos, data, sizeof(int));
+
+    // Initialize a dummy sam_hdr_t object
+    hdr = sam_hdr_init();
+    if (hdr == NULL) {
+        free(type);
+        return 0;
+    }
+
+    // Call the function-under-test
+    const char *result = sam_hdr_line_name(hdr, type, pos);
+
+    // Clean up
+    sam_hdr_destroy(hdr);
+    free(type);
 
     return 0;
 }

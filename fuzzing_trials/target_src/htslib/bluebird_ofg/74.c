@@ -1,48 +1,50 @@
 #include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include "htslib/sam.h"
 
-extern int sam_hdr_find_line_id(sam_hdr_t *, const char *, const char *, const char *, kstring_t *);
-
 int LLVMFuzzerTestOneInput_74(const uint8_t *data, size_t size) {
-    // Ensure the size is large enough to split into parts
-    if (size < 4) return 0;
+    sam_hdr_t *hdr = NULL;
+    char *id = NULL;
 
-    // Initialize sam_hdr_t
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) return 0;
+    // Ensure size is sufficient for creating a non-empty string
+    if (size < 1) {
+        return 0;
+    }
 
-    // Split data into parts for the function parameters
-    size_t part_size = size / 4;
-    const char *type = (const char *)data;
-    const char *id = (const char *)(data + part_size);
-    const char *val = (const char *)(data + 2 * part_size);
-    const char *str = (const char *)(data + 3 * part_size);
+    // Create a SAM header object
+    hdr = sam_hdr_init();
+    if (hdr == NULL) {
+        return 0;
+    }
 
-    // Ensure null-termination for strings
-    char *type_str = strndup(type, part_size);
-    char *id_str = strndup(id, part_size);
-    char *val_str = strndup(val, part_size);
-    char *str_str = strndup(str, size - 3 * part_size);
+    // Allocate memory for the ID string and ensure it's null-terminated
+    id = (char *)malloc(size + 1);
+    if (id == NULL) {
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+    memcpy(id, data, size);
+    id[size] = '\0';
 
-    // Initialize kstring_t
-    kstring_t ks;
-    ks.l = 0;
-    ks.m = 0;
-    ks.s = NULL;
+    // Add a program record to the SAM header with the ID
+    if (sam_hdr_add_line(hdr, "PG", "ID", id, NULL) < 0) {
+        free(id);
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = sam_hdr_find_line_id(hdr, type_str, id_str, val_str, &ks);
+    const char *result = sam_hdr_pg_id(hdr, id);
+
+    // Check the result to ensure the function is being exercised
+    if (result != NULL) {
+        // Optionally, do something with the result to verify correctness
+    }
 
     // Clean up
-    free(type_str);
-    free(id_str);
-    free(val_str);
-    free(str_str);
-    free(ks.s);
+    free(id);
     sam_hdr_destroy(hdr);
 
     return 0;

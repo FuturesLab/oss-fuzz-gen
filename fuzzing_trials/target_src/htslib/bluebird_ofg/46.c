@@ -1,33 +1,46 @@
 #include <sys/stat.h>
-#include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-
-// Function-under-test
-ssize_t sam_parse_cigar(const char *cigar_str, char **end, uint32_t **cigar, size_t *n_cigar);
+#include <unistd.h>  // Include for close() and unlink()
+#include <fcntl.h>   // Include for mkstemp()
+#include "htslib/sam.h"
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated for string operations
-    char *cigar_str = (char *)malloc(size + 1);
-    if (cigar_str == NULL) {
+    // Create a temporary file to write the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
-    memcpy(cigar_str, data, size);
-    cigar_str[size] = '\0';
 
-    // Initialize the other parameters
-    char *end = NULL;
-    uint32_t *cigar = NULL;
-    size_t n_cigar = 0;
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
 
-    // Call the function-under-test
-    ssize_t result = sam_parse_cigar(cigar_str, &end, &cigar, &n_cigar);
+    // Close the file descriptor
+    close(fd);
+
+    // Open the temporary file as a SAM/BAM file
+    samFile *infile = sam_open(tmpl, "r");
+    if (infile == NULL) {
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Call the function under test
+    sam_hdr_t *header = sam_hdr_get(infile);
 
     // Clean up
-    free(cigar_str);
-    free(cigar);
+    if (header != NULL) {
+        sam_hdr_destroy(header);
+    }
+    sam_close(infile);
+    unlink(tmpl);
 
     return 0;
 }

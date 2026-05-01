@@ -1,45 +1,62 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>  // For mkstemp, write, close, and remove
 #include "htslib/hts.h"
-#include "/src/htslib/htslib/tbx.h"  // Include the header for hts_idx_t and hts_idx_fmt
-#include "/src/htslib/htslib/bgzf.h" // Include the header for BGZF related functions
 
 int LLVMFuzzerTestOneInput_137(const uint8_t *data, size_t size) {
-    // Create a temporary file to use with the BGZF functions
-    char tmp_filename[] = "/tmp/fuzz_input_XXXXXX";
-    int fd = mkstemp(tmp_filename);
+    // Create a temporary file to simulate an htsFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the data to the temporary file
-    write(fd, data, size);
-    close(fd);
-
-    // Open the temporary file with BGZF
-    BGZF *bgzf = bgzf_open(tmp_filename, "r");
-    if (bgzf == NULL) {
-        unlink(tmp_filename);
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
         return 0;
     }
 
-    // Use the htslib function to create an index
-    hts_idx_t *idx = tbx_index_load(tmp_filename);
-    if (idx == NULL) {
-        bgzf_close(bgzf);
-        unlink(tmp_filename);
+    // Close the file descriptor so hts_open can open it
+    close(fd);
+
+    // Open the temporary file with hts_open
+    htsFile *file = hts_open(tmpl, "r");
+    if (file == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    int result = hts_idx_fmt(idx);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to hts_crc32
+    const uint8_t yhsmxgrc = 1;
+    int64_t ret_bam_aux2i_lyxxe = bam_aux2i(&yhsmxgrc);
+    if (ret_bam_aux2i_lyxxe < 0){
+    	return 0;
+    }
+    const uint8_t ngxglurt = size;
+    int64_t ret_bam_aux2i_ceicz = bam_aux2i(&ngxglurt);
+    if (ret_bam_aux2i_ceicz < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    uint32_t ret_hts_crc32_zsywu = hts_crc32((uint32_t )ret_bam_aux2i_lyxxe, (const void *)file, (size_t )ret_bam_aux2i_ceicz);
+    if (ret_hts_crc32_zsywu < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hts_flush(file);
 
     // Clean up
-    hts_idx_destroy(idx);
-    bgzf_close(bgzf);
-    unlink(tmp_filename);
+    hts_close(file);
+    remove(tmpl);
 
     return 0;
 }

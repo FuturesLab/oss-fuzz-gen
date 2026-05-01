@@ -1,53 +1,48 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
 #include <stdlib.h>
+#include <string.h> // Include string.h for memcpy
+#include <htslib/sam.h>
 #include <htslib/hts.h>
-#include <htslib/hfile.h>
 
 int LLVMFuzzerTestOneInput_178(const uint8_t *data, size_t size) {
-    if (size < 3) {
-        return 0; // Ensure there is enough data for the required strings
-    }
+    bam1_t *bam_record;
+    hts_base_mod_state *mod_state;
+    hts_base_mod mod;
+    int qpos = 0;
+    int max_mods = 1;
+    int result;
 
-    // Create a temporary file to simulate hFILE input
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // Failed to create a temporary file
-    }
-
-    // Write the fuzz data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (file == NULL) {
-        close(fd);
+    // Initialize bam_record
+    bam_record = bam_init1();
+    if (bam_record == NULL) {
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
 
-    // Open the hFILE
-    hFILE *hfile = hopen(tmpl, "rb");
-    if (hfile == NULL) {
-        unlink(tmpl);
-        return 0; // Failed to open hFILE
+    // Initialize mod_state
+    mod_state = hts_base_mod_state_alloc();
+    if (mod_state == NULL) {
+        bam_destroy1(bam_record);
+        return 0;
     }
 
-    // Prepare the mode and format strings
-    const char *mode = "r";
-    const char *format = "b";
+    // Simulate bam_record data
+    if (size > 0) {
+        bam_record->data = (uint8_t *)malloc(size);
+        if (bam_record->data == NULL) {
+            hts_base_mod_state_free(mod_state);
+            bam_destroy1(bam_record);
+            return 0;
+        }
+        memcpy(bam_record->data, data, size);
+        bam_record->l_data = size;
+    }
 
     // Call the function-under-test
-    htsFile *htsfile = hts_hopen(hfile, mode, format);
+    result = bam_mods_at_qpos(bam_record, qpos, mod_state, &mod, max_mods);
 
     // Clean up
-    if (htsfile != NULL) {
-        hts_close(htsfile);
-    }
-    hclose(hfile);
-    unlink(tmpl);
+    hts_base_mod_state_free(mod_state);
+    bam_destroy1(bam_record);
 
     return 0;
 }

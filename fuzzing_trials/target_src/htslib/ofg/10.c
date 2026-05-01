@@ -1,46 +1,45 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
+#include <unistd.h>  // Added for close() and remove()
 #include <htslib/hts.h>
-
-// Function to check if the data is valid ASCII
-int is_valid_ascii(const uint8_t *data, size_t size) {
-    for (size_t i = 0; i < size; i++) {
-        if (data[i] < 32 || data[i] > 126) {
-            return 0; // Non-printable ASCII character found
-        }
-    }
-    return 1;
-}
+#include <htslib/hfile.h>
 
 int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    htsFormat format;
-    char *opt_list;
-
-    // Ensure the data is null-terminated to safely convert to a string
-    opt_list = (char *)malloc(size + 1);
-    if (opt_list == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
-    memcpy(opt_list, data, size);
-    opt_list[size] = '\0';
 
-    // Check if the data is valid ASCII
-    if (!is_valid_ascii(data, size)) {
-        free(opt_list);
-        return 0; // Exit if data is not valid ASCII
+    // Write the fuzz data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (file == NULL) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Open the temporary file using hts_open
+    hFILE *hfile = hopen(tmpl, "r");
+    if (hfile == NULL) {
+        remove(tmpl);
+        return 0;
     }
 
     // Initialize htsFormat structure
+    htsFormat format;
     memset(&format, 0, sizeof(htsFormat));
 
     // Call the function-under-test
-    hts_parse_opt_list(&format, opt_list);
+    hts_detect_format(hfile, &format);
 
     // Clean up
-    free(opt_list);
+    hclose(hfile);
+    remove(tmpl);
 
     return 0;
 }

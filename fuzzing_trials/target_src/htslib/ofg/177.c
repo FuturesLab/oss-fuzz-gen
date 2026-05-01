@@ -1,58 +1,38 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <string.h> // Include string.h for memcpy
-
-// Assuming the definition of hFILE is available
-typedef struct {
-    // Add relevant fields here
-    char *buffer;
-    size_t buffer_size;
-} hFILE;
-
-// Mock implementation of hfile_mem_get_buffer_177
-char * hfile_mem_get_buffer_177(hFILE *file, size_t *size) {
-    if (file == NULL || size == NULL) {
-        return NULL;
-    }
-    *size = file->buffer_size;
-    return file->buffer;
-}
+#include <string.h>
+#include <htslib/hts.h>
+#include <htslib/tbx.h> // Include the correct header for tabix functions
 
 int LLVMFuzzerTestOneInput_177(const uint8_t *data, size_t size) {
-    if (size < sizeof(size_t)) {
-        return 0; // Not enough data to proceed
+    // Ensure the input size is sufficient for the test
+    if (size < 1) {
+        return 0;
     }
 
-    // Initialize a hFILE object
-    hFILE file;
-    file.buffer_size = size;
-    file.buffer = (char *)malloc(size);
-    if (file.buffer == NULL) {
-        return 0; // Memory allocation failed
+    // Initialize an integer value
+    int some_int = (int)data[0]; // Use the first byte of data as an integer
+
+    // Create a null-terminated string from the remaining data
+    size_t str_size = size - 1;
+    char *str = (char *)malloc(str_size + 1);
+    if (!str) {
+        return 0;
     }
+    memcpy(str, data + 1, str_size);
+    str[str_size] = '\0'; // Null-terminate the string
 
-    // Copy data into the buffer
-    memcpy(file.buffer, data, size);
-
-    // Initialize a size_t variable
-    size_t buffer_size = 0;
-
-    // Call the function-under-test
-    char *result = hfile_mem_get_buffer_177(&file, &buffer_size);
-
-    // Check the result to ensure it is not NULL and matches expectations
-    if (result != NULL && buffer_size == size) {
-        // Perform some operation to ensure the result is used
-        // For example, print the first byte if size is greater than 0
-        if (buffer_size > 0) {
-            printf("First byte: %c\n", result[0]);
-        }
+    // Example function call from htslib, replace with a valid function
+    // Since hts_idx_tbi_name is not a valid function, let's assume we want to use tbx_index_build instead
+    // tbx_index_build is a common function to build an index for a tabix file
+    tbx_t *tbx = tbx_index_load(str); // Load the index using the string
+    if (tbx) {
+        tbx_destroy(tbx); // Destroy the index if it was successfully loaded
     }
 
     // Clean up
-    free(file.buffer);
+    free(str);
 
     return 0;
 }

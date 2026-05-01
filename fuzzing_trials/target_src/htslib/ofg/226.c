@@ -1,34 +1,53 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
 #include <stdio.h>
-#include "/src/htslib/htslib/sam.h" // Correct path for sam.h
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+// Function-under-test
+int hfile_has_plugin(const char *filename);
 
 int LLVMFuzzerTestOneInput_226(const uint8_t *data, size_t size) {
-    // Declare and initialize the sam_hdr_t pointer
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
+    // Check if the input size is reasonable
+    if (size == 0) {
+        return 0; // Nothing to process
+    }
+
+    // Create a temporary file name template
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // If file creation fails, exit the fuzzer
+    }
+
+    // Ensure the file is writable
+    if (ftruncate(fd, 0) == -1) {
+        close(fd);
+        unlink(tmpl);
         return 0;
     }
 
-    // Ensure the input size is sufficient to extract meaningful strings
-    if (size < 4) {
-        sam_hdr_destroy(hdr);
-        return 0;
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0; // If writing fails, clean up and exit
     }
 
-    // Extract strings from the fuzzer input data
-    const char *type = (const char *)data;
-    const char *id = (const char *)(data + 1);
-    const char *key = (const char *)(data + 2);
-    const char *value = (const char *)(data + 3);
+    // Close the file descriptor to flush the data
+    close(fd);
 
-    // Call the function-under-test
-    int result = sam_hdr_remove_tag_id(hdr, type, id, key, value);
+    // Call the function-under-test with the temporary file name
+    // Consider checking the return value or behavior of the function
+    int result = hfile_has_plugin(tmpl);
 
-    // Clean up
-    sam_hdr_destroy(hdr);
+    // Log the result for debugging purposes (optional)
+    printf("hfile_has_plugin returned: %d\n", result);
+
+    // Clean up: remove the temporary file
+    unlink(tmpl);
 
     return 0;
 }

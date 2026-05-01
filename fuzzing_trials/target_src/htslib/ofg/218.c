@@ -1,55 +1,42 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include "/src/htslib/htslib/hfile.h"
+#include <stdlib.h>
+#include <string.h>
+#include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_218(const uint8_t *data, size_t size) {
-    hFILE *file = NULL;
-    size_t buffer_size = 0;
-    char *buffer = NULL;
+    sam_hdr_t *hdr = NULL;
+    char *header_text = NULL;
 
-    // Create a temporary file to simulate hFILE
-    FILE *temp_file = tmpfile();
-    if (temp_file == NULL) {
+    // Ensure the data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Write the fuzzing data to the temporary file
-    fwrite(data, 1, size, temp_file);
-    rewind(temp_file);
-
-    // Use file descriptor to open the temporary file
-    int fd = fileno(temp_file);
-    if (fd == -1) {
-        fclose(temp_file);
+    // Allocate memory for header text
+    header_text = (char *)malloc(size + 1);
+    if (header_text == NULL) {
         return 0;
     }
 
-    // Use hdopen to open the temporary file by its file descriptor
-    file = hdopen(fd, "r");
-    if (file == NULL) {
-        fclose(temp_file);
-        return 0;
-    }
+    // Copy data to header text and null-terminate it
+    memcpy(header_text, data, size);
+    header_text[size] = '\0';
 
-    // Read data from hFILE to ensure the function is invoked with actual content
-    char read_buffer[1024];
-    ssize_t bytes_read = hread(file, read_buffer, sizeof(read_buffer));
-    if (bytes_read > 0) {
-        // Process the read data if necessary
+    // Parse the header text into a sam_hdr_t structure
+    hdr = sam_hdr_parse(size, header_text);
+    if (hdr == NULL) {
+        free(header_text);
+        return 0;
     }
 
     // Call the function-under-test
-    buffer = hfile_mem_steal_buffer(file, &buffer_size);
+    int nref = sam_hdr_nref(hdr);
 
     // Clean up
-    if (buffer != NULL) {
-        free(buffer);
-    }
-    hclose(file);
-    fclose(temp_file);
+    sam_hdr_destroy(hdr);
+    free(header_text);
 
     return 0;
 }

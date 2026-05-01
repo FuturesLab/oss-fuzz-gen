@@ -1,45 +1,54 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // for close() and write()
+#include <unistd.h> // for close() and unlink()
 #include <fcntl.h>  // for mkstemp()
-
-// Assuming hFILE is defined somewhere in the included headers
-typedef struct hFILE hFILE;
-
-// Placeholder for the actual function definition
-hFILE *hopen(const char *filename, const char *mode, void *options);
+#include <sys/types.h> // for ssize_t
+#include <htslib/sam.h>
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_130(const uint8_t *data, size_t size) {
+    // Create a temporary file to store the input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
+    // Write the input data to the temporary file
     if (write(fd, data, size) != size) {
         close(fd);
         return 0;
     }
     close(fd);
 
-    // Define a mode for opening the file
-    const char *mode = "r";
-
-    // Call the function-under-test
-    hFILE *file = hopen(tmpl, mode, NULL);
-
-    // Clean up
-    if (file != NULL) {
-        // Assuming there's a function to close hFILE
-        // hclose(file);
+    // Open the temporary file as an htsFile
+    htsFile *hts_file = hts_open(tmpl, "r");
+    if (hts_file == NULL) {
+        return 0;
     }
 
-    // Remove the temporary file
-    remove(tmpl);
+    // Initialize the sam_hdr_t and bam1_t structures
+    sam_hdr_t *header = sam_hdr_read(hts_file);
+    if (header == NULL) {
+        hts_close(hts_file);
+        return 0;
+    }
+
+    bam1_t *b = bam_init1();
+    if (b == NULL) {
+        sam_hdr_destroy(header);
+        hts_close(hts_file);
+        return 0;
+    }
+
+    // Call the function under test
+    sam_read1(hts_file, header, b);
+
+    // Clean up
+    bam_destroy1(b);
+    sam_hdr_destroy(header);
+    hts_close(hts_file);
+    unlink(tmpl);
 
     return 0;
 }

@@ -1,48 +1,37 @@
 #include <sys/stat.h>
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
-extern int hfile_list_plugins(const char **, int *);
+// Function-under-test declaration
+int hts_file_type(const char *filename);
 
 int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to avoid out-of-bounds access
-    if (size < 2) {
-        return 0;
+    // Create a temporary file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // If unable to create a temp file, exit
     }
 
-    // Allocate memory for the char* array
-    const char *plugin_names[2];
-    char *plugin_name1 = (char *)malloc(size / 2 + 1);
-    char *plugin_name2 = (char *)malloc(size / 2 + 1);
-
-    if (plugin_name1 == NULL || plugin_name2 == NULL) {
-        // Handle memory allocation failure
-        free(plugin_name1);
-        free(plugin_name2);
-        return 0;
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0; // If unable to write data, clean up and exit
     }
 
-    // Copy data into the plugin name buffers
-    memcpy(plugin_name1, data, size / 2);
-    plugin_name1[size / 2] = '\0';  // Null-terminate the string
-    memcpy(plugin_name2, data + size / 2, size / 2);
-    plugin_name2[size / 2] = '\0';  // Null-terminate the string
+    // Close the file descriptor
+    close(fd);
 
-    // Initialize the plugin names array
-    plugin_names[0] = plugin_name1;
-    plugin_names[1] = plugin_name2;
+    // Call the function-under-test with the temporary file's name
+    hts_file_type(tmpl);
 
-    // Initialize an integer to hold the result
-    int result = 0;
-
-    // Call the function-under-test
-    hfile_list_plugins(plugin_names, &result);
-
-    // Free allocated memory
-    free(plugin_name1);
-    free(plugin_name2);
+    // Clean up: remove the temporary file
+    unlink(tmpl);
 
     return 0;
 }

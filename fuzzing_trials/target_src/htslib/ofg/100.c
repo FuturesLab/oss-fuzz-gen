@@ -1,47 +1,48 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <htslib/hts.h>
+#include <stdio.h>
+#include <unistd.h> // For close() and unlink()
+#include <fcntl.h>  // For mkstemp()
+#include <sys/types.h> // For ssize_t
+#include <sys/stat.h> // For open()
+#include "/src/htslib/htslib/hfile.h"
 
 int LLVMFuzzerTestOneInput_100(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for two null-terminated strings
-    if (size < 4) return 0;
-
-    // Allocate memory for the filename and mode strings
-    char filename[256];
-    char mode[4];
-
-    // Copy data to filename and mode, ensuring null-termination
-    size_t filename_len = (size < 255) ? size : 255;
-    memcpy(filename, data, filename_len);
-    filename[filename_len] = '\0';
-
-    size_t mode_len = (size - filename_len < 3) ? size - filename_len : 3;
-    memcpy(mode, data + filename_len, mode_len);
-    mode[mode_len] = '\0';
-
-    // Ensure filename is not empty
-    if (filename[0] == '\0') return 0;
-
-    // Create a temporary file to use as the filename
+    // Create a temporary file to simulate a hFILE object
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
-    if (fd == -1) return 0;
-
-    // Write the data to the temporary file
-    write(fd, data, size);
-    close(fd);
-
-    // Call the function-under-test
-    htsFile *file = hts_open(tmpl, mode);
-
-    // Clean up
-    if (file != NULL) {
-        hts_close(file);
+    if (fd == -1) {
+        return 0; // Unable to create a temporary file
     }
+
+    // Write the fuzz data to the temporary file
+    ssize_t written = write(fd, data, size);
+    if (written != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0; // Unable to write all data to the file
+    }
+
+    // Open the file as a hFILE object
+    hFILE *hfile = hopen(tmpl, "rb");
+    if (hfile == NULL) {
+        close(fd);
+        unlink(tmpl);
+        return 0; // Unable to open the file as hFILE
+    }
+
+    // Perform read operation to increase code coverage
+    char buffer[1024];
+    ssize_t bytesRead = hread(hfile, buffer, sizeof(buffer));
+    if (bytesRead < 0) {
+        // Handle read error if necessary
+    }
+
+    // Close the hFILE object
+    hclose(hfile);
+
+    // Close the file descriptor and remove the temporary file
+    close(fd);
     unlink(tmpl);
 
     return 0;

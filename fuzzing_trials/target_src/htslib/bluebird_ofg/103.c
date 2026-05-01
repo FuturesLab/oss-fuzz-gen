@@ -1,27 +1,33 @@
 #include <sys/stat.h>
-#include <stddef.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include "htslib/sam.h"  // Correct path for bam_mplp_t and bam_mplp_destructor
 
-// Function-under-test declaration
-int hisremote(const char *);
+// Define a dummy function for bam_plp_auto_f outside of any other function
+int dummy_func(void *data, const bam1_t *b, bam_pileup_cd *cd) {
+    return 0; // Dummy implementation
+}
 
 // Fuzzing harness
 int LLVMFuzzerTestOneInput_103(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Check if the size is sufficient to perform meaningful operations
+    if (size < sizeof(int)) {
+        return 0; // Not enough data to proceed
     }
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
 
-    // Call the function-under-test
-    hisremote(null_terminated_data);
+    // Initialize bam_mplp_t with a valid function and data
+    bam_mplp_t mplp = bam_mplp_init(1, dummy_func, (void**)&data);
 
-    // Free the allocated memory
-    free(null_terminated_data);
+    if (mplp == NULL) {
+        return 0; // Initialization failed, exit gracefully
+    }
+
+    // Use the data to simulate some input if needed
+    // For example, you might want to use the data to set some fields or parameters
+
+    // Call the function-under-test with a valid function
+    bam_mplp_destructor(mplp, dummy_func);
 
     return 0;
 }

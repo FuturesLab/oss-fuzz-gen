@@ -1,58 +1,50 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>  // Include for memcpy
-#include <unistd.h>  // Include for close and unlink
-#include <htslib/sam.h>
+#include <string.h>
+#include <htslib/hts.h>
+
+// Function to ensure the input data is not null and has a minimum size
+static int is_valid_input(const uint8_t *data, size_t size) {
+    return data != NULL && size > 0;
+}
 
 int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
-    samFile *file = NULL;
-    sam_hdr_t *header = NULL;
-    int option = 0;  // Initialize with a default option value
-
-    // Create a temporary file to simulate a samFile
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;  // If file creation fails, exit
+    if (!is_valid_input(data, size)) {
+        return 0; // Return early if input is invalid
     }
 
-    // Open the temporary file as a samFile
-    file = sam_open(tmpl, "w");
-    if (file == NULL) {
-        close(fd);
+    // Initialize an index with a plausible sequence length (e.g., 1000)
+    hts_idx_t *index = hts_idx_init(1000, HTS_FMT_CSI, 0, 0, 0);
+    if (index == NULL) {
+        return 0; // Return if index initialization fails
+    }
+
+    uint32_t meta_type = 1; // Example meta type, can vary based on use case
+    uint8_t *meta_data = NULL;
+    int meta_length = (int)size; // Use the entire size of the input data
+
+    // Allocate memory for meta_data and ensure allocation is successful
+    meta_data = (uint8_t *)malloc(meta_length);
+    if (meta_data == NULL) {
+        hts_idx_destroy(index);
         return 0;
     }
 
-    // Initialize a sam_hdr_t object
-    header = sam_hdr_init();
-    if (header == NULL) {
-        sam_close(file);
-        close(fd);
-        return 0;
+    // Copy the input data to meta_data
+    memcpy(meta_data, data, meta_length);
+
+    // Modify the meta_data to ensure it's non-trivial and affects the function
+    for (int i = 0; i < meta_length; i++) {
+        meta_data[i] ^= 0xAA; // Example modification to make the data non-trivial
     }
 
-    // Set some data in the header using the input data
-    if (size > 0) {
-        // Use the input data to set the header text
-        char *header_text = (char *)malloc(size + 1);
-        if (header_text != NULL) {
-            memcpy(header_text, data, size);
-            header_text[size] = '\0';  // Null-terminate the string
-            sam_hdr_add_lines(header, header_text, size);
-            free(header_text);
-        }
-    }
+    // Call the function-under-test with valid input
+    hts_idx_set_meta(index, meta_type, meta_data, meta_length);
 
-    // Call the function-under-test
-    int result = sam_hdr_set(file, header, option);
-
-    // Clean up
-    sam_hdr_destroy(header);
-    sam_close(file);
-    close(fd);
-    unlink(tmpl);  // Remove the temporary file
+    // Cleanup
+    free(meta_data);
+    hts_idx_destroy(index);
 
     return 0;
 }

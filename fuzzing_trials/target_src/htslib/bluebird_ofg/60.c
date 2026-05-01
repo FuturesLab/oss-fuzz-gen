@@ -1,62 +1,58 @@
 #include <sys/stat.h>
-#include <string.h>
-#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h> // For close() and remove()
-#include "htslib/hts.h"
-#include "htslib/sam.h" // For sam_idx_save()
+#include <stdio.h>
+#include <string.h> // Include for memcpy
+#include "htslib/sam.h" // Include the necessary header for bam_mplp_t and related functions
+
+// Function prototype for a dummy bam_plp_auto_f function
+int dummy_bam_plp_auto(bam_plp_t iter, void *data) {
+    // This is a placeholder function to satisfy the bam_mplp_init requirements
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate an htsFile
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // Unable to create a temporary file, exit early
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0; // Unable to open file descriptor, exit early
+    // Check if the input size is sufficient to proceed
+    if (size < sizeof(bam1_t)) {
+        return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    fwrite(data, 1, size, file);
-    fclose(file);
+    // Declare and initialize bam_mplp_t variable
+    bam_mplp_t mplp;
 
-    // Open the temporary file as an htsFile for writing
-    htsFile *hts_file = hts_open(tmpl, "wb");
-    if (!hts_file) {
-        remove(tmpl); // Clean up the temporary file
-        return 0; // Unable to open htsFile, exit early
+    // Create a dummy data array to pass to bam_mplp_init
+    void *dummy_data[1] = {NULL};
+
+    // Initialize the bam_mplp_t variable with the correct number of arguments
+    mplp = bam_mplp_init(1, dummy_bam_plp_auto, dummy_data);
+
+    // Simulate a bam1_t structure to pass to the function
+    bam1_t *b = bam_init1();
+    if (!b) {
+        bam_mplp_destroy(mplp);
+        return 0;
     }
 
-    // Attempt to write a header to the file to make it a valid SAM/BAM file
-    bam_hdr_t *header = bam_hdr_init();
-    if (header) {
-        header->n_targets = 0; // No targets
-        header->target_len = NULL;
-        header->target_name = NULL;
-        header->text = NULL;
-        header->l_text = 0;
-
-        // Write the header
-        if (sam_hdr_write(hts_file, header) >= 0) {
-            // Ensure the file is properly initialized for indexing
-            int min_shift = 14; // Example value for min_shift
-            const char *fnidx = "/tmp/fuzzfile.bai"; // Provide a valid index filename
-            if (sam_idx_init(hts_file, header, min_shift, fnidx) >= 0) {
-                // Call the function-under-test
-                int result = sam_idx_save(hts_file);
-                (void)result; // Suppress unused variable warning
-            }
+    // Ensure there's enough data to fill the bam1_t structure
+    // Copy only the data part of bam1_t, not the whole structure
+    // Ensure that the bam1_t structure's data field is properly allocated
+    if (b->m_data < size) {
+        b->m_data = size;
+        b->data = (uint8_t *)realloc(b->data, b->m_data);
+        if (!b->data) {
+            bam_destroy1(b);
+            bam_mplp_destroy(mplp);
+            return 0;
         }
-        bam_hdr_destroy(header);
     }
+    memcpy(b->data, data, size);
+
+    // Call the function-under-test
+    int result = bam_mplp_init_overlaps(mplp);
 
     // Clean up
-    hts_close(hts_file);
-    remove(tmpl); // Remove the temporary file
+    bam_destroy1(b);
+    bam_mplp_destroy(mplp);
 
     return 0;
 }

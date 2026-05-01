@@ -1,33 +1,100 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "htslib/sam.h"
 #include "htslib/hts.h"
+#include <unistd.h>
+#include <fcntl.h>
 
 int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-    // We can't use sizeof(hts_idx_t) because it's an incomplete type.
-    // Instead, we assume a minimum size required for the rest of the data.
-    const size_t min_size = sizeof(int) + 2 * sizeof(hts_pos_t);
-    
-    if (size < min_size) {
+    // Ensure the data size is sufficient for meaningful processing
+    if (size < 4) {
         return 0;
     }
 
-    // Initialize the parameters for sam_itr_queryi
-    // We skip the part of the data that would represent hts_idx_t
-    const hts_idx_t *idx = NULL; // We cannot derive this from data directly.
-    int tid = *((int *)(data));
-    hts_pos_t beg = *((hts_pos_t *)(data + sizeof(int)));
-    hts_pos_t end = *((hts_pos_t *)(data + sizeof(int) + sizeof(hts_pos_t)));
+    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
+    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
+    int fd1 = mkstemp(tmpl1);
+    int fd2 = mkstemp(tmpl2);
+
+    if (fd1 == -1 || fd2 == -1) {
+        if (fd1 != -1) {
+                close(fd1);
+        }
+        if (fd2 != -1) {
+                close(fd2);
+        }
+        return 0;
+    }
+
+    // Write the fuzzing data to the first temporary file
+    if (write(fd1, data, size) != size) {
+        close(fd1);
+        close(fd2);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+    close(fd1);
+
+    // Open the file using htslib
+    htsFile *hts_file = hts_open(tmpl1, "r");
+    if (!hts_file) {
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+
+    // Check if the file is a valid SAM/BAM format
+    bam_hdr_t *header = sam_hdr_read(hts_file);
+    if (!header) {
+        hts_close(hts_file);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+
+    // Attempt to read the first alignment
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_read to hts_set_opt
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+    int ret_hts_set_opt_fgesz = hts_set_opt(hts_file, FASTQ_OPT_NAME2);
+    if (ret_hts_set_opt_fgesz < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    bam1_t *aln = bam_init1();
+    if (sam_read1(hts_file, header, aln) < 0) {
+        bam_destroy1(aln);
+        bam_hdr_destroy(header);
+        hts_close(hts_file);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
 
     // Call the function-under-test
-    hts_itr_t *itr = sam_itr_queryi(idx, tid, beg, end);
+    hts_idx_t *index = sam_index_load2(hts_file, tmpl1, tmpl2);
 
-    // Clean up if necessary
-    if (itr != NULL) {
-        hts_itr_destroy(itr);
+    // Ensure that the index is valid before proceeding
+    if (index) {
+        // Perform additional operations if needed
+        hts_idx_destroy(index);
     }
+
+    // Clean up
+    bam_destroy1(aln);
+    bam_hdr_destroy(header);
+    hts_close(hts_file);
+    unlink(tmpl1);
+    unlink(tmpl2);
 
     return 0;
 }

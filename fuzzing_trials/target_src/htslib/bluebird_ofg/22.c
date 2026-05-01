@@ -1,42 +1,55 @@
 #include <sys/stat.h>
 #include <stdint.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>  // For mkstemp, write, close, remove
-#include "htslib/hts.h"
+#include "htslib/sam.h"  // Ensure HTSlib is installed and properly linked
 
 int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    // Ensure data size is sufficient for creating two non-empty filenames
-    if (size < 4) return 0;
+    // Initialize variables
+    sam_hdr_t *hdr = sam_hdr_init();
+    const char *type = "SQ"; // Example type, could vary based on the fuzzing needs
+    int pos = 0; // Example position, can be varied
 
-    // Create temporary files for the input filenames
-    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
-    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
-    int fd1 = mkstemp(tmpl1);
-    int fd2 = mkstemp(tmpl2);
-
-    if (fd1 == -1 || fd2 == -1) {
-        if (fd1 != -1) close(fd1);
-        if (fd2 != -1) close(fd2);
+    // Ensure hdr is not NULL
+    if (hdr == NULL) {
         return 0;
     }
 
-    // Write some data to the first file
-    write(fd1, data, size / 2);
-    write(fd2, data + size / 2, size - size / 2);
+    // Fuzzing: Try to add some header lines before attempting removal
+    if (size > 0) {
+        // Create a temporary buffer to hold a line
+        char *line = (char *)malloc(size + 1);
+        if (line == NULL) {
+            sam_hdr_destroy(hdr);
+            return 0;
+        }
 
-    // Close the file descriptors
-    close(fd1);
-    close(fd2);
+        // Copy data to line buffer and null-terminate
+        memcpy(line, data, size);
+        line[size] = '\0';
 
-    // Call the function under test
-    hts_idx_t *idx = hts_idx_load2(tmpl1, tmpl2);
+        // Add a line to the header using the fuzzing data
+        if (sam_hdr_add_line(hdr, "SQ", "SN", line, "LN", "1000", NULL) < 0) {
+            // If adding the line fails, clean up and return
+            free(line);
+            sam_hdr_destroy(hdr);
+            return 0;
+        }
+
+        // Free the temporary line buffer
+        free(line);
+    }
+
+    // Attempt to remove the line at the specified position
+    if (sam_hdr_remove_line_pos(hdr, type, pos) < 0) {
+        // If removing the line fails, clean up and return
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
 
     // Clean up
-    if (idx) hts_idx_destroy(idx);
-    remove(tmpl1);
-    remove(tmpl2);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

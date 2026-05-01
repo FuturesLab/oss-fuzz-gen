@@ -1,35 +1,28 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <htslib/hts.h>
-#include <htslib/hts_defs.h>
-#include <htslib/sam.h>  // Include this to define bam1_t
-#include <htslib/bgzf.h> // Include this for BGZF
 
-// Dummy implementations of the function pointers required by hts_itr_querys
-static int dummy_name2id(void *hdr, const char *name) {
-    return 0; // Dummy implementation
-}
-
-static int dummy_itr_query_func(const void *hdr, const char *name, hts_itr_t *iter) {
-    return 0; // Dummy implementation
-}
-
-static int dummy_readrec_func(BGZF *fp, void *hdr, void *data, bam1_t *b, int *tid, int *beg, int *end) {
-    return 0; // Dummy implementation
-}
+// Assume the function is defined elsewhere
+extern const char * hts_test_feature(unsigned int feature);
 
 int LLVMFuzzerTestOneInput_163(const uint8_t *data, size_t size) {
-    // Initialize necessary variables
-    hts_idx_t *idx = (hts_idx_t *)data;  // Cast data to hts_idx_t pointer
-    const char *region = "chr1:1000-2000";  // Example region string
-    void *hdr = NULL;  // Placeholder for header, can be NULL for fuzzing
+    unsigned int feature;
+
+    if (size < sizeof(unsigned int)) {
+        return 0; // Not enough data to form an unsigned int
+    }
+
+    // Copy bytes from data to feature, ensuring no overflow
+    feature = *(unsigned int *)data;
 
     // Call the function-under-test
-    hts_itr_t *itr = hts_itr_querys(idx, region, dummy_name2id, hdr, dummy_itr_query_func, dummy_readrec_func);
+    const char *result = hts_test_feature(feature);
 
-    // Clean up
-    if (itr != NULL) {
-        hts_itr_destroy(itr);
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    if (result != NULL) {
+        // Do something trivial with the result, like checking its length
+        while (*result) {
+            result++;
+        }
     }
 
     return 0;

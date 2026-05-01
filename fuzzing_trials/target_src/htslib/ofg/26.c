@@ -1,54 +1,37 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-
-// Assuming the function is declared in a header file
-// #include "sam.h"
-
-// Mock implementation of the function-under-test for demonstration purposes
-int sam_index_build3_26(const char *arg1, const char *arg2, int arg3, int arg4) {
-    // Function logic here
-    return 0; // Placeholder return
-}
+#include <unistd.h>  // Include for mkstemp, close, and unlink
+#include <fcntl.h>   // Include for open
+#include <sys/types.h> // Include for ssize_t
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0; // Not enough data to create two filenames
-    }
-
-    // Create temporary files for the first two string arguments
-    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
-    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
-    int fd1 = mkstemp(tmpl1);
-    int fd2 = mkstemp(tmpl2);
-
-    if (fd1 == -1 || fd2 == -1) {
-        if (fd1 != -1) close(fd1);
-        if (fd2 != -1) close(fd2);
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Write data to the first temporary file
-    write(fd1, data, size / 2);
-    close(fd1);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
 
-    // Write data to the second temporary file
-    write(fd2, data + size / 2, size - size / 2);
-    close(fd2);
+    // Close the file descriptor
+    close(fd);
 
-    // Use some fixed values for the integer arguments
-    int arg3 = 1;
-    int arg4 = 2;
+    // Open the file using hts_open
+    htsFile *file = hts_open(tmpl, "r");
+    if (file != NULL) {
+        // Call the function-under-test
+        hts_close(file);
+    }
 
-    // Call the function-under-test
-    sam_index_build3_26(tmpl1, tmpl2, arg3, arg4);
-
-    // Clean up temporary files
-    unlink(tmpl1);
-    unlink(tmpl2);
+    // Clean up by removing the temporary file
+    unlink(tmpl);
 
     return 0;
 }

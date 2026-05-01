@@ -1,38 +1,34 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>  // For mkstemp, write, close, remove
+#include <stdio.h>
+#include <htslib/sam.h>
 #include <htslib/hts.h>
 
+// Define a dummy function for bam_plp_auto_f type
+int dummy_bam_plp_auto_f_76(void *data, bam1_t *b) {
+    return 0;
+}
+
 int LLVMFuzzerTestOneInput_76(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure size is sufficient for our needs
+    if (size < sizeof(void *)) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        remove(tmpl);
-        return 0;
-    }
-    close(fd);
+    // Initialize variables
+    int n = 1; // Number of iterators, set to 1 for simplicity
+    bam_plp_auto_f func = dummy_bam_plp_auto_f_76;
+    void *dummy_data = (void *)data; // Use data as dummy data
 
-    // Set a non-zero flag for the function call
-    int flags = 1;
+    // Create an array of pointers to pass as the third argument
+    void *data_array[1];
+    data_array[0] = dummy_data;
 
     // Call the function-under-test
-    hts_idx_t *index = hts_idx_load(tmpl, flags);
+    bam_mplp_t mplp = bam_mplp_init(n, func, data_array);
 
     // Clean up
-    if (index != NULL) {
-        hts_idx_destroy(index);
-    }
-    remove(tmpl);
+    bam_mplp_destroy(mplp);
 
     return 0;
 }

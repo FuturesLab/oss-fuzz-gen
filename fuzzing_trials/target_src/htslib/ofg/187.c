@@ -1,30 +1,36 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include "htslib/sam.h" // Assuming the sam_hdr_t type is defined here
+#include "/src/htslib/htslib/sam.h" // Correct path for bam1_t and related functions
 
 int LLVMFuzzerTestOneInput_187(const uint8_t *data, size_t size) {
-    // Initialize sam_hdr_t object
-    sam_hdr_t *hdr = sam_hdr_init();
-
-    // Ensure non-null data for the second parameter
-    const char *line_type = "HD"; // Example line type, assuming "HD" is a valid line type
-
-    // Ensure a valid index for the third parameter
-    int index = 0; // Start with index 0
-
-    // Call the function-under-test
-    const char *result = sam_hdr_line_name(hdr, line_type, index);
-
-    // Use the result in some way to avoid compiler optimizations removing the call
-    if (result != NULL) {
-        printf("Line name: %s\n", result);
+    // Ensure the input size is sufficient for the parameters
+    if (size < 4) { // Adjusted to ensure we have at least 2 bytes for tag, 1 byte for len, and 1 byte for new_str
+        return 0;
     }
 
-    // Clean up
-    sam_hdr_destroy(hdr);
+    // Initialize bam1_t structure
+    bam1_t bam;
+    memset(&bam, 0, sizeof(bam1_t));
+
+    // Extract parameters from the input data
+    char tag[3] = {0}; // Ensure tag is null-terminated
+    memcpy(tag, data, 2); // Use the first two bytes as tag
+
+    int tag_size = 2;
+    int len = data[tag_size]; // Use the next byte as the length
+
+    // Ensure len does not exceed the remaining size
+    if (len > size - (tag_size + 1)) {
+        return 0;
+    }
+
+    const char *new_str = (const char *)(data + tag_size + 1); // Use the remaining data as the new string
+
+    // Call the function under test
+    bam_aux_update_str(&bam, tag, len, new_str);
 
     return 0;
 }

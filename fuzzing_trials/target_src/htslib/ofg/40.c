@@ -1,47 +1,21 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <stdio.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-// Assuming bam_plp_t and DW_TAG_subroutine_typeInfinite_loop are defined somewhere
-typedef void* bam_plp_t; // Placeholder type definition
-typedef struct {
-    int dummy; // Placeholder structure
-} DW_TAG_subroutine_typeInfinite_loop;
-
-// Function signature
-void bam_plp_destructor(bam_plp_t plp, DW_TAG_subroutine_typeInfinite_loop *loop);
+// Assuming hts_version is defined in an external library
+extern const char *hts_version();
 
 int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    bam_plp_t plp;
-    DW_TAG_subroutine_typeInfinite_loop loop;
-
-    // Initialize plp and loop with non-NULL values
-    // For fuzzing, we can allocate memory or use some dummy values
-    plp = malloc(1); // Allocate minimal memory
-    if (plp == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
-
-    // Initialize the loop structure with some data
-    loop.dummy = (size > 0) ? data[0] : 0;
-
     // Call the function-under-test
-    bam_plp_destructor(plp, &loop);
+    const char *version = hts_version();
 
-    // Free allocated memory
-    free(plp);
+    // Print the version string to ensure the function is called
+    if (version != NULL) {
+        printf("HTS Version: %s\n", version);
+    }
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

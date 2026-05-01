@@ -1,55 +1,61 @@
 #include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>  // Include for close() and unlink()
-#include <fcntl.h>   // Include for mkstemp()
-#include "htslib/sam.h"
+#include "htslib/sam.h" // Correct path for sam.h
 
 int LLVMFuzzerTestOneInput_81(const uint8_t *data, size_t size) {
-    sam_hdr_t *hdr = NULL;
-
-    if (size == 0) {
+    // Ensure the size is sufficient for splitting into multiple strings
+    if (size < 4) {
         return 0;
     }
 
-    // Create a temporary file to store the input data
-    char tmpl[] = "/tmp/fuzz_sam_hdrXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Allocate a sam_hdr_t structure
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
         return 0;
     }
 
-    // Write the data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
+    // Split the input data into three strings
+    size_t len1 = size / 4;
+    size_t len2 = size / 4;
+    size_t len3 = size / 4;
+    size_t len4 = size - (len1 + len2 + len3);
+
+    char *str1 = (char *)malloc(len1 + 1);
+    char *str2 = (char *)malloc(len2 + 1);
+    char *str3 = (char *)malloc(len3 + 1);
+    char *str4 = (char *)malloc(len4 + 1);
+
+    if (str1 == NULL || str2 == NULL || str3 == NULL || str4 == NULL) {
+        free(str1);
+        free(str2);
+        free(str3);
+        free(str4);
+        sam_hdr_destroy(hdr);
         return 0;
     }
-    close(fd);
 
-    // Open the temporary file as a SAM file
-    samFile *file = sam_open(tmpl, "r");
-    if (file == NULL) {
-        unlink(tmpl);
-        return 0;
-    }
+    memcpy(str1, data, len1);
+    memcpy(str2, data + len1, len2);
+    memcpy(str3, data + len1 + len2, len3);
+    memcpy(str4, data + len1 + len2 + len3, len4);
 
-    // Read the header from the SAM file
-    hdr = sam_hdr_read(file);
-    if (hdr != NULL) {
-        // Call the function under test
-        int nref = sam_hdr_nref(hdr);
-    }
+    str1[len1] = '\0';
+    str2[len2] = '\0';
+    str3[len3] = '\0';
+    str4[len4] = '\0';
+
+    // Call the function under test
+    sam_hdr_remove_line_id(hdr, str1, str2, str3);
 
     // Clean up
-    if (hdr != NULL) {
-        sam_hdr_destroy(hdr);
-    }
-    sam_close(file);
-    unlink(tmpl);
+    free(str1);
+    free(str2);
+    free(str3);
+    free(str4);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

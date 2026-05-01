@@ -3,40 +3,34 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <htslib/sam.h>
+#include <unistd.h>
+
+// Function-under-test declaration
+int hts_file_type(const char *filename);
 
 int LLVMFuzzerTestOneInput_260(const uint8_t *data, size_t size) {
-    // Check if size is sufficient to extract necessary components
-    if (size < 3) {
-        return 0;
+    // Create a temporary file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // If unable to create a temp file, exit
     }
 
-    // Initialize a sam_hdr_t object
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
-        return 0;
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0; // If unable to write data, clean up and exit
     }
 
-    // Use part of the data as a string for the second parameter
-    // Ensure string is null-terminated
-    size_t str_len = size - 2;
-    char *str = (char *)malloc(str_len + 1);
-    if (str == NULL) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-    memcpy(str, data, str_len);
-    str[str_len] = '\0';
+    // Close the file descriptor
+    close(fd);
 
-    // Use part of the data as an integer for the third parameter
-    int pos = (int)data[size - 1];
+    // Call the function-under-test with the temporary file's name
+    hts_file_type(tmpl);
 
-    // Call the function-under-test
-    sam_hdr_remove_line_pos(hdr, str, pos);
-
-    // Clean up
-    free(str);
-    sam_hdr_destroy(hdr);
+    // Clean up: remove the temporary file
+    unlink(tmpl);
 
     return 0;
 }

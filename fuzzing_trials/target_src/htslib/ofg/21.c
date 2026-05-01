@@ -1,60 +1,47 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <htslib/sam.h>
-
-// Mock function to create a bam_plp_t object for demonstration purposes
-bam_plp_t create_bam_plp() {
-    // Create a dummy bam1_t object
-    bam1_t *b = bam_init1();
-    if (!b) {
-        fprintf(stderr, "Failed to initialize bam1_t\n");
-        exit(1);
-    }
-
-    // Initialize bam_plp_t with a dummy iterator function and the bam1_t object
-    bam_plp_t plp = bam_plp_init((bam_plp_auto_f)bam_read1, b);
-    if (!plp) {
-        fprintf(stderr, "Failed to initialize bam_plp_t\n");
-        bam_destroy1(b);
-        exit(1);
-    }
-
-    return plp;
-}
+#include <string.h>
+#include <htslib/sam.h> // Include the relevant header for sam_hdr_t
 
 int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
-    // Initialize variables for bam_plp_next parameters
-    bam_plp_t plp = create_bam_plp();
-    int tid = 0;
-    int pos = 0;
-    int n_plp = 0;
+    sam_hdr_t *hdr = NULL;
 
-    // Simulate feeding data into the bam_plp_t object
-    // For demonstration, we assume data is a valid BAM record
-    bam1_t *b = bam_init1();
-    if (!b) {
-        fprintf(stderr, "Failed to initialize bam1_t\n");
-        bam_plp_destroy(plp);
-        return 0;
-    }
-
-    // Copy data into bam1_t structure
-    if (size >= sizeof(bam1_core_t)) {
-        memcpy(&b->core, data, sizeof(bam1_core_t));
-        b->l_data = size - sizeof(bam1_core_t);
-        b->data = (uint8_t *)malloc(b->l_data);
-        if (b->data) {
-            memcpy(b->data, data + sizeof(bam1_core_t), b->l_data);
+    // Ensure that the data is not empty and is of a reasonable size
+    if (size > 0) {
+        // Allocate memory for sam_hdr_t and initialize it
+        hdr = sam_hdr_init();
+        if (hdr == NULL) {
+            return 0; // If allocation fails, exit early
         }
+
+        // Simulate filling the header with data
+        char *header_data = (char *)malloc(size + 1);
+        if (header_data == NULL) {
+            sam_hdr_destroy(hdr);
+            return 0;
+        }
+        memcpy(header_data, data, size);
+        header_data[size] = '\0';
+
+        // Attempt to parse the header data into the sam_hdr_t structure
+        sam_hdr_t *parsed_hdr = sam_hdr_parse(size, header_data);
+        if (parsed_hdr == NULL) {
+            // If parsing fails, clean up and exit
+            free(header_data);
+            sam_hdr_destroy(hdr);
+            return 0;
+        }
+
+        // Further processing can be done here if needed
+        // For example, you might want to test other functions that use the header
+
+        free(header_data);
+        sam_hdr_destroy(parsed_hdr);
     }
 
     // Call the function-under-test
-    const bam_pileup1_t *result = bam_plp_next(plp, &tid, &pos, &n_plp);
-
-    // Clean up resources
-    bam_destroy1(b);
-    bam_plp_destroy(plp);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

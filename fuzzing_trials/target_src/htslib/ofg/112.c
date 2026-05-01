@@ -1,65 +1,44 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
-#include <stdio.h> // Include for debugging purposes if needed
-
-// Assume sam_hdr_t is defined somewhere in the library
-typedef struct {
-    // Placeholder for actual structure members
-    int dummy;
-} sam_hdr_t;
-
-// Assume the function is defined somewhere in the library
-int sam_hdr_add_line(sam_hdr_t *hdr, const char *line, void *unused);
+#include <unistd.h>
+#include <fcntl.h>
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_112(const uint8_t *data, size_t size) {
-    if (size < 2) {
+    // Ensure size is sufficient to create a temporary file
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize sam_hdr_t
-    sam_hdr_t hdr;
-    memset(&hdr, 0, sizeof(hdr));
-
-    // Prepare a null-terminated string from the input data
-    char *line = (char *)malloc(size + 1);
-    if (line == NULL) {
-        return 0;
-    }
-    memcpy(line, data, size);
-    line[size] = '\0';
-
-    // Ensure the input is a valid line for sam_hdr_add_line
-    // This could involve checking for specific format or content
-    // For demonstration, we'll just ensure it starts with a valid character
-    if (line[0] != '@') {
-        free(line);
+    // Create a temporary file to simulate htsFile input
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Add additional checks to ensure the line is valid
-    // For example, checking for a minimum length or specific structure
-    if (strlen(line) < 3) { // Assuming a minimal valid line length
-        free(line);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
         return 0;
     }
 
-    // Additional validation to prevent potential buffer overflow
-    // Ensure the line does not contain unexpected characters or structure
-    // This is a simple example; real validation would depend on expected format
-    for (size_t i = 0; i < size; i++) {
-        if (line[i] < 32 || line[i] > 126) { // Check for non-printable characters
-            free(line);
-            return 0;
-        }
+    // Close the file descriptor so hts_open can open it
+    close(fd);
+
+    // Open the file using hts_open
+    htsFile *file = hts_open(tmpl, "r");
+    if (file == NULL) {
+        unlink(tmpl);
+        return 0;
     }
 
-    // Call the function under test
-    sam_hdr_add_line(&hdr, line, NULL);
+    // Call the function-under-test
+    const htsFormat *format = hts_get_format(file);
 
     // Clean up
-    free(line);
+    hts_close(file);
+    unlink(tmpl);
 
     return 0;
 }

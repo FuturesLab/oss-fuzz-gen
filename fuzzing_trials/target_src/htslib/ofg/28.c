@@ -1,20 +1,36 @@
 #include <stdint.h>
 #include <stddef.h>
-
-// Function-under-test
-uint32_t bam_auxB_len(const uint8_t *data);
+#include <stdlib.h>
+#include <string.h>
+#include <htslib/sam.h>
+#include <htslib/kstring.h>
 
 int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
-    // Ensure that the data is not NULL and has at least one byte
-    if (data == NULL || size == 0) {
+    // Declare and initialize variables
+    sam_hdr_t *hdr = sam_hdr_init();
+    const char *type = "HD"; // Assuming a default type for testing
+    int pos = 0; // Starting position
+    kstring_t ks;
+    ks.l = 0;
+    ks.m = size;
+    ks.s = (char *)malloc(size + 1);
+
+    if (hdr == NULL || ks.s == NULL) {
+        sam_hdr_destroy(hdr);
+        free(ks.s);
         return 0;
     }
 
-    // Call the function-under-test
-    uint32_t result = bam_auxB_len(data);
+    // Copy data to kstring_t
+    memcpy(ks.s, data, size);
+    ks.s[size] = '\0'; // Null-terminate the string
 
-    // Use the result in some way to prevent compiler optimizations from removing the call
-    (void)result;
+    // Call the function-under-test
+    sam_hdr_find_line_pos(hdr, type, pos, &ks);
+
+    // Clean up
+    sam_hdr_destroy(hdr);
+    free(ks.s);
 
     return 0;
 }

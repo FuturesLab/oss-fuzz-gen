@@ -1,47 +1,33 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
-#include <htslib/sam.h>  // Include the necessary header for bam1_t
+#include <stdio.h>
+
+// Assume that the function bam_flag2str is defined elsewhere
+char *bam_flag2str(int flag);
 
 int LLVMFuzzerTestOneInput_202(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract meaningful inputs
-    if (size < 5) {
+    // Check if there is enough data to read an integer
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Initialize bam1_t structure
-    bam1_t *bam_record = bam_init1();
-    if (bam_record == NULL) {
+    // Extract an integer from the input data
+    int flag = *(const int *)data;
+
+    // Validate the flag value if there is a known valid range
+    // For example, assume valid flags are non-negative and less than some MAX_FLAG
+    const int MAX_FLAG = 1024; // This is an arbitrary choice, adjust as necessary
+    if (flag < 0 || flag >= MAX_FLAG) {
         return 0;
     }
-
-    // Extract a tag from the input data
-    char tag[3];
-    memcpy(tag, data, 2);
-    tag[2] = '\0';  // Null-terminate the tag string
-
-    // Extract a type from the input data
-    char type = (char)data[2];
-
-    // Extract a length from the input data
-    int length = (int)data[3];
-
-    // Ensure length is not negative or too large
-    if (length < 0 || length > (int)(size - 4)) {
-        bam_destroy1(bam_record);
-        return 0;
-    }
-
-    // Extract the value from the input data
-    const uint8_t *value = data + 4;
 
     // Call the function-under-test
-    int result = bam_aux_append(bam_record, tag, type, length, value);
+    char *result = bam_flag2str(flag);
 
-    // Clean up
-    bam_destroy1(bam_record);
+    // Check if the result is not NULL before using it
+    if (result != NULL) {
+        printf("Result: %s\n", result);
+    }
 
     return 0;
 }

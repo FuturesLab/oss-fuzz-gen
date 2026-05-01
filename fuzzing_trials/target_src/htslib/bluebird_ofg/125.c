@@ -2,24 +2,41 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "htslib/hts.h"
+#include "htslib/sam.h"  // Include the library that defines hts_base_mod_state
 
-// Function-under-test
-void hts_free(void *ptr);
+extern int bam_mods_queryi(hts_base_mod_state *state, int pos, int *strand, int *mod, char *canonical_base);
 
 int LLVMFuzzerTestOneInput_125(const uint8_t *data, size_t size) {
-    // Allocate memory for fuzzing
-    void *fuzz_ptr = malloc(size);
-    if (fuzz_ptr == NULL) {
-        return 0; // Return if memory allocation fails
+    // Declare and initialize variables
+    hts_base_mod_state *state = hts_base_mod_state_alloc();
+    int pos = 0;
+    int strand = 0;
+    int mod = 0;
+    char canonical_base = 'A';  // Initialize with a valid base character
+
+    // Ensure data is not empty
+    if (size > 0) {
+        // Use the first byte of data as position
+        pos = data[0];
+
+        // Use additional bytes if available to set other parameters
+        if (size > 1) {
+            strand = data[1] % 2;  // Assuming strand is a binary value
+        }
+        if (size > 2) {
+            mod = data[2];  // Use third byte to set mod
+        }
+        if (size > 3) {
+            canonical_base = "ACGT"[data[3] % 4];  // Map to one of the canonical bases
+        }
     }
 
-    // Copy the fuzzing data into the allocated memory
-    memcpy(fuzz_ptr, data, size);
+    // Call the function-under-test
+    bam_mods_queryi(state, pos, &strand, &mod, &canonical_base);
 
-    // Call the function-under-test with the fuzzing data
-    hts_free(fuzz_ptr);
-
-    // No need to free fuzz_ptr as hts_free is expected to handle it
+    // Free allocated resources
+    hts_base_mod_state_free(state);
 
     return 0;
 }

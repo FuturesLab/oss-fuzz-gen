@@ -1,21 +1,37 @@
 #include <stdint.h>
-#include <stddef.h>
-
-// Function-under-test declaration
-uint32_t bam_auxB_len(const uint8_t *data);
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>  // Include this header for mkstemp, close, and unlink
+#include <fcntl.h>   // Include this header for write
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_27(const uint8_t *data, size_t size) {
-    // Ensure the data is not NULL and has at least one byte
-    if (data == NULL || size == 0) {
+    // Create a temporary file to simulate a htsFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Call the function-under-test
-    uint32_t result = bam_auxB_len(data);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
 
-    // Use the result in some way to avoid compiler optimizations
-    // that might skip the function call if the result is unused.
-    (void)result;
+    // Close the file descriptor
+    close(fd);
+
+    // Open the temporary file as an htsFile
+    htsFile *file = hts_open(tmpl, "r");
+    if (file != NULL) {
+        // Call the function-under-test
+        hts_close(file);
+    }
+
+    // Clean up the temporary file
+    unlink(tmpl);
 
     return 0;
 }

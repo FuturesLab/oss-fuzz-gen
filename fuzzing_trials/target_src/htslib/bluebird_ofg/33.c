@@ -1,49 +1,50 @@
 #include <sys/stat.h>
-#include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include "htslib/hts.h"
+
+extern char *sam_open_mode_opts(const char *, const char *, const char *);
 
 int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for two null-terminated strings
-    if (size < 4) return 0;
+    // Ensure that the input data is large enough to split into three parts
+    if (size < 3) {
+        return 0;
+    }
 
-    // Allocate memory for the filename and mode strings
-    char filename[256];
-    char mode[4];
+    // Allocate memory for the three strings, ensuring null termination
+    size_t part_size = size / 3;
+    char *str1 = (char *)malloc(part_size + 1);
+    char *str2 = (char *)malloc(part_size + 1);
+    char *str3 = (char *)malloc(size - 2 * part_size + 1);
 
-    // Copy data to filename and mode, ensuring null-termination
-    size_t filename_len = (size < 255) ? size : 255;
-    memcpy(filename, data, filename_len);
-    filename[filename_len] = '\0';
+    if (str1 == NULL || str2 == NULL || str3 == NULL) {
+        free(str1);
+        free(str2);
+        free(str3);
+        return 0;
+    }
 
-    size_t mode_len = (size - filename_len < 3) ? size - filename_len : 3;
-    memcpy(mode, data + filename_len, mode_len);
-    mode[mode_len] = '\0';
+    // Copy data into the strings and null-terminate them
+    memcpy(str1, data, part_size);
+    str1[part_size] = '\0';
 
-    // Ensure filename is not empty
-    if (filename[0] == '\0') return 0;
+    memcpy(str2, data + part_size, part_size);
+    str2[part_size] = '\0';
 
-    // Create a temporary file to use as the filename
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) return 0;
-
-    // Write the data to the temporary file
-    write(fd, data, size);
-    close(fd);
+    memcpy(str3, data + 2 * part_size, size - 2 * part_size);
+    str3[size - 2 * part_size] = '\0';
 
     // Call the function-under-test
-    htsFile *file = hts_open(tmpl, mode);
+    char *result = sam_open_mode_opts(str1, str2, str3);
 
-    // Clean up
-    if (file != NULL) {
-        hts_close(file);
-    }
-    unlink(tmpl);
+    // Free the allocated memory
+    free(str1);
+    free(str2);
+    free(str3);
+
+    // If the function returns a dynamically allocated string, free it
+    free(result);
 
     return 0;
 }

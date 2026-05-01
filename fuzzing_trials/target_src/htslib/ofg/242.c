@@ -1,41 +1,45 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h> // Include for memcpy
+#include <htslib/sam.h>
 
-// Assuming sam_hdr_t is defined somewhere in the included headers
-typedef struct {
-    // Placeholder for actual structure members
-    int dummy;
-} sam_hdr_t;
+// Dummy function to create a bam_plp_t object
+bam_plp_t create_bam_plp_242() {
+    bam_plp_t plp = bam_plp_init(NULL, NULL);
+    return plp;
+}
 
-// Placeholder for the actual function definition
-size_t sam_hdr_length(sam_hdr_t *hdr);
+// Dummy function to free a bam_plp_t object
+void free_bam_plp(bam_plp_t plp) {
+    if (plp != NULL) {
+        bam_plp_destroy(plp);
+    }
+}
+
+// Renamed function to avoid conflict
+void set_bam_plp_maxcnt(bam_plp_t plp, int maxcnt) {
+    // Assuming bam_plp_s has a field that can be set to maxcnt
+    // This function would interact with the actual structure fields
+}
 
 int LLVMFuzzerTestOneInput_242(const uint8_t *data, size_t size) {
-    if (size < sizeof(sam_hdr_t)) {
-        return 0; // Not enough data to create a sam_hdr_t
+    if (size < sizeof(int)) {
+        return 0; // Not enough data to form an int
     }
 
-    // Allocate memory for sam_hdr_t and copy data into it
-    sam_hdr_t *hdr = (sam_hdr_t *)malloc(sizeof(sam_hdr_t));
-    if (hdr == NULL) {
-        return 0; // Allocation failed
+    bam_plp_t plp = create_bam_plp_242();
+    if (plp == NULL) {
+        return 0; // Failed to create bam_plp_t
     }
 
-    // Initialize the sam_hdr_t structure with fuzz data
-    // Assuming the structure can be initialized with raw data
-    memcpy(hdr, data, sizeof(sam_hdr_t));
+    // Use the first 4 bytes of data as an int
+    int maxcnt = *(int*)data;
 
-    // Call the function-under-test
-    size_t length = sam_hdr_length(hdr);
+    // Call the renamed function
+    set_bam_plp_maxcnt(plp, maxcnt);
 
-    // Print the result (optional, for debugging purposes)
-    printf("Header length: %zu\n", length);
-
-    // Free allocated memory
-    free(hdr);
+    // Clean up
+    free_bam_plp(plp);
 
     return 0;
 }

@@ -1,21 +1,43 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdio.h>
-
-// Assuming bam_aux2i is defined elsewhere
-int64_t bam_aux2i(const uint8_t *aux);
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h> // Include this for mkstemp and unlink
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_250(const uint8_t *data, size_t size) {
-    // Ensure the data is not NULL and has a minimum size for meaningful input
-    if (data == NULL || size == 0) {
+    // Ensure the input size is sufficient for two filenames
+    if (size < 4) {
         return 0;
     }
 
-    // Call the function-under-test with the provided data
-    int64_t result = bam_aux2i(data);
+    // Create temporary files for the function inputs
+    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
+    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
+    int fd1 = mkstemp(tmpl1);
+    int fd2 = mkstemp(tmpl2);
 
-    // Optionally, print the result for debugging purposes
-    printf("Result: %ld\n", result);
+    if (fd1 == -1 || fd2 == -1) {
+        return 0;
+    }
+
+    // Write data to the first temporary file
+    write(fd1, data, size / 2);
+    close(fd1);
+
+    // Write data to the second temporary file
+    write(fd2, data + size / 2, size - size / 2);
+    close(fd2);
+
+    // Call the function-under-test
+    hts_idx_t *idx = hts_idx_load2(tmpl1, tmpl2);
+
+    // Clean up
+    if (idx != NULL) {
+        hts_idx_destroy(idx);
+    }
+    unlink(tmpl1);
+    unlink(tmpl2);
 
     return 0;
 }

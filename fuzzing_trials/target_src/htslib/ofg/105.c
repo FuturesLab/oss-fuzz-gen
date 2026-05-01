@@ -1,34 +1,34 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
-#include <htslib/sam.h> // Include the necessary header for bam1_t
+#include <htslib/sam.h>
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_105(const uint8_t *data, size_t size) {
-    // Ensure there's enough data for the tag and int64_t value
-    if (size < 3) {
+    // Ensure that the input size is sufficient to extract meaningful values
+    if (size < sizeof(hts_pos_t) * 2 + sizeof(int) + sizeof(uint64_t) + sizeof(int) * 2) {
         return 0;
     }
 
-    // Initialize bam1_t structure
-    bam1_t *bam = bam_init1();
-    if (bam == NULL) {
-        return 0;
-    }
+    // Extract parameters from the input data
+    int tid = *((int *)data);
+    hts_pos_t beg = *((hts_pos_t *)(data + sizeof(int)));
+    hts_pos_t end = *((hts_pos_t *)(data + sizeof(int) + sizeof(hts_pos_t)));
+    uint64_t offset0 = *((uint64_t *)(data + sizeof(int) + sizeof(hts_pos_t) * 2));
+    int min_shift = *((int *)(data + sizeof(int) + sizeof(hts_pos_t) * 2 + sizeof(uint64_t)));
+    int n_lvls = *((int *)(data + sizeof(int) + sizeof(hts_pos_t) * 2 + sizeof(uint64_t) + sizeof(int)));
 
-    // Extract a two-character tag from the input data
-    char tag[3];
-    memcpy(tag, data, 2);
-    tag[2] = '\0'; // Null-terminate the tag string
-
-    // Extract an int64_t value from the input data
-    int64_t value;
-    memcpy(&value, data + 2, sizeof(int64_t));
+    // Initialize hts_idx_t with the extracted parameters
+    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_CSI, offset0, min_shift, n_lvls);
 
     // Call the function-under-test
-    bam_aux_update_int(bam, tag, value);
+    hts_itr_t *itr = sam_itr_queryi(idx, tid, beg, end);
 
     // Clean up
-    bam_destroy1(bam);
+    if (itr != NULL) {
+        hts_itr_destroy(itr);
+    }
+    hts_idx_destroy(idx);
 
     return 0;
 }

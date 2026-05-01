@@ -1,39 +1,44 @@
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
+#include <htslib/sam.h>  // Ensure you have the htslib library installed
 
-// Function signature
-ssize_t sam_parse_cigar(const char *cigar, char **op, uint32_t **len, size_t *n);
-
-// Fuzzer entry point
+// Remove the extern "C" linkage specification for C++
+// since this is a C program
 int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
-    // Ensure data is not empty
-    if (size == 0) {
+    // Ensure that the input size is sufficient for testing
+    if (size < 2) {
         return 0;
     }
 
-    // Allocate memory for the cigar string and ensure null termination
-    char *cigar = (char *)malloc(size + 1);
-    if (cigar == NULL) {
+    // Allocate memory for the CIGAR string
+    char *cigar_str = (char *)malloc(size + 1);
+    if (cigar_str == NULL) {
         return 0;
     }
-    memcpy(cigar, data, size);
-    cigar[size] = '\0';
 
-    // Initialize variables for the function parameters
-    char *op = NULL;
-    uint32_t *len = NULL;
-    size_t n = 0;
+    // Copy data into the CIGAR string and null-terminate it
+    memcpy(cigar_str, data, size);
+    cigar_str[size] = '\0';
+
+    // Allocate memory for the parsed CIGAR operations
+    char *cigar_parsed = NULL;
+
+    // Initialize a bam1_t structure
+    bam1_t *bam_record = bam_init1();
+    if (bam_record == NULL) {
+        free(cigar_str);
+        return 0;
+    }
 
     // Call the function-under-test
-    ssize_t result = sam_parse_cigar(cigar, &op, &len, &n);
+    ssize_t result = bam_parse_cigar(cigar_str, &cigar_parsed, bam_record);
 
-    // Free allocated memory
-    free(cigar);
-    free(op);
-    free(len);
+    // Clean up allocated resources
+    free(cigar_str);
+    free(cigar_parsed);
+    bam_destroy1(bam_record);
 
     return 0;
 }

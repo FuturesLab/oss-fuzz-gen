@@ -1,228 +1,47 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <string.h>
+#include <unistd.h>  // Include for close() and remove()
 #include "htslib/hts.h"
-#include "htslib/sam.h"
 
 int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    htsFile *file = NULL;
-    bam_hdr_t *header = NULL;
-    bam1_t *alignment = bam_init1();
-    int result = 0;
-
-    if (alignment == NULL) {
+    if (size == 0) {
         return 0;
     }
 
-    // Create a temporary file to use with hts_open
+    // Create a temporary file to write the fuzz data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        bam_destroy1(alignment);
         return 0;
     }
 
-    // Write the fuzz data to the file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmpl);
-        bam_destroy1(alignment);
-        return 0;
-    }
-
-    // Open the temporary file with hts_open
-    file = hts_open(tmpl, "r");
+    FILE *file = fdopen(fd, "wb");
     if (file == NULL) {
         close(fd);
-        unlink(tmpl);
-        bam_destroy1(alignment);
         return 0;
     }
 
-    // Attempt to read the header and alignment from the file
-    header = sam_hdr_read(file);
-    if (header != NULL) {
-        while (sam_read1(file, header, alignment) >= 0) {
-            // Process the alignment (this is where code coverage can increase)
-        }
-        bam_hdr_destroy(header);
+    // Write the fuzz data to the temporary file
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Open the temporary file with hts_open
+    htsFile *hts_file = hts_open(tmpl, "rb");
+    if (hts_file != NULL) {
+        // Call the function-under-test
+        hts_check_EOF(hts_file);
+
+        // Close the htsFile
+        hts_close(hts_file);
     }
 
-    // Cleanup
+    // Remove the temporary file
+    remove(tmpl);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_read1 to sam_idx_init
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!file) {
-        	return 0;
-        }
-        const htsFormat* ret_hts_get_format_iuwml = hts_get_format(file);
-        if (ret_hts_get_format_iuwml == NULL){
-        	return 0;
-        }
-        const bam1_t loptyquw;
-        memset(&loptyquw, 0, sizeof(loptyquw));
-        hts_pos_t ret_bam_endpos_bniab = bam_endpos(&loptyquw);
-        if (ret_bam_endpos_bniab < 0){
-        	return 0;
-        }
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bam_endpos to hts_set_threads
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!file) {
-        	return 0;
-        }
-        int ret_hts_check_EOF_tfvfj = hts_check_EOF(file);
-        if (ret_hts_check_EOF_tfvfj < 0){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!file) {
-        	return 0;
-        }
-        int ret_hts_set_threads_svuza = hts_set_threads(file, (int )ret_bam_endpos_bniab);
-        if (ret_hts_set_threads_svuza < 0){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        char* ret_bam_flag2str_ullzb = bam_flag2str(HTS_IDX_REST);
-        if (ret_bam_flag2str_ullzb == NULL){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!file) {
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!header) {
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_bam_flag2str_ullzb) {
-        	return 0;
-        }
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bam_flag2str to sam_hdr_count_lines
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!file) {
-        	return 0;
-        }
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bam_flag2str to hts_set_filter_expression
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!file) {
-        	return 0;
-        }
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bam_flag2str to sam_hdr_change_HD
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!file) {
-        	return 0;
-        }
-        sam_hdr_t* ret_sam_hdr_get_shcpa = sam_hdr_get(file);
-        if (ret_sam_hdr_get_shcpa == NULL){
-        	return 0;
-        }
-        const htsFormat zqlhtqwo;
-        memset(&zqlhtqwo, 0, sizeof(zqlhtqwo));
-        char* ret_hts_format_description_vfwxv = hts_format_description(&zqlhtqwo);
-        if (ret_hts_format_description_vfwxv == NULL){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_sam_hdr_get_shcpa) {
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_bam_flag2str_ullzb) {
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_hts_format_description_vfwxv) {
-        	return 0;
-        }
-        int ret_sam_hdr_change_HD_xzeni = sam_hdr_change_HD(ret_sam_hdr_get_shcpa, ret_bam_flag2str_ullzb, ret_hts_format_description_vfwxv);
-        if (ret_sam_hdr_change_HD_xzeni < 0){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        int ret_hts_flush_xdkub = hts_flush(file);
-        if (ret_hts_flush_xdkub < 0){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!file) {
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_bam_flag2str_ullzb) {
-        	return 0;
-        }
-        int ret_hts_set_filter_expression_pqlpt = hts_set_filter_expression(file, ret_bam_flag2str_ullzb);
-        if (ret_hts_set_filter_expression_pqlpt < 0){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        sam_hdr_t* ret_sam_hdr_get_yigvy = sam_hdr_get(file);
-        if (ret_sam_hdr_get_yigvy == NULL){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_sam_hdr_get_yigvy) {
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_bam_flag2str_ullzb) {
-        	return 0;
-        }
-        int ret_sam_hdr_count_lines_qohwg = sam_hdr_count_lines(ret_sam_hdr_get_yigvy, ret_bam_flag2str_ullzb);
-        if (ret_sam_hdr_count_lines_qohwg < 0){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-
-        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sam_hdr_count_lines to sam_hdr_remove_lines using the plateau pool
-        char *type = (char *)malloc(2);
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!header) {
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_bam_flag2str_ullzb) {
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_sam_hdr_get_yigvy) {
-        	return 0;
-        }
-        int ret_sam_hdr_remove_lines_yqbad = sam_hdr_remove_lines(header, type, ret_bam_flag2str_ullzb, (void *)ret_sam_hdr_get_yigvy);
-        if (ret_sam_hdr_remove_lines_yqbad < 0){
-        	return 0;
-        }
-        // End mutation: Producer.SPLICE_MUTATOR
-        
-        int ret_sam_idx_init_wddrx = sam_idx_init(file, header, (int )ret_bam_endpos_bniab, ret_bam_flag2str_ullzb);
-        if (ret_sam_idx_init_wddrx < 0){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function hts_close with sam_idx_save
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function sam_idx_save with hts_close
-    hts_close(file);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    close(fd);
-    unlink(tmpl);
-    bam_destroy1(alignment);
-
-    return result;
+    return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

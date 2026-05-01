@@ -1,119 +1,49 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <unistd.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h> // Include for malloc and free
+#include "htslib/sam.h"
 #include "htslib/hts.h"
-#include "/src/htslib/htslib/thread_pool.h"
-#include "htslib/sam.h" // Include for SAM/BAM/CRAM file operations
+#include "/src/htslib/htslib/hts_defs.h"
+#include "/src/htslib/htslib/hts_log.h"
 
-// Function to create a temporary file from the fuzzing input
-static htsFile* create_temp_file_from_input(const uint8_t *data, size_t size) {
-    char filename[] = "/tmp/fuzz_input_XXXXXX";
-    int fd = mkstemp(filename);
-    if (fd == -1) {
-        return NULL;
-    }
-
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(filename);
-        return NULL;
-    }
-    close(fd);
-
-    // Open the file with htslib
-    htsFile *file = hts_open(filename, "r");
-    unlink(filename); // Remove the file after opening
-    return file;
-}
-
+// Remove the extern "C" linkage specification for C++
+// since this is a C code file
 int LLVMFuzzerTestOneInput_82(const uint8_t *data, size_t size) {
-    // Check if the input size is reasonable for a SAM/BAM/CRAM file
-    if (size < 4) {
-        return 0; // Return early if the input size is too small
+    // Ensure the data is null-terminated for string usage
+    char *query_string = (char *)malloc(size + 1);
+    if (!query_string) {
+        return 0;
+    }
+    memcpy(query_string, data, size);
+    query_string[size] = '\0';
+
+    // Initialize dummy sam_hdr_t
+    sam_hdr_t *dummy_hdr = sam_hdr_init();
+    if (!dummy_hdr) {
+        free(query_string);
+        return 0;
     }
 
-    // Create a temporary file from the input data
-    htsFile *file = create_temp_file_from_input(data, size);
-    if (file == NULL) {
-        return 0; // If file opening fails, return early
-    }
-    
-    htsThreadPool thread_pool;
-    struct hts_tpool *tpool = hts_tpool_init(2); // Initialize a thread pool with 2 threads
-    if (tpool == NULL) {
-        hts_close(file);
-        return 0; // If thread pool initialization fails, return early
-    }
-    thread_pool.pool = tpool;
-    thread_pool.qsize = 0; // Default queue size
+    // Create a minimal valid hts_idx_t object
+    // For the purposes of this example, we will simulate creating a minimal index
+    // In a real-world scenario, this would involve creating or loading an actual index
+    // Adjust the number of arguments to match the function signature
+    hts_idx_t *dummy_idx = hts_idx_init(1, HTS_FMT_CSI, 0, 0, 0);
 
     // Call the function-under-test
-    int result = hts_set_thread_pool(file, &thread_pool);
-    if (result != 0) {
-        hts_tpool_destroy(tpool);
-        hts_close(file);
-        return 0; // If setting the thread pool fails, return early
+    if (dummy_idx) {
+        hts_itr_t *itr = sam_itr_querys(dummy_idx, dummy_hdr, query_string);
+
+        // Clean up
+        if (itr) hts_itr_destroy(itr);
+        hts_idx_destroy(dummy_idx);
     }
 
-    // Read the header to ensure the file is valid
-    bam_hdr_t *header = sam_hdr_read(file);
-    if (header == NULL) {
-        hts_tpool_destroy(tpool);
-        hts_close(file);
-        return 0; // If reading the header fails, return early
-    }
-
-    // Perform operations that require the thread pool
-    bam1_t *aln = bam_init1();
-    if (aln == NULL) {
-        bam_hdr_destroy(header);
-        hts_tpool_destroy(tpool);
-        hts_close(file);
-        return 0; // If bam initialization fails, return early
-    }
-
-    while (sam_read1(file, header, aln) >= 0) {
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_read1 to sam_idx_init
-    htsFile amyddajp;
-    memset(&amyddajp, 0, sizeof(amyddajp));
-    const htsFormat* ret_hts_get_format_cikys = hts_get_format(&amyddajp);
-    if (ret_hts_get_format_cikys == NULL){
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!header) {
-    	return 0;
-    }
-    size_t ret_sam_hdr_length_icvul = sam_hdr_length(header);
-    if (ret_sam_hdr_length_icvul < 0){
-    	return 0;
-    }
-    const uint8_t urdpnneb = size;
-    char ret_bam_aux2A_bffvk = bam_aux2A(&urdpnneb);
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!header) {
-    	return 0;
-    }
-    int ret_sam_idx_init_fapzd = sam_idx_init(&amyddajp, header, (int )ret_sam_hdr_length_icvul, &ret_bam_aux2A_bffvk);
-    if (ret_sam_idx_init_fapzd < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-
-        // Process each alignment
-    }
-    bam_destroy1(aln);
-    bam_hdr_destroy(header);
-
-    // Ensure all operations are completed before destroying the thread pool
-
-    // Clean up
-    hts_close(file);
-    hts_tpool_destroy(tpool);
+    free(query_string);
+    sam_hdr_destroy(dummy_hdr);
 
     return 0;
 }

@@ -1,54 +1,41 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>  // Include for close() and unlink()
-#include <fcntl.h>   // Include for mkstemp()
+#include <string.h> // Include for memcpy
 #include <htslib/sam.h>
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
-    sam_hdr_t *hdr = NULL;
+    // Check if size is sufficient to create a meaningful header
+    if (size < 4) return 0;
 
-    if (size == 0) {
-        return 0;
-    }
+    // Initialize variables for the parameters
+    hts_idx_t *idx = NULL; // Use NULL as a mock index since we can't allocate an incomplete type
+    sam_hdr_t *hdr = sam_hdr_init(); // Initialize a SAM header
 
-    // Create a temporary file to store the input data
-    char tmpl[] = "/tmp/fuzz_sam_hdrXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
+    // Create a mock header text
+    char header_text[] = "@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:1000\n";
+    sam_hdr_add_lines(hdr, header_text, strlen(header_text));
 
-    // Write the data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-    close(fd);
+    hts_reglist_t reglist; // Initialize a region list
+    unsigned int flags = 0; // Example flag value
 
-    // Open the temporary file as a SAM file
-    samFile *file = sam_open(tmpl, "r");
-    if (file == NULL) {
-        unlink(tmpl);
-        return 0;
-    }
+    // Ensure the region list is initialized with some values
+    char region_name[] = "chr1"; // Example region name "chr1"
+    reglist.reg = region_name; // Assign the region name directly as a const char*
+    reglist.min_beg = 0; // Example minimum beginning
+    reglist.max_end = 1000; // Example maximum end
+    reglist.count = 1; // Example interval count
+    reglist.intervals = (hts_pair_pos_t *)malloc(sizeof(hts_pair_pos_t));
+    reglist.intervals[0].beg = 0; // Example interval beginning
+    reglist.intervals[0].end = 1000; // Example interval end
 
-    // Read the header from the SAM file
-    hdr = sam_hdr_read(file);
-    if (hdr != NULL) {
-        // Call the function under test
-        int nref = sam_hdr_nref(hdr);
-    }
+    // Call the function-under-test
+    hts_itr_t *itr = sam_itr_regions(idx, hdr, &reglist, flags);
 
     // Clean up
-    if (hdr != NULL) {
-        sam_hdr_destroy(hdr);
-    }
-    sam_close(file);
-    unlink(tmpl);
+    if (itr) hts_itr_destroy(itr);
+    sam_hdr_destroy(hdr);
+    free(reglist.intervals);
 
     return 0;
 }

@@ -1,36 +1,60 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <htslib/sam.h>
+#include <htslib/hts.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 int LLVMFuzzerTestOneInput_244(const uint8_t *data, size_t size) {
-    // Check if the input size is sufficient to create a header
-    if (size == 0) {
+    // Ensure the input size is sufficient to create a valid filename
+    if (size < 5) {
         return 0;
     }
 
-    // Create a string from the input data
-    char *header_text = (char *)malloc(size + 1);
-    if (!header_text) {
+    // Create a temporary file to simulate htsFile input
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
-    memcpy(header_text, data, size);
-    header_text[size] = '\0'; // Null-terminate the string
+    write(fd, data, size);
+    close(fd);
 
-    // Call the function-under-test with the fuzzer's input
-    sam_hdr_t *header = sam_hdr_parse(size, header_text);
-
-    // Check if header is successfully initialized
-    if (header != NULL) {
-        // Perform additional operations with the header if needed
-        // For example, you can print or manipulate the header
-
-        // Clean up
-        sam_hdr_destroy(header);
+    // Open the temporary file as an htsFile
+    htsFile *hts_file = hts_open(tmpl, "r");
+    if (!hts_file) {
+        unlink(tmpl);
+        return 0;
     }
 
-    // Free the allocated memory
-    free(header_text);
+    // Create a dummy sam_hdr_t object
+    sam_hdr_t *sam_hdr = sam_hdr_init();
+    if (!sam_hdr) {
+        hts_close(hts_file);
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Use part of the data as the string input for the function
+    char *str_input = (char *)malloc(size + 1);
+    if (!str_input) {
+        sam_hdr_destroy(sam_hdr);
+        hts_close(hts_file);
+        unlink(tmpl);
+        return 0;
+    }
+    memcpy(str_input, data, size);
+    str_input[size] = '\0';
+
+    // Call the function-under-test
+    int result = sam_idx_init(hts_file, sam_hdr, 0, str_input);
+
+    // Clean up
+    free(str_input);
+    sam_hdr_destroy(sam_hdr);
+    hts_close(hts_file);
+    unlink(tmpl);
 
     return 0;
 }

@@ -1,22 +1,56 @@
 #include <sys/stat.h>
-#include <string.h>
+#include <stdio.h>
 #include <stdint.h>
-#include <stddef.h>
-
-// Function-under-test
-double bam_aux2f(const uint8_t *data);
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include "htslib/hfile.h" // Correct path for hfile.h
 
 int LLVMFuzzerTestOneInput_116(const uint8_t *data, size_t size) {
-    // Ensure that the input data is not NULL and has at least one byte
-    if (data == NULL || size == 0) {
-        return 0;
+    if (size < sizeof(off_t) + sizeof(int)) {
+        return 0; // Not enough data to extract required parameters
     }
 
-    // Call the function-under-test with the provided data
-    double result = bam_aux2f(data);
+    // Create a temporary file to use with hFILE
+    FILE *temp_file = tmpfile();
+    if (temp_file == NULL) {
+        return 0; // Failed to create a temporary file
+    }
 
-    // Optionally use the result to prevent compiler optimizations from removing the call
-    (void)result;
+    // Write data to the temporary file
+    fwrite(data, 1, size, temp_file);
+    fflush(temp_file);
+
+    // Rewind the file to the beginning
+    rewind(temp_file);
+
+    // Open the temporary file as an hFILE using hopen with a file descriptor
+    char temp_filename[] = "/tmp/tempfileXXXXXX";
+    int fd = mkstemp(temp_filename);
+    if (fd == -1) {
+        fclose(temp_file);
+        return 0; // Failed to create a temporary file descriptor
+    }
+
+    hFILE *hfile = hopen(temp_filename, "r+");
+    if (hfile == NULL) {
+        close(fd);
+        fclose(temp_file);
+        return 0; // Failed to open as hFILE
+    }
+
+    // Extract off_t and int from data
+    off_t offset = *(off_t *)(data);
+    int whence = *(int *)(data + sizeof(off_t));
+
+    // Call the function-under-test
+    off_t result = hseek(hfile, offset, whence);
+
+    // Clean up
+    hclose(hfile);
+    close(fd);
+    fclose(temp_file);
+    unlink(temp_filename); // Remove the temporary file
 
     return 0;
 }

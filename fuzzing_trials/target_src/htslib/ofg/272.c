@@ -1,37 +1,26 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <stdio.h>
+#include <string.h> // Include for memcpy
 #include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_272(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate a real file for hts_open
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // If we can't create a temp file, just return
+    // Ensure there is enough data to initialize htsFormat
+    if (size < sizeof(htsFormat)) {
+        return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        return 0; // If we can't write the data, just return
-    }
-
-    // Close the file descriptor as hts_open will open it again
-    close(fd);
-
-    // Open the temporary file using hts_open
-    htsFile *file = hts_open(tmpl, "r");
-    if (file == NULL) {
-        return 0; // If the file can't be opened, just return
-    }
+    // Initialize htsFormat from the input data
+    htsFormat format;
+    memcpy(&format, data, sizeof(htsFormat));
 
     // Call the function-under-test
-    hts_close(file);
+    const char *extension = hts_format_file_extension(&format);
 
-    // Remove the temporary file
-    unlink(tmpl);
+    // Print the result (for debugging purposes)
+    if (extension != NULL) {
+        printf("File extension: %s\n", extension);
+    }
 
     return 0;
 }

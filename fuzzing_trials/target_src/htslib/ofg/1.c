@@ -2,46 +2,35 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/types.h> // Include this for ssize_t
 
-extern int hfile_list_plugins(const char **, int *);
+// Function-under-test declaration
+ssize_t sam_parse_cigar(const char *cigar, char **end, uint32_t **cigar_op, size_t *n_cigar_op);
 
 int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to avoid out-of-bounds access
-    if (size < 2) {
+    if (size == 0) {
         return 0;
     }
 
-    // Allocate memory for the char* array
-    const char *plugin_names[2];
-    char *plugin_name1 = (char *)malloc(size / 2 + 1);
-    char *plugin_name2 = (char *)malloc(size / 2 + 1);
-
-    if (plugin_name1 == NULL || plugin_name2 == NULL) {
-        // Handle memory allocation failure
-        free(plugin_name1);
-        free(plugin_name2);
+    // Allocate memory for the CIGAR string and ensure it's null-terminated
+    char *cigar = (char *)malloc(size + 1);
+    if (cigar == NULL) {
         return 0;
     }
+    memcpy(cigar, data, size);
+    cigar[size] = '\0';
 
-    // Copy data into the plugin name buffers
-    memcpy(plugin_name1, data, size / 2);
-    plugin_name1[size / 2] = '\0';  // Null-terminate the string
-    memcpy(plugin_name2, data + size / 2, size / 2);
-    plugin_name2[size / 2] = '\0';  // Null-terminate the string
-
-    // Initialize the plugin names array
-    plugin_names[0] = plugin_name1;
-    plugin_names[1] = plugin_name2;
-
-    // Initialize an integer to hold the result
-    int result = 0;
+    // Initialize the parameters for the function-under-test
+    char *end = NULL;
+    uint32_t *cigar_op = NULL;
+    size_t n_cigar_op = 0;
 
     // Call the function-under-test
-    hfile_list_plugins(plugin_names, &result);
+    ssize_t result = sam_parse_cigar(cigar, &end, &cigar_op, &n_cigar_op);
 
-    // Free allocated memory
-    free(plugin_name1);
-    free(plugin_name2);
+    // Clean up allocated memory
+    free(cigar);
+    free(cigar_op);
 
     return 0;
 }

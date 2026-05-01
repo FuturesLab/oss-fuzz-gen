@@ -1,31 +1,51 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include <string.h>
 #include <htslib/sam.h>
-#include <htslib/hts.h> // Ensure the correct header file for bam_plp_t
+#include <htslib/hts.h>
 
-// Remove the extern "C" as this is C code, not C++
+extern int bam_mods_at_next_pos(const bam1_t *, hts_base_mod_state *, hts_base_mod *, int);
+
 int LLVMFuzzerTestOneInput_256(const uint8_t *data, size_t size) {
-    // Declare and initialize a bam_plp_t variable
-    bam_plp_t plp = bam_plp_init(NULL, NULL);
+    if (size < sizeof(bam1_t)) {
+        return 0; // Not enough data to form a valid BAM record
+    }
 
-    if (plp == NULL) {
-        // If initialization fails, exit early
+    bam1_t *bam_record = bam_init1();
+    hts_base_mod_state *mod_state = hts_base_mod_state_alloc();
+    hts_base_mod base_mod;
+    int some_int = 1; // Arbitrary non-zero integer
+
+    if (bam_record == NULL || mod_state == NULL) {
+        bam_destroy1(bam_record);
+        hts_base_mod_state_free(mod_state);
         return 0;
     }
 
-    // Check if data is not NULL and size is greater than 0
-    if (data != NULL && size > 0) {
-        // Utilize the data in some meaningful way
-        // For example, you could process the data here
-        // This is a placeholder for actual data processing
+    bam_record->data = (uint8_t *)malloc(size);
+    if (bam_record->data != NULL) {
+        memcpy(bam_record->data, data, size);
+        bam_record->l_data = size;
+
+        // Set bam_record core fields to simulate a valid BAM record
+        bam_record->core.tid = 0; // Example tid
+        bam_record->core.pos = 0; // Example position
+        bam_record->core.qual = 30; // Example mapping quality
+        bam_record->core.l_qname = 1; // Example query name length
+        bam_record->core.flag = 0; // Example flag
+        bam_record->core.n_cigar = 0; // Example number of CIGAR operations
+        bam_record->core.l_qseq = 0; // Example query sequence length
+        bam_record->core.mtid = -1; // Example mate tid
+        bam_record->core.mpos = -1; // Example mate position
+        bam_record->core.isize = 0; // Example insert size
+
+        // Call the function-under-test
+        bam_mods_at_next_pos(bam_record, mod_state, &base_mod, some_int);
     }
 
-    // Call the function-under-test
-    bam_plp_reset(plp);
-
-    // Clean up by destroying the bam_plp_t instance
-    bam_plp_destroy(plp);
+    // Clean up
+    bam_destroy1(bam_record);
+    hts_base_mod_state_free(mod_state);
 
     return 0;
 }

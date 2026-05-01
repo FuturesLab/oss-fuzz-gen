@@ -1,51 +1,37 @@
 #include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "htslib/hts.h"
-#include "htslib/sam.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>  // Include for close() and remove()
+#include "htslib/hts.h"
 
 int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for creating a temporary file
-    if (size < 1) {
-        return 0;
+    // Ensure the data is null-terminated for string operations
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0; // Exit if memory allocation fails
     }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
+    // Initialize htsFormat structure
+    htsFormat format;
+    memset(&format, 0, sizeof(htsFormat));
 
-    // Write the fuzz data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (file == NULL) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the temporary file with hts_open
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (hts_file == NULL) {
-        remove(tmpl);
-        return 0;
-    }
-
-    // Call the function under test
-    hts_idx_t *index = sam_index_load(hts_file, tmpl);
+    // Call the function-under-test
+    int result = hts_parse_format(&format, null_terminated_data);
 
     // Clean up
-    if (index != NULL) {
-        hts_idx_destroy(index);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_parse_format to hts_format_file_extension
+    const char* ret_hts_format_file_extension_vtwuo = hts_format_file_extension(&format);
+    if (ret_hts_format_file_extension_vtwuo == NULL){
+    	return 0;
     }
-    hts_close(hts_file);
-    remove(tmpl);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(null_terminated_data);
 
     return 0;
 }

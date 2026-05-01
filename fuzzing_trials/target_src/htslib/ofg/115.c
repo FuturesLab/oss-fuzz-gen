@@ -1,50 +1,29 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <htslib/hts.h>
-#include <htslib/sam.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>  // Include for close() and remove()
+#include <stdio.h>
+#include <htslib/sam.h> // Include the necessary header for bam_plp_auto
 
+// Remove the 'extern "C"' as it is not compatible with C code
 int LLVMFuzzerTestOneInput_115(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for creating a temporary file
-    if (size < 1) {
+    // Declare and initialize the necessary variables
+    bam_plp_t plp;
+    int ref_id = 0;
+    int pos = 0;
+    int n_plp = 0;
+
+    // Check if size is sufficient to create a bam_plp_t object
+    if (size < sizeof(bam_plp_t)) {
         return 0;
     }
 
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
+    // Initialize the bam_plp_t object
+    plp = bam_plp_init(NULL, NULL);
 
-    // Write the fuzz data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (file == NULL) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the temporary file with hts_open
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (hts_file == NULL) {
-        remove(tmpl);
-        return 0;
-    }
-
-    // Call the function under test
-    hts_idx_t *index = sam_index_load(hts_file, tmpl);
+    // Call the function-under-test
+    const bam_pileup1_t *result = bam_plp_auto(plp, &ref_id, &pos, &n_plp);
 
     // Clean up
-    if (index != NULL) {
-        hts_idx_destroy(index);
-    }
-    hts_close(hts_file);
-    remove(tmpl);
+    bam_plp_destroy(plp);
 
     return 0;
 }

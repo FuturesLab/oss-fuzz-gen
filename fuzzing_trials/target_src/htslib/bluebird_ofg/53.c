@@ -1,67 +1,25 @@
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stddef.h>
+#include <stdint.h>
 
-// Correct path for sam.h
-#include "htslib/sam.h"
+// Declare the function-under-test
+const char *hts_feature_string();
 
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_53(const uint8_t *data, size_t size) {
-    // Ensure the input size is large enough to split into meaningful strings
-    if (size < 4) {
-        return 0;
-    }
-
-    // Initialize sam_hdr_t object
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
-        return 0;
-    }
-
-    // Split the input data into three strings
-    size_t len1 = size / 4;
-    size_t len2 = size / 4;
-    size_t len3 = size / 4;
-    size_t len4 = size - len1 - len2 - len3;
-
-    // Allocate memory for the strings
-    char *str1 = (char *)malloc(len1 + 1);
-    char *str2 = (char *)malloc(len2 + 1);
-    char *str3 = (char *)malloc(len3 + 1);
-    char *str4 = (char *)malloc(len4 + 1);
-
-    if (str1 == NULL || str2 == NULL || str3 == NULL || str4 == NULL) {
-        free(str1);
-        free(str2);
-        free(str3);
-        free(str4);
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-
-    // Copy data into the strings and null-terminate them
-    memcpy(str1, data, len1);
-    str1[len1] = '\0';
-
-    memcpy(str2, data + len1, len2);
-    str2[len2] = '\0';
-
-    memcpy(str3, data + len1 + len2, len3);
-    str3[len3] = '\0';
-
-    memcpy(str4, data + len1 + len2 + len3, len4);
-    str4[len4] = '\0';
-
     // Call the function-under-test
-    sam_hdr_remove_except(hdr, str1, str2, str3);
+    const char *result = hts_feature_string();
 
-    // Clean up
-    free(str1);
-    free(str2);
-    free(str3);
-    free(str4);
-    sam_hdr_destroy(hdr);
+    // Use the result in some way to avoid compiler optimizations stripping it away
+    // For example, we can check if the result is not NULL
+    if (result != NULL) {
+        // Do something with the result, like checking its length
+        size_t length = 0;
+        while (result[length] != '\0') {
+            length++;
+        }
+    }
 
     return 0;
 }

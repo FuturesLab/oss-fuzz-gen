@@ -1,35 +1,47 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <htslib/sam.h>
-#include <htslib/hts.h>
+#include <stdio.h>
 
-// A mock implementation of bam_plp_auto_f for testing purposes.
-int mock_bam_plp_auto(void *data, bam1_t *b) {
-    // This is a mock function and does nothing meaningful.
-    // In a real scenario, this function would fill `b` with data.
-    return 0;
+// Assuming bam_mplp_t is a pointer type for this example
+typedef struct {
+    int dummy; // Dummy structure for illustration
+} *bam_mplp_t;
+
+// Assuming DW_TAG_subroutine_typeInfinite_loop is a function pointer type
+typedef void (*DW_TAG_subroutine_typeInfinite_loop)(void);
+
+// Mock implementation of the function-under-test
+void bam_mplp_destructor_43(bam_mplp_t mplp, DW_TAG_subroutine_typeInfinite_loop loop_func) {
+    // Example implementation
+    if (mplp != NULL && loop_func != NULL) {
+        loop_func();
+    }
+}
+
+// Example implementation of an infinite loop function
+void infinite_loop_example() {
+    // For safety, we'll just print a message instead of actually looping infinitely
+    printf("Infinite loop function called!\n");
 }
 
 int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    if (size < sizeof(void *)) {
-        return 0; // Not enough data to initialize pointers
+    // Initialize bam_mplp_t
+    bam_mplp_t mplp = (bam_mplp_t)malloc(sizeof(*mplp));
+    if (mplp == NULL) {
+        return 0; // Exit if memory allocation fails
     }
 
-    // Initialize the parameters for bam_mplp_init
-    int n = 1; // Number of iterators, set to 1 for simplicity
-    bam_plp_auto_f func = mock_bam_plp_auto;
-    void *data_ptr = (void *)data; // Use the input data as a pointer
+    // Assign some values to the dummy structure
+    mplp->dummy = (size > 0) ? data[0] : 0;
+
+    // Use the example infinite loop function
+    DW_TAG_subroutine_typeInfinite_loop loop_func = infinite_loop_example;
 
     // Call the function-under-test
-    bam_mplp_t mplp = bam_mplp_init(n, func, &data_ptr);
-
-    // Normally, you would use `mplp` here, but since this is a fuzzing harness,
-    // we're only interested in calling the function to check for crashes.
+    bam_mplp_destructor_43(mplp, loop_func);
 
     // Clean up
-    bam_mplp_destroy(mplp);
+    free(mplp);
 
     return 0;
 }

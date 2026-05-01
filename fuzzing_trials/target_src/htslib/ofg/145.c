@@ -1,50 +1,34 @@
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // Include for close() and unlink()
-#include <htslib/hts.h>
-#include <htslib/hts_defs.h>
-#include <htslib/hts_log.h>
-#include <htslib/hts_os.h>
+#include <htslib/sam.h>  // Ensure you have the HTSlib library installed and included
 
+// Remove the 'extern "C"' as this is a C code, not C++
 int LLVMFuzzerTestOneInput_145(const uint8_t *data, size_t size) {
-    // Prepare a temporary filename for the index file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // If file creation fails, exit the fuzzing iteration
-    }
-    close(fd);
-
-    // Prepare a temporary filename for the data file
-    char tmpl_data[] = "/tmp/fuzzdataXXXXXX";
-    int fd_data = mkstemp(tmpl_data);
-    if (fd_data == -1) {
-        unlink(tmpl); // Cleanup the index file
-        return 0; // If file creation fails, exit the fuzzing iteration
-    }
-    close(fd_data);
-
-    // Write the fuzz data to the data file
-    FILE *data_file = fopen(tmpl_data, "wb");
-    if (data_file == NULL) {
-        unlink(tmpl);
-        unlink(tmpl_data);
+    if (size < sizeof(uint32_t)) {
+        // Not enough data to form even a single uint32_t element
         return 0;
     }
-    fwrite(data, 1, size, data_file);
-    fclose(data_file);
 
-    // Create a dummy hts_idx_t object
-    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_CSI, 0, 14, 5); // Corrected the function call with required arguments
+    // Calculate the number of uint32_t elements we can extract from data
+    int num_elements = size / sizeof(uint32_t);
+
+    // Allocate memory for the uint32_t array
+    uint32_t *cigar_array = (uint32_t *) malloc(num_elements * sizeof(uint32_t));
+    if (cigar_array == NULL) {
+        return 0;  // Allocation failed
+    }
+
+    // Copy data into the uint32_t array
+    for (int i = 0; i < num_elements; i++) {
+        cigar_array[i] = ((uint32_t *)data)[i];
+    }
 
     // Call the function-under-test
-    int result = hts_idx_save_as(idx, tmpl, tmpl_data, HTS_FMT_CSI);
+    hts_pos_t result = bam_cigar2qlen(num_elements, cigar_array);
 
-    // Cleanup
-    hts_idx_destroy(idx);
-    unlink(tmpl);
-    unlink(tmpl_data);
+    // Free allocated memory
+    free(cigar_array);
 
     return 0;
 }

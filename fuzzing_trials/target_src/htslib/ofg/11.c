@@ -1,72 +1,71 @@
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <unistd.h>  // Include for close() and mkstemp()
+#include <htslib/sam.h>
 
-// Assuming hFILE is a structure defined elsewhere
-typedef struct {
-    FILE *file;
-} hFILE;
-
-// Mock implementation of hpeek_11 for demonstration purposes
-ssize_t hpeek_11(hFILE *hfile, void *buffer, size_t size) {
-    if (hfile == NULL || buffer == NULL || hfile->file == NULL) {
-        return -1;
-    }
-
-    return fread(buffer, 1, size, hfile->file);
+// Function to simulate a dummy callback for bam_plp_init
+static int dummy_callback_11(void *data, bam1_t *b) {
+    return -1; // Indicate no more data
 }
 
 int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    // Ensure there is at least some data to work with
-    if (size < 1) {
-        return 0;
+    // Check if the input data is large enough to be processed
+    if (size < sizeof(bam1_t)) {
+        return 0; // Not enough data to process
     }
 
-    // Create a temporary file to simulate hFILE's file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
+    // Initialize a bam_plp_t object using the appropriate API
+    bam_plp_t plp = bam_plp_init(dummy_callback_11, NULL); // Initialize with a dummy callback
+
+    if (plp) {
+        // Allocate a bam1_t object
+        bam1_t *b = bam_init1();
+        if (b) {
+            // Ensure the bam1_t object has enough space for data
+            if (b->m_data < size) {
+                uint8_t *new_data = realloc(b->data, size);
+                if (new_data) {
+                    b->data = new_data;
+                    b->m_data = size;
+                } else {
+                    bam_destroy1(b);
+                    bam_plp_destroy(plp);
+                    return 0; // Memory allocation failed
+                }
+            }
+
+            // Copy data into bam1_t structure (ensure not to overrun)
+            memcpy(b->data, data, size);
+
+            // Set the core data length to the size of the input data
+            b->l_data = size;
+
+            // Set some fields in the bam1_t structure to simulate valid input
+            b->core.tid = 0; // Example: set target ID
+            b->core.pos = 0; // Example: set position
+            b->core.bin = 0; // Example: set bin
+            b->core.qual = 30; // Example: set mapping quality
+            b->core.l_qname = 1; // Example: set length of query name
+            b->core.flag = 0; // Example: set flag
+            b->core.n_cigar = 0; // Example: set number of CIGAR operations
+            b->core.l_qseq = 0; // Example: set length of query sequence
+            b->core.mtid = -1; // Example: set mate target ID
+            b->core.mpos = -1; // Example: set mate position
+            b->core.isize = 0; // Example: set insert size
+
+            // Push the bam1_t object to the pileup
+            bam_plp_push(plp, b);
+
+            // Call the function-under-test
+            bam_plp_reset(plp);
+
+            // Clean up
+            bam_destroy1(b);
+        }
+
+        bam_plp_destroy(plp);
     }
-
-    // Write the fuzz data to the temporary file
-    FILE *file = fdopen(fd, "wb+");
-    if (file == NULL) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    rewind(file);
-
-    // Initialize hFILE structure
-    hFILE hfile;
-    hfile.file = file;
-
-    // Allocate a buffer to read data into
-    size_t buffer_size = size > 1024 ? 1024 : size; // Limit buffer size for safety
-    void *buffer = malloc(buffer_size);
-    if (buffer == NULL) {
-        fclose(file);
-        return 0;
-    }
-
-    // Call the function-under-test
-    ssize_t bytes_read = hpeek_11(&hfile, buffer, buffer_size);
-
-    // Check the result of hpeek_11 and ensure it reads data
-    if (bytes_read > 0) {
-        // Process the data read if necessary
-        // For demonstration, just print the number of bytes read
-        printf("Bytes read: %zd\n", bytes_read);
-    }
-
-    // Clean up
-    free(buffer);
-    fclose(file);
-    remove(tmpl);
 
     return 0;
 }

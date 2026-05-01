@@ -1,45 +1,49 @@
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
-#include <unistd.h> // Include this for mkstemp, write, close, and unlink
 
-// Assuming the function hts_readlines is declared in some header file
-extern char **hts_readlines(const char *, int *);
+extern char *sam_open_mode_opts(const char *, const char *, const char *);
 
 int LLVMFuzzerTestOneInput_196(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // If file creation fails, exit early
+    // Ensure that the input data is large enough to split into three parts
+    if (size < 3) {
+        return 0;
     }
 
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
-        return 0; // If writing fails, clean up and exit early
+    // Allocate memory for the three strings, ensuring null termination
+    size_t part_size = size / 3;
+    char *str1 = (char *)malloc(part_size + 1);
+    char *str2 = (char *)malloc(part_size + 1);
+    char *str3 = (char *)malloc(size - 2 * part_size + 1);
+
+    if (str1 == NULL || str2 == NULL || str3 == NULL) {
+        free(str1);
+        free(str2);
+        free(str3);
+        return 0;
     }
 
-    close(fd); // Close the file descriptor
+    // Copy data into the strings and null-terminate them
+    memcpy(str1, data, part_size);
+    str1[part_size] = '\0';
 
-    // Prepare an integer to receive the number of lines read
-    int num_lines = 0;
+    memcpy(str2, data + part_size, part_size);
+    str2[part_size] = '\0';
+
+    memcpy(str3, data + 2 * part_size, size - 2 * part_size);
+    str3[size - 2 * part_size] = '\0';
 
     // Call the function-under-test
-    char **lines = hts_readlines(tmpl, &num_lines);
+    char *result = sam_open_mode_opts(str1, str2, str3);
 
-    // Clean up: free the lines array if it was allocated
-    if (lines != NULL) {
-        for (int i = 0; i < num_lines; ++i) {
-            free(lines[i]);
-        }
-        free(lines);
-    }
+    // Free the allocated memory
+    free(str1);
+    free(str2);
+    free(str3);
 
-    // Remove the temporary file
-    unlink(tmpl);
+    // If the function returns a dynamically allocated string, free it
+    free(result);
 
     return 0;
 }

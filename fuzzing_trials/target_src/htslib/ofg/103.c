@@ -1,42 +1,29 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <unistd.h> // Include for close() and unlink()
-#include <fcntl.h>  // Include for mkstemp()
 
-// Assuming the function is declared in some header file
-char ** hts_readlist(const char *filename, int is_file, int *num_lines);
+// Function signature for the function-under-test
+long long hts_parse_decimal(const char *str, char **endptr, int flags);
 
 int LLVMFuzzerTestOneInput_103(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // If file creation fails, exit the fuzzer
+    // Ensure the input data is null-terminated to be used as a string
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        return 0; // Exit if memory allocation fails
     }
+    memcpy(input, data, size);
+    input[size] = '\0';
 
-    // Write the fuzz data to the temporary file
-    write(fd, data, size);
-    close(fd);
-
-    // Prepare parameters for hts_readlist
-    int num_lines = 0;
-    int is_file = 1; // Indicating that the input is a file
+    // Prepare parameters for the function-under-test
+    char *endptr = NULL;
+    int flags = 0; // Example flag, can be varied for different tests
 
     // Call the function-under-test
-    char **result = hts_readlist(tmpl, is_file, &num_lines);
+    long long result = hts_parse_decimal(input, &endptr, flags);
 
-    // Clean up: free the result if it is not NULL
-    if (result != NULL) {
-        for (int i = 0; i < num_lines; ++i) {
-            free(result[i]);
-        }
-        free(result);
-    }
-
-    // Remove the temporary file
-    unlink(tmpl);
+    // Clean up
+    free(input);
 
     return 0;
 }

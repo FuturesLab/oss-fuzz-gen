@@ -1,62 +1,43 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-
-// Assuming hFILE is defined in a header file included here
-#include "htslib/hfile.h"
-
-// Mock implementation of hgets for compilation purposes
-char *hgets(char *str, int num, hFILE *stream);
+#include <htslib/sam.h>  // Include the necessary header for sam_parse1
 
 int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0; // Not enough data to perform the test
+    // Initialize kstring_t
+    kstring_t ks;
+    ks.l = size;
+    ks.m = size + 1;  // Allocate extra space for null-termination
+    ks.s = (char *)malloc(ks.m);
+    if (ks.s == NULL) {
+        return 0;  // Memory allocation failed
+    }
+    memcpy(ks.s, data, size);
+    ks.s[size] = '\0';  // Null-terminate the string
+
+    // Initialize sam_hdr_t
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
+        free(ks.s);
+        return 0;  // Memory allocation failed
     }
 
-    // Allocate memory for the string buffer
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == NULL) {
-        return 0; // Memory allocation failed
+    // Initialize bam1_t
+    bam1_t *b = bam_init1();
+    if (b == NULL) {
+        sam_hdr_destroy(hdr);
+        free(ks.s);
+        return 0;  // Memory allocation failed
     }
-
-    // Copy the data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
-
-    // Create a temporary file to simulate hFILE
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        free(buffer);
-        return 0; // Failed to create a temporary file
-    }
-
-    // Write the data to the temporary file
-    write(fd, data, size);
-    lseek(fd, 0, SEEK_SET); // Reset file pointer to the beginning
-
-    // Open the temporary file using standard file operations
-    FILE *file = fdopen(fd, "r");
-    if (file == NULL) {
-        close(fd);
-        free(buffer);
-        return 0; // Failed to open file
-    }
-
-    // Mock hFILE structure to use standard FILE operations
-    hFILE *hfile = (hFILE *)file;
 
     // Call the function-under-test
-    hgets(buffer, size, hfile);
+    int result = sam_parse1(&ks, hdr, b);
 
-    // Clean up
-    fclose(file);
-    unlink(tmpl);
-    free(buffer);
+    // Clean up resources
+    bam_destroy1(b);
+    sam_hdr_destroy(hdr);
+    free(ks.s);
 
     return 0;
 }

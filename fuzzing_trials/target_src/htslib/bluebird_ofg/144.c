@@ -1,34 +1,14 @@
 #include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 
-// Declare the external function
-extern int sam_open_mode(char *, const char *, const char *);
+// Function-under-test declaration
+void hts_lib_shutdown();
 
 int LLVMFuzzerTestOneInput_144(const uint8_t *data, size_t size) {
-    // Ensure that the input data is large enough to create three strings
-    if (size < 6) {
-        return 0;
-    }
-
-    // Allocate buffers for the strings
-    char buffer1[3];
-    char buffer2[3];
-    char buffer3[3];
-
-    // Copy data into the buffers ensuring null-termination
-    memcpy(buffer1, data, 2);
-    buffer1[2] = '\0';
-
-    memcpy(buffer2, data + 2, 2);
-    buffer2[2] = '\0';
-
-    memcpy(buffer3, data + 4, 2);
-    buffer3[2] = '\0';
-
-    // Call the function under test
-    sam_open_mode(buffer1, buffer2, buffer3);
+    // Call the function-under-test
+    hts_lib_shutdown();
 
     return 0;
 }

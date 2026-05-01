@@ -1,28 +1,45 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-// Assume the function is defined somewhere
-int hisremote(const char *input);
+#include <htslib/hts.h>
+#include <htslib/sam.h> // Include additional htslib headers if necessary
 
 int LLVMFuzzerTestOneInput_151(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated
-    char *input = (char *)malloc(size + 1);
-    if (input == NULL) {
+    // Ensure size is greater than 0 to avoid empty string issues
+    if (size == 0) {
         return 0;
     }
 
-    if (size > 0) {
-        memcpy(input, data, size);
+    // Prepare a null-terminated string from the input data
+    char *filter_expression = (char *)malloc(size + 1);
+    if (!filter_expression) {
+        return 0; // Memory allocation failed
     }
-    input[size] = '\0'; // Null-terminate the string
+    memcpy(filter_expression, data, size);
+    filter_expression[size] = '\0'; // Null-terminate the string
 
-    // Call the function under test
-    hisremote(input);
+    // Create a dummy htsFile structure
+    // Use a more realistic file format and mode if needed
+    htsFile *hts_file = hts_open("dummy.bam", "r"); // Open a dummy file handle
+    if (!hts_file) {
+        free(filter_expression);
+        return 0; // Failed to open dummy file
+    }
 
-    // Free the allocated memory
-    free(input);
+    // Call the function-under-test
+    // Ensure the function is properly invoked and can process the input
+    int result = hts_set_filter_expression(hts_file, filter_expression);
+
+    // Check the result for debugging purposes
+    if (result != 0) {
+        fprintf(stderr, "Failed to set filter expression: %s\n", filter_expression);
+    }
+
+    // Clean up
+    hts_close(hts_file);
+    free(filter_expression);
 
     return 0;
 }

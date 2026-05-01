@@ -1,47 +1,93 @@
 #include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+#include <unistd.h>      // Include for close() and unlink()
+#include <fcntl.h>       // Include for mkstemp()
+#include "htslib/sam.h"
 #include "htslib/hts.h"
 
 int LLVMFuzzerTestOneInput_133(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to create two filenames
-    if (size < 4) {
+    htsFile *hts_file = NULL;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Create temporary files for the two filenames
-    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
-    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
-    int fd1 = mkstemp(tmpl1);
-    int fd2 = mkstemp(tmpl2);
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
 
-    if (fd1 == -1 || fd2 == -1) {
-        if (fd1 != -1) close(fd1);
-        if (fd2 != -1) close(fd2);
+    // Open the temporary file using hts_open
+    hts_file = hts_open(tmpl, "r");
+    if (hts_file == NULL) {
         return 0;
     }
 
-    // Write some data to the files
-    write(fd1, data, size / 2);
-    write(fd2, data + size / 2, size - size / 2);
+    // Define non-NULL strings for the second and third parameters
 
-    // Close the file descriptors
-    close(fd1);
-    close(fd2);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to sam_write1
+    sam_hdr_t* ret_sam_hdr_init_nitcw = sam_hdr_init();
+    if (ret_sam_hdr_init_nitcw == NULL){
+    	return 0;
+    }
+    bam1_t bxgmmmgx;
+    memset(&bxgmmmgx, 0, sizeof(bxgmmmgx));
+    bam1_t* ret_bam_dup1_aqpww = bam_dup1(&bxgmmmgx);
+    if (ret_bam_dup1_aqpww == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sam_hdr_init_nitcw) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bam_dup1_aqpww) {
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bam_dup1 to bam_aux_remove
+    const uint8_t qnmfehnt = -1;
+    uint32_t ret_bam_auxB_len_ygbpb = bam_auxB_len(&qnmfehnt);
+    if (ret_bam_auxB_len_ygbpb < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bam_dup1_aqpww) {
+    	return 0;
+    }
+    uint8_t* ret_bam_aux_remove_qkcot = bam_aux_remove(ret_bam_dup1_aqpww, (uint8_t *)&ret_bam_auxB_len_ygbpb);
+    if (ret_bam_aux_remove_qkcot == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    int ret_sam_write1_nqilr = sam_write1(hts_file, ret_sam_hdr_init_nitcw, ret_bam_dup1_aqpww);
+    if (ret_sam_write1_nqilr < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    const char *fnidx = "index_file";
+    const char *fnref = "reference_file";
 
     // Call the function-under-test
-    hts_idx_t *index = hts_idx_load2(tmpl1, tmpl2);
+    hts_idx_t *index = sam_index_load3(hts_file, fnidx, fnref, 0);
 
     // Clean up
     if (index != NULL) {
         hts_idx_destroy(index);
     }
-    unlink(tmpl1);
-    unlink(tmpl2);
+    hts_close(hts_file);
+    unlink(tmpl);
 
     return 0;
 }

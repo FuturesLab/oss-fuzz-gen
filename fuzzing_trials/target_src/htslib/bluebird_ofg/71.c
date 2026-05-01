@@ -1,41 +1,61 @@
 #include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
-#include "/src/htslib/htslib/kstring.h"
+#include <unistd.h>  // Include this for mkstemp and unlink
+#include <fcntl.h>   // Include this for open and close
+#include "htslib/hts.h"
 #include "htslib/sam.h"
 
-extern int bam_plp_insertion(const bam_pileup1_t *, kstring_t *, int *);
-
 int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size) {
-    if (size < sizeof(bam_pileup1_t)) {
+    htsFile *hts_file = NULL;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = -1;
+    char *fname = NULL;
+    char *fnidx = NULL;
+    hts_idx_t *idx = NULL;
+    int flags = 0;
+
+    // Create a temporary file for the data
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Initialize bam_pileup1_t
-    bam_pileup1_t pileup;
-    memset(&pileup, 0, sizeof(bam_pileup1_t));
+    // Write the fuzz data to the temporary file
+    write(fd, data, size);
+    close(fd);
 
-    // Initialize kstring_t
-    kstring_t ks;
-    ks.l = 0;
-    ks.m = size;
-    ks.s = (char *)malloc(size);
-    if (ks.s == NULL) {
-        return 0;
+    // Open the temporary file with htslib
+    hts_file = hts_open(tmpl, "r");
+    if (hts_file == NULL) {
+        goto cleanup;
     }
-    memcpy(ks.s, data, size);
 
-    // Initialize an integer
-    int n = 0;
+    // Assign non-NULL values to fname and fnidx
+    fname = strdup(tmpl);
+    fnidx = strdup(tmpl);
+    if (fname == NULL || fnidx == NULL) {
+        goto cleanup;
+    }
 
-    // Call the function under test
-    int result = bam_plp_insertion(&pileup, &ks, &n);
+    // Call the function-under-test
+    idx = sam_index_load3(hts_file, fname, fnidx, flags);
 
-    // Clean up
-    free(ks.s);
+cleanup:
+    if (hts_file != NULL) {
+        hts_close(hts_file);
+    }
+    if (fname != NULL) {
+        free(fname);
+    }
+    if (fnidx != NULL) {
+        free(fnidx);
+    }
+    if (idx != NULL) {
+        hts_idx_destroy(idx);
+    }
+    unlink(tmpl);
 
     return 0;
 }

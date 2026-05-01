@@ -1,57 +1,42 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <htslib/sam.h>
-#include <htslib/hts.h>
+#include <string.h>
+#include <stdio.h>
+#include <htslib/sam.h>  // Ensure to include the HTSlib header for bam1_t
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_118(const uint8_t *data, size_t size) {
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
+    if (size < 5) {
+        return 0; // Ensure there's enough data for the parameters
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        return 0;
-    }
-    close(fd);
-
-    // Open the temporary file as an htsFile
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (hts_file == NULL) {
-        return 0;
+    // Initialize bam1_t structure
+    bam1_t *bam = bam_init1();
+    if (bam == NULL) {
+        return 0; // Memory allocation failed
     }
 
-    // Initialize sam_hdr_t and bam1_t
-    sam_hdr_t *header = sam_hdr_read(hts_file);
-    if (header == NULL) {
-        hts_close(hts_file);
-        return 0;
-    }
-
-    bam1_t *b = bam_init1();
-    if (b == NULL) {
-        sam_hdr_destroy(header);
-        hts_close(hts_file);
-        return 0;
-    }
+    // Prepare the parameters for bam_aux_append
+    const char *tag = "XX"; // Example tag, must be 2 characters
+    char type = 'Z'; // Example type, 'Z' for string
+    int len = size - 4; // Length of the data for the auxiliary field
+    const uint8_t *aux_data = data + 4; // Auxiliary data starts after the first 4 bytes
 
     // Call the function-under-test
-    sam_read1(hts_file, header, b);
+    int result = bam_aux_append(bam, tag, type, len, aux_data);
 
     // Clean up
-    bam_destroy1(b);
-    sam_hdr_destroy(header);
-    hts_close(hts_file);
-    unlink(tmpl);
+    bam_destroy1(bam);
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

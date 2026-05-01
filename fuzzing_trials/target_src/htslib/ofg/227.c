@@ -1,48 +1,29 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
-#include <htslib/sam.h>
+
+// Assume the function hts_md5_hex is declared in an external library
+extern void hts_md5_hex(char *hex_output, const unsigned char *input);
 
 int LLVMFuzzerTestOneInput_227(const uint8_t *data, size_t size) {
-    // Initialize sam_hdr_t
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (!hdr) {
-        return 0; // If initialization fails, exit early
-    }
+    // Define and initialize the parameters for hts_md5_hex
+    char hex_output[33];  // MD5 hex output is 32 characters + 1 for null terminator
+    unsigned char input[64];  // Let's assume we want to test up to 64 bytes of input
 
-    // Ensure size is sufficient for the strings
-    if (size < 5) {
-        sam_hdr_destroy(hdr);
+    // Ensure we have enough data to test
+    if (size < 1) {
         return 0;
     }
 
-    // Split the input data into parts for the function parameters
-    size_t part_size = size / 5;
-    const char *arg1 = (const char *)data;
-    const char *arg2 = (const char *)(data + part_size);
-    const char *arg3 = (const char *)(data + 2 * part_size);
-    const char *arg4 = (const char *)(data + 3 * part_size);
-    const char *arg5 = (const char *)(data + 4 * part_size);
+    // Copy the fuzzing data into the input buffer
+    size_t copy_size = size < sizeof(input) ? size : sizeof(input);
+    memcpy(input, data, copy_size);
 
-    // Ensure null-termination for the strings
-    char *null_terminated_arg1 = strndup(arg1, part_size);
-    char *null_terminated_arg2 = strndup(arg2, part_size);
-    char *null_terminated_arg3 = strndup(arg3, part_size);
-    char *null_terminated_arg4 = strndup(arg4, part_size);
-    char *null_terminated_arg5 = strndup(arg5, part_size);
+    // Null-terminate the hex output buffer
+    memset(hex_output, 0, sizeof(hex_output));
 
     // Call the function-under-test
-    sam_hdr_remove_tag_id(hdr, null_terminated_arg1, null_terminated_arg2, null_terminated_arg3, null_terminated_arg4);
-
-    // Clean up
-    free(null_terminated_arg1);
-    free(null_terminated_arg2);
-    free(null_terminated_arg3);
-    free(null_terminated_arg4);
-    free(null_terminated_arg5);
-    sam_hdr_destroy(hdr);
+    hts_md5_hex(hex_output, input);
 
     return 0;
 }

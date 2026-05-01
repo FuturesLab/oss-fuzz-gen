@@ -1,47 +1,29 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
-#include "/src/htslib/htslib/sam.h" // Correct path for sam_hdr_t definition
-#include "/src/htslib/htslib/hts.h" // Correct path for kstring_t definition
+#include <htslib/hts.h>
+#include <htslib/kstring.h>
 
 int LLVMFuzzerTestOneInput_273(const uint8_t *data, size_t size) {
-    // Initialize sam_hdr_t
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
-        return 0; // Exit if initialization fails
+    // Initialize htsFormat structure with default values
+    htsFormat format;
+    memset(&format, 0, sizeof(htsFormat));
+    format.format = data[0] % 5;  // Randomly select a format type
+
+    // Ensure the size is sufficient to modify the format fields
+    if (size > 1) {
+        format.compression = data[1] % 3;  // Randomly select a compression type
     }
 
-    // Ensure the input data is not empty
-    if (size == 0) {
-        sam_hdr_destroy(hdr);
-        return 0;
+    // Call the function-under-test
+    const char *extension = hts_format_file_extension(&format);
+
+    // Use the result to avoid compiler optimizations that might remove the call
+    if (extension != NULL) {
+        // Do something trivial with the result
+        volatile char dummy = *extension;
+        (void)dummy;
     }
-
-    // Create a null-terminated string from the input data
-    char *str = (char *)malloc(size + 1);
-    if (str == NULL) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-    memcpy(str, data, size);
-    str[size] = '\0';
-
-    // Initialize kstring_t
-    kstring_t ks;
-    ks.l = 0;
-    ks.m = 0;
-    ks.s = NULL;
-
-    // Call the function under test with various positions
-    for (int pos = 0; pos < 10; ++pos) {
-        sam_hdr_find_line_pos(hdr, str, pos, &ks);
-    }
-
-    // Clean up
-    free(str);
-    free(ks.s);
-    sam_hdr_destroy(hdr);
 
     return 0;
 }

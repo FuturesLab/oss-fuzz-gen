@@ -1,39 +1,53 @@
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 
-// Assuming sam_hdr_t is defined somewhere in the included headers
-typedef struct {
-    // Dummy structure for demonstration purposes
-    int dummy;
-} sam_hdr_t;
+// Assuming bam_plp_t is a pointer type, as its definition is not provided
+typedef void* bam_plp_t;
 
-// Assuming the function sam_hdr_parse is defined somewhere in the included headers
-sam_hdr_t * sam_hdr_parse(size_t len, const char *str);
+// Mock function for bam_plp_init_241 to create a bam_plp_t object
+bam_plp_t bam_plp_init_241() {
+    // Allocate memory for bam_plp_t object
+    // In a real scenario, this would be replaced with the actual initialization logic
+    return malloc(sizeof(int));
+}
+
+// Mock function for bam_plp_destroy_241 to free a bam_plp_t object
+void bam_plp_destroy_241(bam_plp_t plp) {
+    // Free the allocated memory
+    free(plp);
+}
+
+// Function-under-test
+void bam_plp_set_maxcnt_241(bam_plp_t plp, int maxcnt) {
+    // This function would set the max count in the actual implementation
+    // For demonstration, we just print the values
+    printf("Setting max count to %d\n", maxcnt);
+}
 
 int LLVMFuzzerTestOneInput_241(const uint8_t *data, size_t size) {
-    if (size == 0) {
+    // Initialize bam_plp_t object
+    bam_plp_t plp = bam_plp_init_241();
+    if (plp == NULL) {
+        return 0; // Return if initialization failed
+    }
+
+    // Ensure size is sufficient to extract an integer
+    if (size < sizeof(int)) {
+        bam_plp_destroy_241(plp);
         return 0;
     }
 
-    // Ensure the data is null-terminated
-    char *input_str = (char *)malloc(size + 1);
-    if (input_str == NULL) {
-        return 0;
-    }
-    memcpy(input_str, data, size);
-    input_str[size] = '\0';
+    // Extract an integer value from the input data
+    int maxcnt;
+    memcpy(&maxcnt, data, sizeof(int));
 
     // Call the function-under-test
-    sam_hdr_t *result = sam_hdr_parse(size, input_str);
+    bam_plp_set_maxcnt_241(plp, maxcnt);
 
     // Clean up
-    free(input_str);
-
-    // Assuming there's a way to free or handle the result if needed
-    // free_sam_hdr(result); // Uncomment if a function to free sam_hdr_t is available
+    bam_plp_destroy_241(plp);
 
     return 0;
 }

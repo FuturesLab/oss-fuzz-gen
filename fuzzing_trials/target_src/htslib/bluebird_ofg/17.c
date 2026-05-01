@@ -1,39 +1,38 @@
 #include <sys/stat.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include "htslib/hts.h"
+
+// Assuming the function hts_readlines is defined in some library
+extern char **hts_readlines(const char *filename, int *n);
 
 int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate a real file for hts_open
+    // Create a temporary file to write the fuzz data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        return 0; // If we can't create a temp file, just return
+        return 0; // If file creation fails, exit
     }
 
     // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        return 0; // If we can't write the data, just return
-    }
-
-    // Close the file descriptor as hts_open will open it again
+    write(fd, data, size);
     close(fd);
 
-    // Open the temporary file using hts_open
-    htsFile *file = hts_open(tmpl, "r");
-    if (file == NULL) {
-        return 0; // If the file can't be opened, just return
+    int n = 0;
+    // Call the function-under-test with the temporary file
+    char **lines = hts_readlines(tmpl, &n);
+
+    // Cleanup: Free the lines if they were allocated
+    if (lines != NULL) {
+        for (int i = 0; i < n; i++) {
+            free(lines[i]);
+        }
+        free(lines);
     }
 
-    // Call the function-under-test
-    hts_close(file);
-
     // Remove the temporary file
-    unlink(tmpl);
+    remove(tmpl);
 
     return 0;
 }

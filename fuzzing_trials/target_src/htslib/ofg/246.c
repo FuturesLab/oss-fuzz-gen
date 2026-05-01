@@ -1,46 +1,39 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <htslib/sam.h>
-#include <htslib/kstring.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <htslib/hts.h>
 
-// Function prototype for bam_plp_insertion_mod
-// Assuming bam_plp_insertion_mod is a function that can handle a null mod_state
-int bam_plp_insertion_mod(const bam_pileup1_t *plp, hts_base_mod_state *mod_state, kstring_t *ks, int *flag);
-
 int LLVMFuzzerTestOneInput_246(const uint8_t *data, size_t size) {
-    if (size < sizeof(bam_pileup1_t)) {
-        return 0; // Not enough data to initialize bam_pileup1_t
+    htsFile *file = NULL;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+
+    if (fd == -1) {
+        return 0; // If we can't create a temp file, just exit
     }
 
-    bam_pileup1_t plp;
-    kstring_t ks;
-    int flag;
-
-    // Initialize bam_pileup1_t with some data
-    memcpy(&plp, data, sizeof(bam_pileup1_t));
-
-    // Initialize kstring_t
-    ks.l = 0;
-    ks.m = size;
-    ks.s = (char *)malloc(size + 1);
-    if (ks.s == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0; // If write fails, just exit
     }
-    memcpy(ks.s, data, size);
-    ks.s[size] = '\0'; // Null-terminate the string
 
-    // Initialize flag
-    flag = 0;
+    close(fd);
 
-    // Call the function-under-test with a null mod_state
-    bam_plp_insertion_mod(&plp, NULL, &ks, &flag);
+    // Open the temporary file with hts_open
+    file = hts_open(tmpl, "r");
 
-    // Clean up
-    free(ks.s);
+    if (file != NULL) {
+        // Call the function under test
+        hts_flush(file);
+
+        // Close the file
+        hts_close(file);
+    }
+
+    // Remove the temporary file
+    unlink(tmpl);
 
     return 0;
 }

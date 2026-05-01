@@ -2,30 +2,23 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h> // Include stdlib.h for malloc and free
+#include <stdlib.h>
 #include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_81(const uint8_t *data, size_t size) {
-    // Ensure that the data is null-terminated for string operations
-    if (size == 0) return 0;
+    // Ensure the data is null-terminated for safe string operations
+    char *input_str = (char *)malloc(size + 1);
+    if (input_str == NULL) {
+        return 0; // Memory allocation failed, gracefully exit
+    }
+    memcpy(input_str, data, size);
+    input_str[size] = '\0'; // Null-terminate the string
 
-    // Allocate memory for the null-terminated string
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) return 0;
-
-    // Copy the data and add a null terminator
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
-
-    // Initialize htsFormat structure
     htsFormat format;
-    memset(&format, 0, sizeof(htsFormat));
+    int result = hts_parse_format(&format, input_str);
 
-    // Call the function-under-test
-    hts_parse_format(&format, null_terminated_data);
-
-    // Cleanup
-    free(null_terminated_data);
+    // Clean up
+    free(input_str);
 
     return 0;
 }

@@ -1,36 +1,38 @@
 #include <sys/stat.h>
+#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
-// Function prototype for the function-under-test
-int hts_file_type(const char *);
+extern int hfile_list_plugins(const char **, int *);
 
 int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
-    // Create a temporary file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure that size is sufficient to create at least one string and an integer
+    if (size < 2) {
         return 0;
     }
 
-    // Write the fuzzing data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
+    // Allocate memory for a single string
+    char *plugin_name = (char *)malloc(size + 1);
+    if (plugin_name == NULL) {
         return 0;
     }
-    close(fd);
 
-    // Call the function-under-test with the temporary file path
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function hts_file_type with hfile_has_plugin
-    hfile_has_plugin(tmpl);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Copy data into the string and null-terminate it
+    memcpy(plugin_name, data, size);
+    plugin_name[size] = '\0';
 
-    // Clean up the temporary file
-    unlink(tmpl);
+    // Create an array of string pointers
+    const char *plugins[] = { plugin_name };
+
+    // Initialize an integer
+    int plugin_count = 0;
+
+    // Call the function-under-test
+    hfile_list_plugins(plugins, &plugin_count);
+
+    // Free allocated memory
+    free(plugin_name);
 
     return 0;
 }

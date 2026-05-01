@@ -1,27 +1,136 @@
 #include <sys/stat.h>
-#include <string.h>
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
-
-extern int bam_str2flag(const char *);
+#include <stdlib.h>
+#include <string.h>
+#include "htslib/sam.h"
+#include "htslib/hts.h"
+#include <unistd.h>
+#include <fcntl.h>
 
 int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    // Ensure that the data is null-terminated to be used as a C-string
-    char *input = (char *)malloc(size + 1);
-    if (input == NULL) {
+    // Ensure the data size is sufficient for meaningful processing
+    if (size < 4) {
         return 0;
     }
 
-    // Copy data to input and null-terminate it
-    memcpy(input, data, size);
-    input[size] = '\0';
+    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
+    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
+    int fd1 = mkstemp(tmpl1);
+    int fd2 = mkstemp(tmpl2);
+
+    if (fd1 == -1 || fd2 == -1) {
+        if (fd1 != -1) {
+                close(fd1);
+        }
+        if (fd2 != -1) {
+                close(fd2);
+        }
+        return 0;
+    }
+
+    // Write the fuzzing data to the first temporary file
+    if (write(fd1, data, size) != size) {
+        close(fd1);
+        close(fd2);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+    close(fd1);
+
+    // Open the file using htslib
+    htsFile *hts_file = hts_open(tmpl1, "r");
+    if (!hts_file) {
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+
+    // Check if the file is a valid SAM/BAM format
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to sam_hdr_remove_lines
+    sam_hdr_t* ret_sam_hdr_init_ungeb = sam_hdr_init();
+    if (ret_sam_hdr_init_ungeb == NULL){
+    	return 0;
+    }
+    char* ret_bam_flag2str_neaul = bam_flag2str(HTS_RESIZE_CLEAR);
+    if (ret_bam_flag2str_neaul == NULL){
+    	return 0;
+    }
+    char* ret_bam_flag2str_lmgpl = bam_flag2str(HTS_FMT_CRAI);
+    if (ret_bam_flag2str_lmgpl == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sam_hdr_init_ungeb) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bam_flag2str_neaul) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bam_flag2str_lmgpl) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+    int ret_sam_hdr_remove_lines_ftvnl = sam_hdr_remove_lines(ret_sam_hdr_init_ungeb, ret_bam_flag2str_neaul, ret_bam_flag2str_lmgpl, (void *)hts_file);
+    if (ret_sam_hdr_remove_lines_ftvnl < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    bam_hdr_t *header = sam_hdr_read(hts_file);
+    if (!header) {
+        hts_close(hts_file);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+
+    // Attempt to read the first alignment
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_read to hts_set_opt
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+    int ret_hts_set_opt_rabel = hts_set_opt(hts_file, HTS_OPT_NTHREADS);
+    if (ret_hts_set_opt_rabel < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    bam1_t *aln = bam_init1();
+    if (sam_read1(hts_file, header, aln) < 0) {
+        bam_destroy1(aln);
+        bam_hdr_destroy(header);
+        hts_close(hts_file);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = bam_str2flag(input);
+    hts_idx_t *index = sam_index_load2(hts_file, tmpl1, tmpl2);
 
-    // Free the allocated memory
-    free(input);
+    // Ensure that the index is valid before proceeding
+    if (index) {
+        // Perform additional operations if needed
+        hts_idx_destroy(index);
+    }
+
+    // Clean up
+    bam_destroy1(aln);
+    bam_hdr_destroy(header);
+    hts_close(hts_file);
+    unlink(tmpl1);
+    unlink(tmpl2);
 
     return 0;
 }

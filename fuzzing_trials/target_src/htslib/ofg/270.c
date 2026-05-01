@@ -1,48 +1,45 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <htslib/sam.h>
-#include <htslib/hts.h>
-#include <htslib/regidx.h>  // Include the necessary header for hts_reglist_t
+#include <unistd.h>
+#include <fcntl.h>
+#include "/src/htslib/htslib/hfile.h"  // Correct path for the header file
 
 int LLVMFuzzerTestOneInput_270(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hts_idx_t *idx = NULL;  // Initialize idx to NULL since we cannot allocate it directly
-    sam_hdr_t *hdr = sam_hdr_init();
-    hts_reglist_t *reglist = (hts_reglist_t *)malloc(sizeof(hts_reglist_t));
-    unsigned int flags = 0;
-
-    // Ensure that the data is not empty
-    if (size == 0 || !hdr || !reglist) {
-        sam_hdr_destroy(hdr);
-        free(reglist);
-        return 0;
+    // Create a temporary file to obtain a valid file descriptor
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;  // If unable to create a temporary file, exit early
     }
 
-    // Initialize hdr with some data
-    sam_hdr_add_line(hdr, "HD", "VN", "1.0", NULL);
-
-    // Initialize reglist with some data
-    reglist->reg = (char *)malloc(size + 1);
-    reglist->count = 1; // Set count to 1 to indicate there is one region
-    reglist->intervals = (hts_pair_pos_t *)malloc(sizeof(hts_pair_pos_t) * reglist->count);
-    if (reglist->reg && reglist->intervals) {
-        memcpy((void *)reglist->reg, data, size); // Cast to void* to avoid const warning
-        ((char *)reglist->reg)[size] = '\0'; // Cast to char* to modify the content
-        // Initialize intervals with some data
-        reglist->intervals[0].beg = 0;
-        reglist->intervals[0].end = size > 1 ? (int)data[1] : 1; // Use some data for end
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) == -1) {
+        close(fd);
+        unlink(tmpl);
+        return 0;  // If unable to write data, exit early
     }
+
+    // Reset the file offset to the beginning
+    lseek(fd, 0, SEEK_SET);
+
+    // Convert the fuzz data to a null-terminated string for the mode argument
+    char mode[4];  // Assuming mode strings are short, e.g., "r", "w", "rw"
+    size_t mode_len = size < 3 ? size : 3;  // Limit mode length to 3
+    memcpy(mode, data, mode_len);
+    mode[mode_len] = '\0';
 
     // Call the function-under-test
-    hts_itr_t *itr = sam_itr_regions(idx, hdr, reglist, flags);
+    hFILE *file = hdopen(fd, mode);
 
-    // Clean up
-    if (itr) hts_itr_destroy(itr);
-    sam_hdr_destroy(hdr);
-    free((void *)reglist->reg); // Cast to void* to avoid const warning
-    free(reglist->intervals);
-    free(reglist);
+    // Clean up: close the file and remove the temporary file
+    if (file != NULL) {
+        hclose(file);
+    }
+    close(fd);
+    unlink(tmpl);
 
     return 0;
 }

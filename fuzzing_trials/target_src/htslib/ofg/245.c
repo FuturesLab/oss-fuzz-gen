@@ -1,24 +1,38 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <stdio.h>
-#include <htslib/sam.h>
+#include <stdlib.h>
+#include <unistd.h>  // For mkstemp, write, close, and remove
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_245(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    sam_hdr_t *header = sam_hdr_init();
-
-    // Check if the header was successfully initialized
-    if (header != NULL) {
-        // Do something with the header if needed
-        // For example, print a message indicating success
-        printf("Header initialized successfully.\n");
-
-        // Free the header when done
-        sam_hdr_destroy(header);
-    } else {
-        // Handle the case where the header initialization failed
-        printf("Failed to initialize header.\n");
+    // Create a temporary file to simulate an htsFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
+
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+
+    // Close the file descriptor so hts_open can open it
+    close(fd);
+
+    // Open the temporary file with hts_open
+    htsFile *file = hts_open(tmpl, "r");
+    if (file == NULL) {
+        return 0;
+    }
+
+    // Call the function-under-test
+    hts_flush(file);
+
+    // Clean up
+    hts_close(file);
+    remove(tmpl);
 
     return 0;
 }

@@ -1,43 +1,31 @@
-#include <stdio.h>
-#include <stdlib.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>  // Include for mkstemp function
-#include "/src/htslib/htslib/hts.h"  // Ensure the correct path to the htslib header
+#include <htslib/hts.h> // Assuming hts_md5_context and related functions are defined in this header
 
 int LLVMFuzzerTestOneInput_195(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
+    hts_md5_context *md5_ctx; // Use a pointer if hts_md5_context is dynamically allocated
+    const void *input_data;
+    unsigned long input_length;
+
+    // Initialize the hts_md5_context
+    md5_ctx = hts_md5_init(); // Assuming hts_md5_init returns a pointer
+
+    if (md5_ctx == NULL) {
+        return 0; // Exit if initialization fails
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
+    // Set input_data to the fuzz input data
+    input_data = (const void *)data;
 
-    // Close the file descriptor
-    close(fd);
-
-    // Prepare the second argument for hts_readlines
-    int num_lines = 0;
+    // Set input_length to the size of the fuzz input data
+    input_length = (unsigned long)size;
 
     // Call the function-under-test
-    char **lines = hts_readlines(tmpl, &num_lines);
+    hts_md5_update(md5_ctx, input_data, input_length);
 
-    // Clean up
-    if (lines != NULL) {
-        for (int i = 0; i < num_lines; ++i) {
-            free(lines[i]);
-        }
-        free(lines);
-    }
-    unlink(tmpl);
+    // Clean up the hts_md5_context
+    hts_md5_destroy(md5_ctx);
 
     return 0;
 }

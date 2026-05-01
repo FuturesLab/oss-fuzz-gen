@@ -1,17 +1,44 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <htslib/hts.h>
+#include <htslib/hfile.h>
 
-// Function signature provided
-const char *hts_version();
-
-// Fuzzing harness
 int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    const char *version = hts_version();
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
 
-    // Print the version to ensure the function is called
-    printf("HTS Version: %s\n", version);
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
+
+    // Open the file using htslib's hfile API
+    hFILE *hfile = hopen(tmpl, "r");
+    if (hfile == NULL) {
+        return 0;
+    }
+
+    // Initialize the htsFormat structure
+    htsFormat format;
+    memset(&format, 0, sizeof(htsFormat));
+
+    // Call the function-under-test
+    hts_detect_format(hfile, &format);
+
+    // Close the hfile
+    hclose(hfile);
+
+    // Remove the temporary file
+    unlink(tmpl);
 
     return 0;
 }

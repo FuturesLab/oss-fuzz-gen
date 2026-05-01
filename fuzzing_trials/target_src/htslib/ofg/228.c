@@ -1,44 +1,57 @@
+#include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>  // Include for memcpy
-#include "/src/htslib/htslib/sam.h"  // Correct path for sam.h
+#include <string.h>
+#include "/src/htslib/htslib/hfile.h" // Correct path for hFILE
 
 int LLVMFuzzerTestOneInput_228(const uint8_t *data, size_t size) {
-    // Initialize a sam_hdr_t object from the input data
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
+    // Initialize parameters for hgetdelim
+    char *buffer;
+    size_t buffer_size;
+    int delimiter;
+    hFILE *file;
+
+    // Ensure the size is sufficient for testing
+    if (size < 2) {
         return 0;
     }
 
-    // Allocate memory for a null-terminated string
-    char *text = (char *)malloc(size + 1);
-    if (text == NULL) {
-        sam_hdr_destroy(hdr);
+    // Allocate buffer and copy data into it
+    buffer_size = size;
+    buffer = (char *)malloc(buffer_size);
+    if (buffer == NULL) {
         return 0;
     }
+    memcpy(buffer, data, size);
 
-    // Copy data to text and null-terminate it
-    memcpy(text, data, size);
-    text[size] = '\0';
+    // Set a delimiter from the data
+    delimiter = data[size - 1];
 
-    // Parse the text into a sam_hdr_t structure
-    sam_hdr_t *parsed_hdr = sam_hdr_parse(size, text);
-    free(text);
+    // Create a temporary file and write data to it
+    FILE *temp_file = tmpfile();
+    if (temp_file == NULL) {
+        free(buffer);
+        return 0;
+    }
+    fwrite(data, 1, size, temp_file);
+    rewind(temp_file);
 
-    if (parsed_hdr == NULL) {
-        sam_hdr_destroy(hdr);
+    // Open the temporary file as an hFILE
+    file = hopen(temp_file, "r");
+    if (file == NULL) {
+        fclose(temp_file);
+        free(buffer);
         return 0;
     }
 
     // Call the function-under-test
-    sam_hdr_t *dup_hdr = sam_hdr_dup(parsed_hdr);
+    ssize_t result = hgetdelim(buffer, buffer_size, delimiter, file);
 
     // Clean up
-    if (dup_hdr != NULL) {
-        sam_hdr_destroy(dup_hdr);
-    }
-    sam_hdr_destroy(parsed_hdr);
-    sam_hdr_destroy(hdr);
+    hclose(file);
+    fclose(temp_file);
+    free(buffer);
 
     return 0;
 }

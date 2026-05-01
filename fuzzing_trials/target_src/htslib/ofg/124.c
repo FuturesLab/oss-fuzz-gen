@@ -1,50 +1,41 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <unistd.h> // Include unistd.h for close() and remove()
+#include <fcntl.h>  // Include fcntl.h for mkstemp()
 #include <htslib/sam.h>
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_124(const uint8_t *data, size_t size) {
-    // Ensure the input data is large enough to create meaningful strings
-    if (size < 4) {
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Allocate and initialize a sam_hdr_t structure
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (!hdr) {
+    // Write data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
         return 0;
     }
+    close(fd);
 
-    // Create non-NULL strings from the input data
-    char *str1 = (char *)malloc(size + 1);
-    char *str2 = (char *)malloc(size + 1);
-    char *str3 = (char *)malloc(size + 1);
-
-    if (!str1 || !str2 || !str3) {
-        free(str1);
-        free(str2);
-        free(str3);
-        sam_hdr_destroy(hdr);
+    // Open the temporary file as an htsFile
+    htsFile *hts_file = hts_open(tmpl, "r");
+    if (hts_file == NULL) {
+        remove(tmpl);
         return 0;
     }
-
-    // Copy data into strings and null-terminate them
-    memcpy(str1, data, size);
-    str1[size] = '\0';
-    memcpy(str2, data, size);
-    str2[size] = '\0';
-    memcpy(str3, data, size);
-    str3[size] = '\0';
 
     // Call the function-under-test
-    sam_hdr_remove_line_id(hdr, str1, str2, str3);
+    sam_hdr_t *hdr = sam_hdr_read(hts_file);
 
     // Clean up
-    free(str1);
-    free(str2);
-    free(str3);
-    sam_hdr_destroy(hdr);
+    if (hdr != NULL) {
+        sam_hdr_destroy(hdr);
+    }
+    hts_close(hts_file);
+    remove(tmpl);
 
     return 0;
 }

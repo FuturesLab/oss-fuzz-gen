@@ -1,18 +1,20 @@
 #include <stdint.h>
 #include <stddef.h>
 
-// Assuming the header file for hts_lib_shutdown_158 is included
-// Include the necessary header file for hts_lib_shutdown_158
-// #include "hts_lib.h" // Uncomment and replace with the actual header file if available
-
-// Mock implementation of hts_lib_shutdown_158 for demonstration purposes
-void hts_lib_shutdown_158() {
-    // Actual implementation would be in the library
-}
+// Function-under-test
+uint32_t bam_auxB_len(const uint8_t *data);
 
 int LLVMFuzzerTestOneInput_158(const uint8_t *data, size_t size) {
+    // Ensure that data is not NULL and size is greater than 0
+    if (data == NULL || size == 0) {
+        return 0;
+    }
+
     // Call the function-under-test
-    hts_lib_shutdown_158();
+    uint32_t result = bam_auxB_len(data);
+
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    (void)result;
 
     return 0;
 }

@@ -1,53 +1,41 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <htslib/hts.h>
 #include <string.h>
+#include <stdio.h>
+#include "htslib/sam.h"
 
-// Function to create a copy of a string literal
-char *copy_string_literal(const char *str) {
-    size_t len = strlen(str) + 1;
-    char *copy = (char *)malloc(len);
-    if (copy != NULL) {
-        strncpy(copy, str, len);
-    }
-    return copy;
+// Mock function to create a sam_hdr_t object
+sam_hdr_t* create_sam_hdr() {
+    // In a real scenario, you would populate this with actual data
+    sam_hdr_t* hdr = sam_hdr_init();
+    return hdr;
 }
 
 int LLVMFuzzerTestOneInput_201(const uint8_t *data, size_t size) {
-    // Allocate memory for hts_reglist_t
-    hts_reglist_t *reglist = (hts_reglist_t *)malloc(sizeof(hts_reglist_t));
-    if (reglist == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
+    // Ensure we have enough data to work with
+    if (size < 2) return 0;
 
-    // Initialize the hts_reglist_t structure with some non-NULL values
-    reglist->reg = copy_string_literal("test_reg");
-    if (reglist->reg == NULL) {
-        free(reglist);
+    // Create a sam_hdr_t object
+    sam_hdr_t *hdr = create_sam_hdr();
+    if (hdr == NULL) return 0;
+
+    // Use part of the data as a string for the second parameter
+    size_t str_size = size / 2;
+    char *str = (char *)malloc(str_size + 1);
+    if (str == NULL) {
+        sam_hdr_destroy(hdr);
         return 0;
     }
-
-    reglist->intervals = (hts_pair_pos_t *)malloc(sizeof(hts_pair_pos_t));
-    if (reglist->intervals == NULL) {
-        free(reglist->reg);
-        free(reglist);
-        return 0;
-    }
-    reglist->intervals[0].beg = 0;
-    reglist->intervals[0].end = 100;
-    reglist->count = 1;
-    reglist->min_beg = 0;
-    reglist->max_end = 100;
-
-    // Use the first byte of the data as an integer parameter
-    int is_sorted = size > 0 ? data[0] % 2 : 0;
+    memcpy(str, data, str_size);
+    str[str_size] = '\0'; // Null-terminate the string
 
     // Call the function-under-test
-    hts_reglist_free(reglist, is_sorted);
+    sam_hdr_add_pg(hdr, str, NULL);
 
-    // Free allocated memory
-    // Note: No need to free reglist->reg and reglist->intervals as hts_reglist_free should handle it
+    // Clean up
+    free(str);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

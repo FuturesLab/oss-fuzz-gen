@@ -1,39 +1,21 @@
-#include <stdio.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // Include unistd.h for mkstemp and close
-#include <fcntl.h>  // Include fcntl.h for open and write
-#include <htslib/hts.h>
+#include <stddef.h>
 
+// Function-under-test declaration
+char bam_aux2A(const uint8_t *data);
+
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_213(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        return 0;
-    }
-    close(fd);
-
-    // Open the temporary file with hts_open
-    htsFile *file = hts_open(tmpl, "r");
-    if (file == NULL) {
-        remove(tmpl);
+    // Ensure the data is not NULL and size is greater than 0
+    if (data == NULL || size == 0) {
         return 0;
     }
 
     // Call the function-under-test
-    const htsFormat *format = hts_get_format(file);
+    char result = bam_aux2A(data);
 
-    // Clean up
-    hts_close(file);
-    remove(tmpl);
+    // Use the result in some way to avoid compiler optimizations
+    (void)result;
 
     return 0;
 }

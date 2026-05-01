@@ -1,44 +1,61 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <htslib/sam.h>
-#include <htslib/kstring.h> // Include kstring.h for kstring_t
+#include <htslib/bgzf.h>
 
 int LLVMFuzzerTestOneInput_138(const uint8_t *data, size_t size) {
-    // Initialize kstring_t
-    kstring_t ks;
-    ks.l = size;
-    ks.m = size + 1;
-    ks.s = (char *)malloc(ks.m);
-    if (ks.s == NULL) {
-        return 0; // Memory allocation failed
-    }
-    memcpy(ks.s, data, size);
-    ks.s[size] = '\0'; // Ensure null-termination
+    if (size < 1) return 0;
 
-    // Initialize sam_hdr_t
+    // Create a temporary file to use with BGZF
+    char tmpl[] = "/tmp/fuzzbgzfXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+
+    // Open the temporary file with BGZF
+    BGZF *bgzf = bgzf_fdopen(fd, "w");
+    if (bgzf == NULL) {
+        close(fd);
+        return 0;
+    }
+
+    // Create a sam_hdr_t object
     sam_hdr_t *hdr = sam_hdr_init();
     if (hdr == NULL) {
-        free(ks.s);
-        return 0; // Memory allocation failed
+        bgzf_close(bgzf);
+        return 0;
     }
 
-    // Initialize bam1_t
-    bam1_t *b = bam_init1();
-    if (b == NULL) {
+    // Use the input data to initialize the header
+    // Ensure that the input data is null-terminated for safe string operations
+    char *header_text = (char *)malloc(size + 1);
+    if (header_text == NULL) {
         sam_hdr_destroy(hdr);
-        free(ks.s);
-        return 0; // Memory allocation failed
+        bgzf_close(bgzf);
+        return 0;
+    }
+    memcpy(header_text, data, size);
+    header_text[size] = '\0';
+
+    if (sam_hdr_add_lines(hdr, header_text, 0) < 0) {
+        free(header_text);
+        sam_hdr_destroy(hdr);
+        bgzf_close(bgzf);
+        return 0;
     }
 
     // Call the function-under-test
-    int result = sam_parse1(&ks, hdr, b);
+    bam_hdr_write(bgzf, hdr);
 
     // Clean up
-    bam_destroy1(b);
+    free(header_text);
     sam_hdr_destroy(hdr);
-    free(ks.s);
+    bgzf_close(bgzf);
+    unlink(tmpl);
 
     return 0;
 }

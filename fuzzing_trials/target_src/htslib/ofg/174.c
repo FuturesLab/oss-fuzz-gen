@@ -1,54 +1,36 @@
+#include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>  // Include this header for the close() function
 #include <htslib/sam.h>
-#include <htslib/hts.h>
-
-// Function to create a temporary file with the given data
-static char *create_temp_file(const uint8_t *data, size_t size) {
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        perror("mkstemp");
-        return NULL;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        perror("fdopen");
-        close(fd);
-        return NULL;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-    return strdup(tmpl);
-}
 
 int LLVMFuzzerTestOneInput_174(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
+    if (size < sizeof(uint32_t)) {
+        return 0; // Not enough data to form a valid uint32_t array
     }
 
-    char *filename = create_temp_file(data, size);
-    if (!filename) {
-        return 0;
+    // Determine the number of uint32_t elements we can extract from the data
+    int num_elements = size / sizeof(uint32_t);
+
+    // Allocate memory for the uint32_t array
+    uint32_t *cigar_array = (uint32_t *)malloc(num_elements * sizeof(uint32_t));
+    if (cigar_array == NULL) {
+        return 0; // Memory allocation failed
     }
 
-    htsFile *file = hts_open(filename, "r");
-    if (!file) {
-        free(filename);
-        return 0;
+    // Copy data into the uint32_t array
+    for (int i = 0; i < num_elements; i++) {
+        cigar_array[i] = ((uint32_t *)data)[i];
     }
 
     // Call the function-under-test
-    sam_hdr_t *hdr = sam_hdr_read(file);
+    hts_pos_t result = bam_cigar2rlen(num_elements, cigar_array);
+    
+    // Print the result (optional, for debugging purposes)
+    printf("Result: %ld\n", (long)result);
 
-    // Clean up
-    if (hdr) {
-        sam_hdr_destroy(hdr);
-    }
-    hts_close(file);
-    free(filename);
+    // Free allocated memory
+    free(cigar_array);
 
     return 0;
 }

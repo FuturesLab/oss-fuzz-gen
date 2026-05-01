@@ -1,37 +1,34 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h> // Include this for the close() and remove() functions
 #include <htslib/hts.h>
+#include <htslib/tbx.h>
+
+// Initialize hts_idx_t with appropriate parameters
+hts_idx_t *hts_idx_init(int n, int fmt, uint64_t offset0, int min_shift, int n_lvls);
 
 int LLVMFuzzerTestOneInput_214(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    if (size < sizeof(int) * 2 + sizeof(uint64_t) + sizeof(int) * 2) {
         return 0;
     }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
 
-    // Open the file using hts_open
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (hts_file == NULL) {
-        remove(tmpl);
+    // Extract parameters from the input data
+    int n = *(int *)data;
+    int fmt = *(int *)(data + sizeof(int));
+    uint64_t offset0 = *(uint64_t *)(data + 2 * sizeof(int));
+    int min_shift = *(int *)(data + 2 * sizeof(int) + sizeof(uint64_t));
+    int n_lvls = *(int *)(data + 2 * sizeof(int) + sizeof(uint64_t) + sizeof(int));
+
+    // Initialize a hts_idx_t structure using the extracted parameters
+    hts_idx_t *index = hts_idx_init(n, fmt, offset0, min_shift, n_lvls);
+    if (index == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    const htsFormat *format = hts_get_format(hts_file);
+    int result = hts_idx_fmt(index);
 
     // Clean up
-    hts_close(hts_file);
-    remove(tmpl);
+    hts_idx_destroy(index);
 
     return 0;
 }

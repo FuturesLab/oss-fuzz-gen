@@ -1,52 +1,31 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdio.h>
-#include <htslib/sam.h>  // Include the necessary header for bam1_t
+#include <htslib/sam.h>  // Correct path for the declaration of bam_plp_init
+
+// Define a dummy callback function that matches bam_plp_auto_f signature
+static int dummy_callback_190(void *data) {
+    // Do nothing, just return 0
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_190(const uint8_t *data, size_t size) {
-    // Initialize two bam1_t structures
-    bam1_t *dest = bam_init1();
-    bam1_t *src = bam_init1();
-
-    if (dest == NULL || src == NULL) {
-        if (dest != NULL) bam_destroy1(dest);
-        if (src != NULL) bam_destroy1(src);
+    // Ensure the data size is sufficient for the void pointer
+    if (size < sizeof(void *)) {
         return 0;
     }
 
-    // Simulate some data for the source bam1_t
-    if (size > 0) {
-        // Ensure the data fits into the bam1_t structure
-        // Allocate enough space for src->data
-        if (src->m_data < size) {
-            uint8_t *new_data = realloc(src->data, size);
-            if (new_data == NULL) {
-                bam_destroy1(dest);
-                bam_destroy1(src);
-                return 0;
-            }
-            src->data = new_data;
-            src->m_data = size;
-        }
-        memcpy(src->data, data, size);
-        src->l_data = size;
-    }
+    // Use the data as a void pointer
+    void *user_data = (void *)data;
 
     // Call the function-under-test
-    bam1_t *result = bam_copy1(dest, src);
+    bam_plp_t plp = bam_plp_init(dummy_callback_190, user_data);
 
-    // Check if the copy was successful
-    if (result != NULL && dest->l_data == src->l_data && memcmp(dest->data, src->data, src->l_data) == 0) {
-        // Successfully copied
-        printf("Copy successful\n");
-    } else {
-        printf("Copy failed\n");
-    }
+    // Normally, you would do something with `plp` here, like checking its state
+    // or passing it to other functions, but for fuzzing, we just ensure it is called.
 
     // Clean up
-    bam_destroy1(dest);
-    bam_destroy1(src);
+    bam_plp_destroy(plp);
 
     return 0;
 }

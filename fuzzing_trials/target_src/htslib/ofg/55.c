@@ -1,55 +1,46 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
+#include <unistd.h>  // Include for mkstemp, close, and unlink
+#include <fcntl.h>   // Include for write
+#include <htslib/sam.h>
+#include <htslib/hts.h>
+#include <htslib/bgzf.h>
 
-// Assuming the structure of hts_base_mod_state is defined somewhere
-typedef struct {
-    // Example fields, the actual structure may differ
-    int example_field1;
-    char example_field2;
-} hts_base_mod_state;
-
-// Mock implementation of bam_mods_queryi_55 for demonstration
-int bam_mods_queryi_55(hts_base_mod_state *state, int query, int *result1, int *result2, char *result3) {
-    // Example implementation
-    if (state == NULL || result1 == NULL || result2 == NULL || result3 == NULL) {
-        return -1;
-    }
-    *result1 = query + state->example_field1;
-    *result2 = query - state->example_field1;
-    *result3 = state->example_field2;
-    return 0;
-}
-
+// Remove 'extern "C"' for C code compatibility
 int LLVMFuzzerTestOneInput_55(const uint8_t *data, size_t size) {
-    // Ensure the input size is large enough to extract necessary data
-    if (size < sizeof(hts_base_mod_state) + sizeof(int) + 1) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Initialize hts_base_mod_state
-    hts_base_mod_state state;
-    memcpy(&state, data, sizeof(hts_base_mod_state));
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
 
-    // Extract an integer from the data
-    int query = 0;
-    memcpy(&query, data + sizeof(hts_base_mod_state), sizeof(int));
-
-    // Initialize result variables
-    int result1 = 0;
-    int result2 = 0;
-    char result3 = 0;
+    // Open the temporary file with BGZF
+    BGZF *bgzf = bgzf_open(tmpl, "r");
+    if (bgzf == NULL) {
+        unlink(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    int ret = bam_mods_queryi_55(&state, query, &result1, &result2, &result3);
+    sam_hdr_t *header = bam_hdr_read(bgzf);
 
-    // Check the return value to ensure the function is executed
-    if (ret == 0) {
-        // Optionally, you can add checks or assertions here to validate the results
-        // For example:
-        // assert(result1 == query + state.example_field1);
-        // assert(result2 == query - state.example_field1);
+    // Clean up
+    if (header != NULL) {
+        sam_hdr_destroy(header);
     }
+    bgzf_close(bgzf);
+    unlink(tmpl);
 
     return 0;
 }

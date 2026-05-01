@@ -1,42 +1,25 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <htslib/sam.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <unistd.h>
 
 int LLVMFuzzerTestOneInput_175(const uint8_t *data, size_t size) {
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure that the size is sufficient for at least one uint32_t element
+    if (size < sizeof(uint32_t)) {
         return 0;
     }
 
-    FILE *file = fdopen(fd, "wb");
-    if (file == NULL) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
+    // Calculate the number of uint32_t elements we can extract from the data
+    int n_cigar = size / sizeof(uint32_t);
 
-    if (fwrite(data, 1, size, file) != size) {
-        fclose(file);
-        unlink(tmpl);
-        return 0;
-    }
+    // Cast the data to a uint32_t pointer
+    const uint32_t *cigar = (const uint32_t *)data;
 
-    fclose(file);
+    // Call the function-under-test
+    hts_pos_t result = bam_cigar2rlen(n_cigar, cigar);
 
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (hts_file != NULL) {
-        sam_hdr_t *header = sam_hdr_read(hts_file);
-        if (header != NULL) {
-            sam_hdr_destroy(header);
-        }
-        hts_close(hts_file);
-    }
+    // Use the result in some way to prevent optimization out (not strictly necessary)
+    (void)result;
 
-    unlink(tmpl);
     return 0;
 }
 #ifdef INC_MAIN

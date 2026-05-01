@@ -1,33 +1,31 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-
-// Declare the external function
-extern int sam_open_mode(char *, const char *, const char *);
+#include <stdlib.h>
+#include <htslib/hts.h>
+#include <htslib/thread_pool.h> // Include the header for thread pool functions
 
 int LLVMFuzzerTestOneInput_259(const uint8_t *data, size_t size) {
-    // Ensure that the input data is large enough to create three strings
-    if (size < 6) {
-        return 0;
+    // Initialize htsFile and htsThreadPool
+    htsFile *file = hts_open("-", "r");
+    if (file == NULL) {
+        return 0; // Exit if file initialization fails
     }
 
-    // Allocate buffers for the strings
-    char buffer1[3];
-    char buffer2[3];
-    char buffer3[3];
+    htsThreadPool thread_pool;
+    struct hts_tpool *pool = hts_tpool_init(2); // Initialize a thread pool with 2 threads
+    if (pool == NULL) {
+        hts_close(file);
+        return 0; // Exit if thread pool initialization fails
+    }
 
-    // Copy data into the buffers ensuring null-termination
-    memcpy(buffer1, data, 2);
-    buffer1[2] = '\0';
+    thread_pool.pool = pool;
+    thread_pool.qsize = 0; // Default queue size
 
-    memcpy(buffer2, data + 2, 2);
-    buffer2[2] = '\0';
+    // Call the function-under-test
+    int result = hts_set_thread_pool(file, &thread_pool);
 
-    memcpy(buffer3, data + 4, 2);
-    buffer3[2] = '\0';
-
-    // Call the function under test
-    sam_open_mode(buffer1, buffer2, buffer3);
+    // Clean up
+    hts_tpool_destroy(pool);
+    hts_close(file);
 
     return 0;
 }

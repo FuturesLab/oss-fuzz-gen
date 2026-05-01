@@ -1,36 +1,28 @@
-#include <stdint.h>
+#include <sys/stat.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <htslib/sam.h>  // Ensure you have the HTSlib library available
+#include "htslib/sam.h" // Correct path where sam_hdr_parse is declared
 
-int LLVMFuzzerTestOneInput_286(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    bam1_t *b = bam_init1();
-    uint8_t *aux = NULL;
-
-    if (b == NULL || size < 1) {
-        bam_destroy1(b);
+int LLVMFuzzerTestOneInput_189(const uint8_t *data, size_t size) {
+    // Ensure the data is null-terminated for the string input
+    char *input_str = (char *)malloc(size + 1);
+    if (input_str == NULL) {
         return 0;
     }
-
-    // Allocate memory for auxiliary data
-    aux = (uint8_t *)malloc(size);
-    if (aux == NULL) {
-        bam_destroy1(b);
-        return 0;
-    }
-
-    // Copy data to auxiliary data
-    memcpy(aux, data, size);
+    memcpy(input_str, data, size);
+    input_str[size] = '\0';
 
     // Call the function-under-test
-    uint8_t *result = bam_aux_remove(b, aux);
+    sam_hdr_t *result = sam_hdr_parse(size, input_str);
 
     // Clean up
-    bam_destroy1(b);
-    free(aux);
+    if (result != NULL) {
+        sam_hdr_destroy(result); // Assuming there's a function to free sam_hdr_t
+    }
+    free(input_str);
 
     return 0;
 }
@@ -56,7 +48,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -66,7 +58,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_286(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_189(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

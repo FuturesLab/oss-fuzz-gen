@@ -1,35 +1,22 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 
-// Function-under-test declaration
-long long hts_parse_decimal(const char *str, char **endptr, int flags);
+extern double bam_auxB2f(const uint8_t *, uint32_t);
 
 int LLVMFuzzerTestOneInput_51(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated to be used as a string
-    char *input = (char *)malloc(size + 1);
-    if (!input) {
-        return 0; // Return if memory allocation fails
+    // Ensure the size is sufficient for a uint32_t
+    if (size < sizeof(uint32_t)) {
+        return 0;
     }
-    // Copy data and null-terminate
-    for (size_t i = 0; i < size; ++i) {
-        input[i] = (char)data[i];
-    }
-    input[size] = '\0';
 
-    // Prepare variables for the function call
-    char *endptr = NULL;
-    int flags = 0; // Example flag, adjust as needed
+    // Use the first four bytes of data as a uint32_t value
+    uint32_t value = *(const uint32_t *)data;
 
     // Call the function-under-test
-    long long result = hts_parse_decimal(input, &endptr, flags);
+    double result = bam_auxB2f(data, value);
 
-    // Use the result and endptr in some way to avoid compiler optimizations
+    // Use the result in some way to prevent compiler optimizations
     (void)result;
-    (void)endptr;
-
-    // Clean up
-    free(input);
 
     return 0;
 }

@@ -1,45 +1,45 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
-#include <unistd.h> // Include for close() and remove()
+#include <unistd.h>      // Include for close() and unlink()
+#include <fcntl.h>       // Include for mkstemp()
+#include <htslib/sam.h>
 #include <htslib/hts.h>
-#include <htslib/hfile.h>
 
 int LLVMFuzzerTestOneInput_206(const uint8_t *data, size_t size) {
-    // Create a temporary file
+    htsFile *hts_file = NULL;
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the fuzzing data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (file == NULL) {
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
         close(fd);
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
+    close(fd);
 
-    // Open the file using hFILE
-    hFILE *hfile = hopen(tmpl, "rb");
-    if (hfile == NULL) {
-        remove(tmpl);
+    // Open the temporary file using hts_open
+    hts_file = hts_open(tmpl, "r");
+    if (hts_file == NULL) {
         return 0;
     }
 
-    // Prepare a format string and htsFormat structure
-    const char *format_str = "r";
-    htsFormat format;
+    // Define non-NULL strings for the second and third parameters
+    const char *fnidx = "index_file";
+    const char *fnref = "reference_file";
 
-    // Call the function under test
-    hts_detect_format2(hfile, format_str, &format);
+    // Call the function-under-test
+    hts_idx_t *index = sam_index_load3(hts_file, fnidx, fnref, 0);
 
-    // Cleanup
-    hclose(hfile);
-    remove(tmpl);
+    // Clean up
+    if (index != NULL) {
+        hts_idx_destroy(index);
+    }
+    hts_close(hts_file);
+    unlink(tmpl);
 
     return 0;
 }

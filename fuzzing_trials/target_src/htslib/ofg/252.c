@@ -1,55 +1,34 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_252(const uint8_t *data, size_t size) {
-    if (size < 32) {
-        // Ensure there is enough data to fill the BAM structure meaningfully
+    sam_hdr_t *hdr;
+    char *line;
+    void *dummy = (void *)1; // A non-NULL void pointer
+
+    // Initialize sam_hdr_t
+    hdr = sam_hdr_init();
+    if (hdr == NULL) {
         return 0;
     }
 
-    bam1_t *bam = bam_init1();
-    if (bam == NULL) {
+    // Ensure data is null-terminated for string operations
+    line = (char *)malloc(size + 1);
+    if (line == NULL) {
+        sam_hdr_destroy(hdr);
         return 0;
     }
-
-    // Allocate space for the BAM data
-    bam->data = (uint8_t *)malloc(size);
-    if (bam->data == NULL) {
-        bam_destroy1(bam);
-        return 0;
-    }
-    memcpy(bam->data, data, size);
-    bam->l_data = size;
-
-    // Initialize core fields with some valid values
-    bam->core.tid = data[0] % 25;  // Reference sequence ID
-    bam->core.pos = data[1] | (data[2] << 8);  // 0-based leftmost coordinate
-    bam->core.bin = data[3];  // Bin for indexing
-    bam->core.qual = data[4];  // Mapping quality
-    bam->core.l_qname = data[5] % 256;  // Length of the query name
-    bam->core.flag = data[6];  // Bitwise flag
-    bam->core.n_cigar = data[7] % 5;  // Number of CIGAR operations
-    bam->core.l_qseq = data[8] % 100;  // Length of the query sequence
-    bam->core.mtid = data[9] % 25;  // Mate reference sequence ID
-    bam->core.mpos = data[10] | (data[11] << 8);  // 0-based leftmost mate coordinate
-    bam->core.isize = data[12] | (data[13] << 8);  // Insert size
-
-    // Ensure the query name is set
-    if (bam->core.l_qname > 0 && size >= bam->core.l_qname) {
-        memcpy(bam->data, data + 14, bam->core.l_qname);
-    }
+    memcpy(line, data, size);
+    line[size] = '\0';
 
     // Call the function-under-test
-    bam1_t *dup_bam = bam_dup1(bam);
+    sam_hdr_add_line(hdr, line, dummy);
 
     // Clean up
-    if (dup_bam != NULL) {
-        bam_destroy1(dup_bam);
-    }
-    bam_destroy1(bam);
+    free(line);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

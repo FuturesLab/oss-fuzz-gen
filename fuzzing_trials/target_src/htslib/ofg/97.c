@@ -1,25 +1,36 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <htslib/sam.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+// Function-under-test declaration
+const char *hts_parse_reg(const char *, int *, int *);
 
 int LLVMFuzzerTestOneInput_97(const uint8_t *data, size_t size) {
-    // Ensure there's enough data for at least one uint32_t
-    if (size < sizeof(uint32_t)) {
+    // Ensure the data is large enough to contain a null-terminated string
+    if (size < 1) {
         return 0;
     }
 
-    // Calculate the number of uint32_t elements in the data
-    int n_cigar = size / sizeof(uint32_t);
+    // Allocate memory for the string and ensure it is null-terminated
+    char *region_str = (char *)malloc(size + 1);
+    if (region_str == NULL) {
+        return 0;
+    }
+    memcpy(region_str, data, size);
+    region_str[size] = '\0';
 
-    // Cast the data to an array of uint32_t
-    const uint32_t *cigar = (const uint32_t *)data;
+    // Initialize start and end integers
+    int start = 0;
+    int end = 0;
 
     // Call the function-under-test
-    hts_pos_t result = bam_cigar2rlen(n_cigar, cigar);
+    const char *result = hts_parse_reg(region_str, &start, &end);
 
-    // Use the result in some way to prevent compiler optimizations from removing the call
-    (void)result;
+    // Free allocated memory
+    free(region_str);
 
+    // Return 0 as required by LLVMFuzzerTestOneInput
     return 0;
 }
 #ifdef INC_MAIN

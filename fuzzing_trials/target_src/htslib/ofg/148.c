@@ -1,47 +1,18 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <htslib/sam.h>
-#include <htslib/hts.h>
-#include <htslib/bgzf.h>
-
-// Function to create a mock BAM header
-bam_hdr_t* create_mock_bam_header() {
-    bam_hdr_t *header = bam_hdr_init();
-    header->n_targets = 1;
-    header->target_len = (uint32_t*)malloc(sizeof(uint32_t));
-    header->target_len[0] = 1000; // Arbitrary length
-    header->target_name = (char**)malloc(sizeof(char*));
-    header->target_name[0] = strdup("chr1");
-    return header;
-}
+#include <stddef.h>
+#include <htslib/hts.h>  // Include the header file where hts_crc32 is declared
 
 int LLVMFuzzerTestOneInput_148(const uint8_t *data, size_t size) {
-    // Declare and initialize all necessary variables
-    hts_idx_t *index = hts_idx_init(HTS_FMT_BAI, HTS_IDX_NONE, 0, 0, 0); // Properly initialize index
-    int tid = 0; // Assuming a valid reference id
-    hts_pos_t beg = 0; // Start position
-    hts_pos_t end = 1000; // End position, arbitrary non-zero value
+    uint32_t crc_init = 0;  // Initialize the CRC value to 0
+    uint32_t crc_result;
 
-    // Check if the size is sufficient to map to the function parameters
-    if (size < sizeof(int) + 2 * sizeof(hts_pos_t)) {
-        hts_idx_destroy(index);
-        return 0;
-    }
+    // Call the function-under-test with the provided data
+    crc_result = hts_crc32(crc_init, data, size);
 
-    // Create a mock BAM header
-    bam_hdr_t *header = create_mock_bam_header();
+    // Optionally, you can do something with crc_result, like printing or logging it
+    // For the purpose of fuzzing, we are primarily interested in calling the function
 
-    // Call the function-under-test with a valid BAM header
-    hts_itr_t *itr = sam_itr_queryi(index, tid, beg, end);
-
-    // Clean up and free allocated memory
-    if (itr != NULL) {
-        hts_itr_destroy(itr);
-    }
-    hts_idx_destroy(index);
-    bam_hdr_destroy(header);
-
-    return 0;
+    return 0;  // Return 0 to indicate successful execution
 }
 #ifdef INC_MAIN
 #include <stdio.h>

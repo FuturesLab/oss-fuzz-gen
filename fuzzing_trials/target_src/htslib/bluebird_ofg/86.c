@@ -1,43 +1,41 @@
 #include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
-#include "htslib/sam.h"  // Assuming sam_hdr_t is defined in this header
+#include "/src/htslib/htslib/kstring.h"
+#include "htslib/sam.h"
+
+// Assuming bam_pileup1_t and kstring_t are defined in the included headers
+
+extern int bam_plp_insertion(const bam_pileup1_t *, kstring_t *, int *);
 
 int LLVMFuzzerTestOneInput_86(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated for string operations
-    char *input_str = (char *)malloc(size + 1);
-    if (input_str == NULL) {
-        return 0;
-    }
-    memcpy(input_str, data, size);
-    input_str[size] = '\0';
+    // Initialize bam_pileup1_t structure
+    bam_pileup1_t pileup;
+    memset(&pileup, 0, sizeof(bam_pileup1_t));
 
-    // Parse the input string into a new header
-    sam_hdr_t *hdr = sam_hdr_parse(size, input_str);
-    if (hdr == NULL) {
-        free(input_str);
-        return 0;
+    // Initialize kstring_t structure
+    kstring_t kstr;
+    kstr.l = 0;
+    kstr.m = size;
+    kstr.s = (char *)malloc(size + 1);
+    if (kstr.s == NULL) {
+        return 0; // Exit if memory allocation fails
     }
+    memcpy(kstr.s, data, size);
+    kstr.s[size] = '\0'; // Null-terminate the string
 
-    // Check if the input string is a valid header line
-    if (sam_hdr_count_lines(hdr, "HD") == 0) {
-        // If there are no header lines, clean up and return
-        sam_hdr_destroy(hdr);
-        free(input_str);
-        return 0;
-    }
+    // Initialize an integer
+    int result_value = 0;
 
     // Call the function-under-test
-    int result = sam_hdr_count_lines(hdr, "SQ"); // Using "SQ" as a valid header type
+    bam_plp_insertion(&pileup, &kstr, &result_value);
 
     // Clean up
-    free(input_str);
-    sam_hdr_destroy(hdr);
+    free(kstr.s);
 
-    return result;
+    return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

@@ -1,76 +1,43 @@
 #include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
-#include "htslib/sam.h"
-#include "htslib/hts.h"
-#include "/src/htslib/htslib/hts_defs.h" // Include for HTS_FMT_CSI
+#include <stdlib.h>
+#include <stdio.h>
+#include "htslib/sam.h" // Correct path for bam1_t and bam_set_qname
 
 int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for meaningful fuzzing
-    if (size < 3) {
+    // Ensure that the size is sufficient to create a valid null-terminated string
+    if (size < 1) {
         return 0;
     }
 
-    // Create a mock hts_idx_t object
-    // Provide appropriate values for offset0, min_shift, and n_lvls
-    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_CSI, 0, 14, 5);
-
-    // Create a mock sam_hdr_t object
-    sam_hdr_t *hdr = sam_hdr_init();
-
-    // Prepare a query string from the input data
-    // Ensure null termination
-
-    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sam_hdr_init to sam_itr_regarray using the plateau pool
-    char **regions = NULL;
-    unsigned int n = 1;
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!idx) {
-    	return 0;
+    // Allocate memory for bam1_t structure
+    bam1_t *bam = (bam1_t *)malloc(sizeof(bam1_t));
+    if (bam == NULL) {
+        return 0;
     }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!hdr) {
-    	return 0;
+
+    // Initialize bam1_t structure with default values
+    memset(bam, 0, sizeof(bam1_t));
+
+    // Allocate memory for the qname string
+    char *qname = (char *)malloc(size + 1);
+    if (qname == NULL) {
+        free(bam);
+        return 0;
     }
-    hts_itr_t* ret_sam_itr_regarray_mfxnj = sam_itr_regarray(idx, hdr, regions, n);
-    if (ret_sam_itr_regarray_mfxnj == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.SPLICE_MUTATOR
-    
-    char *query = (char *)malloc(size + 1);
-    memcpy(query, data, size);
-    query[size] = '\0';
+
+    // Copy data to qname and ensure it is null-terminated
+    memcpy(qname, data, size);
+    qname[size] = '\0';
 
     // Call the function-under-test
-    hts_itr_t *itr = sam_itr_querys(idx, hdr, query);
+    int result = bam_set_qname(bam, qname);
 
     // Clean up
-    if (itr != NULL) {
-        hts_itr_destroy(itr);
-    }
-
-    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sam_itr_querys to sam_itr_regions using the plateau pool
-    hts_reglist_t *reglist = (hts_reglist_t *)malloc(sizeof(hts_reglist_t));
-    unsigned int flags = 0;
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!idx) {
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!hdr) {
-    	return 0;
-    }
-    hts_itr_t* ret_sam_itr_regions_zbfnj = sam_itr_regions(idx, hdr, reglist, flags);
-    if (ret_sam_itr_regions_zbfnj == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.SPLICE_MUTATOR
-    
-    hts_idx_destroy(idx);
-    sam_hdr_destroy(hdr);
-    free(query);
+    free(qname);
+    free(bam);
 
     return 0;
 }

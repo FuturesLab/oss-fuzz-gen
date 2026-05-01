@@ -1,54 +1,50 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 #include <htslib/hts.h>
-#include <htslib/sam.h>
-#include <htslib/cram.h>  // Include this for hts_idx_t and hts_itr_t definitions
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to work with
-    if (size < 1) {
+    // Ensure the data size is sufficient for creating a valid filename
+    if (size < 5) {
         return 0;
     }
 
-    // Create a memory stream from the input data
-    htsFile *file = hts_open_format("data://", "r", NULL);
-    if (!file) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Initialize index and iterator
-    hts_idx_t *idx = hts_idx_load("data://", HTS_FMT_CRAI);
-    if (!idx) {
-        hts_close(file);
+    // Write the data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
         return 0;
     }
 
-    hts_itr_t *itr = hts_itr_query(idx, 0, 0, 0, 0);
-    if (!itr) {
-        hts_idx_destroy(idx);
-        hts_close(file);
-        return 0;
-    }
+    // Close the file descriptor
+    close(fd);
+
+    // Define a non-zero integer for the second parameter
+    int flags = 1;
 
     // Call the function-under-test
-    int result = hts_itr_multi_cram(idx, itr);
+    hts_idx_t *index = hts_idx_load(tmpl, flags);
 
     // Clean up
-    hts_itr_destroy(itr);
-    hts_idx_destroy(idx);
-    hts_close(file);
+    if (index != NULL) {
+        hts_idx_destroy(index);
+    }
 
-    return result;
-}
+    // Remove the temporary file
+    remove(tmpl);
 
-#ifdef __cplusplus
+    return 0;
 }
-#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

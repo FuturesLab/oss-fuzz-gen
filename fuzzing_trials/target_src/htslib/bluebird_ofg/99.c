@@ -1,38 +1,55 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
-#include <stddef.h>
-#include "htslib/hts.h"
-#include "/src/htslib/htslib/hts_defs.h"
-#include "htslib/sam.h"  // Include this to define bam1_t
-#include "/src/htslib/htslib/bgzf.h" // Include this for BGZF
-
-// Dummy implementations of the function pointers required by hts_itr_querys
-static int dummy_name2id(void *hdr, const char *name) {
-    return 0; // Dummy implementation
-}
-
-static int dummy_itr_query_func(const void *hdr, const char *name, hts_itr_t *iter) {
-    return 0; // Dummy implementation
-}
-
-static int dummy_readrec_func(BGZF *fp, void *hdr, void *data, bam1_t *b, int *tid, int *beg, int *end) {
-    return 0; // Dummy implementation
-}
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>      // Include for close() and unlink()
+#include <fcntl.h>       // Include for mkstemp()
+#include "htslib/sam.h"  // Include the necessary header for sam_hdr_t
 
 int LLVMFuzzerTestOneInput_99(const uint8_t *data, size_t size) {
-    // Initialize necessary variables
-    hts_idx_t *idx = (hts_idx_t *)data;  // Cast data to hts_idx_t pointer
-    const char *region = "chr1:1000-2000";  // Example region string
-    void *hdr = NULL;  // Placeholder for header, can be NULL for fuzzing
+    // Check if size is sufficient to create a valid sam_hdr_t object
+    if (size < 1) {
+        return 0;
+    }
+
+    // Create a temporary file to write the data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
+
+    // Open the SAM/BAM file using htslib
+    samFile *in = sam_open(tmpl, "r");
+    if (in == NULL) {
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Read the header from the SAM/BAM file
+    sam_hdr_t *hdr = sam_hdr_read(in);
+    if (hdr == NULL) {
+        sam_close(in);
+        unlink(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    hts_itr_t *itr = hts_itr_querys(idx, region, dummy_name2id, hdr, dummy_itr_query_func, dummy_readrec_func);
+    int nref = sam_hdr_nref(hdr);
 
     // Clean up
-    if (itr != NULL) {
-        hts_itr_destroy(itr);
-    }
+    sam_hdr_destroy(hdr);
+    sam_close(in);
+    unlink(tmpl);
 
     return 0;
 }

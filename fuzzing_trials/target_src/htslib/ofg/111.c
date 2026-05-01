@@ -1,37 +1,38 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <htslib/sam.h>
+#include <unistd.h>  // Include for mkstemp, write, close, unlink
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_111(const uint8_t *data, size_t size) {
-    if (size < 1) {
-        return 0; // Early exit if there's not enough data
+    // Create a temporary file to simulate an htsFile input
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Initialize sam_hdr_t
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (!hdr) {
-        return 0; // Exit if header initialization fails
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
     }
+    close(fd);
 
-    // Allocate memory for the line string
-    char *line = (char *)malloc(size + 1);
-    if (!line) {
-        sam_hdr_destroy(hdr);
-        return 0; // Exit if memory allocation fails
+    // Open the temporary file as an htsFile
+    htsFile *file = hts_open(tmpl, "r");
+    if (file == NULL) {
+        unlink(tmpl);
+        return 0;
     }
-
-    // Copy data to line and null-terminate
-    memcpy(line, data, size);
-    line[size] = '\0';
 
     // Call the function-under-test
-    sam_hdr_add_line(hdr, line, NULL);
+    const htsFormat *format = hts_get_format(file);
 
     // Clean up
-    free(line);
-    sam_hdr_destroy(hdr);
+    hts_close(file);
+    unlink(tmpl);
 
     return 0;
 }

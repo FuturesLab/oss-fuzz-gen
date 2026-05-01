@@ -3,36 +3,26 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <htslib/sam.h> // Ensure htslib is installed and linked during compilation
+#include <htslib/hts.h>
 
-// Remove the 'extern "C"' as this is C code, not C++
 int LLVMFuzzerTestOneInput_82(const uint8_t *data, size_t size) {
-    // Ensure data is not empty
-    if (size == 0) {
-        return 0;
+    // Ensure the data is null-terminated for string operations
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0; // Exit if memory allocation fails
     }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // Initialize a sam_hdr_t structure
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
-        return 0;
-    }
-
-    // Convert the data to a null-terminated string
-    char *str = (char *)malloc(size + 1);
-    if (str == NULL) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-    memcpy(str, data, size);
-    str[size] = '\0';
+    // Initialize htsFormat structure
+    htsFormat format;
+    memset(&format, 0, sizeof(htsFormat));
 
     // Call the function-under-test
-    int result = sam_hdr_count_lines(hdr, str);
+    int result = hts_parse_format(&format, null_terminated_data);
 
     // Clean up
-    free(str);
-    sam_hdr_destroy(hdr);
+    free(null_terminated_data);
 
     return 0;
 }

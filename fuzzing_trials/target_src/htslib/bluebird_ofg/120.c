@@ -1,88 +1,52 @@
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <stdio.h>
-#include "htslib/sam.h"  // Assuming the header file for sam_hdr_t is in htslib/sam.h
+#include <stdlib.h>
+#include <unistd.h>  // For mkstemp, write, close, and remove
+#include "htslib/hts.h"
 
 int LLVMFuzzerTestOneInput_120(const uint8_t *data, size_t size) {
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
+    // Create a temporary file to simulate an htsFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Ensure that the input data is large enough to create non-NULL strings
-    if (size < 4) {
-        sam_hdr_destroy(hdr);
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
         return 0;
     }
 
-    // Divide the input data into three parts for the strings
+    // Close the file descriptor so hts_open can open it
+    close(fd);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_init to sam_hdr_write
-    htsFile ejwoaskm;
-    memset(&ejwoaskm, 0, sizeof(ejwoaskm));
-    int ret_hts_flush_dkrem = hts_flush(&ejwoaskm);
-    if (ret_hts_flush_dkrem < 0){
-    	return 0;
+    // Open the temporary file with hts_open
+    htsFile *file = hts_open(tmpl, "r");
+    if (file == NULL) {
+        return 0;
     }
+
+    // Call the function-under-test
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to hts_set_opt
     // Ensure dataflow is valid (i.e., non-null)
-    if (!hdr) {
+    if (!file) {
     	return 0;
     }
-    int ret_sam_hdr_write_nhkjs = sam_hdr_write(&ejwoaskm, hdr);
-    if (ret_sam_hdr_write_nhkjs < 0){
+    int ret_hts_set_opt_cerwx = hts_set_opt(file, FASTQ_OPT_CASAVA);
+    if (ret_hts_set_opt_cerwx < 0){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
-    size_t len1 = size / 4;
-    size_t len2 = size / 4;
-    size_t len3 = size / 4;
-
-    char *str1 = (char *)malloc(len1 + 1);
-    char *str2 = (char *)malloc(len2 + 1);
-    char *str3 = (char *)malloc(len3 + 1);
-
-    if (str1 == NULL || str2 == NULL || str3 == NULL) {
-        free(str1);
-        free(str2);
-        free(str3);
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-
-    memcpy(str1, data, len1);
-    str1[len1] = '\0';
-
-    memcpy(str2, data + len1, len2);
-    str2[len2] = '\0';
-
-    memcpy(str3, data + len1 + len2, len3);
-    str3[len3] = '\0';
-
-    // Call the function-under-test
-    sam_hdr_remove_line_id(hdr, str1, str2, str3);
+    hts_flush(file);
 
     // Clean up
-
-    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sam_hdr_remove_line_id to sam_hdr_change_HD using the plateau pool
-    const char vounxiki[1024] = "afmqg";
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!hdr) {
-    	return 0;
-    }
-    int ret_sam_hdr_change_HD_ssqcs = sam_hdr_change_HD(hdr, vounxiki, (const char *)"w");
-    if (ret_sam_hdr_change_HD_ssqcs < 0){
-    	return 0;
-    }
-    // End mutation: Producer.SPLICE_MUTATOR
-    
-    free(str1);
-    free(str2);
-    free(str3);
-    sam_hdr_destroy(hdr);
+    hts_close(file);
+    remove(tmpl);
 
     return 0;
 }

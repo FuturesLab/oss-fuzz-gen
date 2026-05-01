@@ -4,54 +4,38 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "htslib/sam.h" // Correct path for sam_hdr_t
+#include "htslib/sam.h"
 
 int LLVMFuzzerTestOneInput_101(const uint8_t *data, size_t size) {
-    sam_hdr_t *hdr;
-    char *arg1, *arg2, *arg3;
-    void *arg4 = (void *)1; // Using a non-NULL value for the void argument
+    if (size < sizeof(int)) {
+        return 0; // Not enough data to form an integer
+    }
 
-    // Initialize the sam_hdr_t object
-    hdr = sam_hdr_init();
+    // Initialize a sam_hdr_t object
+    sam_hdr_t *hdr = sam_hdr_init();
     if (hdr == NULL) {
-        return 0;
+        return 0; // Failed to initialize header
     }
 
-    // Ensure there is enough data for the string arguments
-    if (size < 3) {
+    // Create a fake header text to populate the sam_hdr_t
+    const char *header_text = "@HD\tVN:1.0\n@SQ\tSN:chr1\tLN:248956422\n";
+    if (sam_hdr_add_lines(hdr, header_text, strlen(header_text)) < 0) {
         sam_hdr_destroy(hdr);
-        return 0;
+        return 0; // Failed to add lines to header
     }
 
-    // Allocate and copy strings from the input data
-    arg1 = (char *)malloc(size / 3 + 1);
-    arg2 = (char *)malloc(size / 3 + 1);
-    arg3 = (char *)malloc(size / 3 + 1);
-
-    if (arg1 == NULL || arg2 == NULL || arg3 == NULL) {
-        free(arg1);
-        free(arg2);
-        free(arg3);
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-
-    memcpy(arg1, data, size / 3);
-    arg1[size / 3] = '\0';
-
-    memcpy(arg2, data + size / 3, size / 3);
-    arg2[size / 3] = '\0';
-
-    memcpy(arg3, data + 2 * (size / 3), size / 3);
-    arg3[size / 3] = '\0';
+    // Extract an integer from the input data
+    int tid = *(const int *)data;
 
     // Call the function-under-test
-    sam_hdr_update_line(hdr, arg1, arg2, arg3, arg4);
+    const char *result = sam_hdr_tid2name(hdr, tid);
+
+    // Print the result (for debugging purposes)
+    if (result != NULL) {
+        printf("Result: %s\n", result);
+    }
 
     // Clean up
-    free(arg1);
-    free(arg2);
-    free(arg3);
     sam_hdr_destroy(hdr);
 
     return 0;

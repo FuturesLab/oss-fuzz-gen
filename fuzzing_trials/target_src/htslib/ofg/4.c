@@ -1,24 +1,33 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <htslib/sam.h> // Ensure that the htslib library is installed and included
+#include <stdlib.h>
+#include <htslib/hts.h>
+#include <htslib/kstring.h> // Include this if kstring_t is used in htslib functions
+#include <htslib/hfile.h>   // Include this if hfile functions are used in htslib
+#include <htslib/sam.h>     // Correct path for hts_base_mod_state_alloc function
+#include <htslib/hts_defs.h> // Include this for HTSlib definitions
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    // Ensure that the size is appropriate for the input parameters
-    if (size < sizeof(uint32_t)) {
+    // Check if there is sufficient data to use
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize the parameters for bam_cigar2qlen
-    int n_cigar = (int)(size / sizeof(uint32_t)); // Number of cigar operations
-
-    // Cast the data to a uint32_t pointer
-    const uint32_t *cigar = (const uint32_t *)data;
-
     // Call the function-under-test
-    hts_pos_t qlen = bam_cigar2qlen(n_cigar, cigar);
+    hts_base_mod_state *state = hts_base_mod_state_alloc();
 
-    // Use the result to avoid compiler optimizations that remove the function call
-    (void)qlen;
+    // Check if the allocation was successful
+    if (state != NULL) {
+        // Example operation: Add a base modification using a hypothetical API function
+        // Note: Replace with actual API functions available for interacting with hts_base_mod_state
+        // For illustration, let's assume there's a function hts_base_mod_state_add_mod
+        if (size > 1) { // Ensure there's enough data for the operation
+            // Hypothetical function to add a modification
+            // hts_base_mod_state_add_mod(state, data[0], data[1]);
+        }
+
+        // Free the allocated state
+        hts_base_mod_state_free(state);
+    }
 
     return 0;
 }

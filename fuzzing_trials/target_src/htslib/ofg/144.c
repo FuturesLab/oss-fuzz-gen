@@ -1,31 +1,69 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
-#include <htslib/sam.h>
 
-int dummy_function(void *data, bam1_t *b) {
-    return 0; // Return a dummy value
-}
+// Assuming the necessary header files for sam_hdr_t and kstring_t are included
+#include <htslib/sam.h> // Hypothetical include for sam_hdr_t
+#include <htslib/kstring.h> // Hypothetical include for kstring_t
 
+int sam_hdr_find_line_id(sam_hdr_t *, const char *, const char *, const char *, kstring_t *);
+
+// Remove the 'extern "C"' linkage specification which is not valid in C
 int LLVMFuzzerTestOneInput_144(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to initialize the void pointer
-    if (size < sizeof(void *)) {
+    if (size < 4) {
+        return 0; // Ensure there's enough data for the strings
+    }
+
+    // Initialize sam_hdr_t object
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (!hdr) {
         return 0;
     }
 
-    // Initialize a void pointer using the input data
-    void *dummy_data = (void *)data;
+    // Split the input data into parts for the strings
+    size_t part_size = size / 4;
+    char *str1 = (char *)malloc(part_size + 1);
+    char *str2 = (char *)malloc(part_size + 1);
+    char *str3 = (char *)malloc(part_size + 1);
+    char *str4 = (char *)malloc(part_size + 1);
+
+    if (!str1 || !str2 || !str3 || !str4) {
+        sam_hdr_destroy(hdr);
+        free(str1);
+        free(str2);
+        free(str3);
+        free(str4);
+        return 0;
+    }
+
+    memcpy(str1, data, part_size);
+    str1[part_size] = '\0';
+
+    memcpy(str2, data + part_size, part_size);
+    str2[part_size] = '\0';
+
+    memcpy(str3, data + 2 * part_size, part_size);
+    str3[part_size] = '\0';
+
+    memcpy(str4, data + 3 * part_size, part_size);
+    str4[part_size] = '\0';
+
+    // Initialize kstring_t object
+    kstring_t ks;
+    ks.s = NULL;
+    ks.l = ks.m = 0;
 
     // Call the function-under-test
-    bam_plp_t plp = bam_plp_init(dummy_function, dummy_data);
+    sam_hdr_find_line_id(hdr, str1, str2, str3, &ks);
 
-    // Normally, we would do something with 'plp', but for fuzzing purposes,
-    // we are only interested in calling the function to see if it handles input correctly.
-
-    // Clean up if necessary
-    if (plp != NULL) {
-        bam_plp_destroy(plp);
-    }
+    // Clean up
+    sam_hdr_destroy(hdr);
+    free(str1);
+    free(str2);
+    free(str3);
+    free(str4);
+    free(ks.s);
 
     return 0;
 }

@@ -1,57 +1,51 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include "htslib/hfile.h"
+#include <string.h>
+#include "htslib/hts.h"
+
+// Function to ensure the input data is not null and has a minimum size
+static int is_valid_input(const uint8_t *data, size_t size) {
+    return data != NULL && size > 0;
+}
 
 int LLVMFuzzerTestOneInput_77(const uint8_t *data, size_t size) {
-    hFILE *file = NULL;
-    size_t buffer_size = 0;
-    char *buffer = NULL;
+    if (!is_valid_input(data, size)) {
+        return 0; // Return early if input is invalid
+    }
 
-    // Create a temporary file to simulate hFILE
-    FILE *temp_file = tmpfile();
-    if (temp_file == NULL) {
+    // Initialize an index with a plausible sequence length (e.g., 1000)
+    hts_idx_t *index = hts_idx_init(1000, HTS_FMT_CSI, 0, 0, 0);
+    if (index == NULL) {
+        return 0; // Return if index initialization fails
+    }
+
+    uint32_t meta_type = 1; // Example meta type, can vary based on use case
+    uint8_t *meta_data = NULL;
+    int meta_length = (int)size; // Use the entire size of the input data
+
+    // Allocate memory for meta_data and ensure allocation is successful
+    meta_data = (uint8_t *)malloc(meta_length);
+    if (meta_data == NULL) {
+        hts_idx_destroy(index);
         return 0;
     }
 
-    // Write the fuzzing data to the temporary file
-    fwrite(data, 1, size, temp_file);
-    rewind(temp_file);
+    // Copy the input data to meta_data
+    memcpy(meta_data, data, meta_length);
 
-    // Use file descriptor to open the temporary file
-    int fd = fileno(temp_file);
-    if (fd == -1) {
-        fclose(temp_file);
-        return 0;
+    // Modify the meta_data to ensure it's non-trivial and affects the function
+    for (int i = 0; i < meta_length; i++) {
+        meta_data[i] ^= 0xAA; // Example modification to make the data non-trivial
     }
 
-    // Use hdopen to open the temporary file by its file descriptor
-    file = hdopen(fd, "r");
-    if (file == NULL) {
-        fclose(temp_file);
-        return 0;
-    }
+    // Call the function-under-test with valid input
+    hts_idx_set_meta(index, meta_type, meta_data, meta_length);
 
-    // Read data from hFILE to ensure the function is invoked with actual content
-    char read_buffer[1024];
-    ssize_t bytes_read = hread(file, read_buffer, sizeof(read_buffer));
-    if (bytes_read > 0) {
-        // Process the read data if necessary
-    }
-
-    // Call the function-under-test
-    buffer = hfile_mem_steal_buffer(file, &buffer_size);
-
-    // Clean up
-    if (buffer != NULL) {
-        free(buffer);
-    }
-    hclose(file);
-    fclose(temp_file);
+    // Cleanup
+    free(meta_data);
+    hts_idx_destroy(index);
 
     return 0;
 }

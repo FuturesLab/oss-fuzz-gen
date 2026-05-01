@@ -1,47 +1,101 @@
 #include <sys/stat.h>
+#include <string.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include "htslib/hts.h"
 #include "htslib/sam.h"
-#include "/src/htslib/htslib/bgzf.h"
 
 int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    // Check if the size is sufficient for creating a bam1_t structure
-    if (size < sizeof(bam1_t)) {
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Allocate memory for BGZF and bam1_t structures
-    BGZF *bgzf = bgzf_open("/dev/null", "w");
-    if (bgzf == NULL) {
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        remove(tmpl);
+        return 0;
+    }
+    close(fd);
+
+    // Open the file using hts_open
+    htsFile *file = hts_open(tmpl, "r");
+    if (file == NULL) {
+        remove(tmpl);
         return 0;
     }
 
-    bam1_t *bam_record = bam_init1();
-    if (bam_record == NULL) {
-        bgzf_close(bgzf);
+    // Ensure the file is a valid SAM/BAM/CRAM file
+    bam_hdr_t *header = sam_hdr_read(file);
+    if (header == NULL) {
+        hts_close(file);
+        remove(tmpl);
         return 0;
     }
 
-    // Copy the input data into bam_record's data field
-    bam_record->data = (uint8_t *)malloc(size);
-    if (bam_record->data == NULL) {
-        bam_destroy1(bam_record);
-        bgzf_close(bgzf);
+    // Read a record to ensure the file is properly formatted
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_read to sam_hdr_remove_except
+    char* ret_bam_flag2str_pfmkm = bam_flag2str(HTS_IDX_NOCOOR);
+    if (ret_bam_flag2str_pfmkm == NULL){
+    	return 0;
+    }
+    char* ret_bam_flag2str_zbfuc = bam_flag2str(SAM_FORMAT_VERSION);
+    if (ret_bam_flag2str_zbfuc == NULL){
+    	return 0;
+    }
+    const uint8_t pwuzfjqt = size;
+    char ret_bam_aux2A_diccd = bam_aux2A(&pwuzfjqt);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!header) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bam_flag2str_pfmkm) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bam_flag2str_zbfuc) {
+    	return 0;
+    }
+    int ret_sam_hdr_remove_except_smiyf = sam_hdr_remove_except(header, ret_bam_flag2str_pfmkm, ret_bam_flag2str_zbfuc, &ret_bam_aux2A_diccd);
+    if (ret_sam_hdr_remove_except_smiyf < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    bam1_t *b = bam_init1();
+    if (b == NULL) {
+        bam_hdr_destroy(header);
+        hts_close(file);
+        remove(tmpl);
         return 0;
     }
-    memcpy(bam_record->data, data, size);
-    bam_record->l_data = size;
+
+    int ret = sam_read1(file, header, b);
+    if (ret < 0) {
+        bam_destroy1(b);
+        bam_hdr_destroy(header);
+        hts_close(file);
+        remove(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    bam_write1(bgzf, bam_record);
+    // Note: sam_idx_save requires a valid index, which we do not have in this context.
+    // This function call is likely incorrect and should be replaced with a more appropriate test.
+    // int result = sam_idx_save(file);
 
     // Clean up
-    free(bam_record->data);
-    bam_record->data = NULL; // Set to NULL to prevent double-free
-    bam_destroy1(bam_record);
-    bgzf_close(bgzf);
+    bam_destroy1(b);
+    bam_hdr_destroy(header);
+    hts_close(file);
+    remove(tmpl);
 
     return 0;
 }

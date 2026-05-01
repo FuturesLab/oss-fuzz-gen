@@ -1,59 +1,37 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <htslib/sam.h>
-#include <htslib/hts.h>
-#include <htslib/bgzf.h>  // Include the correct header for BGZF
+#include "htslib/sam.h"
 
-// Function to initialize a BGZF structure with a temporary file
-BGZF* init_bgzf(const char *filename) {
-    BGZF *bgzf = bgzf_open(filename, "r");
-    if (bgzf == NULL) {
-        return NULL;
-    }
-    return bgzf;
-}
-
-// Function to clean up a BGZF structure
-void cleanup_bgzf(BGZF *bgzf) {
-    if (bgzf) {
-        bgzf_close(bgzf);
-    }
+// Define a dummy function to satisfy the bam_mplp_init requirements
+static int dummy_plp_auto_func(void *data, const bam_pileup1_t **plp) {
+    // This function should mimic the behavior of a real bam_plp_auto_f function
+    // For the purpose of fuzzing, we can leave it as a stub
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_232(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (file == NULL) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
+    // Initialize variables
+    bam_mplp_t mplp;
+    int maxcnt;
 
-    // Initialize BGZF and bam1_t structures
-    BGZF *bgzf = init_bgzf(tmpl);
-    if (bgzf == NULL) {
+    // Ensure we have enough data to extract an integer
+    if (size < sizeof(int)) {
         return 0;
     }
-    bam1_t *bam_record = bam_init1();
-    if (bam_record == NULL) {
-        cleanup_bgzf(bgzf);
-        return 0;
-    }
+
+    // Extract an integer from the input data
+    maxcnt = *(int*)data;
+
+    // Initialize the bam_mplp_t variable with dummy values
+    void *dummy_data = NULL;
+    mplp = bam_mplp_init(1, dummy_plp_auto_func, &dummy_data);
 
     // Call the function-under-test
-    bam_read1(bgzf, bam_record);
+    bam_mplp_set_maxcnt(mplp, maxcnt);
 
-    // Clean up
-    bam_destroy1(bam_record);
-    cleanup_bgzf(bgzf);
-    remove(tmpl);
+    // Clean up resources if necessary
+    bam_mplp_destroy(mplp);
 
     return 0;
 }

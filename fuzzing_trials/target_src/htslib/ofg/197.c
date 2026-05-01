@@ -1,37 +1,52 @@
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <htslib/sam.h>
-#include <htslib/hts.h>
-#include <htslib/hts_defs.h> // Include for HTS_FMT_CSI
+
+extern char * sam_open_mode_opts(const char *, const char *, const char *);
 
 int LLVMFuzzerTestOneInput_197(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for meaningful fuzzing
-    if (size < 3) return 0;
+    // Ensure the size is enough to split into three non-null strings
+    if (size < 3) {
+        return 0;
+    }
 
-    // Create a mock hts_idx_t object
-    // Provide appropriate values for offset0, min_shift, and n_lvls
-    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_CSI, 0, 14, 5);
+    // Split the input data into three parts
+    size_t part_size = size / 3;
+    size_t remaining = size % 3;
 
-    // Create a mock sam_hdr_t object
-    sam_hdr_t *hdr = sam_hdr_init();
+    // Allocate memory for the three strings
+    char *arg1 = (char *)malloc(part_size + 1);
+    char *arg2 = (char *)malloc(part_size + 1);
+    char *arg3 = (char *)malloc(part_size + remaining + 1);
 
-    // Prepare a query string from the input data
-    // Ensure null termination
-    char *query = (char *)malloc(size + 1);
-    memcpy(query, data, size);
-    query[size] = '\0';
+    if (arg1 == NULL || arg2 == NULL || arg3 == NULL) {
+        free(arg1);
+        free(arg2);
+        free(arg3);
+        return 0;
+    }
+
+    // Copy data into the strings and null-terminate them
+    memcpy(arg1, data, part_size);
+    arg1[part_size] = '\0';
+
+    memcpy(arg2, data + part_size, part_size);
+    arg2[part_size] = '\0';
+
+    memcpy(arg3, data + 2 * part_size, part_size + remaining);
+    arg3[part_size + remaining] = '\0';
 
     // Call the function-under-test
-    hts_itr_t *itr = sam_itr_querys(idx, hdr, query);
+    char *result = sam_open_mode_opts(arg1, arg2, arg3);
 
-    // Clean up
-    if (itr != NULL) {
-        hts_itr_destroy(itr);
-    }
-    hts_idx_destroy(idx);
-    sam_hdr_destroy(hdr);
-    free(query);
+    // Free the result if it was dynamically allocated
+    free(result);
+
+    // Free the allocated memory
+    free(arg1);
+    free(arg2);
+    free(arg3);
 
     return 0;
 }

@@ -1,43 +1,55 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>  // Include for close() and remove()
-#include <htslib/hts.h>
-#include <htslib/hfile.h>
+#include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_183(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (file == NULL) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the file using htslib's hFILE interface
-    hFILE *hfile = hopen(tmpl, "rb");
-    if (hfile == NULL) {
-        remove(tmpl);
+    // Initialize the sam_hdr_t structure
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (!hdr) {
         return 0;
     }
 
-    // Prepare htsFormat for detection
-    htsFormat format;
-    memset(&format, 0, sizeof(htsFormat));
+    // Ensure we have enough data to create non-NULL strings
+    if (size < 3) {
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+
+    // Create strings from the input data
+    size_t str_len = size / 3;
+    char *str1 = (char *)malloc(str_len + 1);
+    char *str2 = (char *)malloc(str_len + 1);
+    char *str3 = (char *)malloc(str_len + 1);
+
+    if (!str1 || !str2 || !str3) {
+        free(str1);
+        free(str2);
+        free(str3);
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+
+    // Copy data into strings and null-terminate them
+    memcpy(str1, data, str_len);
+    str1[str_len] = '\0';
+
+    memcpy(str2, data + str_len, str_len);
+    str2[str_len] = '\0';
+
+    memcpy(str3, data + 2 * str_len, str_len);
+    str3[str_len] = '\0';
 
     // Call the function-under-test
-    hts_detect_format(hfile, &format);
+    sam_hdr_remove_line_id(hdr, str1, str2, str3);
 
     // Clean up
-    hclose(hfile);
-    remove(tmpl);
+    free(str1);
+    free(str2);
+    free(str3);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

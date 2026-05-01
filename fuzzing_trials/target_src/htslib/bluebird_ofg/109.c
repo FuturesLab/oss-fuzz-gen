@@ -1,81 +1,24 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include "htslib/hts.h"
-#include "htslib/sam.h"
+#include <stddef.h>
+
+// Function-under-test declaration
+double bam_aux2f(const uint8_t *aux);
 
 int LLVMFuzzerTestOneInput_109(const uint8_t *data, size_t size) {
-    htsFile *file = NULL;
-    bam_hdr_t *header = NULL;
-    bam1_t *alignment = bam_init1();
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bam_init1 to sam_passes_filter
-    sam_hdr_t lywiyjjm;
-    memset(&lywiyjjm, 0, sizeof(lywiyjjm));
-    const char* ret_sam_hdr_str_rnzwz = sam_hdr_str(&lywiyjjm);
-    if (ret_sam_hdr_str_rnzwz == NULL){
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!alignment) {
-    	return 0;
-    }
-    int ret_sam_passes_filter_hjwhd = sam_passes_filter(&lywiyjjm, alignment, NULL);
-    if (ret_sam_passes_filter_hjwhd < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    int result = 0;
-
-    if (alignment == NULL) {
+    // Ensure the data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Create a temporary file to use with hts_open
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        bam_destroy1(alignment);
-        return 0;
-    }
+    // Call the function-under-test with the provided data
+    double result = bam_aux2f(data);
 
-    // Write the fuzz data to the file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmpl);
-        bam_destroy1(alignment);
-        return 0;
-    }
+    // Optionally, you can add some checks or logging based on the result
+    // For example, you could print the result or check if it falls within expected ranges
 
-    // Open the temporary file with hts_open
-    file = hts_open(tmpl, "r");
-    if (file == NULL) {
-        close(fd);
-        unlink(tmpl);
-        bam_destroy1(alignment);
-        return 0;
-    }
-
-    // Attempt to read the header and alignment from the file
-    header = sam_hdr_read(file);
-    if (header != NULL) {
-        while (sam_read1(file, header, alignment) >= 0) {
-            // Process the alignment (this is where code coverage can increase)
-        }
-        bam_hdr_destroy(header);
-    }
-
-    // Cleanup
-    hts_close(file);
-    close(fd);
-    unlink(tmpl);
-    bam_destroy1(alignment);
-
-    return result;
+    return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

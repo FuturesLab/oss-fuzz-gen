@@ -1,43 +1,65 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
-#include <htslib/sam.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include "/src/htslib/htslib/hfile.h" // Correct path for hfile.h
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    // Initialize variables
-    sam_hdr_t *header = sam_hdr_init();
-    const char *region = (const char *)data;
-    int tid = 0;
-    hts_pos_t beg = 0;
-    hts_pos_t end = 0;
-    int flags = 0;
+    hFILE *file = NULL;
+    void *buffer = NULL;
+    ssize_t result;
 
-    // Ensure the region string is null-terminated
-    char *region_copy = (char *)malloc(size + 1);
-    if (region_copy == NULL) {
-        sam_hdr_destroy(header);
+    // Ensure size is non-zero to allocate a buffer
+    if (size == 0) {
         return 0;
     }
-    memcpy(region_copy, data, size);
-    region_copy[size] = '\0';
+
+    // Initialize a buffer with the given data
+    buffer = malloc(size);
+    if (buffer == NULL) {
+        return 0;
+    }
+
+    // Create a temporary file and write data into it
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        free(buffer);
+        return 0;
+    }
+
+    // Write data to the file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        free(buffer);
+        return 0;
+    }
+
+    // Rewind the file descriptor to the beginning
+    lseek(fd, 0, SEEK_SET);
+
+    // Open the file with hFILE using hopen
+    file = hopen(tmpl, "r");
+    if (file == NULL) {
+        close(fd);
+        free(buffer);
+        return 0;
+    }
 
     // Call the function-under-test
-    const char *result = sam_parse_region(header, region_copy, &tid, &beg, &end, flags);
+    result = hpeek(file, buffer, size);
 
     // Clean up
-    free(region_copy);
-    sam_hdr_destroy(header);
+    hclose(file);
+    close(fd);
+    free(buffer);
+    unlink(tmpl);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

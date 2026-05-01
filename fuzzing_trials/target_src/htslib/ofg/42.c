@@ -1,44 +1,36 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <htslib/hts.h>
-#include <htslib/hts_defs.h>
+#include <htslib/sam.h>  // Include the htslib library for bam1_t
 
 int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
-    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
-    int fd1 = mkstemp(tmpl1);
-    int fd2 = mkstemp(tmpl2);
-
-    if (fd1 == -1 || fd2 == -1) {
+    // Ensure there is enough data to work with
+    if (size < sizeof(float) + 2) {
         return 0;
     }
 
-    // Write the fuzz data to the first temporary file
-    if (write(fd1, data, size) != size) {
-        close(fd1);
-        close(fd2);
+    // Initialize bam1_t structure
+    bam1_t *bam_record = bam_init1();
+    if (bam_record == NULL) {
         return 0;
     }
 
-    // Close the file descriptors
-    close(fd1);
-    close(fd2);
+    // Extract a float value from the data
+    float float_value;
+    memcpy(&float_value, data, sizeof(float));
+
+    // Extract a string from the data for the tag
+    char tag[3];
+    memcpy(tag, data + sizeof(float), 2);
+    tag[2] = '\0';  // Null-terminate the string
 
     // Call the function-under-test
-    hts_idx_t *index = hts_idx_load3(tmpl1, tmpl2, HTS_FMT_CSI, HTS_IDX_SAVE_REMOTE);
+    int result = bam_aux_update_float(bam_record, tag, float_value);
 
     // Clean up
-    if (index != NULL) {
-        hts_idx_destroy(index);
-    }
-
-    // Remove the temporary files
-    unlink(tmpl1);
-    unlink(tmpl2);
+    bam_destroy1(bam_record);
 
     return 0;
 }

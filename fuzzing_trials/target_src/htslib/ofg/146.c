@@ -1,45 +1,24 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <htslib/hts.h>
-#include <htslib/hts_defs.h>
-
-// Replace the non-existent hts_idx.h with the correct header
-#include "/src/htslib/htslib/hts.h"  // Correct path for hts_idx_t and related functions
+#include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_146(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to create meaningful inputs
-    if (size < 3) {
+    // Ensure size is at least the size of one uint32_t
+    if (size < sizeof(uint32_t)) {
         return 0;
     }
 
-    // Initialize hts_idx_t object
-    hts_idx_t *index = hts_idx_init(HTS_FMT_BAI, 0, 0, 0, 0);
+    // Calculate the number of uint32_t elements in the data
+    int n_cigar = size / sizeof(uint32_t);
 
-    // Prepare file name strings
-    char filename1[256];
-    char filename2[256];
-
-    // Ensure null-termination
-    size_t len1 = size / 2 < 255 ? size / 2 : 255;
-    size_t len2 = size - len1 < 255 ? size - len1 : 255;
-
-    memcpy(filename1, data, len1);
-    filename1[len1] = '\0';
-
-    memcpy(filename2, data + len1, len2);
-    filename2[len2] = '\0';
-
-    // Use a non-zero integer for the flags parameter
-    int flags = 1;
+    // Cast the data to a uint32_t pointer
+    const uint32_t *cigar = (const uint32_t *)data;
 
     // Call the function-under-test
-    hts_idx_save_as(index, filename1, filename2, flags);
+    hts_pos_t result = bam_cigar2qlen(n_cigar, cigar);
 
-    // Clean up
-    hts_idx_destroy(index);
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)result;
 
     return 0;
 }

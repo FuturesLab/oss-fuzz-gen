@@ -1,34 +1,43 @@
 #include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "htslib/sam.h"  // Assuming this header provides the definition for sam_hdr_t and kstring_t
+#include <stdio.h>
+#include "htslib/sam.h"  // Ensure to include the HTSlib header for bam1_t
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_78(const uint8_t *data, size_t size) {
-    // Initialize variables for the function-under-test
-    sam_hdr_t *hdr = sam_hdr_init();
-    const char *type = "type_example";
-    const char *id = "id_example";
-    const char *tag = "tag_example";
-    const char *value = "value_example";
-    kstring_t str = {0, 0, NULL};
-
-    // Ensure that the header is not NULL
-    if (hdr == NULL) {
-        return 0;
+    if (size < 5) {
+        return 0; // Ensure there's enough data for the parameters
     }
 
+    // Initialize bam1_t structure
+    bam1_t *bam = bam_init1();
+    if (bam == NULL) {
+        return 0; // Memory allocation failed
+    }
+
+    // Prepare the parameters for bam_aux_append
+    const char *tag = "XX"; // Example tag, must be 2 characters
+    char type = 'Z'; // Example type, 'Z' for string
+    int len = size - 4; // Length of the data for the auxiliary field
+    const uint8_t *aux_data = data + 4; // Auxiliary data starts after the first 4 bytes
+
     // Call the function-under-test
-    int result = sam_hdr_find_tag_id(hdr, type, id, tag, value, &str);
+    int result = bam_aux_append(bam, tag, type, len, aux_data);
 
     // Clean up
-    sam_hdr_destroy(hdr);
-    free(str.s);
+    bam_destroy1(bam);
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

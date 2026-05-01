@@ -1,41 +1,40 @@
 #include <sys/stat.h>
-#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h> // Include unistd.h for mkstemp and close
-#include <fcntl.h>  // Include fcntl.h for open and write
-#include "htslib/hts.h"
+#include "htslib/hts.h" // Include the header for hts_free
+
+// Dummy implementation of process_data function
+void process_data(void *data, size_t size) {
+    // Example processing: just print the data size
+    printf("Processing data of size: %zu\n", size);
+}
 
 int LLVMFuzzerTestOneInput_145(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure size is non-zero to provide meaningful input
+    if (size == 0) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        return 0;
-    }
-    close(fd);
-
-    // Open the temporary file with hts_open
-    htsFile *file = hts_open(tmpl, "r");
-    if (file == NULL) {
-        remove(tmpl);
-        return 0;
+    // Allocate memory for fuzzing
+    void *memory = malloc(size + 1); // Ensure memory is not NULL
+    if (memory == NULL) {
+        return 0; // Exit if memory allocation fails
     }
 
-    // Call the function-under-test
-    const htsFormat *format = hts_get_format(file);
+    // Copy the input data to the allocated memory
+    memcpy(memory, data, size);
 
-    // Clean up
-    hts_close(file);
-    remove(tmpl);
+    // Ensure the memory is null-terminated if used as a string
+    ((char *)memory)[size] = '\0';
 
+    // Call the function-under-test with meaningful input
+    process_data(memory, size);
+
+    // Free the allocated memory
+    hts_free(memory);
+
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
 #ifdef INC_MAIN

@@ -1,35 +1,54 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include "/src/htslib/htslib/hts.h" // Include the necessary header for hts_feature_string
-
-// Function-under-test declaration
-const char * hts_feature_string();
-
-// Hypothetical function to initialize or configure the environment
-// Since the function `initialize_environment` is not defined anywhere, we need to define it here
-void initialize_environment(const uint8_t *data, size_t size) {
-    // Placeholder implementation
-    // In a real scenario, this function would perform necessary setup using the data provided
-    // For now, it does nothing
-    (void)data; // Suppress unused variable warning
-    (void)size; // Suppress unused variable warning
-}
+#include <stdlib.h>
+#include <htslib/hts.h>
+#include <htslib/sam.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_216(const uint8_t *data, size_t size) {
-    // Hypothetical initialization/configuration step
-    // This step is added to simulate an environment setup that might affect the function under test
-    initialize_environment(data, size);
+    // Ensure size is sufficient for meaningful operations
+    if (size < 1) {
+        return 0;
+    }
+
+    // Create a temporary file to write the fuzz data
+    char filename[] = "/tmp/fuzz_inputXXXXXX";
+    int fd = mkstemp(filename);
+    if (fd == -1) {
+        return 0;
+    }
+
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(filename);
+        return 0;
+    }
+
+    // Close the file descriptor
+    close(fd);
+
+    // Initialize htsFile to read from the temporary file
+    htsFile *file = hts_open(filename, "r");
+    if (!file) {
+        unlink(filename);
+        return 0;
+    }
+
+    // Initialize bam1_t for reading alignment records
+    bam1_t *b = bam_init1();
+    if (!b) {
+        hts_close(file);
+        unlink(filename);
+        return 0;
+    }
 
     // Call the function-under-test
-    const char *feature_string = hts_feature_string();
+    int result = sam_read1(file, NULL, b);
 
-    // Check the result to ensure it's not NULL (though the function signature indicates it returns a const char*)
-    if (feature_string != NULL) {
-        // Optionally, perform operations on the returned string if needed
-        // For example, print it (not necessary for fuzzing, but for demonstration)
-        printf("Feature String: %s\n", feature_string);
-    }
+    // Cleanup
+    bam_destroy1(b);
+    hts_close(file);
+    unlink(filename);
 
     return 0;
 }

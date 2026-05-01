@@ -1,23 +1,44 @@
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <htslib/hts.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+extern int hfile_has_plugin(const char *);
 
 int LLVMFuzzerTestOneInput_225(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated
-    char *input = (char *)malloc(size + 1);
-    if (input == NULL) return 0;
-    memcpy(input, data, size);
-    input[size] = '\0';
+    // Check if the input data is not empty
+    if (size == 0) {
+        return 0;
+    }
 
-    hts_pos_t beg = 0;
-    hts_pos_t end = 0;
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
 
-    // Call the function-under-test
-    const char *result = hts_parse_reg64(input, &beg, &end);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
 
-    // Clean up
-    free(input);
+    // Close the file descriptor
+    close(fd);
+
+    // Call the function-under-test with the temporary file name
+    // Check the return value to ensure the function is being utilized
+    int result = hfile_has_plugin(tmpl);
+
+    // Optionally, print the result for debugging purposes
+    printf("hfile_has_plugin returned: %d\n", result);
+
+    // Clean up the temporary file
+    unlink(tmpl);
 
     return 0;
 }

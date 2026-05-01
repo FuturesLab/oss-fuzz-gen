@@ -1,44 +1,23 @@
+#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
-#include <htslib/sam.h>
-#include <htslib/hts.h>
 
+// Declare the function-under-test
+const char *hts_feature_string();
+
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_165(const uint8_t *data, size_t size) {
-    // Initialize necessary variables
-    sam_hdr_t *header = sam_hdr_init();
-    char **regions = (char **)malloc(sizeof(char *) * 2);
-    unsigned int n = 2;
-
-    // Ensure data is large enough to be used for the regions
-    if (size < 2) {
-        sam_hdr_destroy(header);
-        free(regions);
-        return 0;
-    }
-
-    // Allocate memory for region strings and copy data into them
-    regions[0] = (char *)malloc((size / 2) + 1);
-    regions[1] = (char *)malloc((size / 2) + 1);
-    memcpy(regions[0], data, size / 2);
-    memcpy(regions[1], data + (size / 2), size / 2);
-    regions[0][size / 2] = '\0';
-    regions[1][size / 2] = '\0';
-
     // Call the function-under-test
-    // Note: We cannot create a valid hts_idx_t without using an appropriate library function
-    // so the call to sam_itr_regarray is for demonstration purposes only.
-    hts_itr_t *itr = sam_itr_regarray(NULL, header, regions, n);
+    const char *result = hts_feature_string();
 
-    // Clean up
-    if (itr != NULL) {
-        hts_itr_destroy(itr);
+    // Use the result in some way to avoid compiler optimizations stripping it away
+    // For example, we can check if the result is not NULL
+    if (result != NULL) {
+        // Do something with the result, like checking its length
+        size_t length = 0;
+        while (result[length] != '\0') {
+            length++;
+        }
     }
-    sam_hdr_destroy(header);
-    free(regions[0]);
-    free(regions[1]);
-    free(regions);
 
     return 0;
 }

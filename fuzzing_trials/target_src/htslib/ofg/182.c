@@ -1,43 +1,60 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
-#include <unistd.h>  // Include for close() and remove()
-#include <htslib/hts.h>
-#include <htslib/hfile.h>
+#include "/src/htslib/htslib/sam.h" // Correct path for sam.h
 
 int LLVMFuzzerTestOneInput_182(const uint8_t *data, size_t size) {
-    // Create a temporary file and write the fuzz data to it
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (file == NULL) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the temporary file as an hFILE
-    hFILE *hfile = hopen(tmpl, "rb");
-    if (hfile == NULL) {
-        remove(tmpl);
+    // Ensure the size is sufficient for splitting into multiple strings
+    if (size < 4) {
         return 0;
     }
 
-    // Initialize htsFormat
-    htsFormat format;
-    memset(&format, 0, sizeof(htsFormat));
+    // Allocate a sam_hdr_t structure
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
+        return 0;
+    }
 
-    // Call the function-under-test
-    hts_detect_format(hfile, &format);
+    // Split the input data into three strings
+    size_t len1 = size / 4;
+    size_t len2 = size / 4;
+    size_t len3 = size / 4;
+    size_t len4 = size - (len1 + len2 + len3);
+
+    char *str1 = (char *)malloc(len1 + 1);
+    char *str2 = (char *)malloc(len2 + 1);
+    char *str3 = (char *)malloc(len3 + 1);
+    char *str4 = (char *)malloc(len4 + 1);
+
+    if (str1 == NULL || str2 == NULL || str3 == NULL || str4 == NULL) {
+        free(str1);
+        free(str2);
+        free(str3);
+        free(str4);
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+
+    memcpy(str1, data, len1);
+    memcpy(str2, data + len1, len2);
+    memcpy(str3, data + len1 + len2, len3);
+    memcpy(str4, data + len1 + len2 + len3, len4);
+
+    str1[len1] = '\0';
+    str2[len2] = '\0';
+    str3[len3] = '\0';
+    str4[len4] = '\0';
+
+    // Call the function under test
+    sam_hdr_remove_line_id(hdr, str1, str2, str3);
 
     // Clean up
-    hclose(hfile);
-    remove(tmpl);
+    free(str1);
+    free(str2);
+    free(str3);
+    free(str4);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

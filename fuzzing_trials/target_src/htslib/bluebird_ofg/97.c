@@ -1,93 +1,71 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include "htslib/hts.h"
+#include <string.h>
 #include "htslib/sam.h"
+#include "htslib/hts.h"
+
+// Function signature for the function-under-test
+int bam_mods_at_next_pos(const bam1_t *b, hts_base_mod_state *state, hts_base_mod *mod, int flag);
 
 int LLVMFuzzerTestOneInput_97(const uint8_t *data, size_t size) {
-    htsFile *file = NULL;
-    bam_hdr_t *header = NULL;
-    bam1_t *alignment = bam_init1();
-    int result = 0;
+    // Declare and initialize variables
+    bam1_t *b = bam_init1();
+    hts_base_mod_state *state = hts_base_mod_state_alloc();
+    hts_base_mod mod;
+    int flag = 0;
 
-    if (alignment == NULL) {
+    // Ensure that the input data is large enough to be used for bam1_t
+    if (size < sizeof(bam1_t) + 4) { // Ensure there's enough data for initialization
+        bam_destroy1(b);
+        hts_base_mod_state_free(state);
         return 0;
     }
 
-    // Create a temporary file to use with hts_open
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        bam_destroy1(alignment);
+    // Initialize bam1_t structure with valid data
+    b->core.tid = 0;
+    b->core.pos = 0;
+    b->core.bin = 0;
+    b->core.qual = 0;
+    b->core.l_qname = 1;
+    b->core.flag = 0;
+    b->core.n_cigar = 0;
+    b->core.l_qseq = 1;
+    b->core.mtid = 0;
+    b->core.mpos = 0;
+    b->core.isize = 0;
+
+    // Properly initialize m_data to a sensible default
+    b->m_data = size;
+
+    // Allocate memory for b->data based on m_data
+    b->l_data = size < b->m_data ? size : b->m_data;
+    b->data = (uint8_t *)malloc(b->l_data);
+    if (!b->data) {
+        bam_destroy1(b);
+        hts_base_mod_state_free(state);
         return 0;
     }
 
-    // Write the fuzz data to the file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmpl);
-        bam_destroy1(alignment);
-        return 0;
-    }
+    // Copy data into bam1_t structure
+    memcpy(b->data, data, b->l_data);
 
-    // Open the temporary file with hts_open
-    file = hts_open(tmpl, "r");
-    if (file == NULL) {
-        close(fd);
-        unlink(tmpl);
-        bam_destroy1(alignment);
-        return 0;
-    }
+    // Adjust the core.l_qseq and core.n_cigar to ensure meaningful data
+    b->core.l_qseq = b->l_data > 0 ? b->l_data : 1;
+    b->core.n_cigar = b->l_data > 0 ? 1 : 0;
 
-    // Attempt to read the header and alignment from the file
-    header = sam_hdr_read(file);
-    if (header != NULL) {
-        while (sam_read1(file, header, alignment) >= 0) {
-            // Process the alignment (this is where code coverage can increase)
-        }
-        bam_hdr_destroy(header);
-    }
+    // Call the function-under-test
+    int result = bam_mods_at_next_pos(b, state, &mod, flag);
 
-    // Cleanup
+    // Clean up
+    if (b->data) {
+        free(b->data);
+        b->data = NULL; // Avoid double-free by nullifying the pointer after freeing
+    }
+    bam_destroy1(b);
+    hts_base_mod_state_free(state);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_read to sam_write1
-    htsFile oofffgmk;
-    memset(&oofffgmk, 0, sizeof(oofffgmk));
-    const htsFormat* ret_hts_get_format_yixcf = hts_get_format(&oofffgmk);
-    if (ret_hts_get_format_yixcf == NULL){
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!alignment) {
-    	return 0;
-    }
-    bam1_t* ret_bam_dup1_pzihi = bam_dup1(alignment);
-    if (ret_bam_dup1_pzihi == NULL){
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!header) {
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!ret_bam_dup1_pzihi) {
-    	return 0;
-    }
-    int ret_sam_write1_eojjn = sam_write1(&oofffgmk, header, ret_bam_dup1_pzihi);
-    if (ret_sam_write1_eojjn < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    hts_close(file);
-    close(fd);
-    unlink(tmpl);
-    bam_destroy1(alignment);
-
-    return result;
+    return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

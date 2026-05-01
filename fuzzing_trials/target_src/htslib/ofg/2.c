@@ -1,38 +1,53 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdio.h>
-
-// Assuming the function is declared in some header file
-// #include "hfile.h"
-
-// Mock function definition for demonstration purposes
-int hfile_list_plugins(const char **plugins, int *count);
+#include <stdlib.h>
+#include <string.h>
+#include "/src/htslib/htslib/hfile.h"  // Correct path for hfile.h
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient for at least one plugin name and an integer
-    if (size < sizeof(int) + 1) {
+    // Ensure that the size is not zero
+    if (size == 0) {
         return 0;
     }
 
-    // Allocate memory for the plugins array
-    const char *plugins[2];
-    char plugin_name1[] = "plugin1";
-    char plugin_name2[] = "plugin2";
+    // Create a temporary file to use with hFILE
+    char tmp_filename[L_tmpnam];
+    if (tmpnam(tmp_filename) == NULL) {
+        return 0;
+    }
 
-    // Initialize the plugins array with non-NULL values
-    plugins[0] = plugin_name1;
-    plugins[1] = plugin_name2;
+    FILE *temp_file = fopen(tmp_filename, "wb+");
+    if (temp_file == NULL) {
+        return 0;
+    }
 
-    // Initialize the count variable
-    int count = 0;
+    // Write the fuzz data to the temporary file
+    fwrite(data, 1, size, temp_file);
+    fflush(temp_file);
+
+    // Rewind the file to the beginning for reading
+    rewind(temp_file);
+    fclose(temp_file);
+
+    // Open the temporary file as an hFILE
+    hFILE *hfile = hopen(tmp_filename, "w+"); // Open in write mode
+    if (hfile == NULL) {
+        remove(tmp_filename);
+        return 0;
+    }
+
+    // Write the fuzz data to the hFILE
+    hwrite(hfile, data, size);
 
     // Call the function-under-test
-    int result = hfile_list_plugins(plugins, &count);
+    int result = hflush(hfile);
 
-    // Print the result for debugging purposes (optional)
-    printf("Result: %d, Count: %d\n", result, count);
+    // Clean up
+    hclose(hfile);
+    remove(tmp_filename);
 
-    return 0;
+    return result;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

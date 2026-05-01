@@ -1,29 +1,37 @@
 #include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
-#include "htslib/hts.h"
+#include "htslib/sam.h"
+#include "/src/htslib/htslib/kstring.h"
 
 int LLVMFuzzerTestOneInput_91(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to initialize htsFormat
-    if (size < sizeof(htsFormat)) {
+    // Declare and initialize variables
+    sam_hdr_t *hdr = sam_hdr_init();
+    const char *type = "HD"; // Assuming a default type for testing
+    int pos = 0; // Starting position
+    kstring_t ks;
+    ks.l = 0;
+    ks.m = size;
+    ks.s = (char *)malloc(size + 1);
+
+    if (hdr == NULL || ks.s == NULL) {
+        sam_hdr_destroy(hdr);
+        free(ks.s);
         return 0;
     }
 
-    // Initialize htsFormat using the input data
-    htsFormat format;
-    // Copy data into format, ensuring it doesn't exceed the size of htsFormat
-    memcpy(&format, data, sizeof(htsFormat));
+    // Copy data to kstring_t
+    memcpy(ks.s, data, size);
+    ks.s[size] = '\0'; // Null-terminate the string
 
     // Call the function-under-test
-    const char *extension = hts_format_file_extension(&format);
+    sam_hdr_find_line_pos(hdr, type, pos, &ks);
 
-    // Use the result (extension) in some way to avoid compiler optimizations removing the call
-    if (extension) {
-        // For fuzzing purposes, we can just check the length or do a simple operation
-        size_t ext_length = strlen(extension);
-        (void)ext_length; // Suppress unused variable warning
-    }
+    // Clean up
+    sam_hdr_destroy(hdr);
+    free(ks.s);
 
     return 0;
 }

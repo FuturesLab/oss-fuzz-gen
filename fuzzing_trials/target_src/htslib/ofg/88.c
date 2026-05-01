@@ -1,35 +1,44 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>  // Include for memcpy
-#include "/src/htslib/htslib/sam.h"  // Correct path to sam.h
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>  // Include for close() and remove()
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_88(const uint8_t *data, size_t size) {
-    // Initialize the parameters for sam_hdr_remove_lines
-    sam_hdr_t *hdr = sam_hdr_init();  // Assuming sam_hdr_init initializes a sam_hdr_t object
-    if (hdr == NULL) {
-        return 0;  // Exit if initialization fails
-    }
-    
-    const char *type = "HD";  // Example type, can be varied
-    const char *key = "VN";   // Example key, can be varied
-
-    // Ensure the input data is not null and has sufficient size
-    if (size < 1) {
-        sam_hdr_destroy(hdr);
+    if (size == 0) {
         return 0;
     }
 
-    // Use a valid value from the input data
-    char val[256];
-    size_t val_size = size < sizeof(val) ? size : sizeof(val) - 1;
-    memcpy(val, data, val_size);
-    val[val_size] = '\0';  // Null-terminate the string
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
 
-    // Call the function-under-test
-    int result = sam_hdr_remove_lines(hdr, type, key, val);
+    FILE *file = fdopen(fd, "wb");
+    if (file == NULL) {
+        close(fd);
+        return 0;
+    }
 
-    // Clean up
-    sam_hdr_destroy(hdr);  // Assuming sam_hdr_destroy frees the sam_hdr_t object
+    // Write the fuzz data to the temporary file
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Open the temporary file with hts_open
+    htsFile *hts_file = hts_open(tmpl, "rb");
+    if (hts_file != NULL) {
+        // Call the function-under-test
+        hts_check_EOF(hts_file);
+
+        // Close the htsFile
+        hts_close(hts_file);
+    }
+
+    // Remove the temporary file
+    remove(tmpl);
 
     return 0;
 }

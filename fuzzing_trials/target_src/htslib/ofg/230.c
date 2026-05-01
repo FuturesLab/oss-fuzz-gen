@@ -1,20 +1,27 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
 
-// Function-under-test declaration
-double bam_auxB2f(const uint8_t *data, uint32_t size);
+// Assuming the function hisremote is defined somewhere else
+int hisremote(const char *);
 
+// Fuzzing harness for the hisremote function
 int LLVMFuzzerTestOneInput_230(const uint8_t *data, size_t size) {
-    // Ensure the size is non-zero and fits within uint32_t limits
-    if (size == 0 || size > UINT32_MAX) {
-        return 0;
+    // Ensure the data is null-terminated to be used as a string
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        return 0; // Exit if memory allocation fails
     }
+    
+    // Copy data to input and null-terminate
+    memcpy(input, data, size);
+    input[size] = '\0';
 
-    // Call the function-under-test with the provided data
-    double result = bam_auxB2f(data, (uint32_t)size);
+    // Call the function-under-test
+    int result = hisremote(input);
 
-    // Use the result in some way to prevent compiler optimizations from removing the call
-    (void)result;
+    // Free allocated memory
+    free(input);
 
     return 0;
 }

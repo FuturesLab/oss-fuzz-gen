@@ -1,63 +1,60 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include "htslib/hts.h"
+#include <string.h> // Include for memcpy
+#include "htslib/sam.h" // Assuming bam_plp_t is defined in this header
+
+// Define a callback function for bam_plp_init
+int dummy_callback(const bam1_t *b, void *data) {
+    // A simple callback that always returns 1
+    return 1;
+}
 
 int LLVMFuzzerTestOneInput_98(const uint8_t *data, size_t size) {
-    // Create a temporary file to use with hts_open
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Check if the input size is sufficient to create a bam1_t structure
+    if (size < sizeof(bam1_t)) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        return 0;
-    }
-    close(fd);
-
-    // Open the temporary file with hts_open
-    htsFile *file = hts_open(tmpl, "r");
-    if (file == NULL) {
+    // Allocate memory for bam1_t
+    bam1_t *b = bam_init1();
+    if (b == NULL) {
         return 0;
     }
 
-    // Call the function-under-test
+    // Initialize the bam1_t structure with the input data
+    // Ensure that the data pointer is valid and the memory is allocated
+    b->data = (uint8_t *)malloc(size);
+    if (b->data == NULL) {
+        bam_destroy1(b);
+        return 0;
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to hts_crc32
-    const uint8_t qkkrfhdp = size;
-    uint32_t ret_bam_auxB_len_xgrby = bam_auxB_len(&qkkrfhdp);
-    if (ret_bam_auxB_len_xgrby < 0){
-    	return 0;
-    }
-    const uint8_t uvwtohqj = 1;
-    uint32_t ret_bam_auxB_len_xzudm = bam_auxB_len(&uvwtohqj);
-    if (ret_bam_auxB_len_xzudm < 0){
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!file) {
-    	return 0;
-    }
-    uint32_t ret_hts_crc32_ddzoi = hts_crc32(ret_bam_auxB_len_xgrby, (const void *)file, (size_t )ret_bam_auxB_len_xzudm);
-    if (ret_hts_crc32_ddzoi < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    hts_flush(file);
+    // Copy data into bam1_t structure
+    memcpy(b->data, data, size);
+    b->m_data = size; // Set the size of the allocated memory
+    b->l_data = size; // Set the length of the data
 
-    // Close the file
-    hts_close(file);
+    // Initialize bam_plp_t with a dummy callback
+    bam_plp_t plp = bam_plp_init(dummy_callback, NULL);
 
-    // Remove the temporary file
-    remove(tmpl);
+    if (plp != NULL) {
+        // Push the bam1_t data into the pileup
+        bam_plp_push(plp, b);
+
+        // Call the function-under-test
+        bam_plp_reset(plp);
+
+        // Clean up
+        bam_plp_destroy(plp);
+    }
+
+    // Free the bam1_t structure
+    // The bam1_t structure's data field was allocated and must be freed
+    free(b->data);
+    // Set the data pointer to NULL to avoid double-free
+    b->data = NULL;
+    bam_destroy1(b);
 
     return 0;
 }

@@ -1,42 +1,40 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <htslib/sam.h>
+#include "htslib/sam.h"
 
 int LLVMFuzzerTestOneInput_189(const uint8_t *data, size_t size) {
-    // Initialize sam_hdr_t
+    if (size < sizeof(int)) {
+        return 0; // Not enough data to form an integer
+    }
+
+    // Initialize a sam_hdr_t object
     sam_hdr_t *hdr = sam_hdr_init();
     if (hdr == NULL) {
-        return 0;
+        return 0; // Failed to initialize header
     }
 
-    // Create a non-NULL string from the input data
-    char *pg_id = (char *)malloc(size + 1);
-    if (pg_id == NULL) {
+    // Create a fake header text to populate the sam_hdr_t
+    const char *header_text = "@HD\tVN:1.0\n@SQ\tSN:chr1\tLN:248956422\n";
+    if (sam_hdr_add_lines(hdr, header_text, strlen(header_text)) < 0) {
         sam_hdr_destroy(hdr);
-        return 0;
+        return 0; // Failed to add lines to header
     }
-    memcpy(pg_id, data, size);
-    pg_id[size] = '\0'; // Ensure null-termination
 
-    // Add a dummy program record to ensure hdr is not empty
-    if (sam_hdr_add_pg(hdr, "ID", "dummy", "PN", "dummy_program", NULL) != 0) {
-        free(pg_id);
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
+    // Extract an integer from the input data
+    int tid = *(const int *)data;
 
     // Call the function-under-test
-    const char *result = sam_hdr_pg_id(hdr, pg_id);
+    const char *result = sam_hdr_tid2name(hdr, tid);
 
-    // Check the result to ensure the function is being tested
+    // Print the result (for debugging purposes)
     if (result != NULL) {
-        // Do something with result to ensure code coverage
+        printf("Result: %s\n", result);
     }
 
     // Clean up
-    free(pg_id);
     sam_hdr_destroy(hdr);
 
     return 0;

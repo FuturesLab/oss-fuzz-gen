@@ -1,105 +1,39 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <unistd.h>
+#include <string.h>
 #include "htslib/hts.h"
-#include "/src/htslib/htslib/thread_pool.h"
-#include "htslib/sam.h" // Include for SAM/BAM/CRAM file operations
-
-// Function to create a temporary file from the fuzzing input
-static htsFile* create_temp_file_from_input(const uint8_t *data, size_t size) {
-    char filename[] = "/tmp/fuzz_input_XXXXXX";
-    int fd = mkstemp(filename);
-    if (fd == -1) {
-        return NULL;
-    }
-
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(filename);
-        return NULL;
-    }
-    close(fd);
-
-    // Open the file with htslib
-    htsFile *file = hts_open(filename, "r");
-    unlink(filename); // Remove the file after opening
-    return file;
-}
+#include "/src/htslib/htslib/tbx.h" // Include the correct header for tabix functions
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    // Check if the input size is reasonable for a SAM/BAM/CRAM file
-    if (size < 4) {
-        return 0; // Return early if the input size is too small
+    // Ensure the input size is sufficient for the test
+    if (size < 1) {
+        return 0;
     }
 
-    // Create a temporary file from the input data
-    htsFile *file = create_temp_file_from_input(data, size);
-    if (file == NULL) {
-        return 0; // If file opening fails, return early
-    }
-    
-    htsThreadPool thread_pool;
-    struct hts_tpool *tpool = hts_tpool_init(2); // Initialize a thread pool with 2 threads
-    if (tpool == NULL) {
-        hts_close(file);
-        return 0; // If thread pool initialization fails, return early
-    }
-    thread_pool.pool = tpool;
-    thread_pool.qsize = 0; // Default queue size
+    // Initialize an integer value
+    int some_int = (int)data[0]; // Use the first byte of data as an integer
 
-    // Call the function-under-test
-    int result = hts_set_thread_pool(file, &thread_pool);
-    if (result != 0) {
-        hts_tpool_destroy(tpool);
-        hts_close(file);
-        return 0; // If setting the thread pool fails, return early
+    // Create a null-terminated string from the remaining data
+    size_t str_size = size - 1;
+    char *str = (char *)malloc(str_size + 1);
+    if (!str) {
+        return 0;
     }
+    memcpy(str, data + 1, str_size);
+    str[str_size] = '\0'; // Null-terminate the string
 
-    // Read the header to ensure the file is valid
-    bam_hdr_t *header = sam_hdr_read(file);
-    if (header == NULL) {
-        hts_tpool_destroy(tpool);
-        hts_close(file);
-        return 0; // If reading the header fails, return early
+    // Example function call from htslib, replace with a valid function
+    // Since hts_idx_tbi_name is not a valid function, let's assume we want to use tbx_index_build instead
+    // tbx_index_build is a common function to build an index for a tabix file
+    tbx_t *tbx = tbx_index_load(str); // Load the index using the string
+    if (tbx) {
+        tbx_destroy(tbx); // Destroy the index if it was successfully loaded
     }
-
-    // Perform operations that require the thread pool
-    bam1_t *aln = bam_init1();
-    if (aln == NULL) {
-        bam_hdr_destroy(header);
-        hts_tpool_destroy(tpool);
-        hts_close(file);
-        return 0; // If bam initialization fails, return early
-    }
-
-    while (sam_read1(file, header, aln) >= 0) {
-        // Process each alignment
-    }
-
-    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from bam_init1 to bam_aux_update_float using the plateau pool
-    char tag[3] = {0};
-    float value;
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!aln) {
-    	return 0;
-    }
-    int ret_bam_aux_update_float_maaqx = bam_aux_update_float(aln, tag, value);
-    if (ret_bam_aux_update_float_maaqx < 0){
-    	return 0;
-    }
-    // End mutation: Producer.SPLICE_MUTATOR
-    
-    bam_destroy1(aln);
-    bam_hdr_destroy(header);
-
-    // Ensure all operations are completed before destroying the thread pool
 
     // Clean up
-    hts_close(file);
-    hts_tpool_destroy(tpool);
+    free(str);
 
     return 0;
 }

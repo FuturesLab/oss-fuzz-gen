@@ -1,19 +1,21 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <htslib/hts.h>  // Include the correct header for hts_md5 functions
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_93(const uint8_t *data, size_t size) {
-    // Declare and initialize the hts_md5_context
-    hts_md5_context *md5_ctx = hts_md5_init();
+    hts_md5_context *ctx = hts_md5_init();
 
-    // Ensure that the size is non-zero to avoid passing a NULL pointer
-    if (size > 0 && md5_ctx != NULL) {
-        // Call the function-under-test
-        hts_md5_update(md5_ctx, data, (unsigned long)size);
+    if (ctx == NULL) {
+        return 0;
     }
 
-    // Clean up
-    hts_md5_destroy(md5_ctx);
+    // Optionally process some data with hts_md5_update
+    if (size > 0) {
+        hts_md5_update(ctx, data, size);
+    }
+
+    // Call the function-under-test
+    hts_md5_destroy(ctx);
 
     return 0;
 }

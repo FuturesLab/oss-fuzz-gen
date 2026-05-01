@@ -1,52 +1,48 @@
 #include <sys/stat.h>
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-
-// Function-under-test
-char *stringify_argv(int argc, char **argv);
+#include <stdio.h>
+#include "htslib/sam.h" // Assuming the function is part of the HTSlib library
 
 int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to proceed
-    if (size < 2) return 0;
-
-    // Determine the number of arguments
-    int argc = data[0] % 5 + 1; // Limit argc to a small number for testing
-    char **argv = (char **)malloc(argc * sizeof(char *));
-    if (!argv) return 0;
-
-    size_t offset = 1;
-    for (int i = 0; i < argc; i++) {
-        // Ensure there is enough space for at least one character and null terminator
-        if (offset >= size - 1) {
-            argv[i] = strdup("");
-        } else {
-            size_t arg_len = (data[offset] % (size - offset)) + 1;
-            argv[i] = (char *)malloc(arg_len + 1);
-            if (!argv[i]) {
-                // Clean up previously allocated memory
-                for (int j = 0; j < i; j++) {
-                    free(argv[j]);
-                }
-                free(argv);
-                return 0;
-            }
-            memcpy(argv[i], &data[offset], arg_len);
-            argv[i][arg_len] = '\0';
-            offset += arg_len;
-        }
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
+        return 0;
     }
+
+    // Ensure that size is large enough to create valid strings
+    if (size < 2) {
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+
+    // Split the data into two parts for the two string arguments
+    size_t mid = size / 2;
+    char *str1 = (char *)malloc(mid + 1);
+    char *str2 = (char *)malloc(size - mid + 1);
+
+    if (str1 == NULL || str2 == NULL) {
+        free(str1);
+        free(str2);
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+
+    memcpy(str1, data, mid);
+    str1[mid] = '\0';
+
+    memcpy(str2, data + mid, size - mid);
+    str2[size - mid] = '\0';
 
     // Call the function-under-test
-    char *result = stringify_argv(argc, argv);
+    int result = sam_hdr_line_index(hdr, str1, str2);
 
     // Clean up
-    if (result) free(result);
-    for (int i = 0; i < argc; i++) {
-        free(argv[i]);
-    }
-    free(argv);
+    free(str1);
+    free(str2);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

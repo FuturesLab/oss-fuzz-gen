@@ -1,66 +1,23 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include "/src/htslib/htslib/hfile.h"
+#include <stddef.h> // Include this header to define 'size_t'
 
+// Function-under-test
+unsigned int hts_features(const uint8_t *data, size_t size);
+
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-    hFILE *file;
-    void *buffer;
-    ssize_t result;
-    size_t buffer_size;
-
-    // Ensure size is non-zero to avoid division by zero
-    if (size == 0) {
-        return 0;
+    if (data == NULL || size == 0) {
+        return 0; // Return early if input is null or size is zero
     }
 
-    // Create a temporary file to use with hFILE
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
+    // Directly call the function-under-test with the fuzzing input
+    unsigned int features = hts_features(data, size);
+
+    // Use the result in some way to avoid compiler optimizations
+    // that might remove the call if the result is unused
+    if (features == 0) {
+        // Do nothing, just a dummy check
     }
-
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Rewind the file descriptor to the beginning
-    lseek(fd, 0, SEEK_SET);
-
-    // Open the file using hdopen
-    file = hdopen(fd, "r");
-    if (file == NULL) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Allocate a buffer for reading
-    buffer_size = size / 2 + 1; // Ensure buffer is non-zero
-    buffer = malloc(buffer_size);
-    if (buffer == NULL) {
-        hclose(file);
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Call the function-under-test
-    result = hpeek(file, buffer, buffer_size);
-
-    // Clean up
-    free(buffer);
-    hclose(file);
-    close(fd);
-    unlink(tmpl);
 
     return 0;
 }

@@ -1,26 +1,28 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>  // For malloc and free
+#include <string.h>  // For memcpy
 
-// Function-under-test declaration
-char * bam_flag2str(int flag);
+// Assuming the function is declared in some header file
+int bam_str2flag(const char *str);
 
 int LLVMFuzzerTestOneInput_74(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to extract an integer
-    if (size < sizeof(int)) {
+    // Ensure the input data is null-terminated
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
         return 0;
     }
+    
+    // Copy the data and null-terminate it
+    memcpy(input, data, size);
+    input[size] = '\0';
 
-    // Extract an integer from the input data
-    int flag = *((int *)data);
+    // Call the function-under-test with the input
+    bam_str2flag(input);
 
-    // Call the function-under-test
-    char *result = bam_flag2str(flag);
-
-    // Free the result if necessary
-    if (result != NULL) {
-        free(result);
-    }
+    // Free the allocated memory
+    free(input);
 
     return 0;
 }

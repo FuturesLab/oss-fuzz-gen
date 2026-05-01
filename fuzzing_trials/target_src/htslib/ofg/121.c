@@ -1,39 +1,34 @@
 #include <stdint.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <htslib/hts.h>
+#include <string.h>
+#include "/src/htslib/htslib/sam.h" // Correct path for sam_hdr_parse
+
+// Include the necessary header for sam_hdr_free
+#include "/src/htslib/htslib/hts.h" // This header typically contains sam_hdr_free
 
 int LLVMFuzzerTestOneInput_121(const uint8_t *data, size_t size) {
-    // Create a temporary file to use with hts_open
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    if (size == 0) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
+    // Ensure the data is null-terminated for the string input
+    char *data_str = (char *)malloc(size + 1);
+    if (data_str == NULL) {
         return 0;
     }
-    close(fd);
-
-    // Open the temporary file with hts_open
-    htsFile *file = hts_open(tmpl, "r");
-    if (file == NULL) {
-        return 0;
-    }
+    memcpy(data_str, data, size);
+    data_str[size] = '\0';
 
     // Call the function-under-test
-    hts_flush(file);
+    sam_hdr_t *hdr = sam_hdr_parse(size, data_str);
 
-    // Close the file
-    hts_close(file);
-
-    // Remove the temporary file
-    remove(tmpl);
+    // Clean up
+    free(data_str);
+    if (hdr != NULL) {
+        // Use the correct function to free the sam_hdr_t
+        sam_hdr_destroy(hdr); // Corrected function name
+    }
 
     return 0;
 }

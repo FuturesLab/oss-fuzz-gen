@@ -1,33 +1,35 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <htslib/hts.h>
-#include <htslib/kstring.h> // Include this for hts_opt related functions
+#include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_152(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for creating a valid string
-    if (size == 0) {
+    // Open a BAM file for writing in memory
+    htsFile *file = hts_open("temp.bam", "wb");
+    if (file == NULL) {
         return 0;
     }
 
-    // Allocate memory for hts_opt pointer
-    hts_opt *options = NULL;
-
-    // Allocate memory for the string and copy data into it
-    char *opt_str = (char *)malloc(size + 1);
-    if (opt_str == NULL) {
+    // Ensure the data is null-terminated to safely use it as a string
+    char *filter_expr = (char *)malloc(size + 1);
+    if (filter_expr == NULL) {
+        hts_close(file);
         return 0;
     }
-    memcpy(opt_str, data, size);
-    opt_str[size] = '\0'; // Null-terminate the string
+    memcpy(filter_expr, data, size);
+    filter_expr[size] = '\0';
 
-    // Call the function-under-test
-    hts_opt_add(&options, opt_str);
+    // Call the function-under-test with a non-null filter expression
+    if (strlen(filter_expr) > 0) {
+        hts_set_filter_expression(file, filter_expr);
+    }
 
     // Clean up
-    free(opt_str);
-    hts_opt_free(options);
+    free(filter_expr);
+    hts_close(file);
 
     return 0;
 }

@@ -1,17 +1,51 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <htslib/hts.h>
-#include <htslib/kstring.h> // Include this if needed for hts_set_opt options
+#include <string.h>
+#include <stdio.h>
 
+// Include the correct header file for sam_hdr_t
+#include "/src/htslib/htslib/sam.h"
+
+// Remove the extern "C" linkage specification as it is not needed in C code
 int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
-    htsFile *file = hts_open("-", "r");
-    enum hts_fmt_option option = (enum hts_fmt_option)(data[0] % 5); // Assuming 5 is the number of possible options
-    int value = (size > 1) ? data[1] : 0; // Use the second byte as a value, if available
-
-    if (file != NULL) {
-        hts_set_opt(file, option, (void *)(uintptr_t)value);
-        hts_close(file);
+    // Check if the size is sufficient to extract meaningful strings
+    if (size < 5) {
+        return 0;
     }
+
+    // Create and initialize a sam_hdr_t object
+    sam_hdr_t *hdr = sam_hdr_init(); // Assuming sam_hdr_init() initializes a sam_hdr_t object
+    if (!hdr) {
+        return 0; // Check if initialization was successful
+    }
+
+    // Extract strings from data
+    size_t offset = 0;
+    const char *arg1 = (const char *)(data + offset);
+    size_t arg1_len = strnlen(arg1, size - offset);
+    offset += arg1_len + 1;
+    if (offset >= size) return 0;
+
+    const char *arg2 = (const char *)(data + offset);
+    size_t arg2_len = strnlen(arg2, size - offset);
+    offset += arg2_len + 1;
+    if (offset >= size) return 0;
+
+    const char *arg3 = (const char *)(data + offset);
+    size_t arg3_len = strnlen(arg3, size - offset);
+    offset += arg3_len + 1;
+    if (offset >= size) return 0;
+
+    const char *arg4 = (const char *)(data + offset);
+    size_t arg4_len = strnlen(arg4, size - offset);
+    if (offset + arg4_len >= size) return 0;
+
+    // Call the function under test
+    int result = sam_hdr_remove_tag_id(hdr, arg1, arg2, arg3, arg4);
+
+    // Clean up
+    sam_hdr_destroy(hdr); // Assuming sam_hdr_destroy() cleans up a sam_hdr_t object
 
     return 0;
 }

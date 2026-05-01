@@ -1,68 +1,68 @@
 #include <sys/stat.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h> // Include fcntl.h for file control options
-#include "/src/htslib/ref_cache/types.h" // Include sys/types.h for system data types
-#include <sys/stat.h> // Include sys/stat.h for file status
 
-extern int sam_index_build(const char *filename, int option);
+// Function-under-test
+char *stringify_argv(int argc, char **argv);
 
 int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0; // If there's no data, exit early
+    // Ensure size is sufficient for at least one argument
+    if (size < 2) {
+        return 0;
     }
 
-    // Create a temporary file to store the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        perror("mkstemp failed");
-        return 0; // If the file cannot be created, exit
+    // Allocate memory for the argv array
+    char **argv = (char **)malloc(size * sizeof(char *));
+    if (argv == NULL) {
+        return 0;
     }
 
-    // Ensure the file is truncated before writing
-    if (ftruncate(fd, 0) != 0) {
-        perror("ftruncate failed");
-        close(fd);
-        unlink(tmpl);
-        return 0; // If truncation fails, clean up and exit
+    // Split the input data into separate strings for argv
+    size_t arg_index = 0;
+    size_t start = 0;
+    for (size_t i = 0; i < size; i++) {
+        if (data[i] == '\0' || i == size - 1) {
+            size_t length = i - start + 1;
+            argv[arg_index] = (char *)malloc(length);
+            if (argv[arg_index] == NULL) {
+                // Free previously allocated memory if malloc fails
+                for (size_t j = 0; j < arg_index; j++) {
+                    free(argv[j]);
+                }
+                free(argv);
+                return 0;
+            }
+            memcpy(argv[arg_index], &data[start], length - 1);
+            argv[arg_index][length - 1] = '\0'; // Ensure null-termination
+            arg_index++;
+            start = i + 1;
+        }
     }
 
-    // Validate and sanitize the input data before writing
-    // For demonstration, let's assume sam_index_build expects a specific header
-    const char expected_header[] = "EXPECTED_HEADER";
-    if (size < sizeof(expected_header) || memcmp(data, expected_header, sizeof(expected_header) - 1) != 0) {
-        fprintf(stderr, "Invalid input format\n");
-        close(fd);
-        unlink(tmpl);
-        return 0; // If the data doesn't match the expected format, exit
+    // Ensure there is at least one argument
+    if (arg_index == 0) {
+        argv[arg_index] = (char *)malloc(1);
+        if (argv[arg_index] != NULL) {
+            argv[arg_index][0] = '\0';
+            arg_index++;
+        }
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        perror("write failed");
-        close(fd);
-        unlink(tmpl);
-        return 0; // If the write fails, clean up and exit
-    }
-    
-    close(fd); // Close the file descriptor
+    // Call the function-under-test
+    char *result = stringify_argv((int)arg_index, argv);
 
-    // Call the function-under-test with the temporary file and a non-zero option
-    int result = sam_index_build(tmpl, 1);
-
-    // Optionally, handle the result of sam_index_build if needed
-    if (result != 0) {
-        // Handle error if sam_index_build fails
-        fprintf(stderr, "sam_index_build failed with error code: %d\n", result);
+    // Free the result if it's dynamically allocated
+    if (result != NULL) {
+        free(result);
     }
 
-    // Clean up the temporary file
-    unlink(tmpl);
+    // Free the allocated memory for argv
+    for (size_t i = 0; i < arg_index; i++) {
+        free(argv[i]);
+    }
+    free(argv);
 
     return 0;
 }

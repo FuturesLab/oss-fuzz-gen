@@ -1,45 +1,45 @@
 #include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include "htslib/sam.h"
-#include "/src/htslib/htslib/kstring.h" // Include kstring.h for kstring_t
+#include <unistd.h>
+#include <fcntl.h>
+
+extern int hfile_has_plugin(const char *);
 
 int LLVMFuzzerTestOneInput_93(const uint8_t *data, size_t size) {
-    // Initialize kstring_t
-    kstring_t ks;
-    ks.l = size;
-    ks.m = size + 1;
-    ks.s = (char *)malloc(ks.m);
-    if (ks.s == NULL) {
-        return 0; // Memory allocation failed
-    }
-    memcpy(ks.s, data, size);
-    ks.s[size] = '\0'; // Ensure null-termination
-
-    // Initialize sam_hdr_t
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
-        free(ks.s);
-        return 0; // Memory allocation failed
+    // Check if the input data is not empty
+    if (size == 0) {
+        return 0;
     }
 
-    // Initialize bam1_t
-    bam1_t *b = bam_init1();
-    if (b == NULL) {
-        sam_hdr_destroy(hdr);
-        free(ks.s);
-        return 0; // Memory allocation failed
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Call the function-under-test
-    int result = sam_parse1(&ks, hdr, b);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
 
-    // Clean up
-    bam_destroy1(b);
-    sam_hdr_destroy(hdr);
-    free(ks.s);
+    // Close the file descriptor
+    close(fd);
+
+    // Call the function-under-test with the temporary file name
+    // Check the return value to ensure the function is being utilized
+    int result = hfile_has_plugin(tmpl);
+
+    // Optionally, print the result for debugging purposes
+    printf("hfile_has_plugin returned: %d\n", result);
+
+    // Clean up the temporary file
+    unlink(tmpl);
 
     return 0;
 }

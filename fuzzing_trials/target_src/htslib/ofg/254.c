@@ -1,31 +1,37 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include "htslib/sam.h"  // Assuming the sam_hdr_t type is defined in this header
+
+extern int hfile_list_plugins(const char **, int *);
 
 int LLVMFuzzerTestOneInput_254(const uint8_t *data, size_t size) {
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
+    // Ensure that size is sufficient to create at least one string and an integer
+    if (size < 2) {
         return 0;
     }
 
-    // Ensure the data is null-terminated for use as a string
-    char *name = (char *)malloc(size + 1);
-    if (name == NULL) {
-        sam_hdr_destroy(hdr);
+    // Allocate memory for a single string
+    char *plugin_name = (char *)malloc(size + 1);
+    if (plugin_name == NULL) {
         return 0;
     }
-    memcpy(name, data, size);
-    name[size] = '\0';
+
+    // Copy data into the string and null-terminate it
+    memcpy(plugin_name, data, size);
+    plugin_name[size] = '\0';
+
+    // Create an array of string pointers
+    const char *plugins[] = { plugin_name };
+
+    // Initialize an integer
+    int plugin_count = 0;
 
     // Call the function-under-test
-    int result = sam_hdr_name2tid(hdr, name);
+    hfile_list_plugins(plugins, &plugin_count);
 
-    // Clean up
-    free(name);
-    sam_hdr_destroy(hdr);
+    // Free allocated memory
+    free(plugin_name);
 
     return 0;
 }

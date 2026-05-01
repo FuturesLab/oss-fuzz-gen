@@ -1,44 +1,44 @@
 #include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>  // Include for close() and remove()
+#include "htslib/sam.h"
 #include "htslib/hts.h"
-#include "htslib/hfile.h"
+#include "/src/htslib/htslib/bgzf.h" // Include this for BGZF-related functions
 
 int LLVMFuzzerTestOneInput_121(const uint8_t *data, size_t size) {
-    // Create a temporary file and write the fuzz data to it
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (file == NULL) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
+    // Initialize necessary structures
+    // Instead of allocating memory for hts_idx_t, we should use a function that returns an index
+    BGZF *bgzf = bgzf_open("-", "r"); // Open a BGZF stream for reading
+    hts_idx_t *index = hts_idx_load("-", HTS_FMT_BAI); // Load an index
+    sam_hdr_t *header = sam_hdr_init();
+    hts_reglist_t *reglist = (hts_reglist_t *)malloc(sizeof(hts_reglist_t));
+    unsigned int flags = 0;
 
-    // Open the temporary file as an hFILE
-    hFILE *hfile = hopen(tmpl, "rb");
-    if (hfile == NULL) {
-        remove(tmpl);
+    // Ensure the data is not empty and large enough for meaningful fuzzing
+    if (size < sizeof(hts_reglist_t)) {
+        if (index != NULL) hts_idx_destroy(index);
+        free(reglist);
+        sam_hdr_destroy(header);
+        bgzf_close(bgzf);
         return 0;
     }
 
-    // Initialize htsFormat
-    htsFormat format;
-    memset(&format, 0, sizeof(htsFormat));
+    // Assign some values to the reglist structure from the input data
+    reglist->reg = (char *)data;
+    reglist->count = 1; // Set a non-zero count to avoid NULL issues
 
-    // Call the function-under-test
-    hts_detect_format(hfile, &format);
+    // Fuzz the function-under-test
+    hts_itr_t *itr = sam_itr_regions(index, header, reglist, flags);
 
     // Clean up
-    hclose(hfile);
-    remove(tmpl);
+    if (itr != NULL) {
+        hts_itr_destroy(itr);
+    }
+    if (index != NULL) hts_idx_destroy(index);
+    free(reglist);
+    sam_hdr_destroy(header);
+    bgzf_close(bgzf);
 
     return 0;
 }

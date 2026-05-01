@@ -1,44 +1,42 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>  // For mkstemp, write, close
-#include <htslib/hts.h>
+#include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0; // Ensure there's enough data to create filenames
+    sam_hdr_t *header = NULL;
+    char *region = NULL;
+    int tid = 0;
+    hts_pos_t beg = 0;
+    hts_pos_t end = 0;
+    int flags = 0;
+
+    // Ensure the size is sufficient for a minimal test
+    if (size < 1) {
+        return 0;
     }
 
-    // Create temporary file names
-    char tmpl1[] = "/tmp/fuzzfileXXXXXX";
-    char tmpl2[] = "/tmp/fuzzfileXXXXXX";
-
-    // Create temporary files
-    int fd1 = mkstemp(tmpl1);
-    int fd2 = mkstemp(tmpl2);
-
-    if (fd1 == -1 || fd2 == -1) {
-        return 0; // Failed to create temporary files
+    // Allocate memory for the region string and copy data into it
+    region = (char *)malloc(size + 1);
+    if (region == NULL) {
+        return 0;
     }
+    memcpy(region, data, size);
+    region[size] = '\0'; // Null-terminate the string
 
-    // Write the fuzz data to the first temporary file
-    write(fd1, data, size);
-    close(fd1);
-
-    // Use the second temporary file as an index file
-    close(fd2);
+    // Create a dummy header for testing
+    header = sam_hdr_init();
+    if (header == NULL) {
+        free(region);
+        return 0;
+    }
 
     // Call the function-under-test
-    hts_idx_t *idx = hts_idx_load3(tmpl1, tmpl2, HTS_FMT_CSI, 0);
+    const char *result = sam_parse_region(header, region, &tid, &beg, &end, flags);
 
     // Clean up
-    if (idx != NULL) {
-        hts_idx_destroy(idx);
-    }
-    remove(tmpl1);
-    remove(tmpl2);
+    sam_hdr_destroy(header);
+    free(region);
 
     return 0;
 }

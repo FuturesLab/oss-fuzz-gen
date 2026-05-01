@@ -1,36 +1,49 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <unistd.h>  // For close() and unlink()
-#include <fcntl.h>   // For mkstemp()
-#include "/src/htslib/htslib/hfile.h"  // Correct path for hfile.h
+#include <string.h>
+#include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    hFILE *hfile = NULL;
-
-    // Ensure size is greater than 0 to create a valid buffer
-    if (size > 0) {
-        // Create a temporary file with the provided data
-        char tmpl[] = "/tmp/fuzzfileXXXXXX";
-        int fd = mkstemp(tmpl);
-        if (fd != -1) {
-            // Write data to the file
-            write(fd, data, size);
-            // Close the file descriptor to flush the data
-            close(fd);
-
-            // Open the file using hopen or similar function from the hFILE library
-            hfile = hopen(tmpl, "r");  // Assuming hopen is a function to open hFILE
-
-            // Call the function-under-test
-            if (hfile != NULL) {
-                hclose_abruptly(hfile);
-            }
-
-            // Clean up: remove the temporary file
-            unlink(tmpl);
-        }
+    if (size < 4) {
+        return 0; // Not enough data to form strings
     }
+
+    // Allocate memory for sam_hdr_t
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
+        return 0; // Failed to allocate memory for sam_hdr_t
+    }
+
+    // Split the input data into three parts for the strings
+    size_t str_len = size / 4;
+    char *str1 = (char *)malloc(str_len + 1);
+    char *str2 = (char *)malloc(str_len + 1);
+    char *str3 = (char *)malloc(str_len + 1);
+    if (str1 == NULL || str2 == NULL || str3 == NULL) {
+        free(str1);
+        free(str2);
+        free(str3);
+        sam_hdr_destroy(hdr);
+        return 0; // Failed to allocate memory for strings
+    }
+
+    // Copy data into strings and null-terminate them
+    memcpy(str1, data, str_len);
+    str1[str_len] = '\0';
+    memcpy(str2, data + str_len, str_len);
+    str2[str_len] = '\0';
+    memcpy(str3, data + 2 * str_len, str_len);
+    str3[str_len] = '\0';
+
+    // Call the function-under-test
+    sam_hdr_update_line(hdr, str1, str2, str3, NULL);
+
+    // Clean up
+    free(str1);
+    free(str2);
+    free(str3);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

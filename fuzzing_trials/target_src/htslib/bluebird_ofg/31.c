@@ -1,43 +1,62 @@
 #include <sys/stat.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <unistd.h>
-#include <fcntl.h>  // Include for mkstemp function
-#include "htslib/hts.h"  // Ensure the correct path to the htslib header
+#include <fcntl.h>
+#include "htslib/sam.h"
+#include "/src/htslib/htslib/bgzf.h"
 
 int LLVMFuzzerTestOneInput_31(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    if (size < 1) return 0;
+
+    // Create a temporary file to use with BGZF
+    char tmpl[] = "/tmp/fuzzbgzfXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
+    // Open the temporary file with BGZF
+    BGZF *bgzf = bgzf_fdopen(fd, "w");
+    if (bgzf == NULL) {
         close(fd);
-        unlink(tmpl);
         return 0;
     }
 
-    // Close the file descriptor
-    close(fd);
+    // Create a sam_hdr_t object
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
+        bgzf_close(bgzf);
+        return 0;
+    }
 
-    // Prepare the second argument for hts_readlines
-    int num_lines = 0;
+    // Use the input data to initialize the header
+    // Ensure that the input data is null-terminated for safe string operations
+    char *header_text = (char *)malloc(size + 1);
+    if (header_text == NULL) {
+        sam_hdr_destroy(hdr);
+        bgzf_close(bgzf);
+        return 0;
+    }
+    memcpy(header_text, data, size);
+    header_text[size] = '\0';
+
+    if (sam_hdr_add_lines(hdr, header_text, 0) < 0) {
+        free(header_text);
+        sam_hdr_destroy(hdr);
+        bgzf_close(bgzf);
+        return 0;
+    }
 
     // Call the function-under-test
-    char **lines = hts_readlines(tmpl, &num_lines);
+    bam_hdr_write(bgzf, hdr);
 
     // Clean up
-    if (lines != NULL) {
-        for (int i = 0; i < num_lines; ++i) {
-            free(lines[i]);
-        }
-        free(lines);
-    }
+    free(header_text);
+    sam_hdr_destroy(hdr);
+    bgzf_close(bgzf);
     unlink(tmpl);
 
     return 0;

@@ -1,43 +1,40 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
-#include <htslib/sam.h>
-#include <htslib/kstring.h>
+#include "/src/htslib/htslib/sam.h" // Correct path for the header file
 
 int LLVMFuzzerTestOneInput_267(const uint8_t *data, size_t size) {
-    // Check if the size is sufficient to extract multiple strings
-    if (size < 5) {
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
         return 0;
     }
 
-    // Initialize sam_hdr_t
-    sam_hdr_t *hdr = sam_hdr_init();
-
-    // Create and initialize kstring_t
-    kstring_t ks;
-    ks.l = 0;
-    ks.m = size;
-    ks.s = (char *)malloc(size);
-    if (ks.s == NULL) {
+    // Ensure that size is sufficient to extract at least a few characters for strings
+    if (size < 6) {
         sam_hdr_destroy(hdr);
         return 0;
     }
 
-    // Copy data into kstring_t
-    memcpy(ks.s, data, size);
+    // Extract strings and integer from the data
+    const char *type = (const char *)data;
+    const char *id = (const char *)(data + 2);
+    int len = (int)data[4];
+    kstring_t ks;
+    ks.l = 0;
+    ks.m = size - 5;
+    ks.s = (char *)(data + 5);
 
-    // Extract strings from the data
-    const char *str1 = (const char *)data;
-    const char *str2 = (const char *)(data + 1);
-    const char *str3 = (const char *)(data + 2);
-    const char *str4 = (const char *)(data + 3);
+    // Ensure strings are null-terminated for safety
+    char type_buf[3] = {0};
+    char id_buf[3] = {0};
+    strncpy(type_buf, type, 2);
+    strncpy(id_buf, id, 2);
 
     // Call the function-under-test
-    int result = sam_hdr_find_tag_id(hdr, str1, str2, str3, str4, &ks);
+    int result = sam_hdr_find_tag_pos(hdr, type_buf, len, id_buf, &ks);
 
     // Clean up
-    free(ks.s);
     sam_hdr_destroy(hdr);
 
     return 0;

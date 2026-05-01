@@ -1,18 +1,27 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_119(const uint8_t *data, size_t size) {
-    hts_md5_context *ctx = hts_md5_init();
-    if (ctx == NULL) {
+    hts_opt *options = NULL;
+
+    // Ensure the input data is null-terminated for a valid C string
+    char *opt_str = (char *)malloc(size + 1);
+    if (opt_str == NULL) {
         return 0;
     }
 
-    // Simulate some operations with the context
-    hts_md5_update(ctx, data, size);
+    memcpy(opt_str, data, size);
+    opt_str[size] = '\0';  // Null-terminate the string
 
     // Call the function-under-test
-    hts_md5_destroy(ctx);
+    int result = hts_opt_add(&options, opt_str);
+
+    // Clean up
+    free(opt_str);
+    hts_opt_free(options);
 
     return 0;
 }

@@ -1,24 +1,24 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <limits.h> // Include this to ensure UINT32_MAX is defined
-
-// Function-under-test declaration
-int64_t bam_auxB2i(const uint8_t *data, uint32_t size);
+#include <stdlib.h>
+#include <htslib/hts.h>  // Include the header for HTS functions
 
 int LLVMFuzzerTestOneInput_194(const uint8_t *data, size_t size) {
-    // Ensure that the size is not zero to avoid passing a NULL pointer
+    // Ensure the data size is sufficient for fuzzing
     if (size == 0) {
         return 0;
     }
 
-    // Cast size to uint32_t, ensuring it doesn't exceed the maximum value of uint32_t
-    uint32_t converted_size = (uint32_t)(size > UINT32_MAX ? UINT32_MAX : size);
+    // Initialize the MD5 context
+    hts_md5_context *md5_ctx = hts_md5_init();
+    if (md5_ctx == NULL) {
+        return 0;
+    }
 
     // Call the function-under-test
-    int64_t result = bam_auxB2i(data, converted_size);
+    hts_md5_update(md5_ctx, (const void *)data, (unsigned long)size);
 
-    // Use the result to prevent compiler optimizations from removing the call
-    (void)result;
+    // Clean up the MD5 context
+    hts_md5_destroy(md5_ctx);
 
     return 0;
 }

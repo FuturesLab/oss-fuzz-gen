@@ -1,36 +1,18 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <string.h>
-#include "/src/htslib/htslib/sam.h" // Replacing bam.h with the correct path to sam.h
+#include <stdlib.h>
+#include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_106(const uint8_t *data, size_t size) {
-    bam1_t bam_record;
-    char tag[3];
-    int64_t value;
+    // Initialize the bam_plp_t variable
+    bam_plp_t plp = bam_plp_init(NULL, NULL);
 
-    // Initialize bam_record with some non-NULL values
-    memset(&bam_record, 0, sizeof(bam1_t));
-    bam_record.data = (uint8_t *)data;
-    bam_record.l_data = size;
-
-    // Ensure the tag is a valid 2-character string
-    if (size < 2) {
+    // Ensure that the bam_plp_t is not NULL
+    if (plp == NULL) {
         return 0;
     }
-    tag[0] = (char)data[0];
-    tag[1] = (char)data[1];
-    tag[2] = '\0';
 
-    // Use the remaining data as the integer value
-    if (size > 2) {
-        value = *((int64_t *)(data + 2));
-    } else {
-        value = 0; // Default value if not enough data
-    }
-
-    // Call the function under test
-    bam_aux_update_int(&bam_record, tag, value);
+    // Call the function-under-test
+    bam_plp_destroy(plp);
 
     return 0;
 }

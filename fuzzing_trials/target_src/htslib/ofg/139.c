@@ -1,46 +1,46 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <stdio.h>
 #include <htslib/sam.h>
+#include <htslib/bgzf.h>
 
 int LLVMFuzzerTestOneInput_139(const uint8_t *data, size_t size) {
-    if (size < sizeof(int)) {
+    // Initialize BGZF file pointer
+    BGZF *bgzf = bgzf_open("/dev/null", "w");
+    if (bgzf == NULL) {
         return 0;
     }
 
     // Create a sam_hdr_t object
     sam_hdr_t *hdr = sam_hdr_init();
-    if (!hdr) {
+    if (hdr == NULL) {
+        bgzf_close(bgzf);
         return 0;
     }
 
-    // Use the data to add a line to the header
-    char *line = (char *)malloc(size + 1);
-    if (!line) {
+    // Add some dummy header text to the sam_hdr_t object
+    if (sam_hdr_add_line(hdr, "HD", "VN", "1.0", NULL) != 0) {
         sam_hdr_destroy(hdr);
+        bgzf_close(bgzf);
         return 0;
     }
-    memcpy(line, data, size);
-    line[size] = '\0';
 
-    // Add the line to the header
-    if (sam_hdr_add_lines(hdr, line, 0) < 0) {
-        free(line);
-        sam_hdr_destroy(hdr);
-        return 0;
+    // Use the input data to simulate a realistic scenario
+    if (size > 0) {
+        // Write the input data to the BGZF file
+        if (bgzf_write(bgzf, data, size) < 0) {
+            sam_hdr_destroy(hdr);
+            bgzf_close(bgzf);
+            return 0;
+        }
     }
-    free(line);
-
-    // Extract an integer from the input data
-    int tid = *((int *)data);
 
     // Call the function-under-test
-    hts_pos_t length = sam_hdr_tid2len(hdr, tid);
+    bam_hdr_write(bgzf, hdr);
 
     // Clean up
     sam_hdr_destroy(hdr);
+    bgzf_close(bgzf);
 
     return 0;
 }

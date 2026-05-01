@@ -1,65 +1,130 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <stdio.h>
-#include <unistd.h> // For close() and remove()
-#include "htslib/hts.h"
-#include "/src/htslib/htslib/bgzf.h"
-#include "/src/htslib/htslib/hts_defs.h"
+#include <stdlib.h>
+#include <string.h>
 #include "htslib/sam.h"
+#include "htslib/hts.h"
+#include <unistd.h>
+#include <fcntl.h>
 
 int LLVMFuzzerTestOneInput_110(const uint8_t *data, size_t size) {
-    BGZF *bgzf = NULL;
-    hts_itr_t *iter = NULL;
-    void *data_container = NULL;
-    void *aux = NULL;
-    int result;
-
-    // Create a temporary file to simulate BGZF input
-    char tmpl[] = "/tmp/fuzzbgzfXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) return 0;
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
+    // Ensure the data size is sufficient for meaningful processing
+    if (size < 4) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    fwrite(data, 1, size, file);
-    fclose(file);
+    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
+    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
+    int fd1 = mkstemp(tmpl1);
+    int fd2 = mkstemp(tmpl2);
 
-    // Open the BGZF file
-    bgzf = bgzf_open(tmpl, "r");
-    if (!bgzf) {
-        remove(tmpl);
+    if (fd1 == -1 || fd2 == -1) {
+        if (fd1 != -1) {
+                close(fd1);
+        }
+        if (fd2 != -1) {
+                close(fd2);
+        }
         return 0;
     }
 
-    // Initialize the iterator
-    iter = hts_itr_query(bgzf, 0, 0, 0, 0);
-    if (!iter) {
-        bgzf_close(bgzf);
-        remove(tmpl);
+    // Write the fuzzing data to the first temporary file
+    if (write(fd1, data, size) != size) {
+        close(fd1);
+        close(fd2);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+    close(fd1);
+
+    // Open the file using htslib
+    htsFile *hts_file = hts_open(tmpl1, "r");
+    if (!hts_file) {
+        unlink(tmpl1);
+        unlink(tmpl2);
         return 0;
     }
 
-    // Allocate memory for data_container and aux
-    data_container = malloc(1024);  // Allocate a buffer for the data
-    aux = malloc(1024);  // Allocate a buffer for auxiliary data
+    // Check if the file is a valid SAM/BAM format
+    bam_hdr_t *header = sam_hdr_read(hts_file);
+    if (!header) {
+        hts_close(hts_file);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
 
-    if (data_container && aux) {
-        // Call the function under test
-        result = hts_itr_next(bgzf, iter, data_container, aux);
+    // Attempt to read the first alignment
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_read to hts_set_opt
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_read to hts_reglist_create
+    char* ret_bam_flag2str_riaid = bam_flag2str(HTS_IDX_SAVE_REMOTE);
+    if (ret_bam_flag2str_riaid == NULL){
+    	return 0;
+    }
+    bam1_t ulyhfzui;
+    memset(&ulyhfzui, 0, sizeof(ulyhfzui));
+    hts_pos_t ret_bam_endpos_objja = bam_endpos(&ulyhfzui);
+    if (ret_bam_endpos_objja < 0){
+    	return 0;
+    }
+    unsigned int ret_hts_features_femhq = hts_features();
+    if (ret_hts_features_femhq < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bam_flag2str_riaid) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!header) {
+    	return 0;
+    }
+    hts_reglist_t* ret_hts_reglist_create_fuhhj = hts_reglist_create(&ret_bam_flag2str_riaid, (int )ret_bam_endpos_objja, (int *)&ret_hts_features_femhq, (void *)header, NULL);
+    if (ret_hts_reglist_create_fuhhj == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    int ret_hts_set_opt_rabel = hts_set_opt(hts_file, HTS_OPT_NTHREADS);
+    if (ret_hts_set_opt_rabel < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    bam1_t *aln = bam_init1();
+    if (sam_read1(hts_file, header, aln) < 0) {
+        bam_destroy1(aln);
+        bam_hdr_destroy(header);
+        hts_close(hts_file);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+
+    // Call the function-under-test
+    hts_idx_t *index = sam_index_load2(hts_file, tmpl1, tmpl2);
+
+    // Ensure that the index is valid before proceeding
+    if (index) {
+        // Perform additional operations if needed
+        hts_idx_destroy(index);
     }
 
     // Clean up
-    free(data_container);
-    free(aux);
-    hts_itr_destroy(iter);
-    bgzf_close(bgzf);
-    remove(tmpl);
+    bam_destroy1(aln);
+    bam_hdr_destroy(header);
+    hts_close(hts_file);
+    unlink(tmpl1);
+    unlink(tmpl2);
 
     return 0;
 }

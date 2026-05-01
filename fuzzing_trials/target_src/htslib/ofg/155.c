@@ -1,54 +1,40 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include <string.h>
+#include <unistd.h>  // Include for mkstemp, write, close, and unlink functions
 #include <htslib/sam.h>
 #include <htslib/hts.h>
 
-// Define a simple iterator function
-int iterator_function(void *data, bam1_t *b) {
-    const uint8_t *input_data = (const uint8_t *)data;
-    size_t size = *((size_t *)((char *)data + sizeof(void *)));
-
-    // Check if we have enough data to simulate a bam1_t record
-    if (size >= sizeof(bam1_t)) {
-        // Simulate reading a bam1_t structure from input data
-        b->data = (uint8_t *)input_data;
-        b->l_data = size;
-        return 1; // Indicate that a record was read
-    }
-    return -1; // Indicate end of data
-}
-
 int LLVMFuzzerTestOneInput_155(const uint8_t *data, size_t size) {
-    bam_plp_t plp;
-    int tid, n_plp;
-    hts_pos_t pos;
-    int *n_plp_p = &n_plp;
-    int *tid_p = &tid;
-    hts_pos_t *pos_p = &pos;
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
 
-    // Create a context to pass both data and size to the iterator function
-    struct {
-        const uint8_t *data;
-        size_t size;
-    } context = { data, size };
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
 
-    // Initialize bam_plp_t using the iterator function
-    plp = bam_plp_init(iterator_function, &context);
-
-    if (plp == NULL) {
-        fprintf(stderr, "Failed to initialize bam_plp_t\n");
+    // Open the temporary file as an htsFile
+    htsFile *hts_file = hts_open(tmpl, "r");
+    if (hts_file == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    const bam_pileup1_t *result;
-    while ((result = bam_plp64_next(plp, tid_p, pos_p, n_plp_p)) != NULL) {
-        // Process the result if needed
-    }
+    hts_idx_t *index = sam_index_load(hts_file, tmpl);
 
     // Clean up
-    bam_plp_destroy(plp);
+    if (index != NULL) {
+        hts_idx_destroy(index);
+    }
+    hts_close(hts_file);
+    unlink(tmpl);  // Remove the temporary file
 
     return 0;
 }

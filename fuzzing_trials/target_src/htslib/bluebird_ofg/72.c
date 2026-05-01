@@ -1,40 +1,52 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include "htslib/hts.h"
-#include "htslib/sam.h" // Include additional header for hts_idx related functions
+#include <stdio.h>
+#include <string.h>
+#include "htslib/sam.h" // Assuming bam1_t is defined in this header
 
 int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
-    // Create a dummy BAM header and index for testing
-    bam_hdr_t *header = bam_hdr_init();
-    if (header == NULL) {
-        return 0; // Exit if header allocation fails
+    // Declare and initialize variables
+    bam1_t *bam_record = bam_init1(); // Initialize a BAM record
+
+    // Ensure the input size is sufficient for a BAM record
+    if (size < sizeof(bam1_t)) {
+        bam_destroy1(bam_record);
+        return 0;
     }
 
-    // Create an index for testing
-    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_BAI, 0, 0, 0);
-    if (idx == NULL) {
-        bam_hdr_destroy(header);
-        return 0; // Exit if index creation fails
+    // Allocate memory for bam_record's data field
+    bam_record->l_data = size;
+    bam_record->m_data = size;
+    bam_record->data = (uint8_t *)malloc(size);
+    if (bam_record->data == NULL) {
+        bam_destroy1(bam_record);
+        return 0;
     }
+    memcpy(bam_record->data, data, size);
 
-    // Use the input data to simulate real-world scenarios
-    // For example, we can use the input data to simulate a BAM file
-    if (size > 0) {
-        // Simulate adding data to the index
-        // This is a placeholder for actual logic that would use the input data
-        // In a real scenario, you'd parse the data and use it meaningfully
-        hts_idx_push(idx, 0, data[0], data[0] + 1, 1, 1); // Added missing argument
+    // Ensure that the bam_record is properly initialized before calling bam_aux_next
+    // Set core fields to some valid values to ensure bam_aux_next is invoked
+    bam_record->core.l_qname = 1; // Set to a non-zero value
+    bam_record->core.n_cigar = 1; // Set to a non-zero value
+    bam_record->core.l_qseq = 1;  // Set to a non-zero value
+
+    // Ensure the data field is properly terminated or formatted if required
+    // This is a speculative fix; ensure the data is valid for bam_aux_next
+    if (bam_record->l_data > 0) {
+        bam_record->data[bam_record->l_data - 1] = '\0'; // Null-terminate if necessary
     }
 
     // Call the function-under-test
-    uint64_t result = hts_idx_get_n_no_coor(idx);
+    uint8_t *aux_data = bam_aux_next(bam_record, bam_record->data);
+
+    // Check if aux_data is valid
+    if (aux_data != NULL) {
+        // Process aux_data if needed
+    }
 
     // Clean up
-    hts_idx_destroy(idx);
-    bam_hdr_destroy(header);
+    bam_destroy1(bam_record);
 
     return 0;
 }

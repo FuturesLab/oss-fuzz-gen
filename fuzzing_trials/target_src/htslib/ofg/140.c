@@ -1,36 +1,40 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
-#include "/src/htslib/htslib/sam.h" // Correct path for bam1_t and related functions
+#include <string.h>
 
-// Function-under-test
-int bam_aux_update_float(bam1_t *b, const char *tag, float value);
+// Assume the function is declared in some header file included here
+// int hfile_list_schemes(const char *, const char **, int *);
+
+extern int hfile_list_schemes(const char *, const char **, int *);
 
 int LLVMFuzzerTestOneInput_140(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for the required parameters
-    if (size < sizeof(float) + 2) {
-        return 0;
+    // Define and initialize the parameters for hfile_list_schemes
+    const char *input_string = NULL;
+    const char *schemes[10] = { "http", "https", "ftp", "file", "s3", "gs", "hdfs", "webhdfs", "sftp", "ftps" };
+    int count = 0;
+
+    // Ensure the data size is sufficient to create a valid string
+    if (size > 0) {
+        // Allocate memory for the input string
+        input_string = (const char *)malloc(size + 1);
+        if (input_string == NULL) {
+            return 0; // Exit if memory allocation fails
+        }
+
+        // Copy data into the input string and null-terminate it
+        memcpy((char *)input_string, data, size);
+        ((char *)input_string)[size] = '\0'; // Ensure null-termination
     }
 
-    // Initialize bam1_t structure
-    bam1_t b;
-    memset(&b, 0, sizeof(bam1_t)); // Initialize all fields to zero
-
-    // Extract the float value from the input data
-    float value;
-    memcpy(&value, data, sizeof(float));
-
-    // Extract the tag from the input data
-    char tag[3] = {0}; // 2 characters for the tag and 1 for the null terminator
-    memcpy(tag, data + sizeof(float), 2);
-
     // Call the function-under-test
-    int result = bam_aux_update_float(&b, tag, value);
+    hfile_list_schemes(input_string, schemes, &count);
 
-    // Optionally, you can print the result or perform additional checks
-    // printf("Result: %d\n", result);
+    // Free the allocated memory
+    if (input_string != NULL) {
+        free((char *)input_string);
+    }
 
     return 0;
 }

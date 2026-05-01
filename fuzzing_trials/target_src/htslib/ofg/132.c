@@ -1,19 +1,27 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <htslib/hts.h>
-#include <htslib/kstring.h>
 
 int LLVMFuzzerTestOneInput_132(const uint8_t *data, size_t size) {
+    // Ensure we have enough data to extract all parameters
+    if (size < sizeof(int) * 4 + sizeof(uint64_t)) {
+        return 0;
+    }
+
+    // Extract parameters from the input data
+    int param1 = *(const int *)(data);
+    int param2 = *(const int *)(data + sizeof(int));
+    uint64_t param3 = *(const uint64_t *)(data + sizeof(int) * 2);
+    int param4 = *(const int *)(data + sizeof(int) * 2 + sizeof(uint64_t));
+    int param5 = *(const int *)(data + sizeof(int) * 3 + sizeof(uint64_t));
+
     // Call the function-under-test
-    hts_md5_context *md5_ctx = hts_md5_init();
+    hts_idx_t *index = hts_idx_init(param1, param2, param3, param4, param5);
 
-    // Check if the context is not NULL
-    if (md5_ctx != NULL) {
-        // Feed the context with the input data
-        hts_md5_update(md5_ctx, data, size);
-
-        // Clean up the context if it was successfully initialized
-        hts_md5_destroy(md5_ctx);
+    // Clean up if the function returns a non-null pointer
+    if (index != NULL) {
+        hts_idx_destroy(index);
     }
 
     return 0;

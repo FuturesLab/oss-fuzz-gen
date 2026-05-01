@@ -1,34 +1,41 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <htslib/hts.h>
-#include <htslib/bgzf.h> // Include this header for BGZF related functions
-#include <htslib/tbx.h>  // Include this header for tabix related functions
+#include <string.h>
+#include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Initialize a BGZF file pointer for index creation
-    BGZF *bgzf = bgzf_open("/dev/null", "w");
-    if (bgzf == NULL) {
+    bam1_t *original = bam_init1();
+    bam1_t *duplicate = NULL;
+
+    if (size < sizeof(bam1_core_t)) {
+        bam_destroy1(original);
         return 0;
     }
 
-    // Initialize the index
-    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_CSI, bgzf, 0, 0);
-    if (idx == NULL) {
-        bgzf_close(bgzf);
-        return 0;
-    }
-
-    uint64_t val = 0;
-    if (size >= sizeof(uint64_t)) {
-        val = *((uint64_t *)data);
+    // Initialize bam1_t structure with the provided data
+    memcpy(&original->core, data, sizeof(bam1_core_t));
+    
+    // Ensure data is large enough for the data and l_data fields
+    if (size > sizeof(bam1_core_t)) {
+        original->l_data = size - sizeof(bam1_core_t);
+        original->data = (uint8_t *)malloc(original->l_data);
+        if (original->data == NULL) {
+            bam_destroy1(original);
+            return 0;
+        }
+        memcpy(original->data, data + sizeof(bam1_core_t), original->l_data);
+    } else {
+        original->l_data = 0;
+        original->data = NULL;
     }
 
     // Call the function-under-test
-    hts_idx_finish(idx, val);
+    duplicate = bam_dup1(original);
 
     // Clean up
-    hts_idx_destroy(idx);
-    bgzf_close(bgzf);
+    bam_destroy1(original);
+    bam_destroy1(duplicate);
+
     return 0;
 }
 #ifdef INC_MAIN

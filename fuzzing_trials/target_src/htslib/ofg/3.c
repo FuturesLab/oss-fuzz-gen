@@ -1,51 +1,52 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "/src/htslib/htslib/hts.h"  // Correct path for hts.h
+#include <string.h>
+#include <unistd.h>    // For close() and unlink()
+#include <fcntl.h>     // For open() flags
+#include "/src/htslib/htslib/hfile.h"  // Correct path for hfile.h
 
-// Mock definitions for the purpose of fuzzing
-// These should be replaced with actual implementations if available
-typedef struct {
-    // Add fields as necessary for the actual implementation
-} hts_base_mod_state;
-
-// Mock function to initialize mod_state
-void hts_base_mod_state_init_3(hts_base_mod_state *mod_state) {
-    // Initialize fields as necessary
-}
-
-// Mock function to record mods
-int* bam_mods_recorded_3(hts_base_mod_state *mod_state, int *count) {
-    // Implement function logic or return a mock result
-    static int result = 0;
-    *count = 1;  // Example count
-    return &result;
-}
-
-// Mock function to clean up mod_state
-void hts_base_mod_state_cleanup(hts_base_mod_state *mod_state) {
-    // Clean up resources if necessary
-}
-
-// Remove 'extern "C"' as it is not needed in C code
 int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    // Initialize the parameters for bam_mods_recorded_3
-    hts_base_mod_state mod_state;
-    int count = 0;
-
-    // Ensure that the mod_state is initialized properly
-    hts_base_mod_state_init_3(&mod_state);
-
-    // Call the function-under-test
-    int *result = bam_mods_recorded_3(&mod_state, &count);
-
-    // Check the result (for debugging purposes)
-    if (result != NULL) {
-        printf("Result: %d\n", *result);
+    // Create a temporary file name
+    char temp_filename[] = "/tmp/fuzz_tempfile_XXXXXX";
+    int fd = mkstemp(temp_filename);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Clean up if necessary (free memory, etc.)
-    hts_base_mod_state_cleanup(&mod_state);
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(temp_filename);
+        return 0;
+    }
+    close(fd);
+
+    // Open the temporary file with htslib's hFILE interface using hopen
+    hFILE *hfile = hopen(temp_filename, "r", 0);
+    if (hfile == NULL) {
+        unlink(temp_filename);
+        return 0;
+    }
+
+    // Allocate a buffer to read data into
+    char buffer[1024];
+    ssize_t bytes_read;
+
+    // Read data from the hFILE to ensure the input is processed
+    while ((bytes_read = hread(hfile, buffer, sizeof(buffer))) > 0) {
+        // Process the read data (for example, by just iterating over it)
+        for (ssize_t i = 0; i < bytes_read; i++) {
+            // Dummy processing: just access the data
+            volatile char c = buffer[i];
+            (void)c;  // Prevent unused variable warning
+        }
+    }
+
+    // Close the hFILE and remove the temporary file
+    hclose(hfile);
+    unlink(temp_filename);
 
     return 0;
 }

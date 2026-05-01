@@ -1,90 +1,45 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h> // Include for close() and remove()
 #include <htslib/sam.h>
-#include <htslib/bgzf.h> // Include the necessary header for BGZF operations
-#include <unistd.h> // Include for mkstemp
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_156(const uint8_t *data, size_t size) {
-    // Check if size is sufficient to create a valid BAM file
-    if (size < sizeof(bam1_t)) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Create a temporary file to simulate a BGZF stream
-    char tmp_filename[] = "/tmp/fuzz_bam_XXXXXX";
-    int tmp_fd = mkstemp(tmp_filename);
-    if (tmp_fd == -1) {
+    // Write the fuzz data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (file == NULL) {
+        close(fd);
         return 0;
     }
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Write the input data to the temporary file
-    if (write(tmp_fd, data, size) != size) {
-        close(tmp_fd);
-        unlink(tmp_filename);
+    // Open the temporary file as an htsFile
+    htsFile *hts_file = hts_open(tmpl, "r");
+    if (hts_file == NULL) {
+        remove(tmpl);
         return 0;
-    }
-
-    // Open the temporary file as a BGZF stream
-    BGZF *bgzf = bgzf_open(tmp_filename, "r");
-    if (bgzf == NULL) {
-        close(tmp_fd);
-        unlink(tmp_filename);
-        return 0;
-    }
-
-    // Initialize the BAM file structure
-    bam_hdr_t *header = bam_hdr_read(bgzf);
-    if (header == NULL) {
-        bgzf_close(bgzf);
-        close(tmp_fd);
-        unlink(tmp_filename);
-        return 0;
-    }
-
-    bam1_t *b = bam_init1();
-    if (b == NULL) {
-        bam_hdr_destroy(header);
-        bgzf_close(bgzf);
-        close(tmp_fd);
-        unlink(tmp_filename);
-        return 0;
-    }
-
-    // Declare and initialize variables
-    bam_plp_t pileup;
-    int tid = 0;
-    int pos = 0;
-    int n_plp = 0;
-
-    // Initialize the pileup with a dummy function and data
-    pileup = bam_plp_init(NULL, NULL);
-
-    // Check if pileup initialization was successful
-    if (pileup == NULL) {
-        bam_destroy1(b);
-        bam_hdr_destroy(header);
-        bgzf_close(bgzf);
-        close(tmp_fd);
-        unlink(tmp_filename);
-        return 0;
-    }
-
-    // Read BAM records and feed them to the pileup
-    while (bam_read1(bgzf, b) >= 0) {
-        bam_plp_push(pileup, b);
     }
 
     // Call the function-under-test
-    const bam_pileup1_t *result = bam_plp_auto(pileup, &tid, &pos, &n_plp);
+    hts_idx_t *index = sam_index_load(hts_file, tmpl);
 
     // Clean up
-    bam_plp_destroy(pileup);
-    bam_destroy1(b);
-    bam_hdr_destroy(header);
-    bgzf_close(bgzf);
-    close(tmp_fd);
-    unlink(tmp_filename);
+    if (index != NULL) {
+        hts_idx_destroy(index);
+    }
+    hts_close(hts_file);
+    remove(tmpl);
 
     return 0;
 }

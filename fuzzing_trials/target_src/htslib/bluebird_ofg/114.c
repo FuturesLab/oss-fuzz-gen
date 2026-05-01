@@ -1,44 +1,39 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>  // Include for dynamic memory allocation
+#include <stdlib.h>
+#include <stdio.h>
+#include "htslib/sam.h"
 
-// Assuming bam_mplp_t and DW_TAG_subroutine_typeInfinite_loop are defined somewhere in the included headers
-typedef struct {
-    // Placeholder for actual structure members
-    int placeholder; 
-} bam_mplp_t;
-
-typedef struct {
-    // Placeholder for actual structure members
-    int placeholder; 
-} DW_TAG_subroutine_typeInfinite_loop;
-
-// Function under test
-void bam_mplp_constructor(bam_mplp_t *mplp, DW_TAG_subroutine_typeInfinite_loop *loop);
+// Define a dummy function to satisfy the bam_mplp_init requirements
+static int dummy_plp_auto_func(void *data, const bam_pileup1_t **plp) {
+    // This function should mimic the behavior of a real bam_plp_auto_f function
+    // For the purpose of fuzzing, we can leave it as a stub
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_114(const uint8_t *data, size_t size) {
-    // Allocate memory for bam_mplp_t and DW_TAG_subroutine_typeInfinite_loop
-    bam_mplp_t *mplp = (bam_mplp_t *)malloc(sizeof(bam_mplp_t));
-    if (!mplp) return 0;  // Check for allocation failure
+    // Initialize variables
+    bam_mplp_t mplp;
+    int maxcnt;
 
-    DW_TAG_subroutine_typeInfinite_loop *loop = (DW_TAG_subroutine_typeInfinite_loop *)malloc(sizeof(DW_TAG_subroutine_typeInfinite_loop));
-    if (!loop) {
-        free(mplp);
-        return 0;  // Check for allocation failure
+    // Ensure we have enough data to extract an integer
+    if (size < sizeof(int)) {
+        return 0;
     }
 
-    // Initialize with a non-NULL value
-    mplp->placeholder = 0;
-    loop->placeholder = 0;
+    // Extract an integer from the input data
+    maxcnt = *(int*)data;
 
-    // Call the function under test
-    bam_mplp_constructor(mplp, loop);
+    // Initialize the bam_mplp_t variable with dummy values
+    void *dummy_data = NULL;
+    mplp = bam_mplp_init(1, dummy_plp_auto_func, &dummy_data);
 
-    // Free allocated memory
-    free(mplp);
-    free(loop);
+    // Call the function-under-test
+    bam_mplp_set_maxcnt(mplp, maxcnt);
+
+    // Clean up resources if necessary
+    bam_mplp_destroy(mplp);
 
     return 0;
 }

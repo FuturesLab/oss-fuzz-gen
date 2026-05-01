@@ -1,38 +1,29 @@
-#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <htslib/hts.h>
+#include <stdio.h>
+#include <unistd.h> // For mkstemp, write, close, remove
+#include "/src/htslib/htslib/hfile.h" // Corrected path for hfile.h
 
 int LLVMFuzzerTestOneInput_99(const uint8_t *data, size_t size) {
-    // Create a temporary file to use as the input filename
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
+    hFILE *file = NULL;
+    char filename[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(filename);
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
+    if (fd != -1) {
+        // Write the fuzz data to the temporary file
+        write(fd, data, size);
         close(fd);
-        unlink(tmpl);
-        return 0;
+
+        // Open the file using hFILE interface
+        file = hopen(filename, "rb");
+        if (file != NULL) {
+            // Call the function-under-test
+            hclose_abruptly(file);
+        }
+
+        // Remove the temporary file
+        remove(filename);
     }
-    close(fd);
-
-    // Define a mode for opening the file
-    const char *mode = "r"; // Read mode
-
-    // Call the function-under-test
-    htsFile *file = hts_open(tmpl, mode);
-
-    // Clean up
-    if (file != NULL) {
-        hts_close(file);
-    }
-    unlink(tmpl);
 
     return 0;
 }

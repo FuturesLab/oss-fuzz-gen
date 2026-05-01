@@ -1,36 +1,44 @@
 #include <sys/stat.h>
-#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
+#include <stdlib.h>
+#include "htslib/sam.h"
 
-// Function signature for the function-under-test
-int hfile_list_schemes(const char *, const char **, int *);
-
-// LLVMFuzzerTestOneInput function to fuzz hfile_list_schemes
 int LLVMFuzzerTestOneInput_55(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for at least one character string
-    if (size < 1) {
+    sam_hdr_t *hdr = NULL;
+    char *type = NULL;
+    int pos = 0;
+    
+    // Ensure there is enough data to initialize parameters
+    if (size < sizeof(int) + 1) {
         return 0;
     }
 
-    // Allocate memory for the string input and ensure it is null-terminated
-    char *input_str = (char *)malloc(size + 1);
-    if (input_str == NULL) {
+    // Allocate memory for the type string and copy data into it
+    type = (char *)malloc(size + 1);
+    if (type == NULL) {
         return 0;
     }
-    memcpy(input_str, data, size);
-    input_str[size] = '\0';
+    memcpy(type, data, size);
+    type[size] = '\0'; // Null-terminate the string
 
-    // Prepare the output parameters for the function-under-test
-    const char *schemes[10]; // Assuming a maximum of 10 schemes for testing
-    int count = 0;
+    // Use the first few bytes of data for the integer position
+    memcpy(&pos, data, sizeof(int));
+
+    // Initialize a dummy sam_hdr_t object
+    hdr = sam_hdr_init();
+    if (hdr == NULL) {
+        free(type);
+        return 0;
+    }
 
     // Call the function-under-test
-    hfile_list_schemes(input_str, schemes, &count);
+    const char *result = sam_hdr_line_name(hdr, type, pos);
 
     // Clean up
-    free(input_str);
+    sam_hdr_destroy(hdr);
+    free(type);
 
     return 0;
 }

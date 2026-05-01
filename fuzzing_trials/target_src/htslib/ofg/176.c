@@ -1,37 +1,40 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
-
-// Assuming hFILE is a structure defined elsewhere
-typedef struct {
-    // Dummy structure for demonstration
-    int dummy;
-} hFILE;
-
-// Dummy implementation of hfile_mem_get_buffer_176 for demonstration
-char * hfile_mem_get_buffer_176(hFILE *file, size_t *size) {
-    // For demonstration purposes, returning a static buffer
-    static char buffer[] = "example buffer";
-    *size = sizeof(buffer) - 1;
-    return buffer;
-}
+#include <string.h>
+#include <htslib/hts.h>
+#include <htslib/tbx.h> // Include the header for tabix index functions
 
 int LLVMFuzzerTestOneInput_176(const uint8_t *data, size_t size) {
-    hFILE file;
-    size_t buffer_size;
-
-    // Initialize hFILE structure (dummy initialization)
-    file.dummy = 0;
-
-    // Call the function-under-test
-    char *buffer = hfile_mem_get_buffer_176(&file, &buffer_size);
-
-    // Use the buffer and buffer_size for further testing if necessary
-    // For demonstration, just printing the buffer
-    if (buffer != NULL) {
-        printf("Buffer: %.*s\n", (int)buffer_size, buffer);
+    // Ensure there is enough data for the function parameters
+    if (size < 5) {
+        return 0;
     }
+
+    // Extract an integer from the data
+    int int_param = (int)data[0];
+
+    // Create a string from the remaining data
+    char *str_param = (char *)malloc(size - 1 + 1);
+    if (str_param == NULL) {
+        return 0;
+    }
+    memcpy(str_param, data + 1, size - 1);
+    str_param[size - 1] = '\0'; // Null-terminate the string
+
+    // Initialize a tbx_t pointer using a function from the library
+    tbx_t *tbx = tbx_index_load(str_param);
+    if (tbx != NULL) {
+        // Use a function that works with tbx_t, like tbx_name2id
+        int result = tbx_name2id(tbx, str_param);
+        (void)result; // Suppress unused variable warning
+    }
+
+    // Clean up
+    if (tbx != NULL) {
+        tbx_destroy(tbx);
+    }
+    free(str_param);
 
     return 0;
 }

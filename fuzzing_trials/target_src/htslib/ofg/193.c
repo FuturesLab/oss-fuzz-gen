@@ -1,31 +1,47 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
-// Function-under-test declaration
-int64_t bam_auxB2i(const uint8_t *data, uint32_t size);
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+// Function-under-test
+char *stringify_argv(int argc, char **argv);
 
 int LLVMFuzzerTestOneInput_193(const uint8_t *data, size_t size) {
-    // Ensure that size is non-zero and within a reasonable range for uint32_t
-    if (size == 0 || size > UINT32_MAX) {
-        return 0;
+    // Ensure size is at least enough to form one argument
+    if (size < 1) return 0;
+
+    // Allocate memory for argv array
+    int argc = size > 10 ? 10 : size; // Limit argc to a maximum of 10 for simplicity
+    char **argv = (char **)malloc(argc * sizeof(char *));
+    if (argv == NULL) return 0;
+
+    // Allocate memory for each argument and copy data
+    size_t arg_length = size / argc;
+    for (int i = 0; i < argc; i++) {
+        argv[i] = (char *)malloc(arg_length + 1);
+        if (argv[i] == NULL) {
+            for (int j = 0; j < i; j++) {
+                free(argv[j]);
+            }
+            free(argv);
+            return 0;
+        }
+        memcpy(argv[i], data + i * arg_length, arg_length);
+        argv[i][arg_length] = '\0'; // Null-terminate each argument
     }
 
     // Call the function-under-test
-    int64_t result = bam_auxB2i(data, (uint32_t)size);
+    char *result = stringify_argv(argc, argv);
 
-    // Use the result in some way to avoid compiler optimizations
-    (void)result;
+    // Clean up
+    for (int i = 0; i < argc; i++) {
+        free(argv[i]);
+    }
+    free(argv);
+    free(result);
 
     return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

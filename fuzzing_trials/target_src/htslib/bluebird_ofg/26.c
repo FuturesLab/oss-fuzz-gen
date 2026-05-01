@@ -1,48 +1,61 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h> // Include this for the close() and remove() functions
 #include "htslib/sam.h"
-
-// Dummy function to act as bam_plp_auto_f
-int dummy_func(void *data, bam1_t *b) {
-    // Simulate processing by initializing bam1_t with some data
-    if (b == NULL) {
-        return -1; // Return -1 to indicate no more data
-    }
-
-    // Populate bam1_t with some dummy data
-    b->core.tid = 0; // Dummy reference sequence ID
-    b->core.pos = 0; // Dummy position
-    b->core.l_qname = 0; // Dummy query name length
-    b->core.flag = 0; // Dummy flag
-    b->core.n_cigar = 0; // Dummy CIGAR length
-    b->core.l_qseq = 0; // Dummy query sequence length
-    b->core.mtid = 0; // Dummy mate reference sequence ID
-    b->core.mpos = 0; // Dummy mate position
-    b->core.isize = 0; // Dummy insert size
-
-    return 1; // Return 1 to indicate data is available
-}
+#include "htslib/hts.h"
 
 int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    bam_mplp_t mplp = NULL;
-
-    // Create an array of pointers for data
-    void *data_array[1] = { NULL };
-
-    // Initialize bam_mplp_t with the correct number of arguments
-    mplp = bam_mplp_init(1, dummy_func, data_array);
-
-    if (mplp == NULL) {
-        return 0; // If initialization fails, return early
+    // Create a temporary file to write the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Call the function-under-test with the initialized mplp
-    int result = bam_mplp_init_overlaps(mplp);
+    // Write the input data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (file == NULL) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Open the temporary file as an htsFile
+    htsFile *hts_file = hts_open(tmpl, "rb");
+    if (hts_file == NULL) {
+        remove(tmpl);
+        return 0;
+    }
+
+    // Create a sam_hdr_t and bam1_t
+    sam_hdr_t *header = sam_hdr_init();
+    if (header == NULL) {
+        hts_close(hts_file);
+        remove(tmpl);
+        return 0;
+    }
+
+    bam1_t *aln = bam_init1();
+    if (aln == NULL) {
+        sam_hdr_destroy(header);
+        hts_close(hts_file);
+        remove(tmpl);
+        return 0;
+    }
+
+    // Call the function-under-test
+    sam_read1(hts_file, header, aln);
 
     // Clean up
-    bam_mplp_destroy(mplp);
+    bam_destroy1(aln);
+    sam_hdr_destroy(header);
+    hts_close(hts_file);
+    remove(tmpl);
 
     return 0;
 }

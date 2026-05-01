@@ -1,31 +1,36 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <htslib/sam.h>
-#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_147(const uint8_t *data, size_t size) {
-    // We can't use sizeof(hts_idx_t) because it's an incomplete type.
-    // Instead, we assume a minimum size required for the rest of the data.
-    const size_t min_size = sizeof(int) + 2 * sizeof(hts_pos_t);
-    
-    if (size < min_size) {
+    bam1_t *b = bam_init1();
+    if (!b) return 0;
+
+    // Ensure there is enough data to extract meaningful values
+    if (size < 5) {
+        bam_destroy1(b);
         return 0;
     }
 
-    // Initialize the parameters for sam_itr_queryi
-    // We skip the part of the data that would represent hts_idx_t
-    const hts_idx_t *idx = NULL; // We cannot derive this from data directly.
-    int tid = *((int *)(data));
-    hts_pos_t beg = *((hts_pos_t *)(data + sizeof(int)));
-    hts_pos_t end = *((hts_pos_t *)(data + sizeof(int) + sizeof(hts_pos_t)));
+    // Extract parameters from the input data
+    const char *tag = (const char *)data;
+    uint8_t type = data[2];
+    uint32_t length = *((uint32_t *)(data + 3));
 
-    // Call the function-under-test
-    hts_itr_t *itr = sam_itr_queryi(idx, tid, beg, end);
-
-    // Clean up if necessary
-    if (itr != NULL) {
-        hts_itr_destroy(itr);
+    // Ensure the length doesn't exceed the remaining data size
+    if (length > size - 7) {
+        bam_destroy1(b);
+        return 0;
     }
+
+    void *value = (void *)(data + 7);
+
+    // Call the function under test
+    bam_aux_update_array(b, tag, type, length, value);
+
+    // Clean up
+    bam_destroy1(b);
 
     return 0;
 }

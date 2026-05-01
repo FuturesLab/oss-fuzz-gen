@@ -1,43 +1,31 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <htslib/hts.h>
-#include <htslib/tbx.h>  // Include the header for hts_idx_t and hts_idx_fmt
-#include <htslib/bgzf.h> // Include the header for BGZF related functions
+#include <string.h>
+#include <stdio.h>
+#include "htslib/sam.h" // Assuming this is the correct header for sam_hdr_t
 
 int LLVMFuzzerTestOneInput_36(const uint8_t *data, size_t size) {
-    // Create a temporary file to use with the BGZF functions
-    char tmp_filename[] = "/tmp/fuzz_input_XXXXXX";
-    int fd = mkstemp(tmp_filename);
-    if (fd == -1) {
-        return 0;
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
+        return 0; // Failed to initialize header
     }
 
-    // Write the data to the temporary file
-    write(fd, data, size);
-    close(fd);
-
-    // Open the temporary file with BGZF
-    BGZF *bgzf = bgzf_open(tmp_filename, "r");
-    if (bgzf == NULL) {
-        unlink(tmp_filename);
-        return 0;
+    // Ensure the data is null-terminated for string operations
+    char *lines = (char *)malloc(size + 1);
+    if (lines == NULL) {
+        sam_hdr_destroy(hdr);
+        return 0; // Memory allocation failed
     }
-
-    // Use the htslib function to create an index
-    hts_idx_t *idx = tbx_index_load(tmp_filename);
-    if (idx == NULL) {
-        bgzf_close(bgzf);
-        unlink(tmp_filename);
-        return 0;
-    }
+    memcpy(lines, data, size);
+    lines[size] = '\0';
 
     // Call the function-under-test
-    int result = hts_idx_fmt(idx);
+    int result = sam_hdr_add_lines(hdr, lines, size);
 
     // Clean up
-    hts_idx_destroy(idx);
-    bgzf_close(bgzf);
-    unlink(tmp_filename);
+    free(lines);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

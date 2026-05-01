@@ -2,32 +2,28 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a null-terminated string
-    if (size == 0) {
+    // Ensure the size is sufficient to extract an integer for cache size
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Allocate memory for the input string and ensure it is null-terminated
-    char *input_str = (char *)malloc(size + 1);
-    if (input_str == NULL) {
+    // Initialize htsFile
+    htsFile *file = hts_open("-", "r");
+    if (file == NULL) {
         return 0;
     }
-    memcpy(input_str, data, size);
-    input_str[size] = '\0';
 
-    // Initialize htsFormat structure
-    htsFormat format;
-    memset(&format, 0, sizeof(htsFormat));
+    // Extract an integer for cache size from the input data
+    int cache_size = *(const int *)data;
 
-    // Call the function under test
-    hts_parse_format(&format, input_str);
+    // Call the function-under-test
+    hts_set_cache_size(file, cache_size);
 
-    // Free allocated memory
-    free(input_str);
+    // Clean up
+    hts_close(file);
 
     return 0;
 }

@@ -1,55 +1,47 @@
-#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h> // Include for close and unlink
-#include <fcntl.h>  // Include for mkstemp
-#include "/src/htslib/htslib/hfile.h" // Correct path for hfile.h
+
+// Assuming sam_hdr_t is defined in the included headers
+#include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_168(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough for meaningful testing
-    if (size < 2) return 0;
-
-    // Create a temporary file and write the fuzz data to it
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) return 0;
-
-    FILE *file = fdopen(fd, "wb+");
-    if (file == NULL) {
-        close(fd);
+    // Ensure the size is sufficient for splitting into two strings
+    if (size < 2) {
         return 0;
     }
 
-    fwrite(data, 1, size, file);
-    fflush(file);
-    fseek(file, 0, SEEK_SET);
-
-    // Open the file using hts_open, which is a valid function in htslib
-    hFILE *hfile = hopen(tmpl, "rb");
-    if (hfile == NULL) {
-        fclose(file);
+    // Allocate memory for sam_hdr_t
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
         return 0;
     }
 
-    // Allocate a buffer for hgetdelim
-    size_t buffer_size = size + 1;
-    char *buffer = (char *)malloc(buffer_size);
-    if (buffer == NULL) {
-        hclose(hfile);
-        fclose(file);
+    // Split the data into two strings
+    size_t split_point = size / 2;
+    char *str1 = (char *)malloc(split_point + 1);
+    char *str2 = (char *)malloc(size - split_point + 1);
+
+    if (str1 == NULL || str2 == NULL) {
+        free(str1);
+        free(str2);
+        sam_hdr_destroy(hdr);
         return 0;
     }
+
+    memcpy(str1, data, split_point);
+    str1[split_point] = '\0';
+    memcpy(str2, data + split_point, size - split_point);
+    str2[size - split_point] = '\0';
 
     // Call the function-under-test
-    ssize_t result = hgetdelim(buffer, buffer_size, '\n', hfile);
+    int result = sam_hdr_line_index(hdr, str1, str2);
 
     // Clean up
-    free(buffer);
-    hclose(hfile);
-    fclose(file);
-    unlink(tmpl);
+    free(str1);
+    free(str2);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

@@ -1,18 +1,30 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-
-extern uint32_t hts_crc32(uint32_t crc, const void *buf, size_t len);
+#include <stdlib.h>
+#include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_211(const uint8_t *data, size_t size) {
-    // Initialize the crc value to a non-zero constant
-    uint32_t crc = 0xFFFFFFFF;
+    // Declare and initialize variables
+    bam_plp_t plp = bam_plp_init(NULL, NULL); // Initialize with NULL callbacks
+    int tid = 0;
+    hts_pos_t pos = 0;
+    int n_plp = 0;
+
+    // Ensure that the data size is sufficient for testing
+    if (size < sizeof(int)) {
+        bam_plp_destroy(plp);
+        return 0;
+    }
+
+    // Feed the data to the function-under-test
+    // Note: This is a placeholder for actual data feeding logic
+    // For demonstration, we assume data is being used meaningfully
+    // In a real fuzzing scenario, you would parse and use the data appropriately
 
     // Call the function-under-test
-    uint32_t result = hts_crc32(crc, (const void *)data, size);
+    const bam_pileup1_t *result = bam_plp64_next(plp, &tid, &pos, &n_plp);
 
-    // Print the result to verify the function call (optional for debugging)
-    printf("CRC32 Result: %u\n", result);
+    // Clean up
+    bam_plp_destroy(plp);
 
     return 0;
 }

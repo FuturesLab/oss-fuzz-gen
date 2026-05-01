@@ -1,30 +1,44 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <htslib/sam.h>  // Assuming this header provides the definition for sam_hdr_t and kstring_t
+#include <unistd.h> // Include this for mkstemp() and close()
+#include <fcntl.h>  // Include this for open() and write()
+#include <htslib/hts.h>
+#include <htslib/hfile.h>
 
 int LLVMFuzzerTestOneInput_266(const uint8_t *data, size_t size) {
-    // Initialize variables for the function-under-test
-    sam_hdr_t *hdr = sam_hdr_init();
-    const char *type = "type_example";
-    const char *id = "id_example";
-    const char *tag = "tag_example";
-    const char *value = "value_example";
-    kstring_t str = {0, 0, NULL};
-
-    // Ensure that the header is not NULL
-    if (hdr == NULL) {
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+
+    // Close the file descriptor, we will open it again using hts_open
+    close(fd);
+
+    // Open the file using hts_open
+    hFILE *hfile = hopen(tmpl, "r");
+    if (hfile == NULL) {
+        return 0;
+    }
+
+    // Prepare the format structure
+    htsFormat format;
+    memset(&format, 0, sizeof(htsFormat));
+
     // Call the function-under-test
-    int result = sam_hdr_find_tag_id(hdr, type, id, tag, value, &str);
+    hts_detect_format2(hfile, tmpl, &format);
 
     // Clean up
-    sam_hdr_destroy(hdr);
-    free(str.s);
+    hclose(hfile);
+    remove(tmpl);
 
     return 0;
 }

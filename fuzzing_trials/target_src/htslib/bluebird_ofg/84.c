@@ -1,55 +1,55 @@
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>  // For mkstemp, write, close, and remove
 #include "htslib/hts.h"
-#include "htslib/sam.h"
-#include "/src/htslib/cram/cram.h"  // Include this for hts_idx_t and hts_itr_t definitions
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to work with
-    if (size < 1) {
+    // Create a temporary file to simulate an htsFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Create a memory stream from the input data
-    htsFile *file = hts_open_format("data://", "r", NULL);
-    if (!file) {
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
         return 0;
     }
 
-    // Initialize index and iterator
-    hts_idx_t *idx = hts_idx_load("data://", HTS_FMT_CRAI);
-    if (!idx) {
-        hts_close(file);
-        return 0;
-    }
+    // Close the file descriptor so hts_open can open it
+    close(fd);
 
-    hts_itr_t *itr = hts_itr_query(idx, 0, 0, 0, 0);
-    if (!itr) {
-        hts_idx_destroy(idx);
-        hts_close(file);
+    // Open the temporary file with hts_open
+    htsFile *file = hts_open(tmpl, "r");
+    if (file == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    int result = hts_itr_multi_cram(idx, itr);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to hts_set_opt
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    int ret_hts_set_opt_ckavd = hts_set_opt(file, HTS_OPT_PROFILE);
+    if (ret_hts_set_opt_ckavd < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hts_flush(file);
 
     // Clean up
-    hts_itr_destroy(itr);
-    hts_idx_destroy(idx);
     hts_close(file);
+    remove(tmpl);
 
-    return result;
+    return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif
 #ifdef INC_MAIN
 #include <stdio.h>
 #include <stdlib.h>

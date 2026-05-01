@@ -1,49 +1,79 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include "htslib/hts.h"
-#include "htslib/sam.h" // Include additional library for hts_idx_t related operations
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+
+// Function prototype for the function-under-test
+int sam_index_build2(const char *fn, const char *prefix, int min_shift);
 
 int LLVMFuzzerTestOneInput_138(const uint8_t *data, size_t size) {
-    // Check if the size is sufficient for creating a valid hts_idx_t object
-    if (size < 1) {
-        return 0; // Not enough data to proceed
+    // Ensure that the input data is large enough to create meaningful strings
+    if (size < 4) { // Increase size check to ensure enough data for meaningful input
+        return 0;
     }
 
-    // Initialize variables
-    // Provide required arguments for hts_idx_init
-    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_BAI, 0, 14, 5); // Initialize an index object with arbitrary values
-    if (!idx) {
-        return 0; // Failed to initialize index
+    // Create temporary files for the filename and prefix
+    char tmpl1[] = "/tmp/fuzzfileXXXXXX";
+    char tmpl2[] = "/tmp/fuzzprefixXXXXXX";
+    int fd1 = mkstemp(tmpl1);
+    int fd2 = mkstemp(tmpl2);
+
+    if (fd1 == -1 || fd2 == -1) {
+        if (fd1 != -1) close(fd1);
+        if (fd2 != -1) close(fd2);
+        return 0;
     }
 
-    int tid = 0; // Set tid to 0 for testing
-    uint64_t mapped = 0; // Initialize mapped to 0
-    uint64_t unmapped = 0; // Initialize unmapped to 0
+    // Ensure the temporary files are empty before writing
+    ftruncate(fd1, 0);
+    ftruncate(fd2, 0);
 
-    // Simulate adding data to the index to avoid using an uninitialized index
-    // This is a mock operation to simulate a realistic scenario
-    hts_pos_t pos = 0;
-    for (size_t i = 0; i < size; ++i) {
-        pos += data[i];
-        // Correct the number of arguments for hts_idx_push
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of hts_idx_push
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of hts_idx_push
-        hts_idx_push(idx, tid, BAM_CPAD, pos + 1, BAM_FQCFAIL, 1); // Provide an offset of 0 and is_mapped as 1
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Write data to the temporary files
+    size_t half_size = size / 2;
+    if (half_size == 0) { // Additional check to avoid zero-length writes
+        close(fd1);
+        close(fd2);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
     }
-    hts_idx_finish(idx, pos);
 
-    // Call the function-under-test
-    int result = hts_idx_get_stat(idx, tid, &mapped, &unmapped);
+    if (write(fd1, data, half_size) != half_size) {
+        close(fd1);
+        close(fd2);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
 
-    // Clean up
-    hts_idx_destroy(idx);
+    if (write(fd2, data + half_size, size - half_size) != size - half_size) {
+        close(fd1);
+        close(fd2);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
 
-    // Return 0 to indicate the fuzzer should continue
+    // Close the file descriptors
+    close(fd1);
+    close(fd2);
+
+    // Call the function-under-test with the temporary file paths and a non-zero integer
+    // Ensure that the input data is not null and meaningful
+    int result = sam_index_build2(tmpl1, tmpl2, 1);
+    if (result != 0) {
+        // Log error if needed
+        fprintf(stderr, "Error: sam_index_build2 returned %d\n", result);
+    }
+
+    // Clean up temporary files
+    unlink(tmpl1);
+    unlink(tmpl2);
+
     return 0;
 }
 #ifdef INC_MAIN

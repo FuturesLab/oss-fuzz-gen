@@ -1,47 +1,57 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // Include for close() and remove()
-#include <fcntl.h>  // Include for mkstemp()
+#include <stdio.h>
 #include <htslib/sam.h>
 #include <htslib/hts.h>
+#include <htslib/bgzf.h> // Include necessary library for BGZF
 
 int LLVMFuzzerTestOneInput_116(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // Failed to create a temporary file
+    // Initialize variables
+    bam_plp_t plp = NULL; // Assuming bam_plp_t is a pointer type
+    int ref_id = 0;
+    int pos = 0;
+    int n_plp = 0;
+
+    // Create a dummy BAM file in memory using BGZF
+    BGZF *bgzf = bgzf_open("/dev/null", "w");
+    if (bgzf == NULL) {
+        return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        remove(tmpl);
-        return 0; // Failed to write data to the file
+    // Write the input data to the BGZF file
+    if (bgzf_write(bgzf, data, size) < 0) {
+        bgzf_close(bgzf);
+        return 0;
     }
 
-    // Close the file descriptor
-    close(fd);
+    // Rewind the BGZF file to the beginning for reading
+    if (bgzf_flush(bgzf) < 0 || bgzf_seek(bgzf, 0, SEEK_SET) < 0) {
+        bgzf_close(bgzf);
+        return 0;
+    }
 
-    // Open the file using hts_open
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (hts_file == NULL) {
-        remove(tmpl);
-        return 0; // Failed to open the file
+    // Create a BAM file header
+    bam_hdr_t *header = bam_hdr_init();
+    if (header == NULL) {
+        bgzf_close(bgzf);
+        return 0;
+    }
+
+    // Initialize the pileup iterator with the BGZF file and header
+    plp = bam_plp_init((bam_plp_auto_f)bam_read1, bgzf);
+    if (plp == NULL) {
+        bam_hdr_destroy(header);
+        bgzf_close(bgzf);
+        return 0;
     }
 
     // Call the function-under-test
-    hts_idx_t *index = sam_index_load(hts_file, tmpl);
+    const bam_pileup1_t *result = bam_plp_auto(plp, &ref_id, &pos, &n_plp);
 
     // Clean up
-    if (index != NULL) {
-        hts_idx_destroy(index);
-    }
-    hts_close(hts_file);
-    remove(tmpl);
+    bam_plp_destroy(plp);
+    bam_hdr_destroy(header);
+    bgzf_close(bgzf);
 
     return 0;
 }

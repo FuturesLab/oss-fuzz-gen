@@ -1,61 +1,29 @@
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <htslib/hts.h>
-#include <htslib/sam.h>
+#include <string.h>
+#include <stdio.h>
+#include "/src/htslib/htslib/sam.h" // Correct path where sam_hdr_parse is declared
 
 int LLVMFuzzerTestOneInput_122(const uint8_t *data, size_t size) {
-    htsFile *file = NULL;
-    bam_hdr_t *header = NULL;
-    bam1_t *alignment = bam_init1();
-    int result = 0;
-
-    if (alignment == NULL) {
+    // Ensure the data is null-terminated for the string input
+    char *input_str = (char *)malloc(size + 1);
+    if (input_str == NULL) {
         return 0;
     }
+    memcpy(input_str, data, size);
+    input_str[size] = '\0';
 
-    // Create a temporary file to use with hts_open
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        bam_destroy1(alignment);
-        return 0;
+    // Call the function-under-test
+    sam_hdr_t *result = sam_hdr_parse(size, input_str);
+
+    // Clean up
+    if (result != NULL) {
+        sam_hdr_destroy(result); // Assuming there's a function to free sam_hdr_t
     }
+    free(input_str);
 
-    // Write the fuzz data to the file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmpl);
-        bam_destroy1(alignment);
-        return 0;
-    }
-
-    // Open the temporary file with hts_open
-    file = hts_open(tmpl, "r");
-    if (file == NULL) {
-        close(fd);
-        unlink(tmpl);
-        bam_destroy1(alignment);
-        return 0;
-    }
-
-    // Attempt to read the header and alignment from the file
-    header = sam_hdr_read(file);
-    if (header != NULL) {
-        while (sam_read1(file, header, alignment) >= 0) {
-            // Process the alignment (this is where code coverage can increase)
-        }
-        bam_hdr_destroy(header);
-    }
-
-    // Cleanup
-    hts_close(file);
-    close(fd);
-    unlink(tmpl);
-    bam_destroy1(alignment);
-
-    return result;
+    return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

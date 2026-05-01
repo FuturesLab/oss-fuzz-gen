@@ -1,57 +1,42 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include "/src/htslib/htslib/sam.h" // Correct path for sam_hdr_t
+#include <stdlib.h>
+#include <stdio.h>
+#include "htslib/sam.h" // Correct path for bam1_t and bam_set_qname
 
 int LLVMFuzzerTestOneInput_248(const uint8_t *data, size_t size) {
-    sam_hdr_t *hdr;
-    char *arg1, *arg2, *arg3;
-    void *arg4 = (void *)1; // Using a non-NULL value for the void argument
-
-    // Initialize the sam_hdr_t object
-    hdr = sam_hdr_init();
-    if (hdr == NULL) {
+    // Ensure that the size is sufficient to create a valid null-terminated string
+    if (size < 1) {
         return 0;
     }
 
-    // Ensure there is enough data for the string arguments
-    if (size < 3) {
-        sam_hdr_destroy(hdr);
+    // Allocate memory for bam1_t structure
+    bam1_t *bam = (bam1_t *)malloc(sizeof(bam1_t));
+    if (bam == NULL) {
         return 0;
     }
 
-    // Allocate and copy strings from the input data
-    arg1 = (char *)malloc(size / 3 + 1);
-    arg2 = (char *)malloc(size / 3 + 1);
-    arg3 = (char *)malloc(size / 3 + 1);
+    // Initialize bam1_t structure with default values
+    memset(bam, 0, sizeof(bam1_t));
 
-    if (arg1 == NULL || arg2 == NULL || arg3 == NULL) {
-        free(arg1);
-        free(arg2);
-        free(arg3);
-        sam_hdr_destroy(hdr);
+    // Allocate memory for the qname string
+    char *qname = (char *)malloc(size + 1);
+    if (qname == NULL) {
+        free(bam);
         return 0;
     }
 
-    memcpy(arg1, data, size / 3);
-    arg1[size / 3] = '\0';
-
-    memcpy(arg2, data + size / 3, size / 3);
-    arg2[size / 3] = '\0';
-
-    memcpy(arg3, data + 2 * (size / 3), size / 3);
-    arg3[size / 3] = '\0';
+    // Copy data to qname and ensure it is null-terminated
+    memcpy(qname, data, size);
+    qname[size] = '\0';
 
     // Call the function-under-test
-    sam_hdr_update_line(hdr, arg1, arg2, arg3, arg4);
+    int result = bam_set_qname(bam, qname);
 
     // Clean up
-    free(arg1);
-    free(arg2);
-    free(arg3);
-    sam_hdr_destroy(hdr);
+    free(qname);
+    free(bam);
 
     return 0;
 }

@@ -1,26 +1,34 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdlib.h>  // Include the standard library for malloc and free
 
-// Function-under-test declaration
-char * bam_flag2str(int flag);
+// Function under test
+int bam_str2flag(const char *str);
 
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
-    // Ensure that we have enough data to read an integer
-    if (size < sizeof(int)) {
+    // Ensure the input data is null-terminated and non-empty
+    if (size == 0) {
         return 0;
     }
 
-    // Extract an integer from the input data
-    int flag = *((int*)data);
-
-    // Call the function-under-test
-    char *result = bam_flag2str(flag);
-
-    // Optionally, print the result for debugging purposes
-    if (result != NULL) {
-        printf("Result: %s\n", result);
+    // Create a buffer with an extra byte for the null terminator
+    char *input_str = (char *)malloc(size + 1);
+    if (input_str == NULL) {
+        // Handle malloc failure
+        return 0;
     }
+    
+    // Copy the data into the buffer and null-terminate it
+    memcpy(input_str, data, size);
+    input_str[size] = '\0';
+
+    // Call the function under test
+    bam_str2flag(input_str);
+
+    // Clean up
+    free(input_str);
 
     return 0;
 }

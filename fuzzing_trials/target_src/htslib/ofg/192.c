@@ -1,34 +1,67 @@
+#include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
 
-// Function prototype for the function-under-test
-int hts_file_type(const char *);
+// Function-under-test
+char *stringify_argv(int argc, char **argv);
 
-// LLVMFuzzerTestOneInput function to fuzz hts_file_type
 int LLVMFuzzerTestOneInput_192(const uint8_t *data, size_t size) {
-    // Create a temporary file to store the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure size is sufficient for at least one argument
+    if (size < 2) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
+    // Allocate memory for the argv array
+    char **argv = (char **)malloc(size * sizeof(char *));
+    if (argv == NULL) {
         return 0;
     }
-    close(fd);
 
-    // Call the function-under-test with the temporary file path
-    hts_file_type(tmpl);
+    // Split the input data into separate strings for argv
+    size_t arg_index = 0;
+    size_t start = 0;
+    for (size_t i = 0; i < size; i++) {
+        if (data[i] == '\0' || i == size - 1) {
+            size_t length = i - start + 1;
+            argv[arg_index] = (char *)malloc(length);
+            if (argv[arg_index] == NULL) {
+                // Free previously allocated memory if malloc fails
+                for (size_t j = 0; j < arg_index; j++) {
+                    free(argv[j]);
+                }
+                free(argv);
+                return 0;
+            }
+            memcpy(argv[arg_index], &data[start], length - 1);
+            argv[arg_index][length - 1] = '\0'; // Ensure null-termination
+            arg_index++;
+            start = i + 1;
+        }
+    }
 
-    // Clean up the temporary file
-    unlink(tmpl);
+    // Ensure there is at least one argument
+    if (arg_index == 0) {
+        argv[arg_index] = (char *)malloc(1);
+        if (argv[arg_index] != NULL) {
+            argv[arg_index][0] = '\0';
+            arg_index++;
+        }
+    }
+
+    // Call the function-under-test
+    char *result = stringify_argv((int)arg_index, argv);
+
+    // Free the result if it's dynamically allocated
+    if (result != NULL) {
+        free(result);
+    }
+
+    // Free the allocated memory for argv
+    for (size_t i = 0; i < arg_index; i++) {
+        free(argv[i]);
+    }
+    free(argv);
 
     return 0;
 }

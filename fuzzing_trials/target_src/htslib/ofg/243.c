@@ -1,42 +1,54 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <htslib/sam.h>
+#include <htslib/hts.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
+#include <unistd.h> // Include this for the close() and unlink() functions
 
-// Assuming sam_hdr_t is a structure, define it for this example.
-typedef struct {
-    char *header_data;
-    size_t length;
-} sam_hdr_t;
-
-// Function-under-test
-size_t sam_hdr_length(sam_hdr_t *hdr);
-
-// Fuzzing harness
 int LLVMFuzzerTestOneInput_243(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to create a meaningful sam_hdr_t object
-    if (size < sizeof(sam_hdr_t)) {
+    // Create a temporary file to simulate an htsFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    FILE *file = fdopen(fd, "w+");
+    if (!file) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fflush(file);
+    fseek(file, 0, SEEK_SET);
+
+    // Open the temporary file as an htsFile
+    htsFile *hts_file = hts_open(tmpl, "r");
+    if (!hts_file) {
+        fclose(file);
         return 0;
     }
 
-    // Initialize sam_hdr_t structure
-    sam_hdr_t hdr;
-    hdr.header_data = (char *)malloc(size + 1); // +1 for null-terminator
-    if (hdr.header_data == NULL) {
+    // Initialize a sam_hdr_t object
+    sam_hdr_t *sam_header = sam_hdr_init();
+    if (!sam_header) {
+        hts_close(hts_file);
+        fclose(file);
         return 0;
     }
 
-    // Copy data into header_data and null-terminate
-    memcpy(hdr.header_data, data, size);
-    hdr.header_data[size] = '\0';
-    hdr.length = size;
+    // Set a non-NULL string for the const char* parameter
+    const char *c_str = "index";
 
     // Call the function-under-test
-    size_t length = sam_hdr_length(&hdr);
+    int result = sam_idx_init(hts_file, sam_header, 0, c_str);
 
     // Clean up
-    free(hdr.header_data);
+    sam_hdr_destroy(sam_header);
+    hts_close(hts_file);
+    fclose(file);
+    unlink(tmpl);
 
     return 0;
 }

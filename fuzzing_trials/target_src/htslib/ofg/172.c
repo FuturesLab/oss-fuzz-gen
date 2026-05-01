@@ -1,42 +1,66 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <string.h> // Include this header for memcpy
+#include <string.h>
+#include <stdio.h>
 
-// Assuming bam_plp_t and DW_TAG_subroutine_typeInfinite_loop are defined somewhere
-typedef struct {
-    // Placeholder for actual structure members
-    int placeholder;
-} bam_plp_t;
-
-typedef struct {
-    // Placeholder for actual structure members
-    int placeholder;
-} DW_TAG_subroutine_typeInfinite_loop;
-
-// Dummy implementation of the function-under-test
-void bam_plp_constructor_172(bam_plp_t plp, DW_TAG_subroutine_typeInfinite_loop *loop) {
-    // Placeholder implementation
-    if (loop != NULL) {
-        // Simulate some processing to ensure code coverage
-        plp.placeholder += loop->placeholder;
-    }
-}
+// Assuming the necessary headers for sam_hdr_t and kstring_t are included
+#include <htslib/sam.h>
+#include <htslib/kstring.h>
 
 int LLVMFuzzerTestOneInput_172(const uint8_t *data, size_t size) {
-    if (size < sizeof(bam_plp_t) + sizeof(DW_TAG_subroutine_typeInfinite_loop)) {
+    // Ensure the input size is large enough to split into multiple strings
+    if (size < 5) {
         return 0;
     }
 
-    bam_plp_t plp;
-    DW_TAG_subroutine_typeInfinite_loop loop;
+    // Initialize sam_hdr_t
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
+        return 0;
+    }
 
-    // Initialize plp and loop with data
-    memcpy(&plp, data, sizeof(bam_plp_t));
-    memcpy(&loop, data + sizeof(bam_plp_t), sizeof(DW_TAG_subroutine_typeInfinite_loop));
+    // Allocate memory for strings
+    char *str1 = (char *)malloc(size + 1);
+    char *str2 = (char *)malloc(size + 1);
+    char *str3 = (char *)malloc(size + 1);
+    char *str4 = (char *)malloc(size + 1);
+
+    if (!str1 || !str2 || !str3 || !str4) {
+        free(str1);
+        free(str2);
+        free(str3);
+        free(str4);
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+
+    // Split the input data into four parts
+    size_t part_size = size / 4;
+    memcpy(str1, data, part_size);
+    str1[part_size] = '\0';
+    memcpy(str2, data + part_size, part_size);
+    str2[part_size] = '\0';
+    memcpy(str3, data + 2 * part_size, part_size);
+    str3[part_size] = '\0';
+    memcpy(str4, data + 3 * part_size, size - 3 * part_size);
+    str4[size - 3 * part_size] = '\0';
+
+    // Initialize kstring_t
+    kstring_t ks;
+    ks.s = NULL;
+    ks.l = ks.m = 0;
 
     // Call the function-under-test
-    bam_plp_constructor_172(plp, &loop);
+    sam_hdr_find_tag_id(hdr, str1, str2, str3, str4, &ks);
+
+    // Clean up
+    free(str1);
+    free(str2);
+    free(str3);
+    free(str4);
+    free(ks.s);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

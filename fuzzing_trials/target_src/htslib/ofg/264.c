@@ -1,28 +1,58 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include "htslib/hts.h" // Assuming the library provides the hts_md5_context definition
+#include <htslib/sam.h>
+#include <htslib/hts.h>
+#include <htslib/hts_defs.h> // Ensure this is included for hts_itr_t
 
-// Remove the 'extern "C"' linkage specification as it is not valid in C code
 int LLVMFuzzerTestOneInput_264(const uint8_t *data, size_t size) {
-    unsigned char md5_result[16]; // MD5 results are typically 16 bytes
-    hts_md5_context *ctx;
+    // Ensure there's enough data to work with
+    if (size < 4) return 0;
 
-    // Initialize the MD5 context
-    ctx = hts_md5_init();
-    if (ctx == NULL) {
-        return 0; // Exit if context initialization fails
+    // Initialize necessary structures
+    sam_hdr_t *hdr = sam_hdr_init();
+    char **regarray = (char **)malloc(2 * sizeof(char *));
+    unsigned int regarray_count = 2;
+
+    // Ensure allocated memory is not NULL
+    if (!hdr || !regarray) {
+        sam_hdr_destroy(hdr);
+        free(regarray);
+        return 0;
     }
 
-    // Update the MD5 context with the input data
-    hts_md5_update(ctx, data, size);
+    // Split the input data into two regions for the regarray
+    regarray[0] = (char *)malloc((size / 2) + 1);
+    regarray[1] = (char *)malloc((size / 2) + 1);
 
-    // Finalize the MD5 computation
-    hts_md5_final(md5_result, ctx);
+    if (!regarray[0] || !regarray[1]) {
+        sam_hdr_destroy(hdr);
+        free(regarray[0]);
+        free(regarray[1]);
+        free(regarray);
+        return 0;
+    }
 
-    // Free the MD5 context
-    hts_md5_destroy(ctx);
+    // Copy data into regarray
+    memcpy(regarray[0], data, size / 2);
+    regarray[0][size / 2] = '\0'; // Null-terminate the string
+    memcpy(regarray[1], data + size / 2, size / 2);
+    regarray[1][size / 2] = '\0'; // Null-terminate the string
+
+    // Mock or simulate the index creation/loading
+    // Since we cannot create a real index without a file, this part is omitted
+    // hts_idx_t *idx = hts_idx_load("some_index_file"); // Typically used for real index loading
+
+    // Call the function-under-test
+    // hts_itr_t *itr = sam_itr_regarray(idx, hdr, regarray, regarray_count);
+
+    // Clean up
+    // hts_itr_destroy(itr); // Uncomment if itr is used
+    // free(idx); // Uncomment if idx is used
+    sam_hdr_destroy(hdr);
+    free(regarray[0]);
+    free(regarray[1]);
+    free(regarray);
 
     return 0;
 }

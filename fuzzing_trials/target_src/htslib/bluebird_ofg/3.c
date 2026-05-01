@@ -1,110 +1,114 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>      // Include for close() and unlink()
+#include <fcntl.h>       // Include for mkstemp()
+#include "htslib/sam.h"
 #include "htslib/hts.h"
-#include "htslib/sam.h" // Include additional library for hts_idx_t related operations
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    // Check if the size is sufficient for creating a valid hts_idx_t object
-    if (size < 1) {
-        return 0; // Not enough data to proceed
+    htsFile *hts_file = NULL;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Initialize variables
-    // Provide required arguments for hts_idx_init
-    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_BAI, 0, 14, 5); // Initialize an index object with arbitrary values
-    if (!idx) {
-        return 0; // Failed to initialize index
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
+
+    // Open the temporary file using hts_open
+    hts_file = hts_open(tmpl, "r");
+    if (hts_file == NULL) {
+        return 0;
     }
 
-    int tid = 0; // Set tid to 0 for testing
-    uint64_t mapped = 0; // Initialize mapped to 0
-    uint64_t unmapped = 0; // Initialize unmapped to 0
+    // Define non-NULL strings for the second and third parameters
 
-    // Simulate adding data to the index to avoid using an uninitialized index
-    // This is a mock operation to simulate a realistic scenario
-    hts_pos_t pos = 0;
-    for (size_t i = 0; i < size; ++i) {
-        pos += data[i];
-        // Correct the number of arguments for hts_idx_push
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of hts_idx_push
-        hts_idx_push(idx, tid, BAM_CPAD, pos + 1, 0, 1); // Provide an offset of 0 and is_mapped as 1
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-    }
-    hts_idx_finish(idx, pos);
-
-    // Call the function-under-test
-    int result = hts_idx_get_stat(idx, tid, &mapped, &unmapped);
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_idx_get_stat to bam_mods_query_type
-    hts_base_mod_state* ret_hts_base_mod_state_alloc_wlujn = hts_base_mod_state_alloc();
-    if (ret_hts_base_mod_state_alloc_wlujn == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to sam_write1
+    sam_hdr_t* ret_sam_hdr_init_nitcw = sam_hdr_init();
+    if (ret_sam_hdr_init_nitcw == NULL){
     	return 0;
     }
-    double ret_bam_aux2f_lfknh = bam_aux2f((const uint8_t *)&unmapped);
-    if (ret_bam_aux2f_lfknh < 0){
+    bam1_t bxgmmmgx;
+    memset(&bxgmmmgx, 0, sizeof(bxgmmmgx));
+    bam1_t* ret_bam_dup1_aqpww = bam_dup1(&bxgmmmgx);
+    if (ret_bam_dup1_aqpww == NULL){
     	return 0;
     }
     // Ensure dataflow is valid (i.e., non-null)
-    if (!idx) {
-    	return 0;
-    }
-
-    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from bam_aux2f to sam_itr_queryi using the plateau pool
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!idx) {
-    	return 0;
-    }
-    hts_itr_t* ret_sam_itr_queryi_gqlmo = sam_itr_queryi(idx, (int )ret_bam_aux2f_lfknh, (int64_t )ret_bam_aux2f_lfknh, (int64_t )mapped);
-    if (ret_sam_itr_queryi_gqlmo == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.SPLICE_MUTATOR
-    
-    uint64_t ret_hts_idx_get_n_no_coor_ivizs = hts_idx_get_n_no_coor(idx);
-    if (ret_hts_idx_get_n_no_coor_ivizs < 0){
-    	return 0;
-    }
-    char* ret_bam_flag2str_lgcbe = bam_flag2str(BAM_CBACK);
-    if (ret_bam_flag2str_lgcbe == NULL){
+    if (!hts_file) {
     	return 0;
     }
     // Ensure dataflow is valid (i.e., non-null)
-    if (!ret_hts_base_mod_state_alloc_wlujn) {
+    if (!ret_sam_hdr_init_nitcw) {
     	return 0;
     }
     // Ensure dataflow is valid (i.e., non-null)
-    if (!ret_bam_flag2str_lgcbe) {
+    if (!ret_bam_dup1_aqpww) {
     	return 0;
     }
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bam_mods_query_type with bam_mods_queryi
-
-    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from bam_flag2str to sam_parse_region using the plateau pool
-    sam_hdr_t *header = sam_hdr_init();
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!ret_bam_flag2str_lgcbe) {
-    	return 0;
-    }
-    const char* ret_sam_parse_region_ehhhr = sam_parse_region(header, ret_bam_flag2str_lgcbe, (int *)&ret_hts_idx_get_n_no_coor_ivizs, (int64_t *)&ret_hts_idx_get_n_no_coor_ivizs, (int64_t *)&unmapped, (int )mapped);
-    if (ret_sam_parse_region_ehhhr == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.SPLICE_MUTATOR
-    
-    int ret_bam_mods_query_type_pdvmu = bam_mods_queryi(ret_hts_base_mod_state_alloc_wlujn, (int)unmapped, (int *)&ret_bam_aux2f_lfknh, (int *)&ret_hts_idx_get_n_no_coor_ivizs, ret_bam_flag2str_lgcbe);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    if (ret_bam_mods_query_type_pdvmu < 0){
+    int ret_sam_write1_nqilr = sam_write1(hts_file, ret_sam_hdr_init_nitcw, ret_bam_dup1_aqpww);
+    if (ret_sam_write1_nqilr < 0){
     	return 0;
     }
     // End mutation: Producer.APPEND_MUTATOR
     
-    hts_idx_destroy(idx);
+    const char *fnidx = "index_file";
+    const char *fnref = "reference_file";
 
-    // Return 0 to indicate the fuzzer should continue
+    // Call the function-under-test
+    hts_idx_t *index = sam_index_load3(hts_file, fnidx, fnref, 0);
+
+    // Clean up
+    if (index != NULL) {
+        hts_idx_destroy(index);
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_index_load3 to sam_hdr_write
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_index_load3 to hts_set_cache_size
+    unsigned int ret_hts_features_tmrsq = hts_features();
+    if (ret_hts_features_tmrsq < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+    hts_set_cache_size(hts_file, (int )ret_hts_features_tmrsq);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    sam_hdr_t* ret_sam_hdr_read_ijeeg = sam_hdr_read(hts_file);
+    if (ret_sam_hdr_read_ijeeg == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sam_hdr_read_ijeeg) {
+    	return 0;
+    }
+    int ret_sam_hdr_write_kduax = sam_hdr_write(hts_file, ret_sam_hdr_read_ijeeg);
+    if (ret_sam_hdr_write_kduax < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hts_close(hts_file);
+    unlink(tmpl);
+
     return 0;
 }
 #ifdef INC_MAIN

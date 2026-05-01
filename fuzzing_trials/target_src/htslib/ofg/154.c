@@ -1,60 +1,20 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h> // Include for memcpy
-#include <htslib/sam.h>
-#include <htslib/hts.h>
+#include <stddef.h>
 
-// Static function to simulate filling the bam1_t structure with data
-static int dummy_iter_func(void *data, bam1_t *b) {
-    const uint8_t *input_data = (const uint8_t *)data;
-    size_t size = *((size_t *)input_data); // Assuming the size is passed as the first element
+// Function-under-test
+int64_t bam_aux2i(const uint8_t *aux);
 
-    if (size < sizeof(bam1_t)) {
-        return -1; // Not enough data to fill a bam1_t structure
-    }
-
-    // Ensure the bam1_t structure is properly initialized
-    b->data = (uint8_t *)malloc(size);
-    if (b->data == NULL) {
-        return -1; // Memory allocation failure
-    }
-
-    // Simulate filling the bam1_t structure with data
-    memcpy(b->data, input_data + sizeof(size_t), size - sizeof(size_t));
-    b->l_data = size - sizeof(size_t); // Set the length of the data
-
-    // Set other fields in bam1_t to simulate a more realistic scenario
-    b->core.tid = 0; // Example: set the reference sequence ID
-    b->core.pos = 0; // Example: set the position
-
-    return 0; // Indicate that data was provided
-}
-
-// Function prototype for the fuzzer entry point
 int LLVMFuzzerTestOneInput_154(const uint8_t *data, size_t size) {
-    bam_plp_t plp;
-    int tid = 0;
-    hts_pos_t pos = 0;
-    int n_plp = 0;
-
-    // Initialize the pileup object using the dummy iterator function
-    plp = bam_plp_init(dummy_iter_func, (void *)data);
-
-    if (plp == NULL) {
+    // Ensure that the input data is not NULL and has at least one byte
+    if (data == NULL || size == 0) {
         return 0;
     }
 
-    // Call the function-under-test
-    const bam_pileup1_t *result = bam_plp64_next(plp, &tid, &pos, &n_plp);
+    // Call the function-under-test with the provided data
+    int64_t result = bam_aux2i(data);
 
-    // Check if result is non-null to ensure the function is being exercised
-    if (result != NULL) {
-        // Optionally, perform additional checks or processing on `result`
-    }
-
-    // Clean up
-    bam_plp_destroy(plp);
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)result;
 
     return 0;
 }

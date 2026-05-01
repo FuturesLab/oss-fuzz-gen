@@ -2,36 +2,33 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <htslib/hts.h>
 #include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_126(const uint8_t *data, size_t size) {
-    if (size < 2) {
+    // Ensure the input data is null-terminated for string operations
+    char *query = (char *)malloc(size + 1);
+    if (query == NULL) {
         return 0;
     }
+    memcpy(query, data, size);
+    query[size] = '\0';
 
-    // Initialize bam1_t structure
-    bam1_t *bam_record = bam_init1();
-    if (bam_record == NULL) {
-        return 0;
-    }
+    // Dummy function pointers for the function signature
+    hts_name2id_f name2id = NULL;
+    void *hdr = NULL;
+    hts_itr_query_func *query_func = NULL;
+    hts_readrec_func *readrec_func = NULL;
 
-    // Allocate memory for qname
-    char *qname = (char *)malloc(size + 1);
-    if (qname == NULL) {
-        bam_destroy1(bam_record);
-        return 0;
-    }
-
-    // Copy data to qname and null-terminate it
-    memcpy(qname, data, size);
-    qname[size] = '\0';
+    // Since we cannot create a valid hts_idx_t object directly, we pass NULL
+    hts_idx_t *idx = NULL;
 
     // Call the function-under-test
-    int result = bam_set_qname(bam_record, qname);
+    hts_itr_t *itr = hts_itr_querys(idx, query, name2id, hdr, query_func, readrec_func);
 
-    // Clean up
-    free(qname);
-    bam_destroy1(bam_record);
+    // Cleanup
+    if (itr != NULL) hts_itr_destroy(itr);
+    free(query);
 
     return 0;
 }

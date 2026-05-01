@@ -1,37 +1,60 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h>  // Include this for mkstemp and unlink
+#include <fcntl.h>   // Include this for open and close
 #include <htslib/hts.h>
+#include <htslib/sam.h>
 
-// Fuzzing harness for hts_itr_destroy
 int LLVMFuzzerTestOneInput_207(const uint8_t *data, size_t size) {
-    // Initialize a hts_itr_t pointer
-    hts_itr_t *itr = (hts_itr_t *)malloc(sizeof(hts_itr_t));
+    htsFile *hts_file = NULL;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = -1;
+    char *fname = NULL;
+    char *fnidx = NULL;
+    hts_idx_t *idx = NULL;
+    int flags = 0;
 
-    // Ensure the pointer is not NULL
-    if (itr == NULL) {
+    // Create a temporary file for the data
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Populate the hts_itr_t structure with some data
-    // Here we are using the input data to fill the structure
-    // This is a simple example; in practice, you might need to
-    // set specific fields based on the expected usage of the structure
-    if (size >= sizeof(hts_itr_t)) {
-        *itr = *(hts_itr_t *)data;
-    } else {
-        // If the input data is smaller than the size of hts_itr_t,
-        // just fill what we can and zero the rest
-        memcpy(itr, data, size);
-        memset(((uint8_t *)itr) + size, 0, sizeof(hts_itr_t) - size);
+    // Write the fuzz data to the temporary file
+    write(fd, data, size);
+    close(fd);
+
+    // Open the temporary file with htslib
+    hts_file = hts_open(tmpl, "r");
+    if (hts_file == NULL) {
+        goto cleanup;
+    }
+
+    // Assign non-NULL values to fname and fnidx
+    fname = strdup(tmpl);
+    fnidx = strdup(tmpl);
+    if (fname == NULL || fnidx == NULL) {
+        goto cleanup;
     }
 
     // Call the function-under-test
-    hts_itr_destroy(itr);
+    idx = sam_index_load3(hts_file, fname, fnidx, flags);
 
-    // Free the allocated memory
-    // Note: hts_itr_destroy should handle freeing internal resources,
-    // so we only free the outer structure here
-    free(itr);
+cleanup:
+    if (hts_file != NULL) {
+        hts_close(hts_file);
+    }
+    if (fname != NULL) {
+        free(fname);
+    }
+    if (fnidx != NULL) {
+        free(fnidx);
+    }
+    if (idx != NULL) {
+        hts_idx_destroy(idx);
+    }
+    unlink(tmpl);
 
     return 0;
 }

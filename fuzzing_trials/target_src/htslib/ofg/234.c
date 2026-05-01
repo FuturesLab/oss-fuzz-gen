@@ -1,56 +1,46 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <unistd.h> // For close() and unlink()
-#include <fcntl.h>  // For mkstemp()
-#include <htslib/hts.h>
-#include <htslib/hts_defs.h>
-#include <htslib/vcf.h>     // Include for VCF-related functions
-#include "/src/htslib/htslib/vcf.h" // Correct path for hts_idx_seqnames
+#include <string.h>
+#include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_234(const uint8_t *data, size_t size) {
-    // Initialize necessary variables
-    hts_idx_t *index = NULL;
-    int num_seqnames = 0;
-    hts_id2name_f id2name_func = NULL;
-    void *id2name_data = NULL;
+    // Allocate memory for sam_hdr_t
+    sam_hdr_t *hdr = sam_hdr_init();
 
-    // Create a temporary file to simulate an index file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    if (hdr == NULL) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl); // Use unlink instead of remove for POSIX compliance
-        return 0;
-    }
-    close(fd);
-
-    // Open the index file
-    index = hts_idx_load(tmpl, HTS_FMT_BAI);
-    if (index == NULL) {
-        // Clean up the temporary file
-        unlink(tmpl);
+    // Create a temporary buffer to hold the input data
+    char *temp_data = (char *)malloc(size + 1);
+    if (temp_data == NULL) {
+        sam_hdr_destroy(hdr);
         return 0;
     }
 
-    // Call the function-under-test
-    const char **seqnames = hts_idx_seqnames(index, &num_seqnames, id2name_func, id2name_data);
+    // Copy the input data into the temporary buffer and null-terminate it
+    memcpy(temp_data, data, size);
+    temp_data[size] = '\0';
+
+    // Parse the header from the temporary buffer
+    sam_hdr_t *parsed_hdr = sam_hdr_parse(size, temp_data);
+    if (parsed_hdr != NULL) {
+        // Call the function-under-test
+        const char *result = sam_hdr_str(parsed_hdr);
+        
+        // Print the result for debugging purposes
+        if (result != NULL) {
+            printf("Header String: %s\n", result);
+        }
+
+        // Clean up the parsed header
+        sam_hdr_destroy(parsed_hdr);
+    }
 
     // Clean up
-    if (seqnames != NULL) {
-        for (int i = 0; i < num_seqnames; i++) {
-            free((void *)seqnames[i]);
-        }
-        free(seqnames);
-    }
-    hts_idx_destroy(index);
-    unlink(tmpl);
+    free(temp_data);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

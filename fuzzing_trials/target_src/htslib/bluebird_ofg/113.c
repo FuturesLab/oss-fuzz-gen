@@ -1,65 +1,60 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "htslib/hts.h"
-#include "htslib/sam.h" // Include additional library for hts_idx_t related operations
+#include "/src/htslib/htslib/tbx.h"
+#include "/src/htslib/htslib/hts_defs.h"
+#include "/src/htslib/htslib/hts_log.h" // Include for logging if necessary
+#include "/src/htslib/htslib/bgzf.h"    // Include for BGZF related operations
 
 int LLVMFuzzerTestOneInput_113(const uint8_t *data, size_t size) {
-    // Check if the size is sufficient for creating a valid hts_idx_t object
-    if (size < 1) {
-        return 0; // Not enough data to proceed
+    // Determine a reasonable size for the data
+    const size_t idx_size = 100; // Arbitrary size, as we can't use sizeof(hts_idx_t)
+
+    if (size < idx_size) {
+        return 0;
     }
 
-    // Initialize variables
-    // Provide required arguments for hts_idx_init
-    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_BAI, 0, 14, 5); // Initialize an index object with arbitrary values
-    if (!idx) {
-        return 0; // Failed to initialize index
+    // Initialize the hts_idx_t structure with dummy values
+    int n = 1; // Number of reference sequences
+    int fmt = HTS_FMT_CSI; // Format, using a constant from the library
+    uint64_t offset0 = 0; // Initial offset
+    int min_shift = 14; // Minimum shift
+    int n_lvls = 5; // Number of levels
+
+    hts_idx_t *idx = hts_idx_init(n, fmt, offset0, min_shift, n_lvls);
+    if (idx == NULL) {
+        return 0;
     }
 
-    int tid = 0; // Set tid to 0 for testing
-    uint64_t mapped = 0; // Initialize mapped to 0
-    uint64_t unmapped = 0; // Initialize unmapped to 0
-
-    // Simulate adding data to the index to avoid using an uninitialized index
-    // This is a mock operation to simulate a realistic scenario
-    hts_pos_t pos = 0;
-    for (size_t i = 0; i < size; ++i) {
-        pos += data[i];
-        // Correct the number of arguments for hts_idx_push
-        hts_idx_push(idx, tid, pos, pos + 1, 0, 1); // Provide an offset of 0 and is_mapped as 1
+    // Ensure the rest of the data is available for the other parameters
+    if (size < idx_size + sizeof(int) + 2 * sizeof(uint64_t)) {
+        hts_idx_destroy(idx);
+        return 0;
     }
-    hts_idx_finish(idx, pos);
+
+    // Extract an integer from the input data
+    int tid = *((int *)(data + idx_size));
+
+    // Prepare uint64_t variables for the function call
+    uint64_t mapped = 0;
+    uint64_t unmapped = 0;
+
+    // Ensure tid is within a valid range
+    if (tid < 0 || tid >= n) {
+        hts_idx_destroy(idx);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = hts_idx_get_stat(idx, tid, &mapped, &unmapped);
+    hts_idx_get_stat(idx, tid, &mapped, &unmapped);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_idx_get_stat to hts_idx_get_meta
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!idx) {
-    	return 0;
-    }
-    int ret_hts_idx_fmt_dlaxu = hts_idx_fmt(idx);
-    if (ret_hts_idx_fmt_dlaxu < 0){
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!idx) {
-    	return 0;
-    }
-    uint8_t* ret_hts_idx_get_meta_cxqsu = hts_idx_get_meta(idx, (uint32_t *)&unmapped);
-    if (ret_hts_idx_get_meta_cxqsu == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
     hts_idx_destroy(idx);
 
-    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
 #ifdef INC_MAIN

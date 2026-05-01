@@ -1,33 +1,27 @@
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+#include <stdio.h>
+#include <htslib/sam.h>
 
-// Function prototype for the function-under-test
-int hts_file_type(const char *);
+typedef int (*bam_plp_auto_f)(void *data, bam1_t *b);
+
+int dummy_bam_plp_auto_f_191(void *data, bam1_t *b) {
+    // Dummy implementation for the callback function
+    return 0;
+}
 
 int LLVMFuzzerTestOneInput_191(const uint8_t *data, size_t size) {
-    // Create a temporary file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
+    void *dummy_data = (void *)data; // Use the input data as dummy data
+
+    // Call the function-under-test
+    bam_plp_t plp = bam_plp_init(dummy_bam_plp_auto_f_191, dummy_data);
+
+    // Normally, you would perform additional operations on `plp` here
+    // to further test its behavior, but for now, we'll just clean up.
+
+    if (plp != NULL) {
+        bam_plp_destroy(plp);
     }
-
-    // Write the fuzzing data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-    close(fd);
-
-    // Call the function-under-test with the temporary file path
-    hts_file_type(tmpl);
-
-    // Clean up the temporary file
-    unlink(tmpl);
 
     return 0;
 }

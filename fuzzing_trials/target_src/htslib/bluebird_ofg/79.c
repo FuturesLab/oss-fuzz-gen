@@ -5,70 +5,116 @@
 #include <stdlib.h>
 #include <string.h>
 #include "htslib/sam.h"
-#include "/src/htslib/htslib/kstring.h"  // Include for kstring_t
+#include "htslib/hts.h"
+#include <unistd.h>
+#include <fcntl.h>
 
 int LLVMFuzzerTestOneInput_79(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to work with
-    if (size < sizeof(bam_hdr_t) + sizeof(bam1_t)) {
+    // Ensure the data size is sufficient for meaningful processing
+    if (size < 4) {
         return 0;
     }
 
-    // Initialize the bam_hdr_t structure
-    bam_hdr_t *header = (bam_hdr_t *)malloc(sizeof(bam_hdr_t));
+    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
+    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
+    int fd1 = mkstemp(tmpl1);
+    int fd2 = mkstemp(tmpl2);
+
+    if (fd1 == -1 || fd2 == -1) {
+        if (fd1 != -1) {
+                close(fd1);
+        }
+        if (fd2 != -1) {
+                close(fd2);
+        }
+        return 0;
+    }
+
+    // Write the fuzzing data to the first temporary file
+    if (write(fd1, data, size) != size) {
+        close(fd1);
+        close(fd2);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+    close(fd1);
+
+    // Open the file using htslib
+    htsFile *hts_file = hts_open(tmpl1, "r");
+    if (!hts_file) {
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+
+    // Check if the file is a valid SAM/BAM format
+    bam_hdr_t *header = sam_hdr_read(hts_file);
     if (!header) {
+        hts_close(hts_file);
+        unlink(tmpl1);
+        unlink(tmpl2);
         return 0;
     }
-    header->l_text = 1; // Assign a non-zero value
-    header->text = (char *)malloc(header->l_text);
-    if (!header->text) {
-        free(header);
-        return 0;
-    }
-    header->text[0] = '\0'; // Initialize with an empty string
 
-    // Initialize the bam1_t structure
-    bam1_t *alignment = bam_init1();
-    if (!alignment) {
-        free(header->text);
-        free(header);
-        return 0;
-    }
-    alignment->data = (uint8_t *)malloc(size - sizeof(bam_hdr_t));
-    if (!alignment->data) {
-        bam_destroy1(alignment);
-        free(header->text);
-        free(header);
-        return 0;
-    }
-    alignment->l_data = size - sizeof(bam_hdr_t);
-    memcpy(alignment->data, data + sizeof(bam_hdr_t), alignment->l_data);
+    // Attempt to read the first alignment
 
-    // Initialize the kstring_t structure
-    kstring_t str;
-    str.l = 0;
-    str.m = 100; // Initial buffer size
-    str.s = (char *)malloc(str.m);
-    if (!str.s) {
-        free(alignment->data); // Remove this line
-        bam_destroy1(alignment);
-        free(header->text);
-        free(header);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_read to hts_set_opt
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+    int ret_hts_set_opt_rabel = hts_set_opt(hts_file, HTS_OPT_NTHREADS);
+    if (ret_hts_set_opt_rabel < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_set_opt to sam_hdr_set
+    sam_hdr_t qqoofxxi;
+    memset(&qqoofxxi, 0, sizeof(qqoofxxi));
+    sam_hdr_incr_ref(&qqoofxxi);
+    const uint8_t xfetllej = 0;
+    double ret_bam_aux2f_wzspw = bam_aux2f(&xfetllej);
+    if (ret_bam_aux2f_wzspw < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+    int ret_sam_hdr_set_dpumx = sam_hdr_set(hts_file, &qqoofxxi, (int )ret_bam_aux2f_wzspw);
+    if (ret_sam_hdr_set_dpumx < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    bam1_t *aln = bam_init1();
+    if (sam_read1(hts_file, header, aln) < 0) {
+        bam_destroy1(aln);
+        bam_hdr_destroy(header);
+        hts_close(hts_file);
+        unlink(tmpl1);
+        unlink(tmpl2);
         return 0;
     }
 
     // Call the function-under-test
-    int ret = sam_format1(header, alignment, &str);
+    hts_idx_t *index = sam_index_load2(hts_file, tmpl1, tmpl2);
 
-    // Check for errors in sam_format1
-    if (ret < 0) {
-        // Handle the error if needed
+    // Ensure that the index is valid before proceeding
+    if (index) {
+        // Perform additional operations if needed
+        hts_idx_destroy(index);
     }
 
     // Clean up
-    free(str.s);
-    bam_destroy1(alignment); // This will free alignment->data
-    free(header->text);
-    free(header);
+    bam_destroy1(aln);
+    bam_hdr_destroy(header);
+    hts_close(hts_file);
+    unlink(tmpl1);
+    unlink(tmpl2);
 
     return 0;
 }

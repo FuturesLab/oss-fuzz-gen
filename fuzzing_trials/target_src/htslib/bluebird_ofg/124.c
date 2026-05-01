@@ -1,53 +1,43 @@
 #include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include "htslib/hts.h"
+#include <stdio.h>
 #include "htslib/sam.h"
-#include "/src/htslib/htslib/bgzf.h" // Include additional headers if necessary
 
 int LLVMFuzzerTestOneInput_124(const uint8_t *data, size_t size) {
-    hts_idx_t *index = NULL;
-    htsFile *hts_file = NULL;
-    bam_hdr_t *header = NULL;
-    int result = 0;
-
-    // Open a memory-based htsFile for reading
-    hts_file = hts_open_format("mem:", "r", NULL);
-    if (hts_file == NULL) {
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (!hdr) {
         return 0;
     }
 
-    // Create a header for the file
-    header = bam_hdr_init();
-    if (header == NULL) {
-        hts_close(hts_file);
+    // Ensure data is not empty and is null-terminated for use as a string
+    if (size == 0) {
+        sam_hdr_destroy(hdr);
         return 0;
     }
 
-    // Initialize index from the data
-    // Correct the function call with appropriate arguments
-    index = hts_idx_init(0, HTS_FMT_BAI, 0, 14, 5);
-    if (index == NULL) {
-        bam_hdr_destroy(header);
-        hts_close(hts_file);
+    // Create a null-terminated string from the input data
+    char *str = (char *)malloc(size + 1);
+    if (!str) {
+        sam_hdr_destroy(hdr);
         return 0;
     }
+    memcpy(str, data, size);
+    str[size] = '\0';
 
-    // Use the data to simulate operations on the index
-    // For example, you might want to add a mock record to the index
-    // This is a placeholder for actual logic
-    // result = hts_idx_push(index, tid, beg, end, offset, is_mapped);
+    // Use a fixed position for fuzzing
+    int pos = 0;
 
     // Call the function-under-test
-    result = hts_idx_nseq(index);
+    sam_hdr_remove_line_pos(hdr, str, pos);
 
-    // Clean up resources
-    hts_idx_destroy(index);
-    bam_hdr_destroy(header);
-    hts_close(hts_file);
+    // Clean up
+    free(str);
+    sam_hdr_destroy(hdr);
 
-    return result;
+    return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

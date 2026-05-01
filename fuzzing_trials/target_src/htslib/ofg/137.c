@@ -1,23 +1,26 @@
 #include <stdint.h>
-#include <stddef.h>
-
-// Assuming the function bam_aux2A is declared in some header file
-// #include "bam.h" // Include the appropriate header file if available
-
-// Mockup of the function-under-test for demonstration purposes
-char bam_aux2A(const uint8_t *data);
+#include <stdlib.h>
+#include <string.h>
+#include "/src/htslib/htslib/hts.h" // Correct path for the header file
 
 int LLVMFuzzerTestOneInput_137(const uint8_t *data, size_t size) {
-    // Ensure the data is not NULL and size is greater than 0
-    if (data == NULL || size == 0) {
-        return 0;
+    unsigned char result[16]; // MD5 hash is 16 bytes
+    hts_md5_context *context = hts_md5_init(); // Use pointer and initialization function
+
+    if (context == NULL) {
+        return 0; // Handle initialization failure
     }
 
-    // Call the function-under-test
-    char result = bam_aux2A(data);
+    // Update the MD5 context with the input data
+    if (size > 0) {
+        hts_md5_update(context, data, size);
+    }
 
-    // Use the result in some way to prevent compiler optimizations from removing the call
-    (void)result;
+    // Finalize the MD5 hash
+    hts_md5_final(result, context);
+
+    // Free the MD5 context
+    hts_md5_destroy(context);
 
     return 0;
 }

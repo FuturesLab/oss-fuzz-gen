@@ -1,29 +1,38 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+#include "htslib/sam.h"  // Assuming sam_hdr_t is defined in this header
 
-// Function-under-test declaration
-const char * hts_test_feature(unsigned int feature);
-
-// Fuzzing harness
 int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract an unsigned int
-    if (size < sizeof(unsigned int)) {
+    // Ensure that the input size is sufficient for creating a valid string
+    if (size < 2) {
         return 0;
     }
 
-    // Extract an unsigned int from the input data
-    unsigned int feature = *((unsigned int *)data);
-
-    // Call the function-under-test
-    const char *result = hts_test_feature(feature);
-
-    // Use the result in some way to prevent compiler optimizations from removing the call
-    if (result != NULL) {
-        // For example, just check the first character
-        volatile char first_char = result[0];
+    // Initialize sam_hdr_t structure
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (!hdr) {
+        return 0;
     }
+
+    // Create a null-terminated string from the input data
+    char *pg_line = (char *)malloc(size + 1);
+    if (!pg_line) {
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+    memcpy(pg_line, data, size);
+    pg_line[size] = '\0';
+
+    // Call the function to fuzz
+    sam_hdr_add_pg(hdr, pg_line, NULL);
+
+    // Clean up
+    free(pg_line);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

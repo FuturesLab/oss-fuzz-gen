@@ -1,30 +1,49 @@
-#include <stdint.h>
-#include <stddef.h>
 #include <stdio.h>
-#include <string.h> // Include this for memcpy
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 #include <htslib/hts.h>
+#include <htslib/hfile.h>
 
 int LLVMFuzzerTestOneInput_162(const uint8_t *data, size_t size) {
-    // Ensure that the data size is sufficient to extract an int
-    if (size < sizeof(int)) {
-        return 0;
+    hFILE *hfile = NULL;
+    char mode[] = "r"; // Read mode
+    char format[] = "text"; // Assuming a text format for simplicity
+
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // If unable to create a temp file, exit
     }
 
-    // Create a temporary htsFile structure
-    htsFile *file = hts_open("temp.bam", "wb");
-    if (file == NULL) {
-        return 0;
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
+        return 0; // If unable to write full data, exit
     }
 
-    // Extract an int value from the data
-    int cache_size;
-    memcpy(&cache_size, data, sizeof(int));
+    // Close the file descriptor
+    close(fd);
+
+    // Open the temporary file using hfile
+    hfile = hopen(tmpl, mode);
+    if (hfile == NULL) {
+        unlink(tmpl);
+        return 0; // If unable to open the file, exit
+    }
 
     // Call the function-under-test
-    hts_set_cache_size(file, cache_size);
+    htsFile *hts_file = hts_hopen(hfile, tmpl, format);
+    if (hts_file != NULL) {
+        hts_close(hts_file);
+    }
 
-    // Close the htsFile
-    hts_close(file);
+    // Cleanup
+    hclose(hfile);
+    unlink(tmpl);
 
     return 0;
 }

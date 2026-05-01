@@ -1,31 +1,18 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <stdio.h>
 
-// Assuming bam_plp_t is a pointer type, as the specific type definition is not provided
-typedef void* bam_plp_t;
+// Function-under-test declaration
+const char * hts_version();
 
-// Assuming DW_TAG_subroutine_typeInfinite_loop is a pointer type, as the specific type definition is not provided
-typedef void* DW_TAG_subroutine_typeInfinite_loop;
-
-// Mock function for bam_plp_destructor_39, replace with actual implementation
-void bam_plp_destructor_39(bam_plp_t plp, DW_TAG_subroutine_typeInfinite_loop loop) {
-    // Function implementation goes here
-    printf("bam_plp_destructor_39 called with plp: %p, loop: %p\n", plp, loop);
-}
-
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Check if the size is sufficient to create non-NULL pointers
-    if (size < 2) {
-        return 0; // Not enough data to create non-NULL pointers
-    }
-
-    // Initialize the bam_plp_t and DW_TAG_subroutine_typeInfinite_loop variables
-    bam_plp_t plp = (bam_plp_t)data; // Using data as a placeholder for bam_plp_t
-    DW_TAG_subroutine_typeInfinite_loop loop = (DW_TAG_subroutine_typeInfinite_loop)(data + 1); // Offset to ensure non-NULL
-
     // Call the function-under-test
-    bam_plp_destructor_39(plp, loop);
+    const char *version = hts_version();
+
+    // Optionally, print the version for debugging purposes
+    // This line can be removed if not needed
+    printf("HTS Version: %s\n", version);
 
     return 0;
 }

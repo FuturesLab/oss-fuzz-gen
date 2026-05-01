@@ -1,35 +1,58 @@
 #include <sys/stat.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <stdio.h>
-
-// Function-under-test
-ssize_t sam_parse_cigar(const char *cigar_str, char **end, uint32_t **cigar, size_t *n_cigar);
+#include <stdlib.h>
+#include <unistd.h>  // For mkstemp, write, close, and remove
+#include "htslib/hts.h"
 
 int LLVMFuzzerTestOneInput_139(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated for string operations
-    char *cigar_str = (char *)malloc(size + 1);
-    if (cigar_str == NULL) {
+    // Create a temporary file to simulate an htsFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
-    memcpy(cigar_str, data, size);
-    cigar_str[size] = '\0';
 
-    // Initialize the other parameters
-    char *end = NULL;
-    uint32_t *cigar = NULL;
-    size_t n_cigar = 0;
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+
+    // Close the file descriptor so hts_open can open it
+    close(fd);
+
+    // Open the temporary file with hts_open
+    htsFile *file = hts_open(tmpl, "r");
+    if (file == NULL) {
+        return 0;
+    }
 
     // Call the function-under-test
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of sam_parse_cigar
-    ssize_t result = sam_parse_cigar(cigar_str, &end, &cigar, (size_t *)cigar);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to hts_itr_multi_next
+    htsFile iimhpwen;
+    memset(&iimhpwen, 0, sizeof(iimhpwen));
+    int ret_hts_flush_wgben = hts_flush(&iimhpwen);
+    if (ret_hts_flush_wgben < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    int ret_hts_itr_multi_next_ogteb = hts_itr_multi_next(&iimhpwen, NULL, (void *)file);
+    if (ret_hts_itr_multi_next_ogteb < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hts_flush(file);
 
     // Clean up
-    free(cigar_str);
-    free(cigar);
+    hts_close(file);
+    remove(tmpl);
 
     return 0;
 }

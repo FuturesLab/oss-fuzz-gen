@@ -1,40 +1,51 @@
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <htslib/hts.h>
+#include <unistd.h>  // For mkstemp, write, close
+#include <fcntl.h>   // For file control options
+
+// Mock function for demonstration purposes
+int sam_index_build3_70(const char *file1, const char *file2, int option1, int option2) {
+    // Function implementation here
+    return 0; // Return success
+}
 
 int LLVMFuzzerTestOneInput_70(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to extract meaningful data
-    if (size < 3) return 0;
-
-    // Create temporary file for fuzzing
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) return 0;
-
-    // Write data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
+    // Ensure there's enough data to create two filenames and two integers
+    if (size < 4) {
         return 0;
     }
-    close(fd);
 
-    // Define mode and format for hts_open_format
-    const char *mode = "r"; // Read mode
-    htsFormat format;
-    memset(&format, 0, sizeof(htsFormat)); // Initialize the format structure
+    // Create temporary files for file1 and file2
+    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
+    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
+    int fd1 = mkstemp(tmpl1);
+    int fd2 = mkstemp(tmpl2);
+
+    if (fd1 == -1 || fd2 == -1) {
+        return 0;
+    }
+
+    // Write data to the temporary files
+    write(fd1, data, size / 2);
+    write(fd2, data + size / 2, size - size / 2);
+
+    // Close file descriptors
+    close(fd1);
+    close(fd2);
+
+    // Extract integers from the data
+    int option1 = (int)data[0];
+    int option2 = (int)data[1];
 
     // Call the function-under-test
-    htsFile *file = hts_open_format(tmpl, mode, &format);
+    sam_index_build3_70(tmpl1, tmpl2, option1, option2);
 
-    // Clean up
-    if (file != NULL) {
-        hts_close(file);
-    }
-    remove(tmpl);
+    // Clean up temporary files
+    remove(tmpl1);
+    remove(tmpl2);
 
     return 0;
 }

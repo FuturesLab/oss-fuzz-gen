@@ -1,87 +1,41 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <string.h>
+#include <unistd.h>  // Include for mkstemp, write, close, and unlink functions
+#include "htslib/sam.h"
 #include "htslib/hts.h"
-#include "htslib/sam.h"  // Include the SAM/BAM specific library
-
-extern int sam_idx_save(htsFile *file);
 
 int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzzing data
+    // Create a temporary file to write the fuzz data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the fuzzing data to the temporary file
+    // Write the fuzz data to the temporary file
     if (write(fd, data, size) != size) {
         close(fd);
         return 0;
     }
     close(fd);
 
-    // Open the temporary file as an htsFile in read mode
-    htsFile *file = hts_open(tmpl, "r");
-    if (file == NULL) {
-        remove(tmpl);
-        return 0;
-    }
-
-    // Read the header to ensure the file is a valid SAM/BAM/CRAM file
-    sam_hdr_t *header = sam_hdr_read(file);
-    if (header == NULL) {
-        hts_close(file);
-        remove(tmpl);
-        return 0;
-    }
-
-    // Close and reopen the file in write mode to test sam_idx_save
-
-    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sam_hdr_read to sam_hdr_remove_lines using the plateau pool
-    const char *type = "HD";
-    const char *key = "VN";
-    char val[256];
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!header) {
-    	return 0;
-    }
-    int ret_sam_hdr_remove_lines_oqnry = sam_hdr_remove_lines(header, type, key, val);
-    if (ret_sam_hdr_remove_lines_oqnry < 0){
-    	return 0;
-    }
-    // End mutation: Producer.SPLICE_MUTATOR
-    
-    hts_close(file);
-    file = hts_open(tmpl, "w");
-    if (file == NULL) {
-        sam_hdr_destroy(header);
-        remove(tmpl);
-        return 0;
-    }
-
-    // Write the header back to the file to simulate a valid SAM/BAM/CRAM file
-    if (sam_hdr_write(file, header) < 0) {
-        sam_hdr_destroy(header);
-        hts_close(file);
-        remove(tmpl);
+    // Open the temporary file as an htsFile
+    htsFile *hts_file = hts_open(tmpl, "r");
+    if (hts_file == NULL) {
         return 0;
     }
 
     // Call the function-under-test
-    sam_idx_save(file);
+    hts_idx_t *index = sam_index_load(hts_file, tmpl);
 
-    // Close the htsFile and destroy the header
-    hts_close(file);
-    sam_hdr_destroy(header);
-
-    // Remove the temporary file
-    remove(tmpl);
+    // Clean up
+    if (index != NULL) {
+        hts_idx_destroy(index);
+    }
+    hts_close(hts_file);
+    unlink(tmpl);  // Remove the temporary file
 
     return 0;
 }

@@ -1,57 +1,48 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <string.h>
+#include <stdlib.h> // Include for malloc and free
+#include <htslib/sam.h>
 #include <htslib/hts.h>
+#include <htslib/hts_defs.h>
+#include <htslib/hts_log.h>
 
-// Mock structure for hts_base_mod_state as the actual definition is not provided
-typedef struct {
-    int dummy; // Placeholder for actual structure members
-} hts_base_mod_state;
-
-// Mock implementation of bam_mods_queryi_54 for demonstration purposes
-int bam_mods_queryi_54(hts_base_mod_state *state, int param, int *result1, int *result2, char *str) {
-    // Placeholder implementation
-    // Simulate some logic that depends on the string content
-    if (str && strlen(str) > 0) {
-        *result1 = strlen(str);
-        *result2 = str[0]; // Use the first character to simulate some logic
-        return 1; // Indicate some operation was performed
-    }
-    return 0; // No operation performed
-}
-
+// Remove the extern "C" linkage specification for C++
+// since this is a C code file
 int LLVMFuzzerTestOneInput_54(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hts_base_mod_state state;
-    int param = 0;
-    int result1 = 0;
-    int result2 = 0;
-    char str[256];
+    // Ensure the data is null-terminated for string usage
+    char *query_string = (char *)malloc(size + 1);
+    if (!query_string) {
+        return 0;
+    }
+    memcpy(query_string, data, size);
+    query_string[size] = '\0';
 
-    // Ensure the string is null-terminated and use the data to influence the function behavior
-    if (size > 0) {
-        size_t copy_size = size < sizeof(str) - 1 ? size : sizeof(str) - 1;
-        memcpy(str, data, copy_size);
-        str[copy_size] = '\0';
-    } else {
-        str[0] = '\0';
+    // Initialize dummy sam_hdr_t
+    sam_hdr_t *dummy_hdr = sam_hdr_init();
+    if (!dummy_hdr) {
+        free(query_string);
+        return 0;
     }
 
-    // Use the first byte of data (if available) to influence the `param` variable
-    if (size > 0) {
-        param = data[0];
+    // Create a minimal valid hts_idx_t object
+    // For the purposes of this example, we will simulate creating a minimal index
+    // In a real-world scenario, this would involve creating or loading an actual index
+    // Adjust the number of arguments to match the function signature
+    hts_idx_t *dummy_idx = hts_idx_init(1, HTS_FMT_CSI, 0, 0, 0);
+
+    // Call the function-under-test
+    if (dummy_idx) {
+        hts_itr_t *itr = sam_itr_querys(dummy_idx, dummy_hdr, query_string);
+
+        // Clean up
+        if (itr) hts_itr_destroy(itr);
+        hts_idx_destroy(dummy_idx);
     }
 
-    // Call the function-under-test with meaningful input
-    int operation_performed = bam_mods_queryi_54(&state, param, &result1, &result2, str);
-
-    // Add checks or assertions to verify the results
-    if (operation_performed) {
-        // Ensure result1 and result2 are set correctly based on the input
-        if (result1 != strlen(str) || result2 != str[0]) {
-            abort(); // Trigger a failure if the results are incorrect
-        }
-    }
+    free(query_string);
+    sam_hdr_destroy(dummy_hdr);
 
     return 0;
 }

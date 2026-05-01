@@ -1,48 +1,54 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <htslib/hts.h>
 #include <stdlib.h>
 #include <string.h>
-#include <htslib/sam.h>
+#include <unistd.h>  // Include for close() and unlink()
 
 int LLVMFuzzerTestOneInput_87(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to work with
-    if (size < 3) {
+    // Ensure the data size is sufficient to create a valid filename
+    if (size < 1) {
         return 0;
     }
 
-    // Create a dummy sam_hdr_t object
-    sam_hdr_t *header = sam_hdr_init();
-    if (header == NULL) {
+    // Create a temporary file to use as htsFile
+    char tmp_filename[] = "/tmp/fuzzhtsXXXXXX";
+    int fd = mkstemp(tmp_filename);
+    if (fd == -1) {
+        return 0;
+    }
+    FILE *tmp_file = fdopen(fd, "w+");
+    if (!tmp_file) {
+        close(fd);
         return 0;
     }
 
-    // Allocate memory for the strings, ensuring they are null-terminated
-    char *type = (char *)malloc(2);
-    char *id = (char *)malloc(2);
-
-    if (type == NULL || id == NULL) {
-        sam_hdr_destroy(header);
-        free(type);
-        free(id);
+    // Initialize an htsFile structure
+    htsFile *hts_fp = hts_open(tmp_filename, "w");
+    if (!hts_fp) {
+        fclose(tmp_file);
         return 0;
     }
 
-    // Initialize the strings with data from the input
-    strncpy(type, (const char *)data, 1);
-    type[1] = '\0';
-    strncpy(id, (const char *)(data + 1), 1);
-    id[1] = '\0';
-
-    // The 'iter' parameter is a void pointer, we can pass NULL for testing
-    void *iter = NULL;
+    // Create a filename from the fuzz data
+    char *filename = (char *)malloc(size + 1);
+    if (!filename) {
+        hts_close(hts_fp);
+        fclose(tmp_file);
+        return 0;
+    }
+    memcpy(filename, data, size);
+    filename[size] = '\0';  // Null-terminate the filename
 
     // Call the function-under-test
-    sam_hdr_remove_lines(header, type, id, iter);
+    hts_set_fai_filename(hts_fp, filename);
 
     // Clean up
-    sam_hdr_destroy(header);
-    free(type);
-    free(id);
+    free(filename);
+    hts_close(hts_fp);
+    fclose(tmp_file);
+    unlink(tmp_filename);
 
     return 0;
 }

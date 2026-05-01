@@ -1,46 +1,19 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
-#include "/src/htslib/htslib/sam.h" // Correct path for sam_hdr_t
+#include <stdio.h>
+
+// Assume the function is declared in an external library
+extern uint32_t hts_crc32(uint32_t crc, const void *buf, size_t len);
 
 int LLVMFuzzerTestOneInput_149(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to create meaningful strings
-    if (size < 2) {
-        return 0;
-    }
+    // Initialize a non-zero CRC value
+    uint32_t crc = 0xFFFFFFFF;
 
-    // Create a sam_hdr_t object
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
-        return 0;
-    }
+    // Call the function-under-test with the provided data
+    uint32_t result = hts_crc32(crc, (const void *)data, size);
 
-    // Split the data into two strings
-    size_t half_size = size / 2;
-    char *str1 = (char *)malloc(half_size + 1);
-    char *str2 = (char *)malloc(size - half_size + 1);
-
-    if (str1 == NULL || str2 == NULL) {
-        free(str1);
-        free(str2);
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-
-    memcpy(str1, data, half_size);
-    str1[half_size] = '\0';
-
-    memcpy(str2, data + half_size, size - half_size);
-    str2[size - half_size] = '\0';
-
-    // Call the function-under-test
-    int index = sam_hdr_line_index(hdr, str1, str2);
-
-    // Clean up
-    free(str1);
-    free(str2);
-    sam_hdr_destroy(hdr);
+    // Print the result (for debugging purposes, can be removed)
+    printf("CRC32 Result: %u\n", result);
 
     return 0;
 }

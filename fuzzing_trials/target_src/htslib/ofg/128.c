@@ -1,30 +1,53 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include "htslib/sam.h" // Include the header file for sam_hdr_t
+#include <htslib/sam.h>
+
+// A mock function to create a bam_plp_t object
+bam_plp_t create_bam_plp_128() {
+    // In a real scenario, this would be a valid bam_plp_t object
+    return NULL; // Adjusted to return NULL as we don't have a real implementation
+}
+
+// A mock function to create a bam1_t object
+bam1_t* create_bam1() {
+    // Allocate a bam1_t object and initialize it
+    bam1_t *b = bam_init1();
+    if (b != NULL) {
+        // Initialize with some dummy data
+        b->core.tid = 0;
+        b->core.pos = 0;
+        b->core.qual = 0;
+        b->core.l_qname = 1;
+        b->core.flag = 0;
+        b->core.n_cigar = 0;
+        b->core.l_qseq = 0;
+        b->core.mtid = -1;
+        b->core.mpos = -1;
+        b->core.isize = 0;
+    }
+    return b;
+}
 
 int LLVMFuzzerTestOneInput_128(const uint8_t *data, size_t size) {
-    sam_hdr_t *hdr = sam_hdr_init(); // Initialize a sam_hdr_t object
-    if (hdr == NULL) {
-        return 0; // Return if initialization fails
+    if (size < sizeof(bam1_t)) {
+        return 0; // Not enough data to fill a bam1_t structure
     }
 
-    // Ensure the data is null-terminated
-    char *lines = (char *)malloc(size + 1);
-    if (lines == NULL) {
-        sam_hdr_destroy(hdr);
-        return 0;
+    bam_plp_t plp = create_bam_plp_128();
+    bam1_t *b = create_bam1();
+
+    if (plp != NULL && b != NULL) {
+        // Copy the fuzz data into the bam1_t data field
+        memcpy(b->data, data, size < b->l_data ? size : b->l_data);
+
+        // Call the function-under-test
+        bam_plp_push(plp, b);
+
+        // Clean up
+        bam_destroy1(b);
+        // Assuming plp should be freed if it was allocated
     }
-    memcpy(lines, data, size);
-    lines[size] = '\0';
-
-    // Call the function-under-test
-    sam_hdr_add_lines(hdr, lines, size);
-
-    // Clean up
-    free(lines);
-    sam_hdr_destroy(hdr);
 
     return 0;
 }

@@ -1,52 +1,49 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include "/src/htslib/htslib/sam.h" // Correct path for sam_hdr_t
+#include <unistd.h>
+#include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    sam_hdr_t *hdr = sam_hdr_init();
+    if (size < 2) {
+        return 0; // Need at least 2 bytes for mode
+    }
 
-    // Check if hdr is initialized successfully
-    if (hdr == NULL) {
+    // Create a temporary file to store the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // Failed to create temporary file
+    }
+
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
         return 0;
     }
 
-    // Ensure there is enough data to extract key and value
-    if (size < 3) { // Minimum size to have at least a 1-char key and 1-char value
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Use the fuzzing data to create a key-value pair
-    size_t key_len = data[0] % (size - 2); // Ensure key length is within bounds
-    size_t value_len = size - 2 - key_len; // Remaining data for value
+    // Prepare the mode string
+    char mode[3] = {0};
+    mode[0] = (char)data[0];
+    mode[1] = (char)data[1];
 
-    // Allocate memory for key and value
-    char *key = (char *)malloc(key_len + 1);
-    char *value = (char *)malloc(value_len + 1);
-
-    if (key == NULL || value == NULL) {
-        free(key);
-        free(value);
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-
-    // Copy data into key and value, and null-terminate them
-    memcpy(key, &data[1], key_len);
-    key[key_len] = '\0';
-    memcpy(value, &data[1 + key_len], value_len);
-    value[value_len] = '\0';
+    // Initialize htsFormat
+    htsFormat format;
+    memset(&format, 0, sizeof(htsFormat));
 
     // Call the function-under-test
-    int result = sam_hdr_change_HD(hdr, key, value);
+    htsFile *file_handle = hts_open_format(tmpl, mode, &format);
 
     // Clean up
-    free(key);
-    free(value);
-    sam_hdr_destroy(hdr);
+    if (file_handle != NULL) {
+        hts_close(file_handle);
+    }
+    remove(tmpl);
 
     return 0;
 }

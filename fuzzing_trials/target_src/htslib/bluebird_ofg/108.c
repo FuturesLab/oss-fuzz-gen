@@ -1,49 +1,36 @@
 #include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
-#include "htslib/sam.h"
-#include "htslib/hts.h"
-#include "/src/htslib/htslib/regidx.h"  // Include the necessary header for hts_reglist_t
+#include <stdlib.h>
+
+// Function prototype for the function-under-test
+void hts_md5_hex(char *hex, const unsigned char *data);
+
+// Define the size of the MD5 hash in hexadecimal representation
+#define MD5_HEX_SIZE 33 // 32 characters for the hash and 1 for the null terminator
+#define MD5_INPUT_SIZE 16 // MD5 operates on 128-bit (16-byte) blocks
 
 int LLVMFuzzerTestOneInput_108(const uint8_t *data, size_t size) {
-    // Initialize variables
-    hts_idx_t *idx = NULL;  // Initialize idx to NULL since we cannot allocate it directly
-    sam_hdr_t *hdr = sam_hdr_init();
-    hts_reglist_t *reglist = (hts_reglist_t *)malloc(sizeof(hts_reglist_t));
-    unsigned int flags = 0;
-
-    // Ensure that the data is not empty
-    if (size == 0 || !hdr || !reglist) {
-        sam_hdr_destroy(hdr);
-        free(reglist);
+    // Ensure the input data is at least MD5_INPUT_SIZE bytes long
+    if (size < MD5_INPUT_SIZE) {
         return 0;
     }
 
-    // Initialize hdr with some data
-    sam_hdr_add_line(hdr, "HD", "VN", "1.0", NULL);
+    // Allocate memory for the MD5 hash in hexadecimal form
+    char hex[MD5_HEX_SIZE];
+    memset(hex, 0, MD5_HEX_SIZE);
 
-    // Initialize reglist with some data
-    reglist->reg = (char *)malloc(size + 1);
-    reglist->count = 1; // Set count to 1 to indicate there is one region
-    reglist->intervals = (hts_pair_pos_t *)malloc(sizeof(hts_pair_pos_t) * reglist->count);
-    if (reglist->reg && reglist->intervals) {
-        memcpy((void *)reglist->reg, data, size); // Cast to void* to avoid const warning
-        ((char *)reglist->reg)[size] = '\0'; // Cast to char* to modify the content
-        // Initialize intervals with some data
-        reglist->intervals[0].beg = 0;
-        reglist->intervals[0].end = size > 1 ? (int)data[1] : 1; // Use some data for end
+    // Call the function-under-test with the first MD5_INPUT_SIZE bytes of data
+    hts_md5_hex(hex, data);
+
+    // Optionally, you can add additional checks or processing of 'hex' here
+    // For example, ensure that the 'hex' output is a valid hexadecimal string
+    for (int i = 0; i < MD5_HEX_SIZE - 1; i++) {
+        if (!((hex[i] >= '0' && hex[i] <= '9') || (hex[i] >= 'a' && hex[i] <= 'f'))) {
+            abort(); // If the output is not valid hex, abort to catch the error
+        }
     }
-
-    // Call the function-under-test
-    hts_itr_t *itr = sam_itr_regions(idx, hdr, reglist, flags);
-
-    // Clean up
-    if (itr) hts_itr_destroy(itr);
-    sam_hdr_destroy(hdr);
-    free((void *)reglist->reg); // Cast to void* to avoid const warning
-    free(reglist->intervals);
-    free(reglist);
 
     return 0;
 }

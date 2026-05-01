@@ -1,30 +1,36 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>  // For mkstemp, write, close, unlink
 #include <htslib/hts.h>
 
-// Fuzzing harness for the hts_opt_free function
 int LLVMFuzzerTestOneInput_53(const uint8_t *data, size_t size) {
-    // Ensure that the size is large enough to create a valid hts_opt structure
-    if (size < sizeof(hts_opt)) {
+    // Create a temporary file to store the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Allocate memory for hts_opt structure
-    hts_opt *options = (hts_opt *)malloc(sizeof(hts_opt));
-    if (options == NULL) {
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
         return 0;
     }
+    close(fd);
 
-    // Initialize the hts_opt structure with data from the fuzzer
-    // Note: This assumes that hts_opt has a simple structure that can be initialized this way.
-    // If hts_opt has pointers or requires specific initialization, this code will need to be adjusted.
-    memcpy(options, data, sizeof(hts_opt));
+    // Open the temporary file as an index
+    hts_idx_t *idx = hts_idx_load(tmpl, HTS_FMT_BAI);
+    if (idx != NULL) {
+        // Call the function-under-test
+        int nseq = hts_idx_nseq(idx);
 
-    // Call the function-under-test
-    hts_opt_free(options);
+        // Clean up
+        hts_idx_destroy(idx);
+    }
 
-    // Free the allocated memory for options
-    free(options);
+    // Remove the temporary file
+    unlink(tmpl);
 
     return 0;
 }

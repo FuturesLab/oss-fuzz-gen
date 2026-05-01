@@ -2,47 +2,120 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
-#include "htslib/sam.h"  // Include the necessary header for bam1_t
+#include <string.h>
+#include "htslib/sam.h"
+#include "htslib/hts.h"
+#include <unistd.h>
+#include <fcntl.h>
 
 int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract meaningful inputs
-    if (size < 5) {
+    // Ensure the data size is sufficient for meaningful processing
+    if (size < 4) {
         return 0;
     }
 
-    // Initialize bam1_t structure
-    bam1_t *bam_record = bam_init1();
-    if (bam_record == NULL) {
+    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
+    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
+    int fd1 = mkstemp(tmpl1);
+    int fd2 = mkstemp(tmpl2);
+
+    if (fd1 == -1 || fd2 == -1) {
+        if (fd1 != -1) {
+                close(fd1);
+        }
+        if (fd2 != -1) {
+                close(fd2);
+        }
         return 0;
     }
 
-    // Extract a tag from the input data
-    char tag[3];
-    memcpy(tag, data, 2);
-    tag[2] = '\0';  // Null-terminate the tag string
+    // Write the fuzzing data to the first temporary file
+    if (write(fd1, data, size) != size) {
+        close(fd1);
+        close(fd2);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+    close(fd1);
 
-    // Extract a type from the input data
-    char type = (char)data[2];
-
-    // Extract a length from the input data
-    int length = (int)data[3];
-
-    // Ensure length is not negative or too large
-    if (length < 0 || length > (int)(size - 4)) {
-        bam_destroy1(bam_record);
+    // Open the file using htslib
+    htsFile *hts_file = hts_open(tmpl1, "r");
+    if (!hts_file) {
+        unlink(tmpl1);
+        unlink(tmpl2);
         return 0;
     }
 
-    // Extract the value from the input data
-    const uint8_t *value = data + 4;
+    // Check if the file is a valid SAM/BAM format
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to hts_set_cache_size
+    unsigned int ret_hts_features_qosuv = hts_features();
+    if (ret_hts_features_qosuv < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+    hts_set_cache_size(hts_file, (int )ret_hts_features_qosuv);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    bam_hdr_t *header = sam_hdr_read(hts_file);
+    if (!header) {
+        hts_close(hts_file);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+
+    // Attempt to read the first alignment
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_read to hts_set_fai_filename
+    char* ret_bam_flag2str_qpbrt = bam_flag2str(BAM_FQCFAIL);
+    if (ret_bam_flag2str_qpbrt == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bam_flag2str_qpbrt) {
+    	return 0;
+    }
+    int ret_hts_set_fai_filename_zyano = hts_set_fai_filename(hts_file, ret_bam_flag2str_qpbrt);
+    if (ret_hts_set_fai_filename_zyano < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    bam1_t *aln = bam_init1();
+    if (sam_read1(hts_file, header, aln) < 0) {
+        bam_destroy1(aln);
+        bam_hdr_destroy(header);
+        hts_close(hts_file);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = bam_aux_append(bam_record, tag, type, length, value);
+    hts_idx_t *index = sam_index_load2(hts_file, tmpl1, tmpl2);
+
+    // Ensure that the index is valid before proceeding
+    if (index) {
+        // Perform additional operations if needed
+        hts_idx_destroy(index);
+    }
 
     // Clean up
-    bam_destroy1(bam_record);
+    bam_destroy1(aln);
+    bam_hdr_destroy(header);
+    hts_close(hts_file);
+    unlink(tmpl1);
+    unlink(tmpl2);
 
     return 0;
 }

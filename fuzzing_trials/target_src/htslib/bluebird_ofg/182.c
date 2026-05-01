@@ -1,28 +1,26 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdio.h>
-#include <htslib/hts.h>
+#include <string.h> // Include for memcpy
+#include "htslib/hts.h"
 
-int LLVMFuzzerTestOneInput_285(const uint8_t *data, size_t size) {
-    // Initialize htsFormat structure
-    htsFormat format;
-    
-    // Ensure that the size is large enough to fill the fields of htsFormat
+int LLVMFuzzerTestOneInput_182(const uint8_t *data, size_t size) {
+    // Ensure there is enough data to initialize htsFormat
     if (size < sizeof(htsFormat)) {
         return 0;
     }
 
-    // Copy data to format, ensuring no overflow
+    // Initialize htsFormat from the input data
+    htsFormat format;
     memcpy(&format, data, sizeof(htsFormat));
 
     // Call the function-under-test
-    char *description = hts_format_description(&format);
+    const char *extension = hts_format_file_extension(&format);
 
-    // Free the allocated description if it's not NULL
-    if (description != NULL) {
-        free(description);
+    // Print the result (for debugging purposes)
+    if (extension != NULL) {
+        printf("File extension: %s\n", extension);
     }
 
     return 0;
@@ -49,7 +47,7 @@ int main(int argc, char *argv[])
     size = ftell(f);
     rewind(f);
 
-    if(size < 2 + 1)
+    if(size < 1 + 1)
         exit(0);
 
     data = (uint8_t *)malloc((size_t)size);
@@ -59,7 +57,7 @@ int main(int argc, char *argv[])
     if(fread(data, (size_t)size, 1, f) != 1)
         exit(0);
 
-    LLVMFuzzerTestOneInput_285(data + 2, (size_t)(size - 2));
+    LLVMFuzzerTestOneInput_182(data + 1, (size_t)(size - 1));
 
     free(data);
     fclose(f);

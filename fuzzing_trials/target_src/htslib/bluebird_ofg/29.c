@@ -1,29 +1,39 @@
 #include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "htslib/hts.h" // Assuming the library provides the hts_md5_context definition
+#include <unistd.h>  // Include for mkstemp, write, close, unlink
+#include "htslib/hts.h"
 
-// Remove the 'extern "C"' linkage specification as it is not valid in C code
 int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    unsigned char md5_result[16]; // MD5 results are typically 16 bytes
-    hts_md5_context *ctx;
-
-    // Initialize the MD5 context
-    ctx = hts_md5_init();
-    if (ctx == NULL) {
-        return 0; // Exit if context initialization fails
+    // Create a temporary file to simulate an htsFile input
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Update the MD5 context with the input data
-    hts_md5_update(ctx, data, size);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
 
-    // Finalize the MD5 computation
-    hts_md5_final(md5_result, ctx);
+    // Open the temporary file as an htsFile
+    htsFile *file = hts_open(tmpl, "r");
+    if (file == NULL) {
+        unlink(tmpl);
+        return 0;
+    }
 
-    // Free the MD5 context
-    hts_md5_destroy(ctx);
+    // Call the function-under-test
+    const htsFormat *format = hts_get_format(file);
+
+    // Clean up
+    hts_close(file);
+    unlink(tmpl);
 
     return 0;
 }

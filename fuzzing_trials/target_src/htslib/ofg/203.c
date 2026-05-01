@@ -1,46 +1,24 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
 
-// Function-under-test declaration
-char *sam_open_mode_opts(const char *path, const char *mode, const char *opts);
+// Assuming the function is defined elsewhere and linked during compilation
+extern char * bam_aux2Z(const uint8_t *);
 
 int LLVMFuzzerTestOneInput_203(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to extract three non-NULL strings
-    if (size < 3) {
+    // Ensure the data is not NULL and has a non-zero size
+    if (data == NULL || size == 0) {
         return 0;
     }
 
-    // Split the input data into three parts
-    size_t part_size = size / 3;
-    size_t remainder = size % 3;
-
-    // Allocate memory for the strings
-    char *path = (char *)malloc(part_size + 1);
-    char *mode = (char *)malloc(part_size + 1);
-    char *opts = (char *)malloc(part_size + remainder + 1);
-
-    // Copy data into the strings and null-terminate them
-    memcpy(path, data, part_size);
-    path[part_size] = '\0';
-
-    memcpy(mode, data + part_size, part_size);
-    mode[part_size] = '\0';
-
-    memcpy(opts, data + 2 * part_size, part_size + remainder);
-    opts[part_size + remainder] = '\0';
-
     // Call the function-under-test
-    char *result = sam_open_mode_opts(path, mode, opts);
+    char *result = bam_aux2Z(data);
 
-    // Free the allocated memory
-    free(path);
-    free(mode);
-    free(opts);
-
-    // Free the result if it's dynamically allocated (assuming it needs to be freed)
-    free(result);
+    // If the function returns a non-NULL pointer, free it
+    if (result != NULL) {
+        free(result);
+    }
 
     return 0;
 }

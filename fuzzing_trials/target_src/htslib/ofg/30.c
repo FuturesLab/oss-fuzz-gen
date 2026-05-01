@@ -1,47 +1,53 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <htslib/hts.h>
+#include <htslib/thread_pool.h> // Include necessary library for thread pool
 
-// Replacing the non-existent htslib/hts_idx.h with the correct header file
-#include "/src/htslib/htslib/hts.h"
+// Use the existing hts_fmt_option enum from htslib/hts.h
+// No need to redefine DW_TAG_enumeration_typehts_fmt_option
 
 int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract parameters
-    if (size < sizeof(int) + 2 * sizeof(hts_pos_t) + sizeof(uint64_t) + sizeof(int)) {
+    // Ensure the data size is sufficient for our needs
+    if (size < 2) { // Ensure we have at least two bytes of data
         return 0;
     }
 
-    // Initialize the parameters from the input data
-    int param1 = *(const int *)data;
-    data += sizeof(int);
-    size -= sizeof(int);
+    // Create a mock htsFile object
+    htsFile *file = hts_open("-", "w"); // Open a file in write mode
+    if (file == NULL) {
+        return 0;
+    }
 
-    hts_pos_t param2 = *(const hts_pos_t *)data;
-    data += sizeof(hts_pos_t);
-    size -= sizeof(hts_pos_t);
+    // Extract an option from the input data
+    enum hts_fmt_option option = (enum hts_fmt_option)(data[0] % 3 + HTS_OPT_COMPRESSION_LEVEL);
 
-    hts_pos_t param3 = *(const hts_pos_t *)data;
-    data += sizeof(hts_pos_t);
-    size -= sizeof(hts_pos_t);
+    // Extract a value for the option from the input data
+    int value = (int)data[1];
 
-    uint64_t param4 = *(const uint64_t *)data;
-    data += sizeof(uint64_t);
-    size -= sizeof(uint64_t);
+    // Prepare a dummy thread pool object for HTS_OPT_THREAD_POOL
+    htsThreadPool thread_pool = { NULL, 0 }; // Initialize with default values
 
-    int param5 = *(const int *)data;
-    data += sizeof(int);
-    size -= sizeof(int);
-
-    // Allocate and initialize hts_idx_t
-    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_CSI, 0, 0, 0);
+    // Create a real thread pool to avoid null pointer dereference
+    hts_tpool *pool = hts_tpool_init(2); // Initialize a thread pool with 2 threads
+    if (pool == NULL) {
+        hts_close(file);
+        return 0;
+    }
+    thread_pool.pool = pool;
 
     // Call the function-under-test
-    if (idx != NULL) {
-        hts_idx_push(idx, param1, param2, param3, param4, param5);
-        // Clean up
-        hts_idx_destroy(idx);
+    // Ensure the option and value are valid to prevent undefined behavior
+    if (option >= HTS_OPT_COMPRESSION_LEVEL && option <= HTS_OPT_THREAD_POOL) {
+        if (option == HTS_OPT_THREAD_POOL) {
+            hts_set_opt(file, option, &thread_pool); // Pass the thread pool for HTS_OPT_THREAD_POOL
+        } else {
+            hts_set_opt(file, option, (void *)&value);
+        }
     }
+
+    // Clean up
+    hts_tpool_destroy(pool); // Destroy the thread pool
+    hts_close(file);
 
     return 0;
 }

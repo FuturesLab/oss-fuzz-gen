@@ -1,23 +1,49 @@
+#include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
+#include <unistd.h> // Include for close() and unlink()
+#include <fcntl.h>  // Include for mkstemp()
 #include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_14(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_CSI, 0, 0, 0);
-    uint64_t final_offset = 0;
+    char tmpl1[] = "/tmp/fuzzfileXXXXXX";
+    char tmpl2[] = "/tmp/fuzzfileXXXXXX";
+    int fd1, fd2;
+    hts_idx_t *idx;
 
-    // Ensure size is sufficient to extract a uint64_t value
-    if (size >= sizeof(uint64_t)) {
-        // Use the first 8 bytes of data to set final_offset
-        final_offset = *(const uint64_t *)data;
+    // Create temporary files
+    fd1 = mkstemp(tmpl1);
+    fd2 = mkstemp(tmpl2);
+
+    if (fd1 == -1 || fd2 == -1) {
+        if (fd1 != -1) close(fd1);
+        if (fd2 != -1) close(fd2);
+        return 0;
     }
 
+    // Write data to the first temporary file
+    if (write(fd1, data, size) == -1) {
+        close(fd1);
+        close(fd2);
+        return 0;
+    }
+
+    // Close the file descriptors
+    close(fd1);
+    close(fd2);
+
     // Call the function-under-test
-    hts_idx_finish(idx, final_offset);
+    idx = hts_idx_load3(tmpl1, tmpl2, HTS_FMT_CSI, 0);
 
     // Clean up
-    hts_idx_destroy(idx);
+    if (idx != NULL) {
+        hts_idx_destroy(idx);
+    }
+
+    // Remove temporary files
+    unlink(tmpl1);
+    unlink(tmpl2);
 
     return 0;
 }

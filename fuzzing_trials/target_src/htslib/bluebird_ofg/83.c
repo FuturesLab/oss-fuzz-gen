@@ -1,45 +1,58 @@
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 #include <stdio.h>
-#include <unistd.h> // Include for close() and unlink()
-#include <fcntl.h>  // Include for mkstemp()
-
-// Assuming the function is declared in some header file
-char ** hts_readlist(const char *filename, int is_file, int *num_lines);
+#include <stdlib.h>
+#include <unistd.h>  // For mkstemp, write, close, and remove
+#include "htslib/hts.h"
 
 int LLVMFuzzerTestOneInput_83(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
+    // Create a temporary file to simulate an htsFile
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        return 0; // If file creation fails, exit the fuzzer
+        return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    write(fd, data, size);
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+
+    // Close the file descriptor so hts_open can open it
     close(fd);
 
-    // Prepare parameters for hts_readlist
-    int num_lines = 0;
-    int is_file = 1; // Indicating that the input is a file
-
-    // Call the function-under-test
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of hts_readlist
-    char **result = hts_readlist((const char *)data, is_file, &num_lines);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-    // Clean up: free the result if it is not NULL
-    if (result != NULL) {
-        for (int i = 0; i < num_lines; ++i) {
-            free(result[i]);
-        }
-        free(result);
+    // Open the temporary file with hts_open
+    htsFile *file = hts_open(tmpl, "r");
+    if (file == NULL) {
+        return 0;
     }
 
-    // Remove the temporary file
-    unlink(tmpl);
+    // Call the function-under-test
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to hts_itr_multi_next
+    htsFile bgcubpmv;
+    memset(&bgcubpmv, 0, sizeof(bgcubpmv));
+    int ret_sam_idx_save_vzckx = sam_idx_save(&bgcubpmv);
+    if (ret_sam_idx_save_vzckx < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    int ret_hts_itr_multi_next_jhavk = hts_itr_multi_next(&bgcubpmv, NULL, (void *)file);
+    if (ret_hts_itr_multi_next_jhavk < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hts_flush(file);
+
+    // Clean up
+    hts_close(file);
+    remove(tmpl);
 
     return 0;
 }

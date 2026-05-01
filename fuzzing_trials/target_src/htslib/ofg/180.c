@@ -1,35 +1,36 @@
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h> // Include this header for memcpy
+#include <stdio.h>
+#include <string.h>
+#include <htslib/sam.h>
 
-// Function-under-test
-void hts_free_180(void *ptr) {
-    // Implement a simple free operation
-    if (ptr) {
-        free(ptr);
-    }
-}
-
+// Remove 'extern "C"' as it is not needed in C code
 int LLVMFuzzerTestOneInput_180(const uint8_t *data, size_t size) {
-    // Ensure size is greater than 0 to effectively invoke the function under test
-    if (size == 0) {
+    // Ensure the input size is sufficient for creating a sam_hdr_t object
+    if (size < 1) {
         return 0;
     }
 
-    // Allocate memory to be freed
-    void *ptr = malloc(size); // Ensure at least 1 byte is allocated
-
-    // Ensure ptr is not NULL
-    if (ptr == NULL) {
+    // Create a sam_hdr_t object from the input data
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
         return 0;
     }
 
-    // Copy the fuzz data into the allocated memory
-    memcpy(ptr, data, size);
+    // Initialize the sam_hdr_t object with the input data
+    if (sam_hdr_add_lines(hdr, (const char *)data, size) < 0) {
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
 
     // Call the function-under-test
-    hts_free_180(ptr);
+    sam_hdr_t *dup_hdr = sam_hdr_dup(hdr);
+
+    // Clean up
+    sam_hdr_destroy(hdr);
+    if (dup_hdr != NULL) {
+        sam_hdr_destroy(dup_hdr);
+    }
 
     return 0;
 }

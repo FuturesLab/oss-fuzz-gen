@@ -1,42 +1,63 @@
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <htslib/hts.h>
-#include <htslib/tbx.h>
-#include <htslib/bgzf.h>  // Include this for BGZF-related functions
+#include <unistd.h> // Include for close() and unlink()
+#include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
-    hts_idx_t *idx = NULL;
-    BGZF *bgzf = NULL;
-
-    // Create a temporary BGZF file in memory
-    bgzf = bgzf_open("mem:", "w");
-    if (bgzf == NULL) {
+    // Create a temporary file to use with htsFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    FILE *file = fdopen(fd, "w+");
+    if (!file) {
+        close(fd);
         return 0;
     }
 
-    // Write the input data to the BGZF file
-    if (bgzf_write(bgzf, data, size) < 0) {
-        bgzf_close(bgzf);
+    // Write the fuzz data to the temporary file
+    fwrite(data, 1, size, file);
+    fflush(file);
+    fseek(file, 0, SEEK_SET);
+
+    // Open the temporary file as an htsFile
+    htsFile *hts = hts_open(tmpl, "r");
+    if (!hts) {
+        fclose(file);
         return 0;
     }
 
-    // Close the BGZF file to flush and finalize it
-    if (bgzf_close(bgzf) < 0) {
+    // Read the SAM header from the fuzz data
+    sam_hdr_t *hdr = sam_hdr_read(hts);
+    if (!hdr) {
+        hts_close(hts);
+        fclose(file);
         return 0;
     }
 
-    // Try to load an index from the BGZF file
-    idx = hts_idx_load("mem:", HTS_FMT_BAI);
-    if (idx == NULL) {
+    // Read a BAM record from the fuzz data
+    bam1_t *b = bam_init1();
+    if (!b) {
+        sam_hdr_destroy(hdr);
+        hts_close(hts);
+        fclose(file);
         return 0;
     }
 
-    // Call the function-under-test
-    int result = hts_idx_fmt(idx);
+    if (sam_read1(hts, hdr, b) >= 0) {
+        // Call the function-under-test
+        sam_write1(hts, hdr, b);
+    }
 
-    // Free allocated index
-    hts_idx_destroy(idx);
+    // Clean up
+    bam_destroy1(b);
+    sam_hdr_destroy(hdr);
+    hts_close(hts);
+    fclose(file);
+    unlink(tmpl);
 
     return 0;
 }

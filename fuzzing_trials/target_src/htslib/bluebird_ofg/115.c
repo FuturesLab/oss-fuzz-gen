@@ -2,39 +2,132 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include "htslib/sam.h"
+#include "htslib/hts.h"
+#include <unistd.h>
+#include <fcntl.h>
 
+int xiqoouuj(void*, const char*){
+	return NULL;
+}
 int LLVMFuzzerTestOneInput_115(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for the required parameters
-    if (size < 100) {
+    // Ensure the data size is sufficient for meaningful processing
+    if (size < 4) {
         return 0;
     }
 
-    // Initialize variables for bam_set1 parameters
-    bam1_t *b = bam_init1();
-    size_t l_data = size / 2;
-    const char *qname = (const char *)data;
-    uint16_t flag = (uint16_t)data[0];
-    int32_t tid = (int32_t)data[1];
-    hts_pos_t pos = (hts_pos_t)data[2];
-    uint8_t mapq = data[3];
-    size_t n_cigar = 1;
-    uint32_t cigar[1] = {0};
-    int32_t mtid = (int32_t)data[4];
-    hts_pos_t mpos = (hts_pos_t)data[5];
-    hts_pos_t isize = (hts_pos_t)data[6];
-    size_t l_seq = size / 4;
-    const char *seq = (const char *)(data + 10);
-    const char *qual = (const char *)(data + 20);
-    size_t l_aux = size / 8;
+    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
+    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
+    int fd1 = mkstemp(tmpl1);
+    int fd2 = mkstemp(tmpl2);
+
+    if (fd1 == -1 || fd2 == -1) {
+        if (fd1 != -1) {
+                close(fd1);
+        }
+        if (fd2 != -1) {
+                close(fd2);
+        }
+        return 0;
+    }
+
+    // Write the fuzzing data to the first temporary file
+    if (write(fd1, data, size) != size) {
+        close(fd1);
+        close(fd2);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+    close(fd1);
+
+    // Open the file using htslib
+    htsFile *hts_file = hts_open(tmpl1, "r");
+    if (!hts_file) {
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+
+    // Check if the file is a valid SAM/BAM format
+    bam_hdr_t *header = sam_hdr_read(hts_file);
+    if (!header) {
+        hts_close(hts_file);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+
+    // Attempt to read the first alignment
+    bam1_t *aln = bam_init1();
+    if (sam_read1(hts_file, header, aln) < 0) {
+        bam_destroy1(aln);
+        bam_hdr_destroy(header);
+        hts_close(hts_file);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = bam_set1(b, l_data, qname, flag, tid, pos, mapq, n_cigar, cigar, mtid, mpos, isize, l_seq, seq, qual, l_aux);
+    hts_idx_t *index = sam_index_load2(hts_file, tmpl1, tmpl2);
+
+    // Ensure that the index is valid before proceeding
+    if (index) {
+        // Perform additional operations if needed
+        hts_idx_destroy(index);
+    }
 
     // Clean up
-    bam_destroy1(b);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_index_load2 to hts_parse_region
+    char* ret_bam_flag2str_jdmzr = bam_flag2str(size);
+    if (ret_bam_flag2str_jdmzr == NULL){
+    	return 0;
+    }
+    size_t ret_sam_hdr_length_xrucy = sam_hdr_length(NULL);
+    if (ret_sam_hdr_length_xrucy < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!header) {
+    	return 0;
+    }
+    size_t ret_sam_hdr_length_qhysb = sam_hdr_length(header);
+    if (ret_sam_hdr_length_qhysb < 0){
+    	return 0;
+    }
+    bam1_t lreisxmm;
+    memset(&lreisxmm, 0, sizeof(lreisxmm));
+    hts_pos_t ret_bam_endpos_vkjph = bam_endpos(&lreisxmm);
+    if (ret_bam_endpos_vkjph < 0){
+    	return 0;
+    }
+    size_t ret_sam_hdr_length_bdzol = sam_hdr_length(NULL);
+    if (ret_sam_hdr_length_bdzol < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bam_flag2str_jdmzr) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+    const char* ret_hts_parse_region_bjuhv = hts_parse_region(ret_bam_flag2str_jdmzr, (int *)&ret_sam_hdr_length_xrucy, (int64_t *)&ret_sam_hdr_length_qhysb, &ret_bam_endpos_vkjph, xiqoouuj, (void *)hts_file, (int )ret_sam_hdr_length_bdzol);
+    if (ret_hts_parse_region_bjuhv == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    bam_destroy1(aln);
+    bam_hdr_destroy(header);
+    hts_close(hts_file);
+    unlink(tmpl1);
+    unlink(tmpl2);
 
     return 0;
 }

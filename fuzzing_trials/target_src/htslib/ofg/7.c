@@ -1,43 +1,50 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <htslib/hts.h>
-#include <htslib/tbx.h> // Include the correct header for tabix functions
+#include <htslib/sam.h> // Include the necessary library for bam_mods_queryi and hts_base_mod_state
 
 int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for our needs
-    if (size < 2) {
+    // Ensure there is enough data to work with
+    if (size < sizeof(int) * 2 + 1) {
         return 0;
     }
 
-    // Initialize hts_idx_t pointer
-    hts_idx_t *idx = tbx_index_load("example.vcf.gz"); // Use a valid function to load an index
-    if (!idx) {
+    // Initialize the parameters for bam_mods_queryi
+    hts_base_mod_state *state = hts_base_mod_state_alloc();
+    if (state == NULL) {
         return 0;
     }
 
-    // Use the first byte of data as an integer parameter
-    int param_int = data[0];
+    // Extract integer values from data
+    int int_param1 = *((int *)data);
+    int int_param2 = *((int *)(data + sizeof(int)));
 
-    // Use the rest of the data as a string for the third parameter
-    size_t str_size = size - 1;
-    char *param_str = (char *)malloc(str_size + 1);
-    if (!param_str) {
-        hts_idx_destroy(idx); // Use the correct function to free the index
+    // Allocate memory for integer pointers
+    int *int_ptr1 = (int *)malloc(sizeof(int));
+    int *int_ptr2 = (int *)malloc(sizeof(int));
+
+    if (int_ptr1 == NULL || int_ptr2 == NULL) {
+        hts_base_mod_state_free(state);
+        free(int_ptr1);
+        free(int_ptr2);
         return 0;
     }
-    memcpy(param_str, data + 1, str_size);
-    param_str[str_size] = '\0'; // Null-terminate the string
 
-    // Call a valid function from the library
-    // Since hts_idx_tbi_name is not a valid function, we replace it with a mock or valid function
-    // For demonstration, we'll just print the parameters (replace with actual function as needed)
-    printf("Param int: %d, Param str: %s\n", param_int, param_str);
+    // Initialize integer pointers with non-NULL values
+    *int_ptr1 = 0;
+    *int_ptr2 = 0;
+
+    // Extract character value from data
+    char char_param = *(data + sizeof(int) * 2);
+
+    // Call the function-under-test
+    int result = bam_mods_queryi(state, int_param1, int_ptr1, int_ptr2, &char_param);
 
     // Clean up
-    free(param_str);
-    hts_idx_destroy(idx); // Use the correct function to free the index
+    hts_base_mod_state_free(state);
+    free(int_ptr1);
+    free(int_ptr2);
 
     return 0;
 }

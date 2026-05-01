@@ -1,41 +1,52 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h> // Include this for mkstemp, write, close, and unlink
-#include "htslib/hts.h"
+#include "htslib/sam.h"  // Assuming the sam_hdr_t type is defined in this library
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate an htsFile input
-    char tmpl[] = "/tmp/fuzz_htsfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // Unable to create temporary file
+    // Initialize variables
+    sam_hdr_t *hdr = sam_hdr_init();
+
+    // Ensure the hdr is not NULL
+    if (hdr == NULL || size < 2) {
+        return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
-        return 0; // Failed to write data to the file
+    // Extract key and value from the input data
+    // Ensure that the input data is large enough to provide both key and value
+    size_t key_len = data[0] % (size - 1);  // Ensure key_len is within bounds
+    size_t value_len = size - 1 - key_len;  // Remaining bytes for value
+
+    if (key_len == 0 || value_len == 0) {
+        return 0;
     }
 
-    // Close the file descriptor to reopen it with hts_open
-    close(fd);
+    char *key = (char *)malloc(key_len + 1);
+    char *value = (char *)malloc(value_len + 1);
 
-    // Open the temporary file as an htsFile
-    htsFile *hts_fp = hts_open(tmpl, "r");
-    if (hts_fp == NULL) {
-        unlink(tmpl);
-        return 0; // Failed to open the file as an htsFile
+    if (key == NULL || value == NULL) {
+        free(key);
+        free(value);
+        sam_hdr_destroy(hdr);
+        return 0;
     }
+
+    // Copy key and value from data
+    memcpy(key, data + 1, key_len);
+    key[key_len] = '\0';
+    memcpy(value, data + 1 + key_len, value_len);
+    value[value_len] = '\0';
 
     // Call the function-under-test
-    int result = hts_check_EOF(hts_fp);
+    int result = sam_hdr_change_HD(hdr, key, value);
 
     // Clean up
-    hts_close(hts_fp);
-    unlink(tmpl);
+    free(key);
+    free(value);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

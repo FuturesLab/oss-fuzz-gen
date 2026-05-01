@@ -1,34 +1,31 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
-
-// Assuming bam_mplp_t is a pointer type, as the actual type is not provided.
-typedef struct {
-    int dummy; // Placeholder for actual structure members
-} bam_mplp_struct;
-
-typedef bam_mplp_struct* bam_mplp_t;
-
-// Function under test
-void bam_mplp_set_maxcnt_131(bam_mplp_t mplp, int maxcnt) {
-    // Dummy implementation, replace with actual logic
-    printf("Setting maxcnt to %d\n", maxcnt);
-}
+#include <htslib/hts.h>
+#include <htslib/hts_defs.h> // Include necessary headers for hts_idx_t and related functions
+#include "/src/htslib/hts_internal.h" // Correct path for the internal header
 
 int LLVMFuzzerTestOneInput_131(const uint8_t *data, size_t size) {
-    if (size < sizeof(int)) {
-        return 0; // Not enough data to form an int
+    if (size < 8) { // Ensure there's enough data to extract parameters
+        return 0;
     }
 
-    // Create a bam_mplp_t object
-    bam_mplp_struct mplp_instance;
-    bam_mplp_t mplp = &mplp_instance;
+    // Use the input data to derive parameters for hts_idx_init
+    int param1 = data[0] % 2; // Example: use the first byte for the first int parameter
+    int param2 = data[1] % 2; // Example: use the second byte for the second int parameter
+    uint64_t param3 = 0;
+    for (size_t i = 2; i < 6 && i < size; ++i) {
+        param3 = (param3 << 8) | data[i]; // Use up to 4 bytes from data for param3
+    }
+    int param4 = data[6] % 2; // Use the seventh byte directly for the third int parameter
+    int param5 = data[7] % 2; // Use the eighth byte directly for the fourth int parameter
 
-    // Extract an int value from the input data
-    int maxcnt = *((int*)data);
+    // Call the function-under-test
+    hts_idx_t *idx = hts_idx_init(param1, param2, param3, param4, param5);
 
-    // Call the function under test
-    bam_mplp_set_maxcnt_131(mplp, maxcnt);
+    // Clean up if necessary
+    if (idx != NULL) {
+        hts_idx_destroy(idx);
+    }
 
     return 0;
 }

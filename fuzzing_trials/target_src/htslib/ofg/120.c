@@ -3,21 +3,32 @@
 #include <htslib/hts.h>
 
 int LLVMFuzzerTestOneInput_120(const uint8_t *data, size_t size) {
-    hts_md5_context *ctx;
+    // Declare and initialize variables
+    // Initialize idx properly using htslib function with the correct number of arguments
+    int n = 0; // Example value, adjust based on your specific use case
+    int fmt = HTS_FMT_CSI;
+    uint64_t offset0 = 0; // Example value, adjust based on your specific use case
+    int min_shift = 14; // Example value, adjust based on your specific use case
+    int n_lvls = 5; // Example value, adjust based on your specific use case
+    
+    hts_idx_t *idx = hts_idx_init(n, fmt, offset0, min_shift, n_lvls);
+    uint64_t final_offset = 0;
 
-    // Initialize the MD5 context
-    ctx = hts_md5_init();
-    if (ctx == NULL) {
-        return 0; // If initialization fails, return early
+    // Ensure idx is not NULL
+    if (idx == NULL) {
+        return 0; // Exit if initialization failed
     }
 
-    // Simulate some operations on the MD5 context if size is non-zero
-    if (size > 0) {
-        hts_md5_update(ctx, data, size);
+    // Use the first 8 bytes of data as the final_offset if size is sufficient
+    if (size >= sizeof(uint64_t)) {
+        final_offset = *(const uint64_t *)data;
     }
 
     // Call the function-under-test
-    hts_md5_destroy(ctx);
+    hts_idx_finish(idx, final_offset);
+
+    // Destroy the index properly using htslib function
+    hts_idx_destroy(idx);
 
     return 0;
 }

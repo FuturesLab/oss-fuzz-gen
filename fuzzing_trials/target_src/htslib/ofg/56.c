@@ -1,28 +1,46 @@
-#include <stdint.h>
-#include <stddef.h>
 #include <stdio.h>
-#include <htslib/hts.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <htslib/sam.h>
+#include <htslib/bgzf.h>
 
 int LLVMFuzzerTestOneInput_56(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to extract an integer
-    if (size < sizeof(int)) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Initialize htsFile
-    htsFile *file = hts_open("test.bam", "wb");
-    if (file == NULL) {
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        remove(tmpl);
         return 0;
     }
 
-    // Extract an integer from the input data
-    int threads = *(int *)data;
+    // Close the file descriptor so it can be opened by BGZF
+    close(fd);
+
+    // Open the temporary file with BGZF
+    BGZF *bgzf = bgzf_open(tmpl, "r");
+    if (bgzf == NULL) {
+        remove(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    hts_set_threads(file, threads);
+    sam_hdr_t *header = bam_hdr_read(bgzf);
 
-    // Close the htsFile
-    hts_close(file);
+    // Clean up
+    if (header != NULL) {
+        sam_hdr_destroy(header);
+    }
+    bgzf_close(bgzf);
+    remove(tmpl);
 
     return 0;
 }

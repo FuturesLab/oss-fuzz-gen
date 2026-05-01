@@ -1,46 +1,56 @@
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <htslib/sam.h>
-
-// Dummy function to act as bam_plp_auto_f
-int dummy_func_142(void *data, bam1_t *b) {
-    // Simulate processing by initializing bam1_t with some data
-    if (b == NULL) {
-        return -1; // Return -1 to indicate no more data
-    }
-
-    // Populate bam1_t with some dummy data
-    b->core.tid = 0; // Dummy reference sequence ID
-    b->core.pos = 0; // Dummy position
-    b->core.l_qname = 0; // Dummy query name length
-    b->core.flag = 0; // Dummy flag
-    b->core.n_cigar = 0; // Dummy CIGAR length
-    b->core.l_qseq = 0; // Dummy query sequence length
-    b->core.mtid = 0; // Dummy mate reference sequence ID
-    b->core.mpos = 0; // Dummy mate position
-    b->core.isize = 0; // Dummy insert size
-
-    return 1; // Return 1 to indicate data is available
-}
+#include <string.h>
+#include <htslib/hts.h>
+#include <htslib/bgzf.h>
+#include <htslib/sam.h> // Include for BAM/SAM file handling
 
 int LLVMFuzzerTestOneInput_142(const uint8_t *data, size_t size) {
-    bam_mplp_t mplp = NULL;
+    // Write the input data to a temporary file
+    char tmp_filename[] = "/tmp/fuzz_inputXXXXXX";
+    int fd = mkstemp(tmp_filename);
+    if (fd == -1) {
+        return 0;
+    }
+    write(fd, data, size);
+    close(fd);
 
-    // Create an array of pointers for data
-    void *data_array[1] = { NULL };
-
-    // Initialize bam_mplp_t with the correct number of arguments
-    mplp = bam_mplp_init(1, dummy_func_142, data_array);
-
-    if (mplp == NULL) {
-        return 0; // If initialization fails, return early
+    // Open the temporary file using HTSlib
+    htsFile *hts_file = hts_open(tmp_filename, "r");
+    if (hts_file == NULL) {
+        unlink(tmp_filename);
+        return 0;
     }
 
-    // Call the function-under-test with the initialized mplp
-    int result = bam_mplp_init_overlaps(mplp);
+    // Read the header
+    bam_hdr_t *header = sam_hdr_read(hts_file);
+    if (header == NULL) {
+        hts_close(hts_file);
+        unlink(tmp_filename);
+        return 0;
+    }
+
+    // Initialize a BAM record
+    bam1_t *b = bam_init1();
+    if (b == NULL) {
+        bam_hdr_destroy(header);
+        hts_close(hts_file);
+        unlink(tmp_filename);
+        return 0;
+    }
+
+    // Read records from the file
+    while (sam_read1(hts_file, header, b) >= 0) {
+        // Process each record (this is where coverage can be increased)
+    }
 
     // Clean up
-    bam_mplp_destroy(mplp);
+    bam_destroy1(b);
+    bam_hdr_destroy(header);
+    hts_close(hts_file);
+    unlink(tmp_filename);
 
     return 0;
 }

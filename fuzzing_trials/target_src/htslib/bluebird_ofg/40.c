@@ -1,43 +1,44 @@
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include "htslib/sam.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>  // Include this for mkstemp() and close()
+
+extern char **hts_readlist(const char *fname, int is_file, int *n);
 
 int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    // Check if size is sufficient to extract necessary components
-    if (size < 3) {
+    // Define and initialize variables
+    int n = 0;
+    int is_file = 1; // Assuming we want to read from a file
+
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Initialize a sam_hdr_t object
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
         return 0;
     }
-
-    // Use part of the data as a string for the second parameter
-    // Ensure string is null-terminated
-    size_t str_len = size - 2;
-    char *str = (char *)malloc(str_len + 1);
-    if (str == NULL) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-    memcpy(str, data, str_len);
-    str[str_len] = '\0';
-
-    // Use part of the data as an integer for the third parameter
-    int pos = (int)data[size - 1];
+    close(fd);
 
     // Call the function-under-test
-    sam_hdr_remove_line_pos(hdr, str, pos);
+    char **result = hts_readlist(tmpl, is_file, &n);
 
     // Clean up
-    free(str);
-    sam_hdr_destroy(hdr);
+    if (result != NULL) {
+        for (int i = 0; i < n; ++i) {
+            free(result[i]);
+        }
+        free(result);
+    }
+
+    // Remove the temporary file
+    remove(tmpl);
 
     return 0;
 }

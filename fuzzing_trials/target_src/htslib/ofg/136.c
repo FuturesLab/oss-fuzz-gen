@@ -1,20 +1,27 @@
 #include <stdint.h>
 #include <stddef.h>
-
-// Assuming the function is defined somewhere
-char bam_aux2A(const uint8_t *);
+#include <stdlib.h>
+#include <string.h>
+#include "htslib/hts.h" // Assuming htslib/hts.h contains the definition for hts_md5_context
 
 int LLVMFuzzerTestOneInput_136(const uint8_t *data, size_t size) {
-    // Ensure that data is not NULL and size is greater than 0
-    if (data == NULL || size == 0) {
-        return 0;
+    unsigned char result[16]; // MD5 produces a 16-byte hash
+    hts_md5_context *ctx;
+
+    // Initialize the MD5 context
+    ctx = hts_md5_init();
+    if (ctx == NULL) {
+        return 0; // Exit if context initialization fails
     }
 
-    // Call the function-under-test
-    char result = bam_aux2A(data);
+    // Simulate processing data with MD5
+    hts_md5_update(ctx, data, size);
 
-    // Use the result in some way to avoid compiler optimizations removing the call
-    (void)result;
+    // Finalize the MD5 hash
+    hts_md5_final(result, ctx);
+
+    // Clean up
+    hts_md5_destroy(ctx);
 
     return 0;
 }

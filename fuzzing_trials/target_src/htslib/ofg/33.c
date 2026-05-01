@@ -1,48 +1,38 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
 #include <stdio.h>
-#include "/src/htslib/htslib/sam.h" // Correct path for sam_hdr_t and the function
+#include <stdlib.h>
+#include <htslib/sam.h>
+#include <htslib/hts.h>
+
+// Mock function to initialize bam_plp_t for demonstration purposes
+bam_plp_t initialize_bam_plp() {
+    // Normally, you would initialize bam_plp_t using appropriate library functions.
+    // Here, we return a NULL pointer for demonstration purposes.
+    return bam_plp_init(NULL, NULL);
+}
 
 int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    // Initialize the parameters for the function-under-test
-    sam_hdr_t *hdr = sam_hdr_init(); // Assuming sam_hdr_init initializes a sam_hdr_t object
-    if (hdr == NULL) {
-        return 0; // Fail gracefully if hdr cannot be initialized
-    }
+    // Initialize bam_plp_t
+    bam_plp_t plp = initialize_bam_plp();
 
-    // Ensure data is large enough to split into two non-NULL strings
-    if (size < 2) {
-        sam_hdr_destroy(hdr); // Clean up
+    // Initialize integer pointers
+    int tid = 0;
+    int pos = 0;
+    int n_plp = 0;
+
+    // Check if plp is NULL and return early if it is
+    if (plp == NULL) {
         return 0;
     }
-
-    // Split the data into two strings for the function parameters
-    size_t mid = size / 2;
-    char *str1 = (char *)malloc(mid + 1);
-    char *str2 = (char *)malloc(size - mid + 1);
-
-    if (str1 == NULL || str2 == NULL) {
-        sam_hdr_destroy(hdr); // Clean up
-        free(str1);
-        free(str2);
-        return 0;
-    }
-
-    memcpy(str1, data, mid);
-    str1[mid] = '\0'; // Null-terminate the first string
-
-    memcpy(str2, data + mid, size - mid);
-    str2[size - mid] = '\0'; // Null-terminate the second string
 
     // Call the function-under-test
-    int result = sam_hdr_change_HD(hdr, str1, str2);
+    const bam_pileup1_t *result = bam_plp_next(plp, &tid, &pos, &n_plp);
+
+    // Normally, you would process the result, but for fuzzing purposes, we just ensure the function is called
+    (void)result; // Suppress unused variable warning
 
     // Clean up
-    free(str1);
-    free(str2);
-    sam_hdr_destroy(hdr);
+    bam_plp_destroy(plp);
 
     return 0;
 }

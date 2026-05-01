@@ -1,39 +1,33 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
-#include <htslib/sam.h>
+#include <string.h>
+
+typedef int64_t hts_pos_t;
+
+// Function signature
+const char * hts_parse_reg64(const char *region, hts_pos_t *beg, hts_pos_t *end);
 
 int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for the required parameters
-    if (size < 100) {
-        return 0;
-    }
+    // Ensure that the input data is null-terminated and has a non-zero size
+    if (size == 0) return 0;
 
-    // Initialize variables for bam_set1 parameters
-    bam1_t *b = bam_init1();
-    size_t l_data = size / 2;
-    const char *qname = (const char *)data;
-    uint16_t flag = (uint16_t)data[0];
-    int32_t tid = (int32_t)data[1];
-    hts_pos_t pos = (hts_pos_t)data[2];
-    uint8_t mapq = data[3];
-    size_t n_cigar = 1;
-    uint32_t cigar[1] = {0};
-    int32_t mtid = (int32_t)data[4];
-    hts_pos_t mpos = (hts_pos_t)data[5];
-    hts_pos_t isize = (hts_pos_t)data[6];
-    size_t l_seq = size / 4;
-    const char *seq = (const char *)(data + 10);
-    const char *qual = (const char *)(data + 20);
-    size_t l_aux = size / 8;
+    // Allocate memory for the region string and ensure it's null-terminated
+    char *region = (char *)malloc(size + 1);
+    if (region == NULL) return 0;
+    memcpy(region, data, size);
+    region[size] = '\0';
+
+    // Initialize beg and end pointers
+    hts_pos_t beg = 0;
+    hts_pos_t end = 0;
 
     // Call the function-under-test
-    int result = bam_set1(b, l_data, qname, flag, tid, pos, mapq, n_cigar, cigar, mtid, mpos, isize, l_seq, seq, qual, l_aux);
+    const char *result = hts_parse_reg64(region, &beg, &end);
 
-    // Clean up
-    bam_destroy1(b);
+    // Free allocated memory
+    free(region);
 
     return 0;
 }

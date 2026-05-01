@@ -1,43 +1,61 @@
 #include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdio.h>
-#include <unistd.h> // Include for close() and unlink()
-#include <fcntl.h>  // Include for mkstemp()
+#include <string.h>
+#include "htslib/sam.h"
+#include "htslib/hts.h"
 
-// Assuming the function is declared in some header file
-char ** hts_readlist(const char *filename, int is_file, int *num_lines);
+// A dummy callback function for bam_mplp_init
+static int read_bam(void *data, bam1_t *b) {
+    return -1; // Return -1 to indicate no more data
+}
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // If file creation fails, exit the fuzzer
+    // Check if the size is sufficient for our needs
+    if (size < sizeof(bam_hdr_t)) {
+        return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    write(fd, data, size);
-    close(fd);
-
-    // Prepare parameters for hts_readlist
-    int num_lines = 0;
-    int is_file = 1; // Indicating that the input is a file
-
-    // Call the function-under-test
-    char **result = hts_readlist(tmpl, is_file, &num_lines);
-
-    // Clean up: free the result if it is not NULL
-    if (result != NULL) {
-        for (int i = 0; i < num_lines; ++i) {
-            free(result[i]);
-        }
-        free(result);
+    // Initialize a BAM file header
+    bam_hdr_t *header = bam_hdr_init();
+    if (!header) {
+        fprintf(stderr, "Failed to initialize BAM header\n");
+        return 0;
     }
 
-    // Remove the temporary file
-    unlink(tmpl);
+    // Simulate a valid input for bam_mplp_init by creating a dummy bam1_t object
+    bam1_t *b = bam_init1();
+    if (!b) {
+        bam_hdr_destroy(header);
+        fprintf(stderr, "Failed to initialize BAM record\n");
+        return 0;
+    }
+
+    // Initialize a BAM multi-pileup iterator with a dummy callback
+    bam_mplp_t mplp = bam_mplp_init(1, read_bam, b);
+    if (!mplp) {
+        bam_destroy1(b);
+        bam_hdr_destroy(header);
+        fprintf(stderr, "Failed to initialize BAM multi-pileup\n");
+        return 0;
+    }
+
+    int ref_id = 0;
+    int pos = 0;
+    int n_plp = 0;
+    const bam_pileup1_t *plp = NULL;
+
+    // Simulate a valid input for bam_mplp_auto
+    int result = bam_mplp_auto(mplp, &ref_id, &pos, &n_plp, &plp);
+
+    // Output the result for debugging purposes (optional)
+    printf("Result: %d, Ref ID: %d, Pos: %d, N plp: %d\n", result, ref_id, pos, n_plp);
+
+    // Clean up
+    bam_mplp_destroy(mplp);
+    bam_destroy1(b);
+    bam_hdr_destroy(header);
 
     return 0;
 }

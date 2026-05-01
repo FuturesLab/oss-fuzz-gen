@@ -1,32 +1,39 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
-#include <openssl/md5.h> // Include the necessary library for MD5 functions
+#include "/src/htslib/htslib/hts.h" // Include the header for hts_free
 
-// Function prototype
-void hts_md5_hex_110(char *hex, const unsigned char *data, size_t size) {
-    unsigned char md5_result[MD5_DIGEST_LENGTH];
-    MD5(data, size, md5_result); // Compute MD5 hash with the provided size
-
-    // Convert the MD5 hash to a hex string
-    for (int i = 0; i < MD5_DIGEST_LENGTH; i++) {
-        sprintf(&hex[i * 2], "%02x", md5_result[i]);
-    }
+// Dummy implementation of process_data function
+void process_data(void *data, size_t size) {
+    // Example processing: just print the data size
+    printf("Processing data of size: %zu\n", size);
 }
 
 int LLVMFuzzerTestOneInput_110(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to process
-    if (size < 1) { // Allow processing of any non-zero size input
+    // Ensure size is non-zero to provide meaningful input
+    if (size == 0) {
         return 0;
     }
 
-    // Allocate memory for the output hex string (32 characters + 1 for null terminator)
-    char hex[33];
-    hex[32] = '\0'; // Null-terminate the string
+    // Allocate memory for fuzzing
+    void *memory = malloc(size + 1); // Ensure memory is not NULL
+    if (memory == NULL) {
+        return 0; // Exit if memory allocation fails
+    }
 
-    // Call the function-under-test with the actual size of the data
-    hts_md5_hex_110(hex, data, size);
+    // Copy the input data to the allocated memory
+    memcpy(memory, data, size);
 
+    // Ensure the memory is null-terminated if used as a string
+    ((char *)memory)[size] = '\0';
+
+    // Call the function-under-test with meaningful input
+    process_data(memory, size);
+
+    // Free the allocated memory
+    hts_free(memory);
+
+    // Return 0 to indicate the fuzzer should continue
     return 0;
 }
 #ifdef INC_MAIN

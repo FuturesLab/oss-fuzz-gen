@@ -1,42 +1,61 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
-#include <htslib/hts.h>
+#include <stdio.h>
 
-// Assuming DW_TAG_enumeration_typehts_fmt_option is an enum type
-typedef enum {
-    HTS_FMT_OPTION_1,
-    HTS_FMT_OPTION_2,
-    HTS_FMT_OPTION_3,
-    HTS_FMT_OPTION_MAX
-} DW_TAG_enumeration_typehts_fmt_option;
+// Assuming the required headers for sam_hdr_t and sam_hdr_remove_tag_id are included
+#include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-    htsFile *file = hts_open("temp.bam", "wb");
-    if (file == NULL) {
+    // Initialize the sam_hdr_t structure
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
         return 0;
     }
 
-    // Ensure the size is sufficient to extract an option index
-    if (size < sizeof(int)) {
-        hts_close(file);
+    // Ensure data is large enough to create non-NULL strings
+    if (size < 5) {
+        sam_hdr_destroy(hdr);
         return 0;
     }
 
-    // Extract an option from the data
-    int option_index = data[0] % HTS_FMT_OPTION_MAX;
-    DW_TAG_enumeration_typehts_fmt_option option = (DW_TAG_enumeration_typehts_fmt_option)option_index;
+    // Create strings from the data
+    size_t part_size = size / 5;
+    char *str1 = (char *)malloc(part_size + 1);
+    char *str2 = (char *)malloc(part_size + 1);
+    char *str3 = (char *)malloc(part_size + 1);
+    char *str4 = (char *)malloc(part_size + 1);
 
-    // Use a non-NULL pointer for the void* parameter
-    int dummy_value = 42;
-    void *dummy_ptr = &dummy_value;
+    if (!str1 || !str2 || !str3 || !str4) {
+        free(str1);
+        free(str2);
+        free(str3);
+        free(str4);
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+
+    // Copy data into strings and null-terminate them
+    memcpy(str1, data, part_size);
+    str1[part_size] = '\0';
+    memcpy(str2, data + part_size, part_size);
+    str2[part_size] = '\0';
+    memcpy(str3, data + 2 * part_size, part_size);
+    str3[part_size] = '\0';
+    memcpy(str4, data + 3 * part_size, part_size);
+    str4[part_size] = '\0';
 
     // Call the function-under-test
-    hts_set_opt(file, option, dummy_ptr);
+    sam_hdr_remove_tag_id(hdr, str1, str2, str3, str4);
 
     // Clean up
-    hts_close(file);
+    free(str1);
+    free(str2);
+    free(str3);
+    free(str4);
+    sam_hdr_destroy(hdr);
+
     return 0;
 }
 #ifdef INC_MAIN

@@ -1,60 +1,49 @@
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <htslib/sam.h>
+#include <htslib/hts.h>
 #include <string.h>
 
-// Assume the function is declared in some header file that we include
-// int hfile_list_schemes(const char *, const char **, int *);
+// Define a callback function for bam_plp_init
+int dummy_callback_45(void *data, bam1_t *b) {
+    if (data == NULL || b == NULL) {
+        return -1; // Return -1 to indicate no more reads
+    }
 
-extern int hfile_list_schemes(const char *, const char **, int *);
+    // Copy data into bam1_t structure
+    bam1_t *input_bam = (bam1_t *)data;
+    memcpy(b, input_bam, sizeof(bam1_t));
+
+    // Indicate that a read has been processed
+    return 1;
+}
 
 int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    if (size < 3) {
-        return 0; // Ensure there is enough data for the inputs
+    if (size < sizeof(bam1_t)) {
+        return 0; // Not enough data to form a bam1_t structure
     }
 
-    // Split the input data into three parts for the three parameters
-    size_t str1_len = size / 3;
-    size_t str2_len = size / 3;
-    size_t int_len = size - str1_len - str2_len;
+    // Create a bam1_t object from input data
+    bam1_t input_bam;
+    memcpy(&input_bam, data, sizeof(bam1_t));
 
-    // Allocate memory for the strings and the integer
-    char *str1 = (char *)malloc(str1_len + 1);
-    char **str2 = (char **)malloc(sizeof(char *));
-    int *int_ptr = (int *)malloc(sizeof(int));
+    bam_plp_t plp;
+    int tid = 0;
+    hts_pos_t pos = 0;
+    int n_plp = 0;
 
-    if (!str1 || !str2 || !int_ptr) {
-        free(str1);
-        free(str2);
-        free(int_ptr);
+    // Initialize bam_plp_t with the dummy_callback_45 function and the input_bam
+    plp = bam_plp_init(dummy_callback_45, &input_bam);
+
+    if (plp == NULL) {
         return 0;
     }
 
-    // Copy data into the allocated memory
-    memcpy(str1, data, str1_len);
-    str1[str1_len] = '\0'; // Null-terminate the string
+    // Fuzz the bam_plp64_auto function
+    const bam_pileup1_t *pileup = bam_plp64_auto(plp, &tid, &pos, &n_plp);
 
-    *str2 = (char *)malloc(str2_len + 1);
-    if (!*str2) {
-        free(str1);
-        free(str2);
-        free(int_ptr);
-        return 0;
-    }
-
-    memcpy(*str2, data + str1_len, str2_len);
-    (*str2)[str2_len] = '\0'; // Null-terminate the string
-
-    memcpy(int_ptr, data + str1_len + str2_len, int_len);
-
-    // Call the function-under-test
-    hfile_list_schemes(str1, (const char **)str2, int_ptr);
-
-    // Free allocated memory
-    free(str1);
-    free(*str2);
-    free(str2);
-    free(int_ptr);
+    // Clean up
+    bam_plp_destroy(plp);
 
     return 0;
 }

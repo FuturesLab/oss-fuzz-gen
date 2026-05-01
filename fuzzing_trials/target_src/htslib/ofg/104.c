@@ -1,44 +1,29 @@
-#include <stdio.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include <unistd.h>
-#include <fcntl.h>
 
-// Assuming the function hts_readlist is declared in an external library
-extern char ** hts_readlist(const char *filename, int is_file, int *n);
+extern long long hts_parse_decimal(const char *, char **, int);
 
 int LLVMFuzzerTestOneInput_104(const uint8_t *data, size_t size) {
-    // Create a temporary file to hold the fuzzing data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // Unable to create a temporary file
+    // Ensure the data is null-terminated
+    char *str = (char *)malloc(size + 1);
+    if (str == NULL) {
+        return 0; // Exit if memory allocation fails
+    }
+    memcpy(str, data, size);
+    str[size] = '\0';
+
+    // Prepare a pointer for the endptr parameter
+    char *endptr = NULL;
+
+    // Call the function-under-test with various base values
+    for (int base = 2; base <= 36; base++) {
+        hts_parse_decimal(str, &endptr, base);
     }
 
-    // Write the fuzzing data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        return 0; // Error writing to the file
-    }
-    close(fd);
-
-    // Prepare parameters for hts_readlist
-    const char *filename = tmpl;
-    int is_file = 1; // Indicate that the input is a file
-    int n = 0;
-
-    // Call the function-under-test
-    char **result = hts_readlist(filename, is_file, &n);
-
-    // Clean up
-    if (result != NULL) {
-        for (int i = 0; i < n; ++i) {
-            free(result[i]);
-        }
-        free(result);
-    }
-    unlink(tmpl); // Remove the temporary file
+    // Free the allocated memory
+    free(str);
 
     return 0;
 }

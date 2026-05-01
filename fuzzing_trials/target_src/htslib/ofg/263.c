@@ -1,33 +1,50 @@
+#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
 #include <stdio.h>
-#include <string.h> // Include for memcpy
-#include <htslib/sam.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>  // Include for mkstemp and close
+#include <fcntl.h>   // Include for open flags
+
+// Assuming the function is declared in a header file
+extern char **hts_readlist(const char *filename, int is_file, int *n);
 
 int LLVMFuzzerTestOneInput_263(const uint8_t *data, size_t size) {
-    // Create a buffer for header data
-    char *header_data = (char *)malloc(size + 1);
-    if (header_data == NULL) {
+    // Define and initialize variables
+    char *filename;
+    int is_file = 1;  // Assuming we are passing a file
+    int n = 0;
+    char **result;
+
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
-
-    // Copy data into the header buffer and null-terminate it
-    memcpy(header_data, data, size);
-    header_data[size] = '\0';
-
-    // Attempt to parse the header data
-    sam_hdr_t *hdr = sam_hdr_parse(size, header_data);
-
-    // Check if parsing was successful
-    if (hdr == NULL) {
-        // If parsing fails, clean up and return
-        free(header_data);
+    
+    // Write the fuzz data to the file
+    if (write(fd, data, size) != size) {
+        close(fd);
         return 0;
     }
+    close(fd);
+
+    filename = tmpl;
+
+    // Call the function-under-test
+    result = hts_readlist(filename, is_file, &n);
 
     // Clean up
-    free(header_data);
-    sam_hdr_destroy(hdr);
+    if (result != NULL) {
+        for (int i = 0; i < n; i++) {
+            free(result[i]);
+        }
+        free(result);
+    }
+
+    // Remove the temporary file
+    remove(filename);
 
     return 0;
 }

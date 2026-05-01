@@ -4,49 +4,34 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "htslib/sam.h"
-
-// Mock function to create a sample sam_hdr_t
-sam_hdr_t *create_sample_sam_hdr() {
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
-        return NULL;
-    }
-
-    // Add some sample target names to the header
-    sam_hdr_add_line(hdr, "SQ", "SN:chr1", "LN:248956422", NULL);
-    sam_hdr_add_line(hdr, "SQ", "SN:chr2", "LN:242193529", NULL);
-    sam_hdr_add_line(hdr, "SQ", "SN:chr3", "LN:198295559", NULL);
-
-    return hdr;
-}
+#include "htslib/sam.h" // Correct path for bam1_t and related functions
 
 int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    if (size < sizeof(int)) {
+    // Ensure the input size is sufficient for the parameters
+    if (size < 4) { // Adjusted to ensure we have at least 2 bytes for tag, 1 byte for len, and 1 byte for new_str
         return 0;
     }
 
-    // Create a sample sam_hdr_t
-    sam_hdr_t *hdr = create_sample_sam_hdr();
-    if (hdr == NULL) {
+    // Initialize bam1_t structure
+    bam1_t bam;
+    memset(&bam, 0, sizeof(bam1_t));
+
+    // Extract parameters from the input data
+    char tag[3] = {0}; // Ensure tag is null-terminated
+    memcpy(tag, data, 2); // Use the first two bytes as tag
+
+    int tag_size = 2;
+    int len = data[tag_size]; // Use the next byte as the length
+
+    // Ensure len does not exceed the remaining size
+    if (len > size - (tag_size + 1)) {
         return 0;
     }
 
-    // Use the first 4 bytes of data to form an integer index
-    int index = *((int *)data);
+    const char *new_str = (const char *)(data + tag_size + 1); // Use the remaining data as the new string
 
-    // Call the function-under-test
-    const char *name = sam_hdr_tid2name(hdr, index);
-
-    // Print the result for debugging purposes
-    if (name != NULL) {
-        printf("Index: %d, Name: %s\n", index, name);
-    } else {
-        printf("Index: %d, Name: NULL\n", index);
-    }
-
-    // Clean up
-    sam_hdr_destroy(hdr);
+    // Call the function under test
+    bam_aux_update_str(&bam, tag, len, new_str);
 
     return 0;
 }

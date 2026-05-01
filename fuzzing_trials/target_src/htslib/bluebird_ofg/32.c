@@ -1,52 +1,122 @@
 #include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "htslib/sam.h" // Correct path for the header where bam_aux_update_array is declared
+#include <string.h>
+#include "htslib/sam.h"
+#include "htslib/hts.h"
+#include <unistd.h>
+#include <fcntl.h>
 
 int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to initialize all parameters
-    if (size < sizeof(bam1_t) + 4 + sizeof(uint8_t) + sizeof(uint32_t)) {
+    // Ensure the data size is sufficient for meaningful processing
+    if (size < 4) {
         return 0;
     }
 
-    // Initialize bam1_t structure
-    bam1_t *b = (bam1_t *)malloc(sizeof(bam1_t));
-    if (b == NULL) {
+    char tmpl1[] = "/tmp/fuzzfile1XXXXXX";
+    char tmpl2[] = "/tmp/fuzzfile2XXXXXX";
+    int fd1 = mkstemp(tmpl1);
+    int fd2 = mkstemp(tmpl2);
+
+    if (fd1 == -1 || fd2 == -1) {
+        if (fd1 != -1) {
+                close(fd1);
+        }
+        if (fd2 != -1) {
+                close(fd2);
+        }
         return 0;
     }
-    memset(b, 0, sizeof(bam1_t));
 
-    // Initialize the tag as a 2-character string
-    const char *tag = (const char *)(data + sizeof(bam1_t));
+    // Write the fuzzing data to the first temporary file
+    if (write(fd1, data, size) != size) {
+        close(fd1);
+        close(fd2);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+    close(fd1);
+
+    // Open the file using htslib
+    htsFile *hts_file = hts_open(tmpl1, "r");
+    if (!hts_file) {
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+
+    // Check if the file is a valid SAM/BAM format
+    bam_hdr_t *header = sam_hdr_read(hts_file);
+    if (!header) {
+        hts_close(hts_file);
+        unlink(tmpl1);
+        unlink(tmpl2);
+        return 0;
+    }
+
+    // Attempt to read the first alignment
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from sam_hdr_read to hts_set_fai_filename
+    char* ret_bam_flag2str_qpbrt = bam_flag2str(BAM_FQCFAIL);
+    if (ret_bam_flag2str_qpbrt == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bam_flag2str_qpbrt) {
+    	return 0;
+    }
+    int ret_hts_set_fai_filename_zyano = hts_set_fai_filename(hts_file, ret_bam_flag2str_qpbrt);
+    if (ret_hts_set_fai_filename_zyano < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
     
-    // Ensure the tag is null-terminated
-    char tag_buffer[3];
-    memcpy(tag_buffer, tag, 2);
-    tag_buffer[2] = '\0';
-    
-    // Initialize type
-    uint8_t type = *(uint8_t *)(data + sizeof(bam1_t) + 2);
-
-    // Initialize length
-    uint32_t length = *(uint32_t *)(data + sizeof(bam1_t) + 3);
-
-    // Ensure the array_data does not exceed the input size
-    if (sizeof(bam1_t) + 3 + sizeof(uint32_t) + length > size) {
-        free(b);
+    bam1_t *aln = bam_init1();
+    if (sam_read1(hts_file, header, aln) < 0) {
+        bam_destroy1(aln);
+        bam_hdr_destroy(header);
+        hts_close(hts_file);
+        unlink(tmpl1);
+        unlink(tmpl2);
         return 0;
     }
-
-    // Initialize data array
-    void *array_data = (void *)(data + sizeof(bam1_t) + 3 + sizeof(uint32_t));
 
     // Call the function-under-test
-    int result = bam_aux_update_array(b, tag_buffer, type, length, array_data);
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from sam_read1 to sam_itr_regions using the plateau pool
+    hts_reglist_t *reglist = (hts_reglist_t *)malloc(sizeof(hts_reglist_t));
+    unsigned int flags = 0;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!header) {
+    	return 0;
+    }
+    hts_itr_t* ret_sam_itr_regions_vjlna = sam_itr_regions(index, header, reglist, flags);
+    if (ret_sam_itr_regions_vjlna == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    hts_idx_t *index = sam_index_load2(hts_file, tmpl1, tmpl2);
+
+    // Ensure that the index is valid before proceeding
+    if (index) {
+        // Perform additional operations if needed
+        hts_idx_destroy(index);
+    }
 
     // Clean up
-    free(b);
+    bam_destroy1(aln);
+    bam_hdr_destroy(header);
+    hts_close(hts_file);
+    unlink(tmpl1);
+    unlink(tmpl2);
 
     return 0;
 }

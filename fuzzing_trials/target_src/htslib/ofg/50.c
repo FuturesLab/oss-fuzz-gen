@@ -1,47 +1,56 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <htslib/hts.h>
-#include <htslib/bgzf.h>
-#include <htslib/tbx.h>  // Include this for hts_idx_t and related functions
+#include "htslib/sam.h" // Assuming the function is part of the htslib library
 
 int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
-    // Create a temporary file to use as the filename input
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Declare and initialize variables
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (hdr == NULL) {
+        return 0; // Exit if header initialization fails
+    }
+
+    // Ensure size is large enough for splitting into multiple strings
+    if (size < 4) {
+        sam_hdr_destroy(hdr);
         return 0;
     }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
+
+    // Allocate memory for strings
+    char *str1 = (char *)malloc(size / 4 + 1);
+    char *str2 = (char *)malloc(size / 4 + 1);
+    char *str3 = (char *)malloc(size / 4 + 1);
+    char *str4 = (char *)malloc(size / 4 + 1);
+
+    if (str1 == NULL || str2 == NULL || str3 == NULL || str4 == NULL) {
+        free(str1);
+        free(str2);
+        free(str3);
+        free(str4);
+        sam_hdr_destroy(hdr);
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
 
-    // Initialize a dummy hts_idx_t object with the correct number of parameters
-    uint64_t offset0 = 0;
-    int min_shift = 14;  // Example value
-    int n_lvls = 5;      // Example value
-    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_CSI, offset0, min_shift, n_lvls);
+    // Copy parts of data into strings
+    memcpy(str1, data, size / 4);
+    str1[size / 4] = '\0';
+    memcpy(str2, data + size / 4, size / 4);
+    str2[size / 4] = '\0';
+    memcpy(str3, data + 2 * (size / 4), size / 4);
+    str3[size / 4] = '\0';
+    memcpy(str4, data + 3 * (size / 4), size / 4);
+    str4[size / 4] = '\0';
 
-    // Set a non-null value for the int parameter
-    int fmt = HTS_FMT_CSI;  // Use a valid format for the index
-
-    // Call the function-under-test and check the return value
-    if (hts_idx_save(idx, tmpl, fmt) < 0) {  // Corrected function call with 3 arguments
-        hts_idx_destroy(idx);
-        remove(tmpl);
-        return 0;
-    }
+    // Call the function-under-test
+    sam_hdr_update_line(hdr, str1, str2, str3, str4);
 
     // Clean up
-    hts_idx_destroy(idx);
-    remove(tmpl);
+    free(str1);
+    free(str2);
+    free(str3);
+    free(str4);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

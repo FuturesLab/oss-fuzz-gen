@@ -1,37 +1,51 @@
-#include <stdint.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <fcntl.h>
+#include <unistd.h>
 #include <string.h>
-#include <unistd.h>  // Include this for close() and unlink()
-#include <fcntl.h>   // Include this for mkstemp()
-#include <htslib/hts.h>
+#include "/src/htslib/htslib/hfile.h" // Correct path for hFILE and hdopen
 
 int LLVMFuzzerTestOneInput_271(const uint8_t *data, size_t size) {
-    // Create a temporary file to store the input data
+    int fd;
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
+    hFILE *file = NULL;
+    char buffer[1024]; // Buffer for reading data
+    ssize_t bytes_read;
+
+    // Create a temporary file
+    fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the input data to the temporary file
+    // Write data to the temporary file
     if (write(fd, data, size) != size) {
         close(fd);
-        return 0;
-    }
-    close(fd);
-
-    // Open the temporary file with hts_open
-    htsFile *file = hts_open(tmpl, "r");
-    if (file == NULL) {
         unlink(tmpl);
         return 0;
     }
 
-    // Call the function-under-test
-    hts_close(file);
+    // Rewind the file descriptor to the beginning
+    lseek(fd, 0, SEEK_SET);
 
-    // Clean up the temporary file
+    // Call the function-under-test
+    file = hdopen(fd, "r");
+    if (file != NULL) {
+        // Perform operations on the file if necessary
+        // Read some data from the file to ensure coverage
+        while ((bytes_read = hread(file, buffer, sizeof(buffer))) > 0) {
+            // Process the read data if necessary
+            // For fuzzing, just ensure that the read is performed
+        }
+
+        // Close the hFILE
+        hclose(file);
+    }
+
+    // Clean up
+    close(fd);
     unlink(tmpl);
 
     return 0;

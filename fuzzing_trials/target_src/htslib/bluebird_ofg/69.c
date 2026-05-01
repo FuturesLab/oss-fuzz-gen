@@ -1,48 +1,45 @@
 #include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
-#include "htslib/sam.h" // Correct path for sam_hdr_t definition
-#include "htslib/hts.h" // Correct path for kstring_t definition
 
+// Function-under-test declaration
+int sam_open_mode(char *, const char *, const char *);
+
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
-    // Initialize sam_hdr_t
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
-        return 0; // Exit if initialization fails
-    }
-
-    // Ensure the input data is not empty
-    if (size == 0) {
-        sam_hdr_destroy(hdr);
+    // Ensure the input data is large enough to split into three parts
+    if (size < 3) {
         return 0;
     }
 
-    // Create a null-terminated string from the input data
-    char *str = (char *)malloc(size + 1);
-    if (str == NULL) {
-        sam_hdr_destroy(hdr);
+    // Calculate the lengths for each parameter
+    size_t len1 = size / 3;
+    size_t len2 = size / 3;
+    size_t len3 = size - len1 - len2;
+
+    // Ensure that each parameter has enough space for the data and a null terminator
+    if (len1 >= 256 || len2 >= 256 || len3 >= 256) {
         return 0;
     }
-    memcpy(str, data, size);
-    str[size] = '\0';
 
-    // Initialize kstring_t
-    kstring_t ks;
-    ks.l = 0;
-    ks.m = 0;
-    ks.s = NULL;
+    // Allocate memory for the parameters
+    char param1[256];
+    char param2[256];
+    char param3[256];
 
-    // Call the function under test with various positions
-    for (int pos = 0; pos < 10; ++pos) {
-        sam_hdr_find_line_pos(hdr, str, pos, &ks);
-    }
+    // Copy data to each parameter, ensuring null-termination
+    memcpy(param1, data, len1);
+    param1[len1] = '\0';
 
-    // Clean up
-    free(str);
-    free(ks.s);
-    sam_hdr_destroy(hdr);
+    memcpy(param2, data + len1, len2);
+    param2[len2] = '\0';
+
+    memcpy(param3, data + len1 + len2, len3);
+    param3[len3] = '\0';
+
+    // Call the function-under-test
+    sam_open_mode(param1, param2, param3);
 
     return 0;
 }

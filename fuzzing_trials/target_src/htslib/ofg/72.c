@@ -1,51 +1,48 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <htslib/sam.h>
+#include <htslib/bgzf.h>
 
-// Mock function to create a sample sam_hdr_t
-sam_hdr_t *create_sample_sam_hdr() {
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
-        return NULL;
-    }
-
-    // Add some sample target names to the header
-    sam_hdr_add_line(hdr, "SQ", "SN:chr1", "LN:248956422", NULL);
-    sam_hdr_add_line(hdr, "SQ", "SN:chr2", "LN:242193529", NULL);
-    sam_hdr_add_line(hdr, "SQ", "SN:chr3", "LN:198295559", NULL);
-
-    return hdr;
-}
-
+// Fuzzing harness for bam_read1 function
 int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
-    if (size < sizeof(int)) {
+    // Create a temporary file to store the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Create a sample sam_hdr_t
-    sam_hdr_t *hdr = create_sample_sam_hdr();
-    if (hdr == NULL) {
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
         return 0;
     }
 
-    // Use the first 4 bytes of data to form an integer index
-    int index = *((int *)data);
+    // Close the file descriptor
+    close(fd);
+
+    // Open the temporary file with BGZF
+    BGZF *bgzf = bgzf_open(tmpl, "r");
+    if (bgzf == NULL) {
+        return 0;
+    }
+
+    // Initialize bam1_t structure
+    bam1_t *b = bam_init1();
+    if (b == NULL) {
+        bgzf_close(bgzf);
+        return 0;
+    }
 
     // Call the function-under-test
-    const char *name = sam_hdr_tid2name(hdr, index);
-
-    // Print the result for debugging purposes
-    if (name != NULL) {
-        printf("Index: %d, Name: %s\n", index, name);
-    } else {
-        printf("Index: %d, Name: NULL\n", index);
-    }
+    bam_read1(bgzf, b);
 
     // Clean up
-    sam_hdr_destroy(hdr);
+    bam_destroy1(b);
+    bgzf_close(bgzf);
+    unlink(tmpl); // Remove the temporary file
 
     return 0;
 }

@@ -1,65 +1,100 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
+#include <string.h>
+#include <unistd.h>      // Include for close() and unlink()
+#include <fcntl.h>       // Include for mkstemp()
 #include "htslib/sam.h"
-#include "/src/htslib/htslib/bgzf.h"
+#include "htslib/hts.h"
 
-// Fuzzing harness for bam_hdr_write function
 int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate a BGZF file
+    htsFile *hts_file = NULL;
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Open the temporary file as a BGZF file
-    BGZF *bgzf = bgzf_fdopen(fd, "w");
-    if (bgzf == NULL) {
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
         close(fd);
         return 0;
     }
+    close(fd);
 
-    // Initialize a sam_hdr_t structure
-    sam_hdr_t *header = sam_hdr_init();
-    if (header == NULL) {
-        bgzf_close(bgzf);
+    // Open the temporary file using hts_open
+    hts_file = hts_open(tmpl, "r");
+    if (hts_file == NULL) {
         return 0;
     }
 
-    // Use the input data to populate the header
-    // Assume the input data is a null-terminated string for simplicity
-    if (size > 0) {
-        char *header_data = (char *)malloc(size + 1);
-        if (header_data == NULL) {
-            sam_hdr_destroy(header);
-            bgzf_close(bgzf);
-            return 0;
-        }
-        memcpy(header_data, data, size);
-        header_data[size] = '\0'; // Ensure null-termination
+    // Define non-NULL strings for the second and third parameters
 
-        // Attempt to parse the input data as SAM header lines
-        if (sam_hdr_add_lines(header, header_data, size) < 0) {
-            // If parsing fails, clean up and return
-            free(header_data);
-            sam_hdr_destroy(header);
-            bgzf_close(bgzf);
-            return 0;
-        }
-
-        free(header_data);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to sam_write1
+    sam_hdr_t* ret_sam_hdr_init_nitcw = sam_hdr_init();
+    if (ret_sam_hdr_init_nitcw == NULL){
+    	return 0;
+    }
+    bam1_t bxgmmmgx;
+    memset(&bxgmmmgx, 0, sizeof(bxgmmmgx));
+    bam1_t* ret_bam_dup1_aqpww = bam_dup1(&bxgmmmgx);
+    if (ret_bam_dup1_aqpww == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!hts_file) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_sam_hdr_init_nitcw) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bam_dup1_aqpww) {
+    	return 0;
     }
 
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bam_dup1 to bam_aux_update_int
+    char* ret_bam_flag2str_krplq = bam_flag2str(HTS_IDX_NOCOOR);
+    if (ret_bam_flag2str_krplq == NULL){
+    	return 0;
+    }
+    const uint8_t iktncllb = 64;
+    double ret_bam_aux2f_abzsb = bam_aux2f(&iktncllb);
+    if (ret_bam_aux2f_abzsb < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bam_dup1_aqpww) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bam_flag2str_krplq) {
+    	return 0;
+    }
+    int ret_bam_aux_update_int_zoktf = bam_aux_update_int(ret_bam_dup1_aqpww, ret_bam_flag2str_krplq, (int64_t )ret_bam_aux2f_abzsb);
+    if (ret_bam_aux_update_int_zoktf < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    int ret_sam_write1_nqilr = sam_write1(hts_file, ret_sam_hdr_init_nitcw, ret_bam_dup1_aqpww);
+    if (ret_sam_write1_nqilr < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    const char *fnidx = "index_file";
+    const char *fnref = "reference_file";
+
     // Call the function-under-test
-    bam_hdr_write(bgzf, header);
+    hts_idx_t *index = sam_index_load3(hts_file, fnidx, fnref, 0);
 
     // Clean up
-    sam_hdr_destroy(header);
-    bgzf_close(bgzf);
+    if (index != NULL) {
+        hts_idx_destroy(index);
+    }
+    hts_close(hts_file);
     unlink(tmpl);
 
     return 0;

@@ -1,44 +1,39 @@
 #include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include "htslib/sam.h"
+#include <stdio.h>
+#include <unistd.h>  // Include for mkstemp, close, and unlink
+#include <fcntl.h>   // Include for open
+#include "/src/htslib/ref_cache/types.h" // Include for ssize_t
+#include "htslib/hts.h"
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Initialize sam_hdr_t
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Create a non-NULL string from the input data
-    char *pg_id = (char *)malloc(size + 1);
-    if (pg_id == NULL) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-    memcpy(pg_id, data, size);
-    pg_id[size] = '\0'; // Ensure null-termination
-
-    // Add a dummy program record to ensure hdr is not empty
-    if (sam_hdr_add_pg(hdr, "ID", "dummy", "PN", "dummy_program", NULL) != 0) {
-        free(pg_id);
-        sam_hdr_destroy(hdr);
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        unlink(tmpl);
         return 0;
     }
 
-    // Call the function-under-test
-    const char *result = sam_hdr_pg_id(hdr, pg_id);
+    // Close the file descriptor
+    close(fd);
 
-    // Check the result to ensure the function is being tested
-    if (result != NULL) {
-        // Do something with result to ensure code coverage
+    // Open the file using hts_open
+    htsFile *file = hts_open(tmpl, "r");
+    if (file != NULL) {
+        // Call the function-under-test
+        hts_close(file);
     }
 
-    // Clean up
-    free(pg_id);
-    sam_hdr_destroy(hdr);
+    // Clean up by removing the temporary file
+    unlink(tmpl);
 
     return 0;
 }

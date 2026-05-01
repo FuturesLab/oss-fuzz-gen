@@ -1,39 +1,26 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include <htslib/sam.h>
-#include <htslib/hts.h>
+
+// Include the correct header file for the function-under-test
+#include "/src/htslib/htslib/hts.h"
+
+// Function signature for the function-under-test
+const char *hts_test_feature(unsigned int feature);
 
 int LLVMFuzzerTestOneInput_164(const uint8_t *data, size_t size) {
-    // Declare variables
-    hts_idx_t *index = NULL;
-    sam_hdr_t *header = NULL;
-    char **regions = NULL;
-    unsigned int n = 1; // Number of regions
-
-    // Initialize regions with a non-NULL value
-    regions = (char **)malloc(n * sizeof(char *));
-    if (regions == NULL) {
+    // Ensure there is enough data to read an unsigned int
+    if (size < sizeof(unsigned int)) {
         return 0;
     }
-    regions[0] = (char *)malloc(size + 1);
-    if (regions[0] == NULL) {
-        free(regions);
-        return 0;
-    }
-    memcpy(regions[0], data, size);
-    regions[0][size] = '\0'; // Null-terminate the string
 
-    // Call the function-under-test
-    hts_itr_t *itr = sam_itr_regarray(index, header, regions, n);
+    // Extract an unsigned int from the input data
+    unsigned int feature = *(const unsigned int *)data;
 
-    // Clean up
-    if (itr != NULL) {
-        hts_itr_destroy(itr);
-    }
-    free(regions[0]);
-    free(regions);
+    // Call the function-under-test with the extracted feature
+    const char *result = hts_test_feature(feature);
+
+    // Optionally, perform some checks or operations on the result
+    // For fuzzing purposes, we don't need to do anything further
 
     return 0;
 }

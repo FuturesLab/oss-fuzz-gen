@@ -2,45 +2,74 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
-#include "htslib/sam.h" // Correct header file for bam1_t and bam_aux_append
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include "htslib/hts.h"
+#include "htslib/hfile.h"
 
 int LLVMFuzzerTestOneInput_128(const uint8_t *data, size_t size) {
-    if (size < 8) { // Ensure there is enough data for the parameters and auxiliary data
-        return 0; // Handle insufficient input size
-    }
+    hFILE *hfile = NULL;
+    char *mode = NULL;
+    char *format = NULL;
+    htsFile *htsfile = NULL;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd;
 
-    bam1_t *bam = bam_init1(); // Properly initialize bam1_t structure
-    if (!bam) {
-        return 0; // Handle memory allocation failure
-    }
-
-    // Use the first byte as the character
-    char aux_char = (char)data[0];
-
-    // Use the second byte as the integer
-    int aux_int = (int)data[1];
-
-    // Use the next 3 bytes as a string for the tag
-    char tag[4];
-    memcpy(tag, data + 2, 3);
-    tag[3] = '\0'; // Null-terminate the string
-
-    // Use the next 4 bytes as the auxiliary data
-    const uint8_t *aux_data = data + 5;
-    size_t aux_data_size = size - 5;
-
-    // Ensure aux_data_size is sufficient for the expected data type
-    if (aux_data_size < 4) { // Ensure there is enough data for an integer
-        bam_destroy1(bam); // Clean up before returning
+    if (size < 2) {
         return 0;
     }
 
-    // Call the function-under-test
-    int result = bam_aux_append(bam, tag, aux_char, aux_data, 4); // Correct parameter order and size
+    // Create a temporary file
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
 
-    bam_destroy1(bam); // Clean up after usage
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0;
+    }
+
+    // Close the file descriptor
+    close(fd);
+
+    // Open the file using hFILE
+    hfile = hopen(tmpl, "r");
+    if (hfile == NULL) {
+        return 0;
+    }
+
+    // Allocate and initialize mode and format strings
+    mode = (char *)malloc(2);
+    format = (char *)malloc(2);
+    if (mode == NULL || format == NULL) {
+        hclose(hfile);
+        return 0;
+    }
+
+    // Set mode and format based on fuzz data
+    mode[0] = (char)data[0];
+    mode[1] = '\0';
+    format[0] = (char)data[1];
+    format[1] = '\0';
+
+    // Call the function-under-test
+    htsfile = hts_hopen(hfile, mode, format);
+
+    // Clean up
+    if (htsfile != NULL) {
+        hts_close(htsfile);
+    } else {
+        hclose(hfile);
+    }
+    free(mode);
+    free(format);
+
+    // Remove the temporary file
+    remove(tmpl);
 
     return 0;
 }

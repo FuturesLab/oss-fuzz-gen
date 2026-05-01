@@ -1,51 +1,65 @@
 #include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
-#include "htslib/hts.h"
-#include "/src/htslib/htslib/hts_defs.h"
 #include "htslib/sam.h"
-#include <htslib/tbx.h>
-#include "/src/htslib/htslib/bgzf.h" // Include for BGZF
-#include "/src/htslib/htslib/tbx.h" // Correct path for hts_idx_t related functions
+#include "htslib/hts.h"
 
-// Dummy readrec function with correct signature
-int dummy_readrec(BGZF *fp, void *vp, void *b, int *tid, hts_pos_t *beg, hts_pos_t *end) {
-    return 0; // Dummy implementation
+// Removed mock structures and use actual htslib structures
+
+// Mock implementations for the purpose of this fuzzing harness
+bam1_t *create_bam1_t() {
+    bam1_t *b = (bam1_t *)malloc(sizeof(bam1_t));
+    if (b) {
+        // Initialize bam1_t structure here
+        b->data = (uint8_t *)malloc(100); // Allocate some space for data
+        b->l_data = 100; // Set length of data
+    }
+    return b;
+}
+
+hts_base_mod_state *create_hts_base_mod_state() {
+    // Allocate memory for hts_base_mod_state using the htslib function
+    hts_base_mod_state *state = hts_base_mod_state_alloc();
+    // Initialize hts_base_mod_state structure here if needed
+    return state;
+}
+
+hts_base_mod *create_hts_base_mod() {
+    hts_base_mod *mod = (hts_base_mod *)malloc(sizeof(hts_base_mod));
+    // Initialize hts_base_mod structure here
+    return mod;
 }
 
 int LLVMFuzzerTestOneInput_143(const uint8_t *data, size_t size) {
-    // Ensure size is large enough to contain tid, beg, and end
-    if (size < sizeof(int) + 2 * sizeof(hts_pos_t)) {
-        return 0; // Not enough data to construct the parameters
-    }
+    bam1_t *b = create_bam1_t();
+    hts_base_mod_state *state = create_hts_base_mod_state();
+    hts_base_mod *mod = create_hts_base_mod();
+    int flag = 0;
+    int value = 0;
 
-    // Safely extract parameters
-    int tid = *((int *)data);
-    hts_pos_t beg = *((hts_pos_t *)(data + sizeof(int)));
-    hts_pos_t end = *((hts_pos_t *)(data + sizeof(int) + sizeof(hts_pos_t)));
-
-    // Ensure beg <= end to avoid invalid range
-    if (beg > end) {
+    if (b == NULL || state == NULL || mod == NULL) {
+        // Allocation failed, exit early
         return 0;
     }
 
-    // Use a valid hts_idx_t object
-    hts_idx_t *idx = hts_idx_load("dummy.bam", HTS_FMT_BAI); // Load a dummy index for testing
-    if (idx == NULL) {
-        return 0; // Failed to load index
+    // Copy input data to bam1_t structure
+    if (size < b->l_data) {
+        memcpy(b->data, data, size);
     }
 
     // Call the function-under-test
-    hts_itr_t *itr = hts_itr_query(idx, tid, beg, end, dummy_readrec);
+    // Assuming bam_next_basemod is a valid function in the htslib library
+    int result = bam_next_basemod(b, state, mod, flag, &value);
 
     // Clean up
-    if (itr != NULL) {
-        hts_itr_destroy(itr);
-    }
-    hts_idx_destroy(idx);
+    free(b->data);
+    free(b);
+    hts_base_mod_state_free(state); // Use the htslib function to free the state
+    free(mod);
 
-    return 0;
+    return result;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

@@ -1,56 +1,36 @@
 #include <sys/stat.h>
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-typedef struct {
-    size_t l, m;
-    char *s;
-} kstring_t;
-
-char * haddextension(kstring_t *str, const char *ext, int flag, const char *sep);
+#include "htslib/sam.h"  // Assuming the sam_hdr_t type is defined here
 
 int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
-    if (size < 4) {
-        return 0; // Ensure there's enough data for the inputs
+    sam_hdr_t *hdr = NULL;
+    char *text = NULL;
+
+    // Allocate and initialize text
+    text = (char *)malloc(size + 1);
+    if (text == NULL) {
+        return 0;
+    }
+    memcpy(text, data, size);
+    text[size] = '\0';  // Null-terminate the string
+
+    // Initialize hdr with the text data
+    hdr = sam_hdr_parse(size, text);
+    if (hdr == NULL) {
+        free(text);
+        return 0;
     }
 
-    // Initialize kstring_t
-    kstring_t kstr;
-    kstr.l = size / 2;
-    kstr.m = size;
-    kstr.s = (char *)malloc(kstr.m + 1);
-    memcpy(kstr.s, data, kstr.l);
-    kstr.s[kstr.l] = '\0';
-
-    // Extract ext from the input data
-    const char *ext = (const char *)(data + kstr.l);
-    int ext_len = (size - kstr.l) / 2;
-    char *ext_str = (char *)malloc(ext_len + 1);
-    memcpy(ext_str, ext, ext_len);
-    ext_str[ext_len] = '\0';
-
-    // Extract sep from the input data
-    const char *sep = (const char *)(data + kstr.l + ext_len);
-    int sep_len = size - kstr.l - ext_len;
-    char *sep_str = (char *)malloc(sep_len + 1);
-    memcpy(sep_str, sep, sep_len);
-    sep_str[sep_len] = '\0';
-
-    // Use a fixed flag value for simplicity
-    int flag = 1;
-
     // Call the function-under-test
-    const char lyjraqsl[1024] = "yiqoy";
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of haddextension
-    char *result = haddextension(&kstr, lyjraqsl, flag, sep_str);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    int result = sam_hdr_count_lines(hdr, "SQ");
 
-    // Free allocated memory
-    free(kstr.s);
-    free(ext_str);
-    free(sep_str);
+    // Clean up
+    free(text);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

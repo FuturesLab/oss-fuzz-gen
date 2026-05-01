@@ -1,49 +1,40 @@
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
-#include "htslib/sam.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include "htslib/hts.h"
 
 int LLVMFuzzerTestOneInput_142(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to work with
-    if (size < 3) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Create a dummy sam_hdr_t object
-    sam_hdr_t *header = sam_hdr_init();
-    if (header == NULL) {
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
         return 0;
     }
+    close(fd);
 
-    // Allocate memory for the strings, ensuring they are null-terminated
-    char *type = (char *)malloc(2);
-    char *id = (char *)malloc(2);
-
-    if (type == NULL || id == NULL) {
-        sam_hdr_destroy(header);
-        free(type);
-        free(id);
+    // Open the temporary file using hts_open
+    htsFile *file = hts_open(tmpl, "r");
+    if (!file) {
+        unlink(tmpl);
         return 0;
     }
-
-    // Initialize the strings with data from the input
-    strncpy(type, (const char *)data, 1);
-    type[1] = '\0';
-    strncpy(id, (const char *)(data + 1), 1);
-    id[1] = '\0';
-
-    // The 'iter' parameter is a void pointer, we can pass NULL for testing
-    void *iter = NULL;
 
     // Call the function-under-test
-    sam_hdr_remove_lines(header, type, id, iter);
+    int result = hts_check_EOF(file);
 
     // Clean up
-    sam_hdr_destroy(header);
-    free(type);
-    free(id);
+    hts_close(file);
+    unlink(tmpl);
 
     return 0;
 }

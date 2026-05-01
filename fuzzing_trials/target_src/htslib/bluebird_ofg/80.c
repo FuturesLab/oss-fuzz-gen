@@ -2,21 +2,54 @@
 #include <string.h>
 #include <stdint.h>
 #include <stddef.h>
+#include "htslib/hts.h"
+#include "/src/htslib/htslib/thread_pool.h" // Include necessary library for thread pool
 
-// Function-under-test declaration
-double bam_auxB2f(const uint8_t *data, uint32_t size);
+// Use the existing hts_fmt_option enum from htslib/hts.h
+// No need to redefine DW_TAG_enumeration_typehts_fmt_option
 
 int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-    // Ensure the size is non-zero and fits within uint32_t limits
-    if (size == 0 || size > UINT32_MAX) {
+    // Ensure the data size is sufficient for our needs
+    if (size < 2) { // Ensure we have at least two bytes of data
         return 0;
     }
 
-    // Call the function-under-test with the provided data
-    double result = bam_auxB2f(data, (uint32_t)size);
+    // Create a mock htsFile object
+    htsFile *file = hts_open("-", "w"); // Open a file in write mode
+    if (file == NULL) {
+        return 0;
+    }
 
-    // Use the result in some way to prevent compiler optimizations from removing the call
-    (void)result;
+    // Extract an option from the input data
+    enum hts_fmt_option option = (enum hts_fmt_option)(data[0] % 3 + HTS_OPT_COMPRESSION_LEVEL);
+
+    // Extract a value for the option from the input data
+    int value = (int)data[1];
+
+    // Prepare a dummy thread pool object for HTS_OPT_THREAD_POOL
+    htsThreadPool thread_pool = { NULL, 0 }; // Initialize with default values
+
+    // Create a real thread pool to avoid null pointer dereference
+    hts_tpool *pool = hts_tpool_init(2); // Initialize a thread pool with 2 threads
+    if (pool == NULL) {
+        hts_close(file);
+        return 0;
+    }
+    thread_pool.pool = pool;
+
+    // Call the function-under-test
+    // Ensure the option and value are valid to prevent undefined behavior
+    if (option >= HTS_OPT_COMPRESSION_LEVEL && option <= HTS_OPT_THREAD_POOL) {
+        if (option == HTS_OPT_THREAD_POOL) {
+            hts_set_opt(file, option, &thread_pool); // Pass the thread pool for HTS_OPT_THREAD_POOL
+        } else {
+            hts_set_opt(file, option, (void *)&value);
+        }
+    }
+
+    // Clean up
+    hts_tpool_destroy(pool); // Destroy the thread pool
+    hts_close(file);
 
     return 0;
 }

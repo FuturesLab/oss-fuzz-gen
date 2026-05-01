@@ -1,34 +1,31 @@
 #include <sys/stat.h>
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include "htslib/hts.h"
 
-extern const char *hts_parse_reg(const char *, int *, int *);
-
+// Assuming the function under test is hts_open, which is part of HTSlib
 int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a string and two integers
-    if (size < 3) {
+    // Allocate memory for a null-terminated string
+    char *filename = (char *)malloc(size + 1);
+    if (filename == NULL) {
         return 0;
     }
 
-    // Create a null-terminated string from the data
-    char *region = (char *)malloc(size + 1);
-    if (region == NULL) {
-        return 0;
+    // Copy the data into the filename and null-terminate it
+    if (size > 0) {
+        memcpy(filename, data, size);
     }
-    memcpy(region, data, size);
-    region[size] = '\0';
+    filename[size] = '\0';
 
-    // Initialize the integer pointers
-    int beg = 0;
-    int end = 0;
+    // Fuzz the function-under-test: attempt to open a file with the given filename
+    htsFile *file = hts_open(filename, "r");
+    if (file != NULL) {
+        hts_close(file);
+    }
 
-    // Call the function-under-test
-    const char *result = hts_parse_reg(region, &beg, &end);
-
-    // Clean up
-    free(region);
+    // Free any allocated memory
+    free(filename);
 
     return 0;
 }

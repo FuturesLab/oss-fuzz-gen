@@ -1,19 +1,21 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
 
-// Declaration of the function-under-test
-void hts_lib_shutdown();
-
-// Placeholder for library initialization if applicable
-// void hts_lib_init();
+// Function-under-test declaration
+uint32_t bam_auxB_len(const uint8_t *data);
 
 int LLVMFuzzerTestOneInput_157(const uint8_t *data, size_t size) {
-    // Placeholder for initializing the library if applicable
-    // hts_lib_init();
+    // Ensure the data is not NULL and has at least one byte
+    if (data == NULL || size == 0) {
+        return 0;
+    }
 
-    // Since hts_lib_shutdown does not take any parameters,
-    // we can directly call it to test its behavior.
-    hts_lib_shutdown();
+    // Call the function-under-test with the provided data
+    uint32_t length = bam_auxB_len(data);
+
+    // Optionally, print the result for debugging purposes
+    // printf("Length: %u\n", length);
 
     return 0;
 }

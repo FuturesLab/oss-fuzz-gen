@@ -1,57 +1,33 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h> // Include for strdup and memcpy
-#include <htslib/sam.h>
-#include <htslib/kstring.h>
+#include "htslib/hfile.h"
 
+// This function is used to test the hfile_mem_steal_buffer function
 int LLVMFuzzerTestOneInput_159(const uint8_t *data, size_t size) {
-    // Initialize bam_hdr_t
-    bam_hdr_t hdr;
-    hdr.n_targets = 1;
-    hdr.target_len = (uint32_t *)malloc(sizeof(uint32_t));
-    hdr.target_len[0] = 1000;
-    hdr.target_name = (char **)malloc(sizeof(char *));
-    hdr.target_name[0] = strdup("chr1");
-
-    // Initialize bam1_t
-    bam1_t *b = bam_init1();
-    b->core.tid = 0;
-    b->core.pos = 0;
-    b->core.qual = 20;
-    b->core.l_qname = 10;
-    b->core.flag = 0;
-    b->core.n_cigar = 1;
-    b->core.l_qseq = 100;
-    b->core.mtid = -1;
-    b->core.mpos = -1;
-    b->core.isize = 0;
-
-    // Allocate memory for data
-    b->data = (uint8_t *)malloc(size + 10);
-    if (b->data == NULL) {
-        fprintf(stderr, "Memory allocation failed\n");
-        return 0;
+    // Create a memory buffer and initialize an hFILE object with it
+    hFILE *file = hopen("mem:", "w+");
+    if (file == NULL) {
+        return 0; // If the file cannot be opened, exit early
     }
-    memcpy(b->data, data, size);
-    b->l_data = size;
 
-    // Initialize kstring_t
-    kstring_t str;
-    str.l = 0;
-    str.m = 0;
-    str.s = NULL;
+    // Write the input data to the hFILE object
+    if (hwrite(file, data, size) != size) {
+        hclose(file);
+        return 0; // If the data cannot be written, exit early
+    }
+
+    // Initialize a size_t variable to hold the size of the buffer
+    size_t buffer_size = 0;
 
     // Call the function-under-test
-    int result = sam_format1(&hdr, b, &str);
+    char *buffer = hfile_mem_steal_buffer(file, &buffer_size);
 
     // Clean up
-    free(hdr.target_name[0]);
-    free(hdr.target_name);
-    free(hdr.target_len);
-    free(b->data);
-    bam_destroy1(b);
-    free(str.s);
+    if (buffer != NULL) {
+        free(buffer); // Free the buffer if it was successfully stolen
+    }
+    hclose(file); // Close the hFILE object
 
     return 0;
 }

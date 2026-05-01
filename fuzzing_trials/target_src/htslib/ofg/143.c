@@ -2,28 +2,50 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "/src/htslib/htslib/sam.h" // Correct path for bam_plp_init and bam_plp_auto_f
-
-// A simple mock function of type bam_plp_auto_f for testing purposes
-int mock_bam_plp_auto_f(void *data, const bam1_t *b) {
-    // Perform some basic operations or return a fixed value
-    return 0;
-}
+#include <string.h>
+#include <htslib/sam.h>
+#include <htslib/kstring.h>
 
 int LLVMFuzzerTestOneInput_143(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to use as a pointer
-    if (size < sizeof(void *)) {
+    // Ensure the input size is large enough to split into meaningful parts
+    if (size < 4) {
         return 0;
     }
 
-    // Use the input data as a pointer to some arbitrary memory location
-    void *user_data = (void *)data;
+    // Allocate and initialize a sam_hdr_t structure
+    sam_hdr_t *hdr = sam_hdr_init();
+    if (!hdr) {
+        return 0;
+    }
+
+    // Split the input data into four parts for the string arguments
+    size_t part_size = size / 4;
+    const char *arg1 = (const char *)data;
+    const char *arg2 = (const char *)(data + part_size);
+    const char *arg3 = (const char *)(data + 2 * part_size);
+    const char *arg4 = (const char *)(data + 3 * part_size);
+
+    // Ensure null-termination of strings
+    char *arg1_str = strndup(arg1, part_size);
+    char *arg2_str = strndup(arg2, part_size);
+    char *arg3_str = strndup(arg3, part_size);
+    char *arg4_str = strndup(arg4, size - 3 * part_size);
+
+    // Initialize kstring_t
+    kstring_t ks;
+    ks.l = ks.m = 0;
+    ks.s = NULL;
 
     // Call the function-under-test
-    bam_plp_t result = bam_plp_init(mock_bam_plp_auto_f, user_data);
+    sam_hdr_find_line_id(hdr, arg1_str, arg2_str, arg3_str, &ks);
 
-    // Perform any necessary cleanup or further testing with 'result'
-    // For example, if bam_plp_t requires cleanup, perform it here
+    // Clean up
+    free(arg1_str);
+    free(arg2_str);
+    free(arg3_str);
+    free(arg4_str);
+    sam_hdr_destroy(hdr);
+    free(ks.s);
 
     return 0;
 }

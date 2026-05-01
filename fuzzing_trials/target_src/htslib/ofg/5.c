@@ -1,24 +1,18 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <htslib/sam.h>
+#include <stdlib.h>
+#include <htslib/hts.h>
+#include <htslib/hts_defs.h>
+#include <htslib/sam.h> // Include the relevant header for hts_base_mod_state and related functions
 
 int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for at least one uint32_t element
-    if (size < sizeof(uint32_t)) {
-        return 0;
-    }
-
-    // Calculate the number of uint32_t elements we can extract from the data
-    int num_elements = size / sizeof(uint32_t);
-
-    // Cast the data to a uint32_t pointer
-    const uint32_t *cigar = (const uint32_t *)data;
-
     // Call the function-under-test
-    hts_pos_t result = bam_cigar2qlen(num_elements, cigar);
+    hts_base_mod_state *state = hts_base_mod_state_alloc();
 
-    // Use the result in some way to avoid any compiler optimizations removing the call
-    (void)result;
+    // If the function returns a non-NULL pointer, free the allocated memory
+    if (state != NULL) {
+        // Perform any necessary cleanup or further operations on `state`
+        hts_base_mod_state_free(state); // Free the allocated state
+    }
 
     return 0;
 }

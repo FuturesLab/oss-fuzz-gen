@@ -1,51 +1,50 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include "htslib/sam.h" // Correct path for the header where bam_aux_update_array is declared
+#include <string.h>
+#include <htslib/sam.h>
 
 int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to initialize all parameters
-    if (size < sizeof(bam1_t) + 4 + sizeof(uint8_t) + sizeof(uint32_t)) {
+    sam_hdr_t *hdr = NULL;
+    char *id = NULL;
+
+    // Ensure size is sufficient for creating a non-empty string
+    if (size < 1) {
         return 0;
     }
 
-    // Initialize bam1_t structure
-    bam1_t *b = (bam1_t *)malloc(sizeof(bam1_t));
-    if (b == NULL) {
-        return 0;
-    }
-    memset(b, 0, sizeof(bam1_t));
-
-    // Initialize the tag as a 2-character string
-    const char *tag = (const char *)(data + sizeof(bam1_t));
-    
-    // Ensure the tag is null-terminated
-    char tag_buffer[3];
-    memcpy(tag_buffer, tag, 2);
-    tag_buffer[2] = '\0';
-    
-    // Initialize type
-    uint8_t type = *(uint8_t *)(data + sizeof(bam1_t) + 2);
-
-    // Initialize length
-    uint32_t length = *(uint32_t *)(data + sizeof(bam1_t) + 3);
-
-    // Ensure the array_data does not exceed the input size
-    if (sizeof(bam1_t) + 3 + sizeof(uint32_t) + length > size) {
-        free(b);
+    // Create a SAM header object
+    hdr = sam_hdr_init();
+    if (hdr == NULL) {
         return 0;
     }
 
-    // Initialize data array
-    void *array_data = (void *)(data + sizeof(bam1_t) + 3 + sizeof(uint32_t));
+    // Allocate memory for the ID string and ensure it's null-terminated
+    id = (char *)malloc(size + 1);
+    if (id == NULL) {
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
+    memcpy(id, data, size);
+    id[size] = '\0';
+
+    // Add a program record to the SAM header with the ID
+    if (sam_hdr_add_line(hdr, "PG", "ID", id, NULL) < 0) {
+        free(id);
+        sam_hdr_destroy(hdr);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = bam_aux_update_array(b, tag_buffer, type, length, array_data);
+    const char *result = sam_hdr_pg_id(hdr, id);
+
+    // Check the result to ensure the function is being exercised
+    if (result != NULL) {
+        // Optionally, do something with the result to verify correctness
+    }
 
     // Clean up
-    free(b);
+    free(id);
+    sam_hdr_destroy(hdr);
 
     return 0;
 }

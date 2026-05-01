@@ -1,47 +1,21 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include "/src/htslib/htslib/hfile.h"
+#include <htslib/hts.h> // Include the header file for hts_md5_context
 
 int LLVMFuzzerTestOneInput_94(const uint8_t *data, size_t size) {
-    // Create a temporary file to get an hFILE* handle
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // If unable to create temp file, exit the fuzzer
+    // Declare and initialize the hts_md5_context pointer
+    hts_md5_context *md5_ctx = hts_md5_init();
+
+    // Ensure the context is not NULL
+    if (md5_ctx == NULL) {
+        return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        remove(tmpl);
-        return 0; // If unable to write all data, exit the fuzzer
-    }
+    // Feed the input data to the MD5 context
+    hts_md5_update(md5_ctx, data, size);
 
-    // Open the file using hFILE interface
-    hFILE *hfile = hopen(tmpl, "r");
-    if (hfile == NULL) {
-        close(fd);
-        remove(tmpl);
-        return 0; // If unable to open file, exit the fuzzer
-    }
-
-    // Read from the file to ensure the function under test is exercised
-    char buffer[1024];
-    ssize_t bytes_read;
-    while ((bytes_read = hread(hfile, buffer, sizeof(buffer))) > 0) {
-        // Process the data if necessary
-    }
-
-    // Close the hFILE interface
-    hclose(hfile);
-
-    // Clean up
-    close(fd);
-    remove(tmpl);
+    // Call the function-under-test
+    hts_md5_destroy(md5_ctx);
 
     return 0;
 }

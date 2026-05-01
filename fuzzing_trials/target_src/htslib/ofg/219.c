@@ -1,38 +1,40 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <htslib/hts.h>
-#include <htslib/sam.h> // Include additional header for hts_idx related functions
+#include <htslib/kstring.h>  // Added for kstring_t
+#include <htslib/kseq.h>     // Added for KS_SEP_LINE
+#include <stdio.h>           // Added for file operations
 
 int LLVMFuzzerTestOneInput_219(const uint8_t *data, size_t size) {
-    // Create a dummy BAM header and index for testing
-    bam_hdr_t *header = bam_hdr_init();
-    if (header == NULL) {
-        return 0; // Exit if header allocation fails
+    // Create a temporary file to use as input for hts_open
+    FILE *temp_file = tmpfile();
+    if (temp_file == NULL) {
+        return 0;  // If temp file creation fails, return early
     }
 
-    // Create an index for testing
-    hts_idx_t *idx = hts_idx_init(0, HTS_FMT_BAI, 0, 0, 0);
-    if (idx == NULL) {
-        bam_hdr_destroy(header);
-        return 0; // Exit if index creation fails
+    // Write the fuzzer data to the temporary file
+    fwrite(data, 1, size, temp_file);
+    rewind(temp_file);  // Reset file pointer to the beginning
+
+    // Open the temporary file using hts_open
+    htsFile *file = hts_open("-", "r");
+    if (file == NULL) {
+        fclose(temp_file);
+        return 0;  // If file opening fails, clean up and return early
     }
 
-    // Use the input data to simulate real-world scenarios
-    // For example, we can use the input data to simulate a BAM file
-    if (size > 0) {
-        // Simulate adding data to the index
-        // This is a placeholder for actual logic that would use the input data
-        // In a real scenario, you'd parse the data and use it meaningfully
-        hts_idx_push(idx, 0, data[0], data[0] + 1, 1, 1); // Added missing argument
+    // Perform some basic operations with the file to fuzz
+    kstring_t str = {0, 0, NULL};
+    if (hts_getline(file, KS_SEP_LINE, &str) < 0) {
+        hts_close(file);
+        fclose(temp_file);
+        return 0;  // If reading fails, clean up and return early
     }
-
-    // Call the function-under-test
-    uint64_t result = hts_idx_get_n_no_coor(idx);
 
     // Clean up
-    hts_idx_destroy(idx);
-    bam_hdr_destroy(header);
+    hts_close(file);
+    fclose(temp_file);
+    free(str.s);
 
     return 0;
 }

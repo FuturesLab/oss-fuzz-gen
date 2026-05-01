@@ -1,55 +1,38 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <stdio.h>
-#include <htslib/sam.h>
-#include <htslib/hts.h>
+#include <string.h>
+#include <stdlib.h>
+#include "/src/htslib/htslib/sam.h" // Correct header file for bam_aux_append
 
 int LLVMFuzzerTestOneInput_117(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate an htsFile input
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
+    // Declare and initialize variables
+    bam1_t bam;
+    bam.data = (uint8_t *)malloc(size);
+    if (bam.data == NULL) {
+        return 0; // Exit if memory allocation fails
     }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
+    bam.l_data = size;
+    memcpy(bam.data, data, size);
 
-    // Open the temporary file using hts_open
-    htsFile *hts_fp = hts_open(tmpl, "r");
-    if (!hts_fp) {
-        remove(tmpl);
-        return 0;
+    // Ensure the tag is a valid two-character string
+    char tag[3] = "XX";
+    if (size >= 2) {
+        tag[0] = (char)data[0];
+        tag[1] = (char)data[1];
     }
 
-    // Initialize sam_hdr_t and bam1_t structures
-    sam_hdr_t *sam_hdr = sam_hdr_init();
-    if (!sam_hdr) {
-        hts_close(hts_fp);
-        remove(tmpl);
-        return 0;
-    }
+    // Set a valid type character
+    char type = 'A'; // Assuming 'A' is a valid type character
 
-    bam1_t *bam_record = bam_init1();
-    if (!bam_record) {
-        sam_hdr_destroy(sam_hdr);
-        hts_close(hts_fp);
-        remove(tmpl);
-        return 0;
-    }
+    // Set a valid length
+    int len = (int)size;
 
     // Call the function-under-test
-    int result = sam_read1(hts_fp, sam_hdr, bam_record);
+    bam_aux_append(&bam, tag, type, len, data);
 
     // Clean up
-    bam_destroy1(bam_record);
-    sam_hdr_destroy(sam_hdr);
-    hts_close(hts_fp);
-    remove(tmpl);
+    free(bam.data);
 
     return 0;
 }

@@ -1,48 +1,56 @@
 #include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // Include for close() and remove()
-#include <fcntl.h>  // Include for mkstemp()
-#include "htslib/sam.h"
 #include "htslib/hts.h"
+#include "htslib/sam.h"
+#include "/src/htslib/cram/cram.h"  // Include this for CRAM specific functions
+#include <string.h>       // Include this for memcpy
 
 int LLVMFuzzerTestOneInput_141(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // Failed to create a temporary file
+    // Create a memory buffer from the input data
+    htsFile *file = hts_open_format("mem:", "rc", NULL);  // Use "rc" for read CRAM
+    if (!file) return 0;
+
+    // Create a temporary buffer to hold the data
+    char *buffer = (char *)malloc(size);
+    if (!buffer) {
+        hts_close(file);
+        return 0;
+    }
+    memcpy(buffer, data, size);
+
+    // Write input data to the htsFile buffer
+    if (hts_set_opt(file, CRAM_OPT_DECODE_MD, 0) < 0) {
+        free(buffer);
+        hts_close(file);
+        return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        remove(tmpl);
-        return 0; // Failed to write data to the file
+    // Initialize the hts_idx_t and hts_itr_t structures
+    hts_idx_t *idx = hts_idx_load(file->fn, HTS_FMT_CRAI);
+    if (!idx) {
+        free(buffer);
+        hts_close(file);
+        return 0;
     }
 
-    // Close the file descriptor
-    close(fd);
-
-    // Open the file using hts_open
-    htsFile *hts_file = hts_open(tmpl, "r");
-    if (hts_file == NULL) {
-        remove(tmpl);
-        return 0; // Failed to open the file
+    hts_itr_t *itr = hts_itr_query(idx, 0, 0, 0, 0);
+    if (!itr) {
+        hts_idx_destroy(idx);
+        free(buffer);
+        hts_close(file);
+        return 0;
     }
 
     // Call the function-under-test
-    hts_idx_t *index = sam_index_load(hts_file, tmpl);
+    hts_itr_multi_cram(idx, itr);
 
-    // Clean up
-    if (index != NULL) {
-        hts_idx_destroy(index);
-    }
-    hts_close(hts_file);
-    remove(tmpl);
+    // Clean up allocated memory
+    hts_itr_destroy(itr);
+    hts_idx_destroy(idx);
+    free(buffer);
+    hts_close(file);
 
     return 0;
 }

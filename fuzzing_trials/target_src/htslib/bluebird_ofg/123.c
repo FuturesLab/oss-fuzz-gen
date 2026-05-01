@@ -1,32 +1,52 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include "htslib/sam.h" // Assuming bam_plp_t is defined in this header
-#include "htslib/hts.h" // Include additional headers that might be necessary for initialization
+#include <unistd.h>  // For mkstemp, write, close, and remove
+#include "htslib/hts.h"
 
 int LLVMFuzzerTestOneInput_123(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    bam_plp_t plp;
-    int maxcnt = 0;
+    // Create a temporary file to simulate an htsFile
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
 
-    // Initialize the bam_plp_t object properly
-    hts_itr_t *iter = NULL; // Assuming an iterator is needed
-    bam_hdr_t *hdr = bam_hdr_init(); // Initialize a BAM header
-    plp = bam_plp_init(NULL, NULL); // Initialize bam_plp_t properly
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
 
-    // Ensure size is sufficient to extract an integer
-    if (size >= sizeof(int)) {
-        // Extract an integer from the input data
-        maxcnt = *(int *)data;
+    // Close the file descriptor so hts_open can open it
+    close(fd);
+
+    // Open the temporary file with hts_open
+    htsFile *file = hts_open(tmpl, "r");
+    if (file == NULL) {
+        return 0;
     }
 
     // Call the function-under-test
-    bam_plp_set_maxcnt(plp, maxcnt);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from hts_open to hts_set_opt
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    int ret_hts_set_opt_kzntl = hts_set_opt(file, CRAM_OPT_LOSSY_NAMES);
+    if (ret_hts_set_opt_kzntl < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    hts_flush(file);
 
     // Clean up
-    bam_plp_destroy(plp);
-    bam_hdr_destroy(hdr);
+    hts_close(file);
+    remove(tmpl);
 
     return 0;
 }

@@ -1,26 +1,45 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
-#include "htslib/hts.h"  // Ensure this header is available and included
+#include <unistd.h>  // Include for close() and remove()
+#include <htslib/hts.h>
+#include <htslib/hfile.h>
 
 int LLVMFuzzerTestOneInput_265(const uint8_t *data, size_t size) {
-    unsigned char digest[16];  // MD5 digest size is 16 bytes
-    hts_md5_context *ctx;
-
-    // Initialize the MD5 context
-    ctx = hts_md5_init();
-    if (ctx == NULL) {
-        return 0;  // If initialization fails, exit early
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Update the MD5 context with the input data
-    hts_md5_update(ctx, data, size);
+    // Write the fuzz data to the file
+    FILE *file = fdopen(fd, "wb");
+    if (file == NULL) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Finalize the MD5 computation
-    hts_md5_final(digest, ctx);
+    // Open the file using hFILE
+    hFILE *hfile = hopen(tmpl, "rb");
+    if (hfile == NULL) {
+        remove(tmpl);
+        return 0;
+    }
 
-    // Free the MD5 context
-    hts_md5_destroy(ctx);
+    // Prepare the parameters for hts_detect_format2
+    const char *mode = "r"; // Read mode
+    htsFormat format;
+
+    // Call the function-under-test
+    hts_detect_format2(hfile, mode, &format);
+
+    // Clean up
+    hclose(hfile);
+    remove(tmpl);
 
     return 0;
 }

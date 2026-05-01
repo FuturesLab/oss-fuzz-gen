@@ -1,39 +1,31 @@
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include "htslib/sam.h" // Ensure htslib is installed and linked during compilation
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include "htslib/sam.h" // Include the necessary header for bam_plp_auto
 
-// Remove the 'extern "C"' as this is C code, not C++
+// Remove the 'extern "C"' as it is not compatible with C code
 int LLVMFuzzerTestOneInput_102(const uint8_t *data, size_t size) {
-    // Ensure data is not empty
-    if (size == 0) {
+    // Declare and initialize the necessary variables
+    bam_plp_t plp;
+    int ref_id = 0;
+    int pos = 0;
+    int n_plp = 0;
+
+    // Check if size is sufficient to create a bam_plp_t object
+    if (size < sizeof(bam_plp_t)) {
         return 0;
     }
 
-    // Initialize a sam_hdr_t structure
-    sam_hdr_t *hdr = sam_hdr_init();
-    if (hdr == NULL) {
-        return 0;
-    }
-
-    // Convert the data to a null-terminated string
-    char *str = (char *)malloc(size + 1);
-    if (str == NULL) {
-        sam_hdr_destroy(hdr);
-        return 0;
-    }
-    memcpy(str, data, size);
-    str[size] = '\0';
+    // Initialize the bam_plp_t object
+    plp = bam_plp_init(NULL, NULL);
 
     // Call the function-under-test
-    int result = sam_hdr_count_lines(hdr, str);
+    const bam_pileup1_t *result = bam_plp_auto(plp, &ref_id, &pos, &n_plp);
 
     // Clean up
-    free(str);
-    sam_hdr_destroy(hdr);
+    bam_plp_destroy(plp);
 
     return 0;
 }
