@@ -1,48 +1,84 @@
-#include <stdint.h>
 #include <stddef.h>
-#include <string.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
-// Assuming bstr is a structure defined somewhere in the codebase
+// Assuming the bstr structure is defined as follows:
 typedef struct {
     char *data;
-    size_t len;
+    size_t length;
 } bstr;
 
-// Dummy implementation of bstr_begins_with_c to illustrate the fuzzing harness
-static int bstr_begins_with_c(const bstr *b, const char *prefix) {
-    if (b == NULL || prefix == NULL) return 0;
-    if (b->len < strlen(prefix)) return 0;
-    return strncmp(b->data, prefix, strlen(prefix)) == 0;
-}
+// Function-under-test
+bstr *bstr_dup_ex(const bstr *str, size_t start, size_t len);
 
 int LLVMFuzzerTestOneInput_94(const uint8_t *data, size_t size) {
-    if (size < 2) {
+    // Ensure there is enough data to create a valid bstr
+    if (size < sizeof(bstr)) {
         return 0;
     }
 
-    // Create a bstr object
-    bstr b;
-    b.data = (char *)data;
-    b.len = size / 2;
-
-    // Create a prefix string
-    char *prefix = (char *)(data + b.len);
-    size_t prefix_len = size - b.len;
-
-    // Ensure the prefix is null-terminated
-    char *prefix_cstr = (char *)malloc(prefix_len + 1);
-    if (prefix_cstr == NULL) {
+    // Create a bstr instance
+    bstr input_bstr;
+    input_bstr.length = size;
+    input_bstr.data = (char *)malloc(size);
+    if (input_bstr.data == NULL) {
         return 0;
     }
-    memcpy(prefix_cstr, prefix, prefix_len);
-    prefix_cstr[prefix_len] = '\0';
+    memcpy(input_bstr.data, data, size);
+
+    // Define start and len for bstr_dup_ex
+    size_t start = 0;
+    size_t len = size;
 
     // Call the function-under-test
-    int result = bstr_begins_with_c(&b, prefix_cstr);
+    bstr *result = bstr_dup_ex(&input_bstr, start, len);
 
     // Clean up
-    free(prefix_cstr);
+    if (result != NULL) {
+        free(result->data);
+        free(result);
+    }
+    free(input_bstr.data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_94(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

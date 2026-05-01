@@ -1,34 +1,72 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <aom/aom_image.h>
+#include <cstdint>
+#include <cstddef>
+#include <cstring>  // Include for memcpy
+
+extern "C" {
+    #include <aom/aom_codec.h>
+
+    const char * aom_codec_error(const aom_codec_ctx_t *);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_56(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    aom_image_t img;
-    unsigned int x = 0;
-    unsigned int y = 0;
-    unsigned int w = 1;
-    unsigned int h = 1;
-    unsigned int border = 0;
-
-    // Ensure the data size is large enough to extract meaningful values
-    if (size >= 5 * sizeof(unsigned int)) {
-        // Extract values from the data
-        x = ((unsigned int *)data)[0];
-        y = ((unsigned int *)data)[1];
-        w = ((unsigned int *)data)[2];
-        h = ((unsigned int *)data)[3];
-        border = ((unsigned int *)data)[4];
+    // Initialize aom_codec_ctx_t structure
+    aom_codec_ctx_t codec_ctx;
+    
+    // Ensure codec_ctx is not NULL
+    if (size < sizeof(aom_codec_ctx_t)) {
+        return 0;
     }
 
-    // Initialize the aom_image_t structure
-    aom_img_alloc(&img, AOM_IMG_FMT_I420, 640, 480, 1);
+    // Copy data into codec_ctx to simulate different inputs
+    memcpy(&codec_ctx, data, sizeof(aom_codec_ctx_t));
 
-    // Call the function under test
-    aom_img_set_rect(&img, x, y, w, h, border);
+    // Call the function-under-test
+    const char *error_message = aom_codec_error(&codec_ctx);
 
-    // Free the allocated image
-    aom_img_free(&img);
+    // Use the error_message in some way to avoid compiler optimizations
+    if (error_message) {
+        volatile const char *msg = error_message;
+        (void)msg;
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_56(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

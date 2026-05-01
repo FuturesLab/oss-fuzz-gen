@@ -1,39 +1,66 @@
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <time.h>
 #include "libyang.h"
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-  struct ly_ctx *ctx = NULL;
-  LY_ERR err;
+    // Ensure the input data is null-terminated
+    char *input_str = (char *)malloc(size + 1);
+    if (input_str == NULL) {
+        return 0;
+    }
+    memcpy(input_str, data, size);
+    input_str[size] = '\0';
 
-  // Initialize the libyang context
-  err = ly_ctx_new(NULL, 0, &ctx);
-  if (err != LY_SUCCESS) {
-    fprintf(stderr, "Failed to create context\n");
+    struct timespec ts;
+    LY_ERR result;
+
+    // Call the function-under-test
+    result = ly_time_str2ts(input_str, &ts);
+
+    // Free the allocated memory
+    free(input_str);
+
     return 0;
-  }
-
-  // Ensure the data is null-terminated
-  char *schema_data = (char *)malloc(size + 1);
-  if (!schema_data) {
-    ly_ctx_destroy(ctx);
-    return 0;
-  }
-  memcpy(schema_data, data, size);
-  schema_data[size] = '\0';
-
-  // Parse the schema data into the context
-  lys_parse_mem(ctx, schema_data, LYS_IN_YANG, NULL);
-
-  // Call the function-under-test
-  int compiled_size = ly_ctx_compiled_size(ctx);
-  printf("Compiled size: %d\n", compiled_size);
-
-  // Clean up
-  free(schema_data);
-  ly_ctx_destroy(ctx);
-
-  return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,11 +1,10 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_control_typechecked_AV1E_SET_RTC_EXTERNAL_RC at aomcx.h:2326:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_GET_SEQ_LEVEL_IDX at aomcx.h:2028:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_S_FRAME_MODE at aomcx.h:1980:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_DISABLE_TRELLIS_QUANT at aomcx.h:2049:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_SVC_REF_FRAME_COMP_PRED at aomcx.h:2308:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_PALETTE at aomcx.h:2173:1 in aomcx.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_ANGLE_DELTA at aomcx.h:2210:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_INTRA_EDGE_FILTER at aomcx.h:2126:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_TX64 at aomcx.h:2132:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_PAETH_INTRA at aomcx.h:2192:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_1TO4_PARTITIONS at aomcx.h:2117:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_DIAGONAL_INTRA at aomcx.h:2321:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,84 +14,96 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
 #include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
-#include "aom_integer.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom_frame_buffer.h"
-#include "aom_encoder.h"
-#include "aom_external_partition.h"
 #include "aom.h"
-#include "aom_decoder.h"
 #include "aomcx.h"
-#include "aomdx.h"
+#include "aom_codec.h"
+#include "aom_encoder.h"
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) {
+    if (Size < sizeof(int) + 1) {
         return 0;
     }
 
-    // Initialize codec context
-    aom_codec_ctx_t codec_ctx;
-    memset(&codec_ctx, 0, sizeof(codec_ctx));
+    aom_codec_ctx_t codec;
+    memset(&codec, 0, sizeof(codec));
 
-    // Initialize dummy control parameter
-    int control_param = *reinterpret_cast<const int*>(Data);
-    Data += sizeof(int);
-    Size -= sizeof(int);
+    // Assume the first byte controls which function to call and the rest is the parameter
+    uint8_t control_function = Data[0];
+    int parameter = 0;
+    memcpy(&parameter, Data + 1, sizeof(int));
 
-    // Use a dummy control ID for demonstration purposes
-    int dummy_control_id = 0;
-
-    // Call target functions with diverse inputs
-    aom_codec_err_t res;
-
-    // 1. aom_codec_control_typechecked_AV1E_SET_RTC_EXTERNAL_RC
-    res = aom_codec_control_typechecked_AV1E_SET_RTC_EXTERNAL_RC(&codec_ctx, dummy_control_id, control_param);
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "Error in AV1E_SET_RTC_EXTERNAL_RC: " << res << std::endl;
+    aom_codec_err_t res = AOM_CODEC_OK;
+    
+    switch (control_function % 6) {
+        case 0:
+            res = aom_codec_control_typechecked_AV1E_SET_ENABLE_ANGLE_DELTA(&codec, AV1E_SET_ENABLE_ANGLE_DELTA, parameter);
+            break;
+        case 1:
+            res = aom_codec_control_typechecked_AV1E_SET_ENABLE_INTRA_EDGE_FILTER(&codec, AV1E_SET_ENABLE_INTRA_EDGE_FILTER, parameter);
+            break;
+        case 2:
+            res = aom_codec_control_typechecked_AV1E_SET_ENABLE_TX64(&codec, AV1E_SET_ENABLE_TX64, parameter);
+            break;
+        case 3:
+            res = aom_codec_control_typechecked_AV1E_SET_ENABLE_PAETH_INTRA(&codec, AV1E_SET_ENABLE_PAETH_INTRA, parameter);
+            break;
+        case 4:
+            res = aom_codec_control_typechecked_AV1E_SET_ENABLE_1TO4_PARTITIONS(&codec, AV1E_SET_ENABLE_1TO4_PARTITIONS, parameter);
+            break;
+        case 5:
+            res = aom_codec_control_typechecked_AV1E_SET_ENABLE_DIAGONAL_INTRA(&codec, AV1E_SET_ENABLE_DIAGONAL_INTRA, parameter);
+            break;
+        default:
+            break;
     }
 
-    // 2. aom_codec_control_typechecked_AV1E_GET_SEQ_LEVEL_IDX
-    int seq_level_idx;
-    res = aom_codec_control_typechecked_AV1E_GET_SEQ_LEVEL_IDX(&codec_ctx, dummy_control_id, &seq_level_idx);
     if (res != AOM_CODEC_OK) {
-        std::cerr << "Error in AV1E_GET_SEQ_LEVEL_IDX: " << res << std::endl;
+        // Handle error if needed
     }
-
-    // 3. aom_codec_control_typechecked_AV1E_SET_S_FRAME_MODE
-    res = aom_codec_control_typechecked_AV1E_SET_S_FRAME_MODE(&codec_ctx, dummy_control_id, control_param);
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "Error in AV1E_SET_S_FRAME_MODE: " << res << std::endl;
-    }
-
-    // 4. aom_codec_control_typechecked_AV1E_SET_DISABLE_TRELLIS_QUANT
-    res = aom_codec_control_typechecked_AV1E_SET_DISABLE_TRELLIS_QUANT(&codec_ctx, dummy_control_id, static_cast<unsigned int>(control_param));
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "Error in AV1E_SET_DISABLE_TRELLIS_QUANT: " << res << std::endl;
-    }
-
-    // 5. aom_codec_control_typechecked_AV1E_SET_SVC_REF_FRAME_COMP_PRED
-    aom_svc_ref_frame_comp_pred_t svc_pred;
-    svc_pred.use_comp_pred[0] = control_param & 1;
-    svc_pred.use_comp_pred[1] = (control_param >> 1) & 1;
-    svc_pred.use_comp_pred[2] = (control_param >> 2) & 1;
-    res = aom_codec_control_typechecked_AV1E_SET_SVC_REF_FRAME_COMP_PRED(&codec_ctx, dummy_control_id, &svc_pred);
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "Error in AV1E_SET_SVC_REF_FRAME_COMP_PRED: " << res << std::endl;
-    }
-
-    // 6. aom_codec_control_typechecked_AV1E_SET_ENABLE_PALETTE
-    res = aom_codec_control_typechecked_AV1E_SET_ENABLE_PALETTE(&codec_ctx, dummy_control_id, control_param);
-    if (res != AOM_CODEC_OK) {
-        std::cerr << "Error in AV1E_SET_ENABLE_PALETTE: " << res << std::endl;
-    }
-
-    // Cleanup codec context if needed
-    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_23(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

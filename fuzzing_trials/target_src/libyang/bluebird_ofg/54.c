@@ -1,67 +1,105 @@
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include "libyang.h"
+#include "libyang.h"  // Corrected the header file inclusion
 
 int LLVMFuzzerTestOneInput_54(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lys_module *module = NULL;
+    struct lyd_node *node = NULL;
     LY_ERR err;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd;
-    FILE *file;
 
-    // Initialize the context
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ly_ctx_new
-    err = ly_ctx_new(NULL, 64, &ctx);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Initialize libyang context
+    err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
-        fprintf(stderr, "Failed to create context\n");
+        fprintf(stderr, "Failed to create libyang context\n");
         return 0;
     }
 
-    // Create a temporary file to write the fuzz data
-    fd = mkstemp(tmpl);
-    if (fd == -1) {
-        fprintf(stderr, "Failed to create temporary file\n");
-        ly_ctx_destroy(ctx);
-        
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_destroy to ly_ctx_new_ylpath
-        uint16_t ret_ly_ctx_get_change_count_ujycg = ly_ctx_get_change_count(ctx);
-        if (ret_ly_ctx_get_change_count_ujycg < 0){
-        	return 0;
-        }
-        const char iiycecdy[1024] = "brozn";
-
-        LY_ERR ret_ly_ctx_new_ylpath_yhzvd = ly_ctx_new_ylpath(iiycecdy, NULL, 0, (int )ret_ly_ctx_get_change_count_ujycg, &ctx);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-return 0;
-    }
-
-    // Write fuzz data to the temporary file
-    file = fdopen(fd, "wb");
-    if (file == NULL) {
-        fprintf(stderr, "Failed to open temporary file\n");
-        close(fd);
+    // Create a dummy data tree node for testing
+    const char *schema = "module test {namespace urn:test;prefix t;container c {leaf l {type string;}}}";
+    err = lys_parse_mem(ctx, schema, LYS_IN_YANG, NULL);
+    if (err != LY_SUCCESS) {
         ly_ctx_destroy(ctx);
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
+
+    LY_ERR node_err = lyd_new_path(NULL, ctx, "/test:c/l", "value", 0, &node);
+    if (node_err != LY_SUCCESS) {
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+
+    // Prepare strings for attribute name, value, and module name
+    char *attr_name = malloc(size + 1);
+    char *attr_value = malloc(size + 1);
+    char *module_name = malloc(size + 1);
+
+    if (!attr_name || !attr_value || !module_name) {
+        lyd_free_tree(node);
+        ly_ctx_destroy(ctx);
+        free(attr_name);
+        free(attr_value);
+        free(module_name);
+        return 0;
+    }
+
+    memcpy(attr_name, data, size);
+    attr_name[size] = '\0';
+    memcpy(attr_value, data, size);
+    attr_value[size] = '\0';
+    memcpy(module_name, data, size);
+    module_name[size] = '\0';
 
     // Call the function-under-test
-    lys_parse_path(ctx, tmpl, LYS_IN_YANG, &module);
+    struct lyd_attr *attr = NULL;
+    lyd_new_attr(node, module_name, attr_name, attr_value, &attr);
 
     // Clean up
+    lyd_free_tree(node);
     ly_ctx_destroy(ctx);
-    unlink(tmpl);
+    free(attr_name);
+    free(attr_value);
+    free(module_name);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_54(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

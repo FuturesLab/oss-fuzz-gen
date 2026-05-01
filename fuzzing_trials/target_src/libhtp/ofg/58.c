@@ -1,60 +1,80 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
 
-// Assuming bstr is a structure that looks something like this:
+// Assuming the definition of bstr is something like this
 typedef struct {
     char *data;
-    size_t length;
-    size_t capacity;
+    size_t len;
 } bstr;
 
-// Function to be tested
-bstr *bstr_expand(bstr *str, size_t new_size);
+// Function-under-test
+int bstr_cmp(const bstr *str1, const bstr *str2);
 
-// Helper function to create a bstr
-bstr *create_bstr_58(const char *initial_data, size_t initial_capacity) {
-    bstr *str = (bstr *)malloc(sizeof(bstr));
-    if (str == NULL) return NULL;
-
-    size_t data_length = strlen(initial_data);
-    str->data = (char *)malloc(initial_capacity);
-    if (str->data == NULL) {
-        free(str);
-        return NULL;
-    }
-
-    strncpy(str->data, initial_data, data_length);
-    str->length = data_length;
-    str->capacity = initial_capacity;
-
-    return str;
-}
-
-// Helper function to free a bstr
-void free_bstr_58(bstr *str) {
-    if (str != NULL) {
-        free(str->data);
-        free(str);
-    }
-}
-
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_58(const uint8_t *data, size_t size) {
-    if (size < 1) return 0; // Ensure there's at least some data
+    if (size < 2) {
+        return 0; // Not enough data to create two bstr objects
+    }
 
-    // Create a bstr with some initial data and capacity
-    bstr *str = create_bstr_58("initial", 10);
-    if (str == NULL) return 0;
+    // Split the input data into two parts for two bstr objects
+    size_t len1 = size / 2;
+    size_t len2 = size - len1;
 
-    // Use the first byte of data to determine the new size for expansion
-    size_t new_size = (size_t)data[0];
+    // Create the first bstr object
+    bstr str1;
+    str1.data = (char *)data;
+    str1.len = len1;
+
+    // Create the second bstr object
+    bstr str2;
+    str2.data = (char *)(data + len1);
+    str2.len = len2;
 
     // Call the function-under-test
-    bstr *expanded_str = bstr_expand(str, new_size);
+    int result = bstr_cmp(&str1, &str2);
 
-    // Clean up
-    free_bstr_58(expanded_str);
+    // Use the result in some way to avoid compiler optimizations
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_58(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

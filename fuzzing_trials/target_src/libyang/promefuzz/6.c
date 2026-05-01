@@ -1,155 +1,295 @@
 // This fuzz driver is generated for library libyang, aiming to fuzz the following functions:
+// lyd_new_path at tree_data_new.c:1777:1 in tree_data.h
+// lyd_free_tree at tree_data_free.c:265:1 in tree_data.h
+// lyd_new_term at tree_data_new.c:742:1 in tree_data.h
+// lyd_free_tree at tree_data_free.c:265:1 in tree_data.h
 // ly_ctx_new at context.c:278:1 in context.h
-// lyd_parse_data_mem at tree_data.c:210:1 in parser_data.h
-// lyd_free_all at tree_data_free.c:311:1 in tree_data.h
-// ly_ctx_destroy at context.c:1503:1 in context.h
-// ly_ctx_new at context.c:278:1 in context.h
-// ly_ctx_destroy at context.c:1503:1 in context.h
-// ly_ctx_new_yldata at context.c:497:1 in context.h
-// ly_ctx_destroy at context.c:1503:1 in context.h
-// ly_ctx_new at context.c:278:1 in context.h
-// ly_ctx_get_yanglib_data at context.c:1216:1 in context.h
-// lyd_free_all at tree_data_free.c:311:1 in tree_data.h
-// ly_ctx_destroy at context.c:1503:1 in context.h
-// ly_ctx_new at context.c:278:1 in context.h
-// ly_ctx_compiled_size at context.c:1388:1 in context.h
-// ly_ctx_destroy at context.c:1503:1 in context.h
-// ly_ctx_new_ylmem at context.c:473:1 in context.h
-// ly_ctx_destroy at context.c:1503:1 in context.h
+// lyd_new_opaq at tree_data_new.c:878:1 in tree_data.h
+// lyd_free_tree at tree_data_free.c:265:1 in tree_data.h
+// lyd_new_list3 at tree_data_new.c:632:1 in tree_data.h
+// lyd_free_tree at tree_data_free.c:265:1 in tree_data.h
+// lyd_new_inner at tree_data_new.c:446:1 in tree_data.h
+// lyd_free_tree at tree_data_free.c:265:1 in tree_data.h
+// lyd_new_list at tree_data_new.c:528:1 in tree_data.h
+// lyd_free_tree at tree_data_free.c:265:1 in tree_data.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "context.h"
-#include "parser_data.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "tree_data.h"
+#include "libyang.h"
 
-static void fuzz_ly_ctx_new(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
-    char *search_dir = NULL;
+static struct lys_module dummy_module = {0};
+static struct ly_ctx *dummy_ctx = NULL;
+
+static void prepare_dummy_environment() {
+    if (!dummy_ctx) {
+        ly_ctx_new(NULL, 0, &dummy_ctx);
+    }
+    dummy_module.ctx = dummy_ctx;
+    dummy_module.name = "dummy_module";
+}
+
+static void fuzz_lyd_new_list3(const uint8_t *Data, size_t Size) {
+    struct lyd_node *parent = NULL;
+    const struct lys_module *module = &dummy_module;
+    const char *name = "list_node";
+    const void **key_values = NULL;
+    uint32_t *value_sizes_bits = NULL;
     uint32_t options = 0;
+    struct lyd_node *node = NULL;
 
-    if (Size > sizeof(uint32_t)) {
-        search_dir = strndup((const char *)Data, Size - sizeof(uint32_t));
-        options = *(uint32_t *)(Data + Size - sizeof(uint32_t));
+    if (Size < sizeof(uint32_t)) return;
+
+    // Use some of the input data as options
+    options = *((uint32_t *)Data);
+    Data += sizeof(uint32_t);
+    Size -= sizeof(uint32_t);
+
+    // Call the function with the prepared data
+    lyd_new_list3(parent, module, name, key_values, value_sizes_bits, options, &node);
+
+    // Clean up if node was created
+    if (node) {
+        lyd_free_tree(node);
     }
-
-    ly_ctx_new(search_dir, options, &ctx);
-
-    if (ctx) {
-        ly_ctx_destroy(ctx);
-    }
-
-    free(search_dir);
 }
 
-static void fuzz_ly_ctx_new_yldata(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
-    struct lyd_node *tree = NULL;
-    char *search_dir = NULL;
-    int options = 0;
+static void fuzz_lyd_new_inner(const uint8_t *Data, size_t Size) {
+    struct lyd_node *parent = NULL;
+    const struct lys_module *module = &dummy_module;
+    const char *name = "inner_node";
+    ly_bool output = 0;
+    struct lyd_node *node = NULL;
 
-    if (Size > sizeof(int)) {
-        search_dir = strndup((const char *)Data, Size - sizeof(int));
-        options = *(int *)(Data + Size - sizeof(int));
+    if (Size < sizeof(ly_bool)) return;
+
+    // Use some of the input data as output flag
+    output = *((ly_bool *)Data);
+    Data += sizeof(ly_bool);
+    Size -= sizeof(ly_bool);
+
+    // Call the function with the prepared data
+    lyd_new_inner(parent, module, name, output, &node);
+
+    // Clean up if node was created
+    if (node) {
+        lyd_free_tree(node);
     }
-
-    ly_ctx_new_yldata(search_dir, tree, options, &ctx);
-
-    if (ctx) {
-        ly_ctx_destroy(ctx);
-    }
-
-    free(search_dir);
 }
 
-static void fuzz_ly_ctx_get_yanglib_data(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
-    struct lyd_node *root = NULL;
-    char *format = NULL;
+static void fuzz_lyd_new_list(const uint8_t *Data, size_t Size) {
+    struct lyd_node *parent = NULL;
+    const struct lys_module *module = &dummy_module;
+    const char *name = "list_node";
+    uint32_t options = 0;
+    struct lyd_node *node = NULL;
 
+    if (Size < sizeof(uint32_t)) return;
+
+    // Use some of the input data as options
+    options = *((uint32_t *)Data);
+    Data += sizeof(uint32_t);
+    Size -= sizeof(uint32_t);
+
+    // Call the function with the prepared data
+    lyd_new_list(parent, module, name, options, &node);
+
+    // Clean up if node was created
+    if (node) {
+        lyd_free_tree(node);
+    }
+}
+
+static void fuzz_lyd_new_path(const uint8_t *Data, size_t Size) {
+    struct lyd_node *parent = NULL;
+    const struct ly_ctx *ctx = dummy_ctx;
+    const char *path = "/dummy:path";
+    const char *value = NULL;
+    uint32_t options = 0;
+    struct lyd_node *node = NULL;
+
+    if (Size < sizeof(uint32_t)) return;
+
+    // Use some of the input data as options
+    options = *((uint32_t *)Data);
+    Data += sizeof(uint32_t);
+    Size -= sizeof(uint32_t);
+
+    // Use remaining data as value
     if (Size > 0) {
-        format = strndup((const char *)Data, Size);
+        value = (const char *)Data;
     }
 
-    ly_ctx_new(NULL, 0, &ctx);
-    if (ctx) {
-        if (format && strlen(format) > 0) {
-            ly_ctx_get_yanglib_data(ctx, &root, format);
+    // Ensure value is null-terminated
+    char *value_copy = NULL;
+    if (value) {
+        size_t value_len = strnlen(value, Size);
+        value_copy = (char *)malloc(value_len + 1);
+        if (value_copy) {
+            memcpy(value_copy, value, value_len);
+            value_copy[value_len] = '\0';
+            value = value_copy;
         }
-        lyd_free_all(root);
-        ly_ctx_destroy(ctx);
     }
 
-    free(format);
+    // Call the function with the prepared data
+    lyd_new_path(parent, ctx, path, value, options, &node);
+
+    // Clean up if node was created
+    if (node) {
+        lyd_free_tree(node);
+    }
+
+    // Free allocated memory
+    free(value_copy);
 }
 
-static void fuzz_ly_ctx_compiled_size(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
+static void fuzz_lyd_new_term(const uint8_t *Data, size_t Size) {
+    struct lyd_node *parent = NULL;
+    const struct lys_module *module = &dummy_module;
+    const char *name = "term_node";
+    const char *value = NULL;
+    uint32_t options = 0;
+    struct lyd_node *node = NULL;
 
-    ly_ctx_new(NULL, 0, &ctx);
-    if (ctx) {
-        ly_ctx_compiled_size(ctx);
-        ly_ctx_destroy(ctx);
+    if (Size < sizeof(uint32_t)) return;
+
+    // Use some of the input data as options
+    options = *((uint32_t *)Data);
+    Data += sizeof(uint32_t);
+    Size -= sizeof(uint32_t);
+
+    // Use remaining data as value
+    if (Size > 0) {
+        value = (const char *)Data;
     }
+
+    // Ensure value is null-terminated
+    char *value_copy = NULL;
+    if (value) {
+        size_t value_len = strnlen(value, Size);
+        value_copy = (char *)malloc(value_len + 1);
+        if (value_copy) {
+            memcpy(value_copy, value, value_len);
+            value_copy[value_len] = '\0';
+            value = value_copy;
+        }
+    }
+
+    // Call the function with the prepared data
+    lyd_new_term(parent, module, name, value, options, &node);
+
+    // Clean up if node was created
+    if (node) {
+        lyd_free_tree(node);
+    }
+
+    // Free allocated memory
+    free(value_copy);
 }
 
-static void fuzz_ly_ctx_new_ylmem(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
-    char *search_dir = NULL;
-    char *data = NULL;
-    LYD_FORMAT format = 0;
-    int options = 0;
+static void fuzz_lyd_new_opaq(const uint8_t *Data, size_t Size) {
+    struct lyd_node *parent = NULL;
+    const struct ly_ctx *ctx = dummy_ctx;
+    const char *name = "opaq_node";
+    const char *value = NULL;
+    const char *prefix = NULL;
+    const char *module_name = "dummy_module";
+    struct lyd_node *node = NULL;
 
-    if (Size > sizeof(LYD_FORMAT) + sizeof(int)) {
-        search_dir = strndup((const char *)Data, Size - sizeof(LYD_FORMAT) - sizeof(int));
-        data = strndup((const char *)Data, Size - sizeof(LYD_FORMAT) - sizeof(int));
-        format = *(LYD_FORMAT *)(Data + Size - sizeof(LYD_FORMAT) - sizeof(int));
-        options = *(int *)(Data + Size - sizeof(int));
+    if (Size < 1) return;
+
+    // Ensure there's enough data for a null-terminated string
+    size_t prefix_len = strnlen((const char *)Data, Size);
+    if (prefix_len < Size) {
+        prefix = (const char *)Data;
+        Data += prefix_len + 1;
+        Size -= prefix_len + 1;
     }
 
-    ly_ctx_new_ylmem(search_dir, data, format, options, &ctx);
-
-    if (ctx) {
-        ly_ctx_destroy(ctx);
+    // Use remaining data as value
+    if (Size > 0) {
+        value = (const char *)Data;
     }
 
-    free(search_dir);
-    free(data);
-}
-
-static void fuzz_lyd_parse_data_mem(const uint8_t *Data, size_t Size) {
-    struct ly_ctx *ctx = NULL;
-    struct lyd_node *tree = NULL;
-    char *data = NULL;
-    LYD_FORMAT format = 0;
-    uint32_t parse_options = 0;
-    uint32_t validate_options = 0;
-
-    if (Size > sizeof(LYD_FORMAT) + 2 * sizeof(uint32_t)) {
-        data = strndup((const char *)Data, Size - sizeof(LYD_FORMAT) - 2 * sizeof(uint32_t));
-        format = *(LYD_FORMAT *)(Data + Size - sizeof(LYD_FORMAT) - 2 * sizeof(uint32_t));
-        parse_options = *(uint32_t *)(Data + Size - 2 * sizeof(uint32_t));
-        validate_options = *(uint32_t *)(Data + Size - sizeof(uint32_t));
+    // Ensure value is null-terminated
+    char *value_copy = NULL;
+    if (value) {
+        size_t value_len = strnlen(value, Size);
+        value_copy = (char *)malloc(value_len + 1);
+        if (value_copy) {
+            memcpy(value_copy, value, value_len);
+            value_copy[value_len] = '\0';
+            value = value_copy;
+        }
     }
 
-    ly_ctx_new(NULL, 0, &ctx);
-    if (ctx) {
-        lyd_parse_data_mem(ctx, data, format, parse_options, validate_options, &tree);
-        lyd_free_all(tree);
-        ly_ctx_destroy(ctx);
+    // Call the function with the prepared data
+    lyd_new_opaq(parent, ctx, name, value, prefix, module_name, &node);
+
+    // Clean up if node was created
+    if (node) {
+        lyd_free_tree(node);
     }
 
-    free(data);
+    // Free allocated memory
+    free(value_copy);
 }
 
 int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
-    fuzz_ly_ctx_new(Data, Size);
-    fuzz_ly_ctx_new_yldata(Data, Size);
-    fuzz_ly_ctx_get_yanglib_data(Data, Size);
-    fuzz_ly_ctx_compiled_size(Data, Size);
-    fuzz_ly_ctx_new_ylmem(Data, Size);
-    fuzz_lyd_parse_data_mem(Data, Size);
-
+    prepare_dummy_environment();
+    fuzz_lyd_new_list3(Data, Size);
+    fuzz_lyd_new_inner(Data, Size);
+    fuzz_lyd_new_list(Data, Size);
+    fuzz_lyd_new_path(Data, Size);
+    fuzz_lyd_new_term(Data, Size);
+    fuzz_lyd_new_opaq(Data, Size);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

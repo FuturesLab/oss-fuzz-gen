@@ -1,127 +1,139 @@
 // This fuzz driver is generated for library libyang, aiming to fuzz the following functions:
-// lyd_dup_single_to_ctx at tree_data.c:2522:1 in tree_data.h
-// lyd_dup_siblings_to_ctx at tree_data.c:2547:1 in tree_data.h
-// lyd_diff_siblings at diff.c:1435:1 in tree_data.h
-// lyd_dup_single at tree_data.c:2510:1 in tree_data.h
-// lyd_new_implicit_all at tree_data_new.c:2010:1 in tree_data.h
-// lyd_new_implicit_module at tree_data_new.c:2050:1 in tree_data.h
+// ly_ctx_new at context.c:278:1 in context.h
+// ly_ctx_destroy at context.c:1503:1 in context.h
+// ly_ctx_get_module_ns at context.c:936:1 in context.h
+// ly_ctx_get_module at context.c:943:1 in context.h
+// ly_ctx_get_module_implemented at context.c:1009:1 in context.h
+// ly_ctx_get_module_latest_ns at context.c:979:1 in context.h
+// ly_ctx_get_module_latest at context.c:972:1 in context.h
+// ly_ctx_load_module at context.c:239:1 in context.h
+// ly_ctx_destroy at context.c:1503:1 in context.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "tree_data.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include "context.h"
 
-static struct lyd_node *create_dummy_node() {
-    struct lyd_node *node = (struct lyd_node *)malloc(sizeof(struct lyd_node));
-    if (!node) {
-        return NULL;
+static char *create_string_from_data(const uint8_t *Data, size_t Size) {
+    char *str = (char *)malloc(Size + 1);
+    if (str) {
+        memcpy(str, Data, Size);
+        str[Size] = '\0';
     }
-    node->hash = 0;
-    node->flags = 0;
-    node->schema = NULL;
-    node->parent = NULL;
-    node->next = node;
-    node->prev = node;
-    node->meta = NULL;
-    node->priv = NULL;
-    return node;
-}
-
-static void free_dummy_node(struct lyd_node *node) {
-    if (node) {
-        free(node);
-    }
-}
-
-static struct ly_ctx *create_dummy_ctx() {
-    // Creating a dummy context, assuming the actual implementation
-    // would be more complex and involve initializing the context properly.
-    return NULL; // Return NULL as we cannot allocate an incomplete type
-}
-
-static struct lys_module *create_dummy_module() {
-    // Creating a dummy module, assuming the actual implementation
-    // would involve more complex initialization.
-    return (struct lys_module *)calloc(1, sizeof(struct lys_module));
-}
-
-static void free_dummy_module(struct lys_module *module) {
-    if (module) {
-        free(module);
-    }
+    return str;
 }
 
 int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint16_t) + 2 * sizeof(uint32_t)) {
+    if (Size < 1) {
         return 0;
     }
 
-    struct lyd_node *first = create_dummy_node();
-    struct lyd_node *second = create_dummy_node();
-    struct lyd_node *parent = create_dummy_node();
-    struct lyd_node *node = create_dummy_node();
-    struct lyd_node *tree = create_dummy_node();
-    struct lyd_node *dup = NULL;
-    struct lyd_node *diff = NULL;
-
-    if (!first || !second || !parent || !node || !tree) {
-        free_dummy_node(first);
-        free_dummy_node(second);
-        free_dummy_node(parent);
-        free_dummy_node(node);
-        free_dummy_node(tree);
+    // Initialize context
+    struct ly_ctx *ctx = NULL;
+    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS || !ctx) {
         return 0;
     }
 
-    uint16_t options = *(const uint16_t *)(Data);
-    uint32_t options_dup = *(const uint32_t *)(Data + sizeof(uint16_t));
-    uint32_t implicit_options = *(const uint32_t *)(Data + sizeof(uint16_t) + sizeof(uint32_t));
+    // Create strings from the input data
+    char *name = create_string_from_data(Data, Size);
+    char *revision = create_string_from_data(Data, Size);
+    char *namespace = create_string_from_data(Data, Size);
 
-    lyd_diff_siblings(first, second, options, &diff);
-    if (diff) {
-        free_dummy_node(diff);
+    if (!name || !revision || !namespace) {
+        free(name);
+        free(revision);
+        free(namespace);
+        ly_ctx_destroy(ctx);
+        return 0;
     }
 
-    lyd_dup_single(node, parent, options_dup, &dup);
-    if (dup) {
-        free_dummy_node(dup);
+    // Fuzz ly_ctx_get_module_ns
+    struct lys_module *mod_ns = ly_ctx_get_module_ns(ctx, namespace, revision);
+    if (mod_ns) {
+        // Use the module, if needed
     }
 
-    struct ly_ctx *ctx = create_dummy_ctx();
-    if (ctx) {
-        lyd_new_implicit_all(&tree, ctx, implicit_options, &diff);
-        if (diff) {
-            free_dummy_node(diff);
-        }
-
-        struct lys_module *module = create_dummy_module();
-        if (module) {
-            lyd_new_implicit_module(&tree, module, implicit_options, &diff);
-            if (diff) {
-                free_dummy_node(diff);
-            }
-            free_dummy_module(module);
-        }
-
-        lyd_dup_single_to_ctx(node, ctx, parent, options_dup, &dup);
-        if (dup) {
-            free_dummy_node(dup);
-        }
-
-        lyd_dup_siblings_to_ctx(node, ctx, parent, options_dup, &dup);
-        if (dup) {
-            free_dummy_node(dup);
-        }
-
-        // free_dummy_ctx(ctx); // No need to free as ctx is NULL
+    // Fuzz ly_ctx_get_module
+    struct lys_module *mod = ly_ctx_get_module(ctx, name, revision);
+    if (mod) {
+        // Use the module, if needed
     }
 
-    free_dummy_node(first);
-    free_dummy_node(second);
-    free_dummy_node(parent);
-    free_dummy_node(node);
-    free_dummy_node(tree);
+    // Fuzz ly_ctx_get_module_implemented
+    struct lys_module *mod_impl = ly_ctx_get_module_implemented(ctx, name);
+    if (mod_impl) {
+        // Use the module, if needed
+    }
+
+    // Fuzz ly_ctx_get_module_latest_ns
+    struct lys_module *mod_latest_ns = ly_ctx_get_module_latest_ns(ctx, namespace);
+    if (mod_latest_ns) {
+        // Use the module, if needed
+    }
+
+    // Fuzz ly_ctx_get_module_latest
+    struct lys_module *mod_latest = ly_ctx_get_module_latest(ctx, name);
+    if (mod_latest) {
+        // Use the module, if needed
+    }
+
+    // Fuzz ly_ctx_load_module
+    const char *features[] = {NULL};
+    struct lys_module *loaded_mod = ly_ctx_load_module(ctx, name, revision, features);
+    if (loaded_mod) {
+        // Use the module, if needed
+    }
+
+    // Cleanup
+    free(name);
+    free(revision);
+    free(namespace);
+    ly_ctx_destroy(ctx);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_30(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

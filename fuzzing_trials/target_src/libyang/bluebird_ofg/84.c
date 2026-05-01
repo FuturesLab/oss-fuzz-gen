@@ -1,93 +1,103 @@
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include "libyang.h"
+#include "libyang.h"  // Correct header file for libyang
 
 int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lys_module *module = NULL;
+    struct lyd_node *node = NULL;
     LY_ERR err;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd;
-    FILE *file;
 
-    // Initialize the context
+    // Initialize libyang context
     err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
         fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Create a temporary file to write the fuzz data
-    fd = mkstemp(tmpl);
-    if (fd == -1) {
-        fprintf(stderr, "Failed to create temporary file\n");
-        ly_ctx_destroy(ctx);
-        
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_destroy to lyd_parse_data_mem
-        int ret_ly_ctx_compiled_size_elxqh = ly_ctx_compiled_size(ctx);
-        if (ret_ly_ctx_compiled_size_elxqh < 0){
-        	return 0;
-        }
-        struct lyd_node *hqwdqcmz;
-        memset(&hqwdqcmz, 0, sizeof(hqwdqcmz));
-
-        LY_ERR ret_lyd_parse_data_mem_zzzxx = lyd_parse_data_mem(ctx, NULL, 0, size, (uint32_t )ret_ly_ctx_compiled_size_elxqh, &hqwdqcmz);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-return 0;
-    }
-
-    // Write fuzz data to the temporary file
-    file = fdopen(fd, "wb");
-    if (file == NULL) {
-        fprintf(stderr, "Failed to open temporary file\n");
-        close(fd);
+    // Create a dummy node to attach the attribute
+    const char *schema = "module test {namespace urn:test;prefix t;leaf dummy {type string;}}";
+    err = lys_parse_mem(ctx, schema, LYS_IN_YANG, NULL);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to parse schema\n");
         ly_ctx_destroy(ctx);
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
+
+    node = lyd_new_path(NULL, ctx, "/test:dummy", NULL, 0, 0);
+    if (!node) {
+        fprintf(stderr, "Failed to create node\n");
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+
+    // Ensure size is non-zero before proceeding
+    if (size == 0) {
+        lyd_free_all(node);
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+
+    // Prepare attribute name and value
+    char *attr_value = malloc(size + 1);
+    if (attr_value == NULL) {
+        lyd_free_all(node);
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+    memcpy(attr_value, data, size);
+    attr_value[size] = '\0';
 
     // Call the function-under-test
-    lys_parse_path(ctx, tmpl, LYS_IN_YANG, &module);
+    struct lyd_attr *attr = lyd_new_attr(node, NULL, "attr", attr_value, NULL);
+    if (!attr) {
+        fprintf(stderr, "Failed to create attribute\n");
+    }
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lys_parse_path to ly_ctx_get_submodule2_latest
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lys_parse_path to lyd_validate_all
-    uint32_t ret_ly_ctx_get_modules_hash_prasw = ly_ctx_get_modules_hash(ctx);
-    if (ret_ly_ctx_get_modules_hash_prasw < 0){
-    	return 0;
-    }
-    struct lyd_node *mpkgrgaz;
-    memset(&mpkgrgaz, 0, sizeof(mpkgrgaz));
-    struct lyd_node *gyhxzqma;
-    memset(&gyhxzqma, 0, sizeof(gyhxzqma));
-
-    LY_ERR ret_lyd_validate_all_uijbp = lyd_validate_all(&mpkgrgaz, ctx, ret_ly_ctx_get_modules_hash_prasw, &gyhxzqma);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    const struct lysp_submodule* ret_ly_ctx_get_submodule2_latest_khpvd = ly_ctx_get_submodule2_latest(module, (const char *)"w");
-    if (ret_ly_ctx_get_submodule2_latest_khpvd == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ly_ctx_destroy with ly_ctx_free_parsed
-    ly_ctx_free_parsed(ctx);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    unlink(tmpl);
+    lyd_free_all(node);
+    ly_ctx_destroy(ctx);
+    free(attr_value);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_84(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

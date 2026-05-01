@@ -1,55 +1,71 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h> // Include for uint8_t
-#include "/src/libyang/src/tree_data.h" // Correct path for lyd_free_siblings
-#include "/src/libyang/src/context.h" // Correct path for ly_ctx_new and ly_ctx_destroy
-#include "/src/libyang/src/tree_schema.h" // Correct path for lys_parse_mem
-#include "/src/libyang/src/parser_data.h" // Include for lyd_parse_data_mem and LYD_PARSE_* constants
-#include "/src/libyang/src/log.h" // Include for LY_ERR and related definitions
+#include "libyang.h"
 
 int LLVMFuzzerTestOneInput_97(const uint8_t *data, size_t size) {
-    struct ly_ctx *ctx = NULL;
-    struct lyd_node *root = NULL;
-    const char *yang_module = "module test {namespace urn:test;prefix t;leaf name {type string;}}";
-    LY_ERR err;
+    struct lyxp_var *vars = NULL;
+    const char *var_name = "test_var";
+    char *var_value;
 
-    // Initialize the context
-    err = ly_ctx_new(NULL, 0, &ctx);
-    if (err != LY_SUCCESS) {
-        fprintf(stderr, "Failed to create context\n");
+    // Ensure we have enough data to create a non-empty string
+    if (size == 0) {
         return 0;
     }
 
-    // Parse the YANG module
-    err = lys_parse_mem(ctx, yang_module, LYS_IN_YANG, NULL);
-    if (err != LY_SUCCESS) {
-        fprintf(stderr, "Failed to parse YANG module\n");
-        ly_ctx_destroy(ctx);
+    // Allocate memory for the variable value and copy the data into it
+    var_value = (char *)malloc(size + 1);
+    if (var_value == NULL) {
         return 0;
     }
+    memcpy(var_value, data, size);
+    var_value[size] = '\0'; // Null-terminate the string
 
-    // Allocate memory for the data and ensure it's null-terminated
-    char *data_mem = (char *)malloc(size + 1);
-    if (!data_mem) {
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-    memcpy(data_mem, data, size);
-    data_mem[size] = '\0';
-
-    // Parse the data to create a data tree
-    err = lyd_parse_data_mem(ctx, data_mem, LYD_JSON, LYD_PARSE_STRICT, 0, &root);
-    if (err != LY_SUCCESS) {
-        fprintf(stderr, "Failed to parse data\n");
-    }
-
-    // Free the siblings
-    lyd_free_siblings(root);
+    // Call the function-under-test
+    lyxp_vars_set(&vars, var_name, var_value);
 
     // Clean up
-    free(data_mem);
-    ly_ctx_destroy(ctx);
+    free(var_value);
+    lyxp_vars_free(vars);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_97(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

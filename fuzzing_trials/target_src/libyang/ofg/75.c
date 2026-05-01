@@ -1,64 +1,88 @@
-#include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
-#include "/src/libyang/src/tree_data.h"
-#include "/src/libyang/src/context.h"
-#include "/src/libyang/src/set.h"  // Include this instead of the non-existent parser.h
+#include <stdlib.h>
+#include <unistd.h>
+#include "libyang.h"
 
 int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *node = NULL;
-    struct lyd_attr *attr = NULL;
+    struct lys_module *module = NULL;
     LY_ERR err;
+    int fd;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
 
-    // Initialize libyang context
+    // Initialize the libyang context
     err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
-        fprintf(stderr, "Failed to create libyang context\n");
+        fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Create a dummy node for testing
-    const char *module_data = "module test {namespace \"urn:test\";prefix t;leaf test-leaf {type string;}}";
-    err = lys_parse_mem(ctx, module_data, LYS_IN_YANG, NULL);
-    if (err != LY_SUCCESS) {
-        fprintf(stderr, "Failed to parse module data\n");
+    // Create a temporary file
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        fprintf(stderr, "Failed to create temporary file\n");
         ly_ctx_destroy(ctx);
         return 0;
     }
 
-    err = lyd_new_path(NULL, ctx, "/test:test-leaf", NULL, 0, &node);
-    if (err != LY_SUCCESS || !node) {
-        fprintf(stderr, "Failed to create a dummy node\n");
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        fprintf(stderr, "Failed to write data to temporary file\n");
+        close(fd);
+        unlink(tmpl);
         ly_ctx_destroy(ctx);
         return 0;
     }
 
-    // Ensure data is null-terminated for string operations
-    char *name = malloc(size + 1);
-    char *value = malloc(size + 1);
-    if (!name || !value) {
-        fprintf(stderr, "Memory allocation failed\n");
-        lyd_free_all(node);
-        ly_ctx_destroy(ctx);
-        free(name);
-        free(value);
-        return 0;
-    }
-
-    memcpy(name, data, size);
-    name[size] = '\0';
-    memcpy(value, data, size);
-    value[size] = '\0';
+    // Reset the file descriptor's position to the beginning
+    lseek(fd, 0, SEEK_SET);
 
     // Call the function-under-test
-    lyd_new_attr(node, name, NULL, value, &attr);
+    lys_parse_fd(ctx, fd, LYS_IN_YANG, &module);
 
     // Clean up
-    lyd_free_all(node);
+    close(fd);
+    unlink(tmpl);
     ly_ctx_destroy(ctx);
-    free(name);
-    free(value);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_75(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,100 +1,94 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "htp/htp.h"
+#include <stdint.h>
+#include "/src/libhtp/htp/bstr.h"
 
-// Mock function to create a default configuration
-static htp_cfg_t *create_default_cfg() {
-    // Use the library's configuration creation function if available
-    return htp_config_create();
+static bstr *create_bstr_from_data(const uint8_t *Data, size_t Size) {
+    bstr *b = bstr_dup_mem(Data, Size);
+    return b;
 }
 
 int LLVMFuzzerTestOneInput_22(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    if (Size == 0) return 0;
+
+    // Ensure null-terminated string for bstr_dup_c
+    char *cstr = (char *)malloc(Size + 1);
+    if (!cstr) return 0;
+    memcpy(cstr, Data, Size);
+    cstr[Size] = '\0';
+
+    // Test bstr_dup_c
+    bstr *b_cstr = bstr_dup_c(cstr);
+    free(cstr);
+
+    // Test bstr_dup_mem
+    bstr *b_mem = bstr_dup_mem(Data, Size);
+
+    // Test bstr_dup
+    bstr *b_dup = bstr_dup(b_mem);
+
+    // Test bstr_add
+    bstr *b_add = bstr_add(b_cstr, b_mem);
+    if (b_add != NULL) {
+        b_cstr = b_add;  // Update b_cstr if bstr_add was successful
     }
 
-    htp_cfg_t *cfg = create_default_cfg();
-    if (!cfg) {
-        return 0;
+    // Test bstr_add_mem
+    bstr *b_add_mem = bstr_add_mem(b_cstr, Data, Size);
+    if (b_add_mem != NULL) {
+        b_cstr = b_add_mem;  // Update b_cstr if bstr_add_mem was successful
     }
 
-    htp_connp_t *connp = htp_connp_create(cfg);
-    if (!connp) {
-        htp_config_destroy(cfg);
-        return 0;
-    }
-
-    const char *client_addr = "127.0.0.1";
-    int client_port = 12345;
-    const char *server_addr = "127.0.0.1";
-    int server_port = 80;
-    htp_time_t timestamp = {0, 0};
-
-    // Open the connection twice as per the order
-    htp_connp_open(connp, client_addr, client_port, server_addr, server_port, &timestamp);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_open to htp_connp_res_data
-
-    int ret_htp_connp_res_data_igxhj = htp_connp_res_data(connp, NULL, (const void *)Data, 1);
-    if (ret_htp_connp_res_data_igxhj < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    htp_connp_open(connp, client_addr, client_port, server_addr, server_port, &timestamp);
-
-    // Process request data
-    htp_connp_req_data(connp, &timestamp, Data, Size);
-
-    // Process response data
-    htp_connp_res_data(connp, &timestamp, Data, Size);
-
-    // Close the connection
-    htp_connp_close(connp, &timestamp);
-
-    // Destroy the connection once
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_close to bstr_util_mem_index_of_mem
-    htp_connp_clear_error(connp);
-    size_t ret_htp_connp_req_data_consumed_fnllr = htp_connp_req_data_consumed(connp);
-    if (ret_htp_connp_req_data_consumed_fnllr < 0){
-    	return 0;
-    }
-    size_t ret_htp_connp_tx_freed_yatlu = htp_connp_tx_freed(connp);
-    if (ret_htp_connp_tx_freed_yatlu < 0){
-    	return 0;
-    }
-
-    int ret_bstr_util_mem_index_of_mem_ilgsz = bstr_util_mem_index_of_mem((const void *)connp, ret_htp_connp_req_data_consumed_fnllr, (const void *)connp, ret_htp_connp_tx_freed_yatlu);
-    if (ret_bstr_util_mem_index_of_mem_ilgsz < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bstr_util_mem_index_of_mem to htp_tx_res_set_status_message
-    htp_tx_t* ret_htp_connp_get_in_tx_lbbkh = htp_connp_get_in_tx(connp);
-    if (ret_htp_connp_get_in_tx_lbbkh == NULL){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function htp_tx_res_set_status_message with htp_tx_res_set_status_line
-    htp_status_t ret_htp_tx_res_set_status_message_fxias = htp_tx_res_set_status_line(ret_htp_connp_get_in_tx_lbbkh, (const char *)"r", (size_t)ret_bstr_util_mem_index_of_mem_ilgsz, 0);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    htp_connp_destroy_all(connp);
-
-    // Clean up configuration
-    htp_config_destroy(cfg);
+    // Cleanup
+    bstr_free(b_cstr);
+    bstr_free(b_mem);
+    bstr_free(b_dup);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_22(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

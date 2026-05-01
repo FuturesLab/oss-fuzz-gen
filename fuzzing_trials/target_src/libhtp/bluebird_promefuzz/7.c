@@ -1,72 +1,88 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
 #include "htp/htp.h"
 #include "htp/htp.h"
+#include "htp/htp.h"
+#include "/src/libhtp/htp/htp_connection_parser.h"
 
-static htp_tx_t *create_dummy_transaction(htp_connp_t *connp) {
-    return htp_tx_create(connp);
+// Mock function for initializing htp_connp_t
+static htp_connp_t *init_connp() {
+    // Normally, you would use a proper initialization function from the library
+    // if available, or set up the structure according to its expected usage.
+    // This is a placeholder to demonstrate the concept.
+    return htp_connp_create(NULL); // Assuming there's a create function
 }
 
-static void fuzz_htp_tx_req_get_param(htp_tx_t *tx, const uint8_t *Data, size_t Size) {
-    if (Size > 0) {
-        htp_param_t *param = htp_tx_req_get_param(tx, (const char *)Data, Size);
-        (void)param; // Suppress unused variable warning
-    }
-}
-
-static void fuzz_htp_tx_req_set_method_number(htp_tx_t *tx, const uint8_t *Data, size_t Size) {
-    if (Size > 0) {
-        enum htp_method_t method_number = (enum htp_method_t)(Data[0] % HTP_M_INVALID);
-        htp_tx_req_set_method_number(tx, method_number);
-    }
-}
-
-static void fuzz_htp_connp_get_out_tx(htp_connp_t *connp) {
-    htp_tx_t *tx = htp_connp_get_out_tx(connp);
-    (void)tx; // Suppress unused variable warning
-}
-
-static void fuzz_htp_tx_req_get_param_ex(htp_tx_t *tx, const uint8_t *Data, size_t Size) {
-    if (Size > 0) {
-        enum htp_data_source_t source = (enum htp_data_source_t)(Data[0] % 4);
-        htp_param_t *param = htp_tx_req_get_param_ex(tx, source, (const char *)Data, Size);
-        (void)param; // Suppress unused variable warning
-    }
-}
-
-static void fuzz_htp_tx_state_request_headers(htp_tx_t *tx) {
-    if (tx) {
-        htp_status_t status = htp_tx_state_request_headers(tx);
-        (void)status; // Suppress unused variable warning
+static void free_connp(htp_connp_t *connp) {
+    if (connp) {
+        htp_connp_destroy_all(connp);
     }
 }
 
 int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    htp_cfg_t *cfg = htp_config_create();
-    if (cfg == NULL) return 0;
+    if (Size < sizeof(htp_time_t)) return 0;
 
-    htp_connp_t *connp = htp_connp_create(cfg);
-    if (connp == NULL) {
-        htp_config_destroy(cfg);
-        return 0;
-    }
+    htp_connp_t *connp = init_connp();
+    if (!connp) return 0;
 
-    htp_tx_t *tx = create_dummy_transaction(connp);
-    if (tx == NULL) {
-        htp_connp_destroy_all(connp);
-        htp_config_destroy(cfg);
-        return 0;
-    }
+    htp_time_t *timestamp = (htp_time_t *)Data;
 
-    fuzz_htp_tx_req_get_param(tx, Data, Size);
-    fuzz_htp_tx_req_set_method_number(tx, Data, Size);
-    fuzz_htp_connp_get_out_tx(connp);
-    fuzz_htp_tx_req_get_param_ex(tx, Data, Size);
-    fuzz_htp_tx_state_request_headers(tx);
+    // Fuzz htp_connp_req_close
+    htp_connp_req_close(connp, timestamp);
 
-    htp_connp_destroy_all(connp);
-    htp_config_destroy(cfg);
+    // Fuzz htp_connp_get_connection
+    htp_conn_t *conn = htp_connp_get_connection(connp);
+
+    // Fuzz htp_connp_clear_error
+    htp_connp_clear_error(connp);
+
+    // Fuzz htp_connp_get_last_error
+    htp_log_t *last_error = htp_connp_get_last_error(connp);
+
+    // Cleanup
+    free_connp(connp);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

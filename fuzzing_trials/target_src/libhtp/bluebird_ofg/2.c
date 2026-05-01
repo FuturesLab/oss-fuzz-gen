@@ -1,72 +1,118 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <sys/time.h> // Include for struct timeval
+#include <string.h>
 #include "htp/htp.h"
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    htp_connp_t *connp;
-    struct timeval req_time; // Use struct timeval instead of htp_time_t
-
-    // Initialize the htp_connp_t structure
-    htp_cfg_t *cfg = htp_config_create(); // Create a configuration object
+    // Initialize the transaction object
+    htp_cfg_t *cfg = htp_config_create();
     if (cfg == NULL) {
-        return 0;
+        return 0; // Exit if configuration creation fails
     }
-    connp = htp_connp_create(cfg); // Pass the configuration object
+
+    htp_connp_t *connp = htp_connp_create(cfg);
     if (connp == NULL) {
-        htp_config_destroy(cfg); // Clean up the configuration object
+        htp_config_destroy(cfg);
+        return 0; // Exit if connection parser creation fails
+    }
+
+    // Ensure the data pointer is not NULL and size is non-zero
+    if (data == NULL || size == 0) {
+        htp_connp_destroy_all(connp);
+        htp_config_destroy(cfg);
         return 0;
     }
 
-    // Initialize the timeval structure
-    req_time.tv_sec = 0;
-    req_time.tv_usec = 0;
+    // Simulate a request by feeding the data to the connection parser
 
-    // Use the input data to simulate a request
-    if (size > 0) {
-        // Assuming htp_connp_req_data is a function to feed data to the connection parser
-        htp_connp_req_data(connp, &req_time, data, size);
-    }
-
-    // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function htp_connp_req_close with htp_connp_close
-    htp_connp_close(connp, &req_time);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_close to htp_tx_req_process_body_data
-    htp_tx_t* ret_htp_connp_get_in_tx_wpece = htp_connp_get_in_tx(connp);
-    if (ret_htp_connp_get_in_tx_wpece == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_create to htp_log
+    bstr mwphmbar;
+    memset(&mwphmbar, 0, sizeof(mwphmbar));
+    char* ret_bstr_util_strdup_to_c_halpn = bstr_util_strdup_to_c(&mwphmbar);
+    if (ret_bstr_util_strdup_to_c_halpn == NULL){
     	return 0;
     }
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function htp_tx_req_process_body_data with htp_tx_res_process_body_data
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of htp_tx_res_process_body_data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_get_in_tx to htp_tx_req_set_headers_clear
-
-    htp_status_t ret_htp_tx_req_set_headers_clear_itmfy = htp_tx_req_set_headers_clear(ret_htp_connp_get_in_tx_wpece);
-
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!connp) {
+    	return 0;
+    }
+    size_t ret_htp_connp_req_data_consumed_rnvuw = htp_connp_req_data_consumed(connp);
+    if (ret_htp_connp_req_data_consumed_rnvuw < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!connp) {
+    	return 0;
+    }
+    size_t ret_htp_connp_res_data_consumed_jmbtf = htp_connp_res_data_consumed(connp);
+    if (ret_htp_connp_res_data_consumed_jmbtf < 0){
+    	return 0;
+    }
+    char* ret_htp_get_version_ocpcy = htp_get_version();
+    if (ret_htp_get_version_ocpcy == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!connp) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bstr_util_strdup_to_c_halpn) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_htp_get_version_ocpcy) {
+    	return 0;
+    }
+    htp_log(connp, ret_bstr_util_strdup_to_c_halpn, (int )ret_htp_connp_req_data_consumed_rnvuw, 0, (int )ret_htp_connp_res_data_consumed_jmbtf, ret_htp_get_version_ocpcy);
     // End mutation: Producer.APPEND_MUTATOR
+    
+    htp_status_t status = htp_connp_req_data(connp, NULL, data, size);
 
-    htp_status_t ret_htp_tx_req_process_body_data_mlsyc = htp_tx_res_process_body_data(ret_htp_connp_get_in_tx_wpece, (const void *)connp, size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    // Clean up
     htp_connp_destroy_all(connp);
-    htp_config_destroy(cfg); // Clean up the configuration object
+    htp_config_destroy(cfg);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

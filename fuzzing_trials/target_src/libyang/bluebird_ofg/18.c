@@ -1,77 +1,91 @@
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
+#include <stdint.h>
 #include "libyang.h"
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
+    struct lyd_node *parent = NULL;
+    struct lyd_node *new_node = NULL;
     struct ly_ctx *ctx = NULL;
-    struct lys_module *module = NULL;
+    const char *name = "example-name";
+    const char *value = "example-value";
+    const char *module_name = "example-module";
+    const char *prefix = "ex";
     LY_ERR err;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd;
-    FILE *file;
 
-    // Initialize the context
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ly_ctx_new
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ly_ctx_new
-    err = ly_ctx_new(NULL, 1, &ctx);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Initialize the libyang context
+    err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
         fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Create a temporary file to write the fuzz data
+    // Use the input data as the name if size is large enough
+    if (size > 0) {
+        // Allocate memory for a null-terminated string
+        char *name_buffer = (char *)malloc(size + 1);
+        if (!name_buffer) {
+            fprintf(stderr, "Failed to allocate memory\n");
+            ly_ctx_destroy(ctx);
+            return 0;
+        }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_new to ly_ctx_unset_options
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ly_ctx_unset_options
-    LY_ERR ret_ly_ctx_unset_options_imvzd = ly_ctx_unset_options(ctx, 1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    fd = mkstemp(tmpl);
-    if (fd == -1) {
-        fprintf(stderr, "Failed to create temporary file\n");
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ly_ctx_destroy with ly_ctx_free_parsed
-        ly_ctx_free_parsed(ctx);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        return 0;
+        // Copy the data and ensure null-termination
+        memcpy(name_buffer, data, size);
+        name_buffer[size] = '\0';
+        name = name_buffer;
     }
-
-    // Write fuzz data to the temporary file
-    file = fdopen(fd, "wb");
-    if (file == NULL) {
-        fprintf(stderr, "Failed to open temporary file\n");
-        close(fd);
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
 
     // Call the function-under-test
-    lys_parse_path(ctx, tmpl, LYS_IN_YANG, &module);
+    err = lyd_new_opaq2(parent, ctx, name, value, module_name, prefix, &new_node);
 
-    // Clean up
+    // Cleanup
+    lyd_free_all(new_node);
     ly_ctx_destroy(ctx);
-    unlink(tmpl);
+    if (size > 0) {
+        free((void *)name); // Free the allocated memory if it was used
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_18(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

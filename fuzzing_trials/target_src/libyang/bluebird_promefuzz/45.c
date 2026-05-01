@@ -1,88 +1,274 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/stat.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/stat.h>
-#include <string.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include "/src/libyang/src/context.h"
+#include "/src/libyang/src/parser_data.h"
 
-static void test_ly_ctx_new(const char *search_dir, uint32_t options) {
+static int fuzz_ly_ctx_compiled_size(const uint8_t *Data, size_t Size) {
     struct ly_ctx *ctx = NULL;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of ly_ctx_new
-    if (ly_ctx_new((const char *)"w", options, &ctx) == LY_SUCCESS) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        // Test ly_ctx_set_options
-        ly_ctx_set_options(ctx, options);
-
-        // Test ly_ctx_compile
-        ly_ctx_compile(ctx);
-
-        // Test ly_ctx_set_module_imp_clb with a dummy callback
-        ly_ctx_set_module_imp_clb(ctx, NULL, NULL);
-
-        // Test ly_ctx_unset_options
-        ly_ctx_unset_options(ctx, options);
-
-        // Cleanup
-        ly_ctx_destroy(ctx);
-    }
-}
-
-static void test_ly_ctx_new_ylmem(const char *search_dir, const char *data, LYD_FORMAT format, int options) {
-    struct ly_ctx *ctx = NULL;
-    if (ly_ctx_new_ylmem(search_dir, data, format, options, &ctx) == LY_SUCCESS) {
-        // Test ly_ctx_set_options
-        ly_ctx_set_options(ctx, options);
-
-        // Test ly_ctx_compile
-        ly_ctx_compile(ctx);
-
-        // Test ly_ctx_set_module_imp_clb with a dummy callback
-        ly_ctx_set_module_imp_clb(ctx, NULL, NULL);
-
-        // Test ly_ctx_unset_options
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ly_ctx_unset_options with ly_ctx_unset_searchdir_last
-        ly_ctx_unset_searchdir_last(ctx, options);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-        // Cleanup
-        ly_ctx_destroy(ctx);
-    }
-}
-
-int LLVMFuzzerTestOneInput_45(const uint8_t *Data, size_t Size) {
-    if (Size < 4) {
+    LY_ERR err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
         return 0;
     }
 
-    // Use the first byte as options
-    uint32_t options = Data[0];
+    int size = ly_ctx_compiled_size(ctx);
+    if (size == -1) {
+        // Handle error if needed
+    }
 
-    // Use the next byte as format
-    LYD_FORMAT format = (LYD_FORMAT)Data[1];
-
-    // Use the rest as search_dir and data
-    char *search_dir = strndup((const char *)Data + 2, (Size - 2) / 2);
-    char *data = strndup((const char *)Data + 2 + (Size - 2) / 2, (Size - 2) / 2);
-
-    // Test ly_ctx_new
-    test_ly_ctx_new(search_dir, options);
-
-    // Test ly_ctx_new_ylmem
-    test_ly_ctx_new_ylmem(search_dir, data, format, options);
-
-    free(search_dir);
-    free(data);
-
+    ly_ctx_destroy(ctx);
     return 0;
 }
+
+static int fuzz_ly_ctx_get_yanglib_data(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    struct lyd_node *root = NULL;
+
+    LY_ERR err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        return 0;
+    }
+
+    err = ly_ctx_get_yanglib_data(ctx, &root, "%u", 0);
+    if (err != LY_SUCCESS) {
+        // Handle error if needed
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_get_yanglib_data to lyd_merge_module
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!root) {
+    	return 0;
+    }
+    struct lyd_node* ret_lyd_first_sibling_rgotq = lyd_first_sibling(root);
+    if (ret_lyd_first_sibling_rgotq == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!root) {
+    	return 0;
+    }
+    struct lyd_node* ret_lyd_first_sibling_sclca = lyd_first_sibling(root);
+    if (ret_lyd_first_sibling_sclca == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!root) {
+    	return 0;
+    }
+    uint32_t ret_lyd_list_pos_lanor = lyd_list_pos(root);
+    if (ret_lyd_list_pos_lanor < 0){
+    	return 0;
+    }
+    struct lys_module ablzipbn;
+    memset(&ablzipbn, 0, sizeof(ablzipbn));
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!root) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_lyd_first_sibling_rgotq) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_lyd_first_sibling_sclca) {
+    	return 0;
+    }
+    LY_ERR ret_lyd_merge_module_vkhrn = lyd_merge_module(&root, ret_lyd_first_sibling_rgotq, &ablzipbn, NULL, (void *)ret_lyd_first_sibling_sclca, (uint16_t )ret_lyd_list_pos_lanor);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    lyd_free_all(root);
+    ly_ctx_destroy(ctx);
+    return 0;
+}
+
+static int fuzz_ly_ctx_new_ylmem(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    char *data = (char *)malloc(Size + 1);
+    if (!data) {
+        return 0;
+    }
+    memcpy(data, Data, Size);
+    data[Size] = '\0';
+
+    LY_ERR err = ly_ctx_new_ylmem(NULL, data, LYD_XML, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        // Handle error if needed
+    }
+
+    ly_ctx_destroy(ctx);
+    free(data);
+    return 0;
+}
+
+static int fuzz_lyd_validate_all(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    struct lyd_node *tree = NULL, *diff = NULL;
+
+    LY_ERR err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        return 0;
+    }
+
+    char *data = (char *)malloc(Size + 1);
+    if (!data) {
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+    memcpy(data, Data, Size);
+    data[Size] = '\0';
+
+    err = lyd_parse_data_mem(ctx, data, LYD_XML, 0, 0, &tree);
+    if (err == LY_SUCCESS) {
+        err = lyd_validate_all(&tree, ctx, 0, &diff);
+        if (err != LY_SUCCESS) {
+            // Handle error if needed
+        }
+        lyd_free_all(diff);
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_parse_data_mem to lyd_validate_all
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tree) {
+    	return 0;
+    }
+    uint32_t ret_lyd_list_pos_uvmhc = lyd_list_pos(tree);
+    if (ret_lyd_list_pos_uvmhc < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tree) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ctx) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tree) {
+    	return 0;
+    }
+    LY_ERR ret_lyd_validate_all_oeiyk = lyd_validate_all(&tree, ctx, ret_lyd_list_pos_uvmhc, &tree);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    lyd_free_all(tree);
+    ly_ctx_destroy(ctx);
+    free(data);
+    return 0;
+}
+
+static int fuzz_lyd_parse_data_mem(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    struct lyd_node *tree = NULL;
+
+    LY_ERR err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        return 0;
+    }
+
+    char *data = (char *)malloc(Size + 1);
+    if (!data) {
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+    memcpy(data, Data, Size);
+    data[Size] = '\0';
+
+    err = lyd_parse_data_mem(ctx, data, LYD_XML, 0, 0, &tree);
+    if (err != LY_SUCCESS) {
+        // Handle error if needed
+    }
+
+    lyd_free_all(tree);
+    ly_ctx_destroy(ctx);
+    free(data);
+    return 0;
+}
+
+static int fuzz_ly_ctx_new_yldata(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    struct lyd_node *tree = NULL;
+
+    LY_ERR err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        return 0;
+    }
+
+    char *data = (char *)malloc(Size + 1);
+    if (!data) {
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+    memcpy(data, Data, Size);
+    data[Size] = '\0';
+
+    err = lyd_parse_data_mem(ctx, data, LYD_XML, 0, 0, &tree);
+    if (err == LY_SUCCESS) {
+        err = ly_ctx_new_yldata(NULL, tree, 0, &ctx);
+        if (err != LY_SUCCESS) {
+            // Handle error if needed
+        }
+    }
+
+    lyd_free_all(tree);
+    ly_ctx_destroy(ctx);
+    free(data);
+    return 0;
+}
+
+int LLVMFuzzerTestOneInput_45(const uint8_t *Data, size_t Size) {
+    fuzz_ly_ctx_compiled_size(Data, Size);
+    fuzz_ly_ctx_get_yanglib_data(Data, Size);
+    fuzz_ly_ctx_new_ylmem(Data, Size);
+    fuzz_lyd_validate_all(Data, Size);
+    fuzz_lyd_parse_data_mem(Data, Size);
+    fuzz_ly_ctx_new_yldata(Data, Size);
+    return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_45(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,54 +1,73 @@
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include "/src/libhtp/htp/htp.h"  // Correct path for the htp.h header
-#include "/src/libhtp/htp/bstr.h" // Correct path for the bstr.h header
 
+// Assuming the definition of bstr is something like this:
+typedef struct {
+    char *data;
+    size_t len;
+} bstr;
+
+// Function-under-test
+void bstr_adjust_len(bstr *str, size_t new_len);
+
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-    // Allocate memory for htp_uri_t structure
-    htp_uri_t *uri = (htp_uri_t *)malloc(sizeof(htp_uri_t));
-    if (uri == NULL) {
-        return 0;
+    // Create and initialize a bstr instance
+    bstr my_bstr;
+    my_bstr.data = (char *)malloc(size + 1); // Allocate memory for the string
+    if (my_bstr.data == NULL) {
+        return 0; // Exit if memory allocation fails
     }
-
-    // Initialize the htp_uri_t structure with bstr values
-    uri->scheme = bstr_dup_mem((const char *)data, size);
-    uri->username = bstr_dup_mem((const char *)data, size);
-    uri->password = bstr_dup_mem((const char *)data, size);
-    uri->hostname = bstr_dup_mem((const char *)data, size);
-    uri->port = bstr_dup_mem((const char *)data, size);
-    uri->path = bstr_dup_mem((const char *)data, size);
-    uri->query = bstr_dup_mem((const char *)data, size);
-    uri->fragment = bstr_dup_mem((const char *)data, size);
-
-    if (uri->scheme == NULL || uri->username == NULL || uri->password == NULL || 
-        uri->hostname == NULL || uri->port == NULL || uri->path == NULL || 
-        uri->query == NULL || uri->fragment == NULL) {
-        bstr_free(uri->scheme);
-        bstr_free(uri->username);
-        bstr_free(uri->password);
-        bstr_free(uri->hostname);
-        bstr_free(uri->port);
-        bstr_free(uri->path);
-        bstr_free(uri->query);
-        bstr_free(uri->fragment);
-        free(uri);
-        return 0;
-    }
+    memcpy(my_bstr.data, data, size); // Copy the input data into the bstr
+    my_bstr.data[size] = '\0'; // Null-terminate the string
+    my_bstr.len = size; // Set the length of the string
 
     // Call the function-under-test
-    htp_uri_free(uri);
+    bstr_adjust_len(&my_bstr, size / 2); // Adjust length to half of the input size
 
-    // Free the memory allocated for the uri structure
-    bstr_free(uri->scheme);
-    bstr_free(uri->username);
-    bstr_free(uri->password);
-    bstr_free(uri->hostname);
-    bstr_free(uri->port);
-    bstr_free(uri->path);
-    bstr_free(uri->query);
-    bstr_free(uri->fragment);
-    free(uri);
+    // Free allocated memory
+    free(my_bstr.data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_61(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

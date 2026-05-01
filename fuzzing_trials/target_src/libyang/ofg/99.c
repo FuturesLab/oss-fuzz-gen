@@ -1,59 +1,82 @@
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h> // Include for uint8_t
-#include "/src/libyang/build/libyang/context.h" // Correct header for libyang functions
+#include <libyang.h>  // Include the correct libyang header
 
 int LLVMFuzzerTestOneInput_99(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    const struct lys_module *module = NULL;
-    char *namespace = NULL;
+    const struct lys_module *module = NULL;  // Use 'const' for the module pointer
+    uint32_t index = 0;
+    LY_ERR err;
 
     // Initialize the libyang context
-    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS) {
+    err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Check if the input data is non-empty
-    if (size == 0) {
+    // Use the input data to create a YANG module in the context
+    char *yang_data = (char *)malloc(size + 1);
+    if (!yang_data) {
         ly_ctx_destroy(ctx);
         return 0;
     }
+    memcpy(yang_data, data, size);
+    yang_data[size] = '\0';  // Ensure null-termination
 
-    // Allocate memory for the namespace string and ensure it's null-terminated
-    namespace = (char *)malloc(size + 1);
-    if (namespace == NULL) {
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-    memcpy(namespace, data, size);
-    namespace[size] = '\0';
-
-    // Attempt to parse the input namespace
-    module = ly_ctx_get_module_latest_ns(ctx, namespace);
-
-    // Check if a valid module was found and perform additional operations
-    if (module) {
-        // For example, retrieve the name of the module
-        const char *module_name = module->name; // Correct way to access module name
-        if (module_name) {
-            printf("Module name: %s\n", module_name); // Example operation
-        }
+    // Attempt to parse the input data as a YANG module
+    err = lys_parse_mem(ctx, yang_data, LYS_IN_YANG, &module);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to parse YANG module\n");
     } else {
-        // If no module is found, try to load a module with the given namespace as a name
-        const char *features[] = {NULL}; // No specific features to enable
-        module = ly_ctx_load_module(ctx, namespace, NULL, features);
-        if (module) {
-            const char *module_name = module->name;
-            if (module_name) {
-                printf("Loaded module name: %s\n", module_name);
-            }
-        }
+        // Iterate over modules if parsing was successful
+        module = ly_ctx_get_module_iter(ctx, &index);
     }
 
     // Clean up
-    free(namespace);
+    free(yang_data);
     ly_ctx_destroy(ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_99(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

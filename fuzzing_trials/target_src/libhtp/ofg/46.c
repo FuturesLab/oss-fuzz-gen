@@ -1,25 +1,60 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-
-// Function signature for the function-under-test
-int bstr_util_cmp_mem(const void *a, size_t a_len, const void *b, size_t b_len);
+#include <stdlib.h>
+#include "/src/libhtp/htp/htp.h"  // Correct path to the htp.h file
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    // Split the input data into two parts for comparison
-    size_t half_size = size / 2;
-    const void *part_a = data;
-    const void *part_b = data + half_size;
-
-    // Ensure both parts have non-zero length
-    size_t len_a = half_size;
-    size_t len_b = size - half_size;
-
     // Call the function-under-test
-    int result = bstr_util_cmp_mem(part_a, len_a, part_b, len_b);
+    htp_uri_t *uri = htp_uri_alloc();
 
-    // Use the result in some way to avoid compiler optimizations
-    (void)result;
+    // Utilize `data` and `size` to perform operations on `uri` if needed
+    if (uri != NULL && size > 0) {
+        // Assuming there's a function to parse or set data in uri
+        // htp_uri_parse(uri, data, size); // Example function, replace with actual if available
+    }
+
+    // Free the allocated uri if there's a corresponding free function
+    if (uri != NULL) {
+        htp_uri_free(uri);  // Assuming there's a function to free the allocated uri
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_46(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

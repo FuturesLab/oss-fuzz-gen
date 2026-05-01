@@ -9,59 +9,54 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <cassert>
-#include "/src/aom/aom/aom_codec.h"
-#include "aom/aom_decoder.h"
+#include <iostream>
+#include <fstream>
 #include "aom/aomdx.h"
+#include "/src/aom/aom/aom.h"
+#include "/src/aom/aom/aom_codec.h"
+#include "/src/aom/aom/aom_external_partition.h"
+#include "aom/aom_decoder.h"
+#include "/src/aom/aom/aomcx.h"
+#include "/src/aom/aom/aom_integer.h"
+#include "/src/aom/aom/aom_frame_buffer.h"
+#include "/src/aom/aom/aom_image.h"
+#include "/src/aom/aom/aom_encoder.h"
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 8) return 0;
 
-    // Initialize codec context
     aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg = {0};
-    aom_codec_flags_t flags = 0;
-    int ver = AOM_DECODER_ABI_VERSION;
-
-    // Initialize the codec
-    if (aom_codec_dec_init_ver(&codec_ctx, iface, &cfg, flags, ver) != AOM_CODEC_OK) {
+    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    aom_codec_enc_cfg_t cfg;
+    
+    if (aom_codec_enc_config_default(iface, &cfg, 0) != AOM_CODEC_OK) {
         return 0;
     }
 
-    // Decode data
-    if (aom_codec_decode(&codec_ctx, Data, Size, nullptr) != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
+    if (aom_codec_enc_init(&codec_ctx, iface, &cfg, 0) != AOM_CODEC_OK) {
         return 0;
     }
 
-    // Get frame
-    aom_codec_iter_t iter = nullptr;
-    aom_image_t *img = nullptr;
-    while ((img = aom_codec_get_frame(&codec_ctx, &iter)) != nullptr) {
-        // Process the frame (e.g., validate or analyze image data)
-    }
+    // Use the input data to control the behavior of the codec
+    int enable_interintra_wedge = Data[0] % 2;
+    int number_spatial_layers = Data[1] % 4;
+    int rtc_external_rc = Data[2] % 2;
+    int timing_info_type = Data[3] % 3;
+    aom_svc_ref_frame_comp_pred_t svc_ref_frame_comp_pred;
+    svc_ref_frame_comp_pred.use_comp_pred[0] = Data[4] % 2;
+    svc_ref_frame_comp_pred.use_comp_pred[1] = Data[5] % 2;
+    svc_ref_frame_comp_pred.use_comp_pred[2] = Data[6] % 2;
+    int intra_default_tx_only = Data[7] % 2;
 
-    // Get stream info
-    aom_codec_stream_info_t stream_info = {0};
-    if (aom_codec_get_stream_info(&codec_ctx, &stream_info) == AOM_CODEC_OK) {
-        // Use stream info (e.g., width and height)
-    }
+    aom_codec_control(&codec_ctx, AV1E_SET_ENABLE_INTERINTRA_WEDGE, enable_interintra_wedge);
+    aom_codec_control(&codec_ctx, AOME_SET_NUMBER_SPATIAL_LAYERS, number_spatial_layers);
+    aom_codec_control(&codec_ctx, AV1E_SET_RTC_EXTERNAL_RC, rtc_external_rc);
+    aom_codec_control(&codec_ctx, AV1E_SET_TIMING_INFO_TYPE, timing_info_type);
+    aom_codec_control(&codec_ctx, AV1E_SET_SVC_REF_FRAME_COMP_PRED, &svc_ref_frame_comp_pred);
+    aom_codec_control(&codec_ctx, AV1E_SET_INTRA_DEFAULT_TX_ONLY, intra_default_tx_only);
 
-    // Peek stream info
-    if (Size >= 4) { // Ensure there's enough data to peek
-        aom_codec_stream_info_t peek_info = {0};
-        if (aom_codec_peek_stream_info(iface, Data, Size, &peek_info) == AOM_CODEC_OK) {
-            // Use peek info
-        }
-    }
-
-    // Cleanup
     aom_codec_destroy(&codec_ctx);
+
     return 0;
 }
 #ifdef INC_MAIN

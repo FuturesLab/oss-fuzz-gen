@@ -2,51 +2,40 @@
 #include <sys/stat.h>
 #include <cstddef>
 #include <cstdint>
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
+#include <cstring>
+#include "/src/aom/aom/aom_codec.h"
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec;
-    aom_codec_err_t res;
-    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
-    void *user_priv = (void*)1; // Non-NULL user private data
-
     // Initialize the codec context
-    res = aom_codec_dec_init(&codec, iface, NULL, 0);
-    if (res != AOM_CODEC_OK) {
-        return 0; // Initialization failed
+    aom_codec_ctx_t codec_ctx;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
+
+    // Ensure size is large enough to split into two strings
+    if (size < 2) {
+        return 0;
     }
 
-    // Call the function-under-test
-    res = aom_codec_decode(&codec, data, size, user_priv);
+    // Split the input data into two strings
+    size_t half_size = size / 2;
+    const char *option_name = reinterpret_cast<const char *>(data);
+    const char *option_value = reinterpret_cast<const char *>(data + half_size);
 
-    // Destroy the codec context
+    // Ensure the strings are null-terminated
+    char option_name_buf[256];
+    char option_value_buf[256];
+    size_t option_name_len = half_size < 255 ? half_size : 255;
+    size_t option_value_len = (size - half_size) < 255 ? (size - half_size) : 255;
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_set_frame_buffer_functions
-    aom_image_t itwfpvem;
-    memset(&itwfpvem, 0, sizeof(itwfpvem));
-    aom_img_flip(&itwfpvem);
+    strncpy(option_name_buf, option_name, option_name_len);
+    option_name_buf[option_name_len] = '\0';
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_img_flip to aom_img_set_rect
-    aom_codec_caps_t ret_aom_codec_get_caps_qpslb = aom_codec_get_caps(iface);
-    if (ret_aom_codec_get_caps_qpslb < 0){
-    	return 0;
-    }
-    size_t ret_aom_uleb_size_in_bytes_tycyt = aom_uleb_size_in_bytes(AOM_MAX_TILE_ROWS);
-    if (ret_aom_uleb_size_in_bytes_tycyt < 0){
-    	return 0;
-    }
-    int ret_aom_img_set_rect_nxrsl = aom_img_set_rect(&itwfpvem, 64, (unsigned int )ret_aom_codec_get_caps_qpslb, 64, (unsigned int )ret_aom_uleb_size_in_bytes_tycyt, AOM_MAX_TILE_ROWS);
-    if (ret_aom_img_set_rect_nxrsl < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_ydahc = aom_codec_set_frame_buffer_functions(&codec, 0, 0, (void *)&itwfpvem);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_destroy(&codec);
+    strncpy(option_value_buf, option_value, option_value_len);
+    option_value_buf[option_value_len] = '\0';
 
+    // Call the function under test
+    aom_codec_err_t result = aom_codec_set_option(&codec_ctx, option_name_buf, option_value_buf);
+
+    // Return 0 to indicate that the fuzzer should continue
     return 0;
 }
 #ifdef INC_MAIN

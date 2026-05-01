@@ -1,69 +1,66 @@
-#include <string.h>
 #include <sys/stat.h>
-#include <cstddef>
-#include <cstdint>
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
+extern "C" {
+    #include "/src/aom/aom/aom_codec.h"
+    #include "/src/aom/aom/aom_encoder.h" // Include the encoder header for encoder functions
+    #include "/src/aom/aom/aomcx.h" // Include the header for codec interface definitions
+    #include <string.h> // Include for memcpy function
+}
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec;
+    if (size == 0) {
+        return 0;
+    }
+
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_iface_t *iface = aom_codec_av1_cx(); // Using AV1 codec interface for demonstration
     aom_codec_err_t res;
-    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
-    void *user_priv = (void*)1; // Non-NULL user private data
 
-    // Initialize the codec context
-    res = aom_codec_dec_init(&codec, iface, NULL, 0);
+    // Initialize codec context with dummy values
+    aom_codec_enc_cfg_t cfg;
+    aom_codec_enc_config_default(iface, &cfg, 0);
+
+    // Set some basic configuration options
+    cfg.g_w = 640; // width
+    cfg.g_h = 480; // height
+    cfg.g_timebase.num = 1;
+    cfg.g_timebase.den = 30; // framerate
+
+    res = aom_codec_enc_init(&codec_ctx, iface, &cfg, 0);
     if (res != AOM_CODEC_OK) {
-        return 0; // Initialization failed
+        return 0;
     }
 
-    // Call the function-under-test
-    res = aom_codec_decode(&codec, data, size, user_priv);
-
-    // Destroy the codec context
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_set_frame_buffer_functions
-    aom_image_t itwfpvem;
-    memset(&itwfpvem, 0, sizeof(itwfpvem));
-    aom_img_flip(&itwfpvem);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_img_flip to aom_img_plane_width
-    size_t ret_aom_uleb_size_in_bytes_vthmz = aom_uleb_size_in_bytes(size);
-    if (ret_aom_uleb_size_in_bytes_vthmz < 0){
-    	return 0;
+    // Prepare a dummy image
+    aom_image_t img;
+    if (!aom_img_alloc(&img, AOM_IMG_FMT_I420, cfg.g_w, cfg.g_h, 1)) {
+        aom_codec_destroy(&codec_ctx);
+        return 0;
     }
-    int ret_aom_img_plane_width_vowso = aom_img_plane_width(&itwfpvem, (int )ret_aom_uleb_size_in_bytes_vthmz);
-    if (ret_aom_img_plane_width_vowso < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_ydahc = aom_codec_set_frame_buffer_functions(&codec, 0, 0, (void *)&itwfpvem);
-    // End mutation: Producer.APPEND_MUTATOR
-    
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_set_frame_buffer_functions to aom_codec_control
-    aom_codec_err_t ret_aom_codec_control_wogqs = aom_codec_control(&codec, size);
-    // End mutation: Producer.APPEND_MUTATOR
-    
+    // Copy the fuzzing data into the image buffer
+    size_t copy_size = size < img.sz ? size : img.sz;
+    memcpy(img.planes[0], data, copy_size);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_control to aom_codec_decode
-    size_t ret_aom_img_num_metadata_pdnnb = aom_img_num_metadata(&itwfpvem);
-    if (ret_aom_img_num_metadata_pdnnb < 0){
-    	return 0;
+    // Encode the image
+    res = aom_codec_encode(&codec_ctx, &img, 0, 1, 0);
+    if (res != AOM_CODEC_OK) {
+        aom_img_free(&img);
+        aom_codec_destroy(&codec_ctx);
+        return 0;
     }
-    size_t ret_aom_uleb_size_in_bytes_ikmes = aom_uleb_size_in_bytes(-1);
-    if (ret_aom_uleb_size_in_bytes_ikmes < 0){
-    	return 0;
+
+    // Retrieve the encoded data
+    aom_codec_iter_t iter = NULL;
+    const aom_codec_cx_pkt_t *pkt;
+    while ((pkt = aom_codec_get_cx_data(&codec_ctx, &iter)) != NULL) {
+        if (pkt->kind == AOM_CODEC_CX_FRAME_PKT) {
+            // Process the encoded frame packet if needed
+        }
     }
-    const char* ret_aom_codec_iface_name_jvcvj = aom_codec_iface_name(iface);
-    if (ret_aom_codec_iface_name_jvcvj == NULL){
-    	return 0;
-    }
-    aom_codec_err_t ret_aom_codec_decode_poetr = aom_codec_decode(&codec, (const uint8_t *)&ret_aom_img_num_metadata_pdnnb, ret_aom_uleb_size_in_bytes_ikmes, (void *)iface);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_destroy(&codec);
+
+    // Clean up
+    aom_img_free(&img);
+    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }

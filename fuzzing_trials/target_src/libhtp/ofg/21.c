@@ -1,53 +1,70 @@
+#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <htp/htp.h>
-#include <htp/htp_connection_parser.h> // Include necessary header for connection parser
-#include <htp/htp_transaction.h> // Include necessary header for transaction
+#include <string.h>
+
+extern int bstr_util_mem_index_of_mem_nocasenorzero(const void *haystack, size_t haystack_len, const void *needle, size_t needle_len);
 
 int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
-    // Initialize the HTP configuration
-    htp_cfg_t *cfg = htp_config_create();
-    if (cfg == NULL) {
+    // Ensure there is enough data to split into two non-empty parts
+    if (size < 2) {
         return 0;
     }
 
-    // Initialize the HTP transaction
-    htp_connp_t *dummy_connp = htp_connp_create(cfg); // Create a dummy connection parser for transaction
-    if (dummy_connp == NULL) {
-        htp_config_destroy(cfg);
-        return 0;
-    }
-    htp_tx_t *tx = htp_tx_create(dummy_connp); // Correctly create the transaction with a connection parser
-    if (tx == NULL) {
-        htp_connp_destroy_all(dummy_connp);
-        htp_config_destroy(cfg);
-        return 0;
-    }
+    // Split the input data into two parts
+    size_t split_point = size / 2;
 
-    // Create a connection parser
-    htp_connp_t *connp = htp_connp_create(cfg);
-    if (connp == NULL) {
-        htp_tx_destroy(tx);
-        htp_connp_destroy_all(dummy_connp);
-        htp_config_destroy(cfg);
-        return 0;
-    }
+    // The first part is the haystack
+    const void *haystack = data;
+    size_t haystack_len = split_point;
 
-    // Feed the input data to the parser
-    htp_time_t timestamp = {0}; // Create a dummy timestamp
-    htp_status_t status = htp_connp_req_data(connp, &timestamp, data, size); // Pass the correct number of arguments
-    
-    // Check the status and proceed if successful
-    if (status == HTP_OK) {
-        // Clear the headers as the function under test
-        htp_tx_res_set_headers_clear(tx);
-    }
+    // The second part is the needle
+    const void *needle = data + split_point;
+    size_t needle_len = size - split_point;
 
-    // Clean up
-    htp_connp_destroy_all(connp);
-    htp_tx_destroy(tx);
-    htp_connp_destroy_all(dummy_connp);
-    htp_config_destroy(cfg);
+    // Call the function under test
+    int result = bstr_util_mem_index_of_mem_nocasenorzero(haystack, haystack_len, needle, needle_len);
+
+    // Use the result to avoid any compiler optimizations that might remove the call
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_21(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

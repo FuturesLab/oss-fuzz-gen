@@ -1,16 +1,20 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h> // Include for memcpy
-#include "/src/libyang/src/tree_data.h" // Correct path for libyang functions
-#include "/src/libyang/src/context.h" // Include for ly_ctx_new and ly_ctx_destroy
-#include "/src/libyang/src/parser_data.h" // Include for lyd_parse_data_mem
-#include "/src/libyang/src/parser_schema.h" // Include for lys_parse_mem
+#include <stdint.h>
+#include "/src/libyang/src/tree_data.h" // Include the correct path for tree_data.h
+#include "/src/libyang/src/context.h"   // Include context.h for ly_ctx_new and ly_ctx_destroy
+#include "/src/libyang/src/tree_schema.h" // Include tree_schema.h for lys_parse_mem
+#include "/src/libyang/src/parser_schema.h" // Include parser_schema.h for lys_parse_mem
 
 int LLVMFuzzerTestOneInput_106(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *node1 = NULL;
-    struct lyd_node *node2 = NULL;
-    struct lyd_node *result = NULL;
+    struct lyd_node *parent = NULL;
+    struct lys_module *module = NULL;
+    struct lyd_node *new_node = NULL;
+    const char *list_name = "example-list";
+    const void *keys[1] = {NULL};
+    uint32_t key_count = 1;
+    uint32_t options = 0;
     LY_ERR err;
 
     // Initialize libyang context
@@ -20,35 +24,69 @@ int LLVMFuzzerTestOneInput_106(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Create a dummy schema to parse the data
-    const char *schema = "module example {namespace urn:example;prefix ex;container top {leaf a {type string;} leaf b {type string;}}}";
-    lys_parse_mem(ctx, schema, LYS_IN_YANG, NULL);
-
-    // Prepare data for parsing
-    char *data_str = malloc(size + 1);
-    if (!data_str) {
+    // Load a module to get a valid lys_module pointer
+    err = lys_parse_mem(ctx, "module example {namespace urn:example; prefix ex; list example-list {key \"key1\"; leaf key1 {type string;}}}", LYS_IN_YANG, &module);
+    if (err != LY_SUCCESS || !module) {
+        fprintf(stderr, "Failed to parse module\n");
         ly_ctx_destroy(ctx);
         return 0;
     }
-    memcpy(data_str, data, size);
-    data_str[size] = '\0';
 
-    // Parse the data into a data tree
-    err = lyd_parse_data_mem(ctx, data_str, LYD_JSON, LYD_PARSE_STRICT, 0, &node1);
-    if (err != LY_SUCCESS) {
-        fprintf(stderr, "Failed to parse data\n");
-        ly_ctx_destroy(ctx);
-        free(data_str);
-        return 0;
+    // Use the input data as a key value
+    if (size > 0) {
+        keys[0] = (const void *)data;
+    } else {
+        keys[0] = "default-key";
     }
 
     // Call the function-under-test
-    err = lyd_find_sibling_first(node1, node2, &result);
+    err = lyd_new_list3(parent, module, list_name, keys, &key_count, options, &new_node);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "lyd_new_list3 failed\n");
+    }
 
-    // Clean up
-    lyd_free_all(node1);
+    // Cleanup
+    lyd_free_all(new_node);
     ly_ctx_destroy(ctx);
-    free(data_str);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_106(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

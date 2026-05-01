@@ -1,44 +1,78 @@
-#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-
-// Assuming the definition of bstr is available
-typedef struct {
-    char *realptr;
-    size_t len;
-    size_t alloc;
-} bstr;
-
-// Function-under-test
-void bstr_adjust_realptr(bstr *b, void *new_realptr);
+#include <htp/htp.h>
+#include <sys/time.h> // Include the correct header for struct timeval
+#include <string.h>   // Include for memcpy
 
 int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    // Initialize a bstr object
-    bstr b;
-    b.len = size;
-    b.alloc = size + 1; // Ensure there is space for a null terminator
-    b.realptr = (char *)malloc(b.alloc);
-    if (b.realptr == NULL) {
-        return 0; // Exit if memory allocation fails
+    // Initialize the configuration for htp_connp_create
+    htp_cfg_t *cfg = htp_config_create();
+    if (cfg == NULL) {
+        return 0; // Exit if the configuration creation fails
     }
 
-    // Copy data into bstr's realptr and null-terminate it
-    memcpy(b.realptr, data, size);
-    b.realptr[size] = '\0';
-
-    // Initialize a new_realptr with a more meaningful value
-    if (size > 1) {
-        // Point to a random position within the allocated memory
-        size_t offset = (size_t)data[0] % size; // Use first byte of data to determine offset
-        void *new_realptr = (void *)(b.realptr + offset);
-
-        // Call the function-under-test
-        bstr_adjust_realptr(&b, new_realptr);
+    // Create a connection parser with the configuration
+    htp_connp_t *connp = htp_connp_create(cfg);
+    if (connp == NULL) {
+        htp_config_destroy(cfg); // Clean up configuration
+        return 0; // Exit if the connection parser creation fails
     }
+
+    struct timeval time; // Use struct timeval instead of htp_time_t
+    if (size >= sizeof(struct timeval)) {
+        // Use the data to initialize struct timeval if there is enough data
+        memcpy(&time, data, sizeof(struct timeval));
+    } else {
+        // Otherwise, set some default non-NULL values
+        time.tv_sec = 1;
+        time.tv_usec = 1000; // Use a default microsecond value
+    }
+
+    // Call the function-under-test
+    htp_connp_req_close(connp, &time);
 
     // Clean up
-    free(b.realptr);
+    htp_connp_destroy_all(connp);
+    htp_config_destroy(cfg); // Clean up configuration
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

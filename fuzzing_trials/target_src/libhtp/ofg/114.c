@@ -1,50 +1,79 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include "/src/libhtp/htp/htp.h" // Ensure to include the correct header file for the function-under-test
-#include "/src/libhtp/htp/htp_transaction.h" // Include the header for htp_tx_create
-// #include "/src/libhtp/htp/htp_transaction.c" // Include the correct file for htp_alloc_strategy_t and htp_tx_res_set_status_message
+#include "/src/libhtp/htp/htp.h" // Correct path for the htp.h file
 
-// Remove the 'extern "C"' linkage specification as it is not needed in C code
 int LLVMFuzzerTestOneInput_114(const uint8_t *data, size_t size) {
-    if (size < 1) {
-        return 0; // Ensure there's at least one byte to use for the strategy
-    }
-
-    // Create a dummy connection parser object, required by htp_tx_create
-    htp_connp_t *connp = htp_connp_create(NULL);
-    if (connp == NULL) {
-        return 0; // If creation fails, exit early
+    // Ensure the size is sufficient to split into parts
+    if (size < 2) {
+        return 0;
     }
 
     // Initialize htp_tx_t object
-    htp_tx_t *tx = htp_tx_create(connp);
+    htp_tx_t *tx = (htp_tx_t *)malloc(sizeof(htp_tx_t));
     if (tx == NULL) {
-        htp_connp_destroy(connp);
-        return 0; // If creation fails, clean up and exit early
+        return 0;
     }
 
-    // Allocate memory for the status message
-    char *status_message = (char *)malloc(size);
-    if (status_message == NULL) {
-        htp_tx_destroy(tx);
-        htp_connp_destroy(connp);
-        return 0; // If allocation fails, clean up and exit early
+    // Use part of the data as the method string
+    size_t method_len = size / 2;
+    char *method = (char *)malloc(method_len + 1);
+    if (method == NULL) {
+        free(tx);
+        return 0;
     }
+    memcpy(method, data, method_len);
+    method[method_len] = '\0'; // Null-terminate the string
 
-    // Copy the data into the status message buffer
-    memcpy(status_message, data, size);
-
-    // Define an allocation strategy, using the first byte of data
-    enum htp_alloc_strategy_t strategy = (enum htp_alloc_strategy_t)(data[0] % 3); // Assuming there are 3 strategies
+    // Use the remaining part of the data to determine the allocation strategy
+    enum htp_alloc_strategy_t alloc_strategy = (enum htp_alloc_strategy_t)data[method_len];
 
     // Call the function-under-test
-    htp_status_t status = htp_tx_res_set_status_message(tx, status_message, size, strategy);
+    htp_status_t status = htp_tx_req_set_method(tx, method, method_len, alloc_strategy);
 
     // Clean up
-    free(status_message);
-    htp_tx_destroy(tx);
-    htp_connp_destroy(connp);
+    free(tx);
+    free(method);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_114(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

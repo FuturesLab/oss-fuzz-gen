@@ -1,101 +1,115 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/time.h>
 #include "htp/htp.h"
-
-// Mock function to create a default configuration
-static htp_cfg_t *create_default_cfg() {
-    // Use the library's configuration creation function if available
-    return htp_config_create();
-}
+#include "htp/htp.h"
+#include "htp/htp.h"
+#include "/src/libhtp/htp/htp_connection_parser.h"
 
 int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
     if (Size < 1) {
         return 0;
     }
 
-    htp_cfg_t *cfg = create_default_cfg();
-    if (!cfg) {
+    htp_cfg_t *cfg = htp_config_create();
+    if (cfg == NULL) {
         return 0;
     }
 
     htp_connp_t *connp = htp_connp_create(cfg);
-    if (!connp) {
+    if (connp == NULL) {
         htp_config_destroy(cfg);
         return 0;
     }
 
-    const char *client_addr = "127.0.0.1";
-    int client_port = 12345;
-    const char *server_addr = "127.0.0.1";
-    int server_port = 80;
-    htp_time_t timestamp = {0, 0};
+    htp_connp_set_user_data(connp, (void *)Data);
 
-    // Open the connection twice as per the order
-    htp_connp_open(connp, client_addr, client_port, server_addr, server_port, &timestamp);
+    struct timeval timestamp;
+    gettimeofday(&timestamp, NULL);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_open to htp_connp_res_data
+    htp_connp_open(connp, "127.0.0.1", 80, "127.0.0.1", 8080, &timestamp);
+    htp_connp_open(connp, "127.0.0.1", 80, "127.0.0.1", 8080, &timestamp);
 
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_open to htp_connp_res_data
-    htp_tx_t* ret_htp_tx_create_lomxd = htp_tx_create(connp);
-    if (ret_htp_tx_create_lomxd == NULL){
-    	return 0;
-    }
-    htp_tx_t xuuxakxh;
-    memset(&xuuxakxh, 0, sizeof(xuuxakxh));
-    htp_status_t ret_htp_tx_res_set_headers_clear_imgag = htp_tx_res_set_headers_clear(&xuuxakxh);
-
-    int ret_htp_connp_res_data_tolsr = htp_connp_res_data(connp, &timestamp, (const void *)&xuuxakxh, HTP_CONFIG_PRIVATE);
-    if (ret_htp_connp_res_data_tolsr < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_htp_connp_res_data_igxhj = htp_connp_res_data(connp, NULL, (const void *)Data, 1);
-    if (ret_htp_connp_res_data_igxhj < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    htp_connp_open(connp, client_addr, client_port, server_addr, server_port, &timestamp);
-
-    // Process request data
     htp_connp_req_data(connp, &timestamp, Data, Size);
 
-    // Process response data
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_req_data to htp_connp_res_data
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!connp) {
+    	return 0;
+    }
+    size_t ret_htp_connp_res_data_consumed_syeim = htp_connp_res_data_consumed(connp);
+    if (ret_htp_connp_res_data_consumed_syeim < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!connp) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!cfg) {
+    	return 0;
+    }
+    int ret_htp_connp_res_data_cbrre = htp_connp_res_data(connp, &timestamp, (const void *)cfg, ret_htp_connp_res_data_consumed_syeim);
+    if (ret_htp_connp_res_data_cbrre < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    htp_connp_req_data_consumed(connp);
+
+    htp_connp_res_data(connp, &timestamp, Data, Size);
+    htp_connp_res_data(connp, &timestamp, Data, Size);
+    htp_connp_res_data_consumed(connp);
+
+    htp_connp_req_data(connp, &timestamp, Data, Size);
     htp_connp_res_data(connp, &timestamp, Data, Size);
 
-    // Close the connection
     htp_connp_close(connp, &timestamp);
 
-    // Destroy the connection once
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_close to bstr_util_mem_index_of_mem
-    htp_connp_clear_error(connp);
-    size_t ret_htp_connp_req_data_consumed_fnllr = htp_connp_req_data_consumed(connp);
-    if (ret_htp_connp_req_data_consumed_fnllr < 0){
-    	return 0;
-    }
-    size_t ret_htp_connp_tx_freed_yatlu = htp_connp_tx_freed(connp);
-    if (ret_htp_connp_tx_freed_yatlu < 0){
-    	return 0;
-    }
-
-    int ret_bstr_util_mem_index_of_mem_ilgsz = bstr_util_mem_index_of_mem((const void *)connp, ret_htp_connp_req_data_consumed_fnllr, (const void *)connp, ret_htp_connp_tx_freed_yatlu);
-    if (ret_bstr_util_mem_index_of_mem_ilgsz < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
     htp_connp_destroy_all(connp);
-
-    // Clean up configuration
     htp_config_destroy(cfg);
-
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_27(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

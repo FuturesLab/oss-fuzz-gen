@@ -1,37 +1,82 @@
-#include <stddef.h>
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include "htp/htp.h"
 
-// Ensure that the necessary headers are included for the htp library
-// and any other required standard libraries.
+// Include the necessary header for the enum definition
+#include "/src/libhtp/htp/htp_transaction.h"
 
 int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract meaningful data
+    // Ensure size is sufficient to create a valid URI and allocation strategy
     if (size < 2) {
         return 0;
     }
 
-    // Allocate and initialize htp_tx_t structure
+    // Allocate memory for htp_tx_t
     htp_tx_t *tx = (htp_tx_t *)malloc(sizeof(htp_tx_t));
     if (tx == NULL) {
         return 0;
     }
-    memset(tx, 0, sizeof(htp_tx_t));
 
-    // Use part of the data as the protocol string
-    const char *protocol = (const char *)data;
-    size_t protocol_len = size - 1; // Use all but the last byte
+    // Create a URI string from the input data
+    char *uri = (char *)malloc(size + 1);
+    if (uri == NULL) {
+        free(tx);
+        return 0;
+    }
+    memcpy(uri, data, size);
+    uri[size] = '\0'; // Null-terminate the URI string
 
-    // Use the last byte of data to determine the allocation strategy
-    enum htp_alloc_strategy_t alloc_strategy = (enum htp_alloc_strategy_t)data[size - 1];
+    // Use the first byte of data to determine the allocation strategy
+    enum htp_alloc_strategy_t alloc_strategy = (enum htp_alloc_strategy_t)(data[0] % 3);
 
     // Call the function-under-test
-    htp_status_t status = htp_tx_req_set_protocol(tx, protocol, protocol_len, alloc_strategy);
+    htp_status_t status = htp_tx_req_set_uri(tx, uri, size, alloc_strategy);
 
-    // Free allocated resources
+    // Clean up
+    free(uri);
     free(tx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_22(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,51 +1,89 @@
-#include <stddef.h>
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-
-// Include the correct path for bstr and related functions
-#include "/src/libhtp/htp/bstr.h"
-
-// Ensure that the correct library functions are linked by including the necessary headers
-#include "htp/htp.h"
+#include <htp/htp.h>
+#include "/src/libhtp/htp/htp_core.h"
+#include "/src/libhtp/htp/htp_connection_parser.h"
+#include "/src/libhtp/htp/htp_transaction.h"
+#include "htp/htp.h" // Include the actual file for required definitions
 
 int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Ensure that the size is at least 1 to have a valid null-terminated string
-    if (size < 1) {
+    // Create a configuration object
+    htp_cfg_t *cfg = htp_config_create();
+    if (cfg == NULL) {
         return 0;
     }
 
-    // Allocate and initialize a bstr object
-    bstr *str = bstr_alloc(size);
-    if (str == NULL) {
-        return 0; // If allocation fails, exit early
+    // Create a connection parser with the configuration
+    htp_connp_t *connp = htp_connp_create(cfg);
+    if (connp == NULL) {
+        htp_config_destroy(cfg);
+        return 0;
     }
 
-    // Create a null-terminated string from the input data
-    char *c_str = (char *)malloc(size + 1);
-    if (c_str == NULL) {
-        bstr_free(str);
-        return 0; // If allocation fails, clean up and exit early
+    // Create a transaction
+    htp_tx_t *tx = htp_tx_create(connp);
+    if (tx == NULL) {
+        htp_connp_destroy_all(connp);
+        htp_config_destroy(cfg);
+        return 0;
     }
-    memcpy(c_str, data, size);
-    c_str[size] = '\0'; // Null-terminate the string
 
-    // Call the function-under-test
-    bstr *result = bstr_add_c(str, c_str);
+    // Create a timestamp (for simplicity, using a null timestamp)
+    const htp_time_t *timestamp = NULL;
 
-    // Check if the result is not null to ensure the function is being tested effectively
-    if (result != NULL) {
-        // Perform additional operations to ensure code coverage
-        // For example, compare the result with the original string
-        if (bstr_cmp_c(result, c_str) == 0) {
-            // Optionally, perform more operations on the result
-            // This ensures that the function is being utilized and tested
-        }
+    // Feed the data to the connection parser
+    htp_status_t status = htp_connp_req_data(connp, timestamp, data, size);
+    if (status != HTP_OK) {
+        htp_connp_destroy_all(connp);
+        htp_config_destroy(cfg);
+        return 0;
     }
 
     // Clean up
-    free(c_str);
-    bstr_free(result);
+    htp_connp_destroy_all(connp);
+    htp_config_destroy(cfg);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_39(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

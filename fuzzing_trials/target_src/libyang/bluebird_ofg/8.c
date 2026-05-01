@@ -1,17 +1,16 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
-#include "/src/libyang/src/context.h"
-#include "/src/libyang/src/tree_data.h"
-#include "/src/libyang/src/tree_schema.h"
-#include "/src/libyang/src/validation.h"
+#include <sys/stat.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include "libyang.h"
 
 int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *node = NULL;
-    struct lyd_node *tree = NULL;
+    struct lys_module *module = NULL;
     LY_ERR err;
+    int fd;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
 
     // Initialize the libyang context
     err = ly_ctx_new(NULL, 0, &ctx);
@@ -20,68 +19,72 @@ int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Create a dummy schema for testing
-    const char *schema = "module test {namespace urn:test;prefix t;yang-version 1.1; container test-container {leaf test-leaf {type string;}}}";
-    lys_parse_mem(ctx, schema, LYS_IN_YANG, NULL);
-
-    // Create a dummy data tree
-    const char *data_tree = "<test-container xmlns=\"urn:test\"><test-leaf>test</test-leaf></test-container>";
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lys_parse_mem to ly_ctx_new_ylpath
-    int ret_ly_ctx_compiled_size_oiiad = ly_ctx_compiled_size(ctx);
-    if (ret_ly_ctx_compiled_size_oiiad < 0){
-    	return 0;
-    }
-
-    LY_ERR ret_ly_ctx_new_ylpath_dmvlg = ly_ctx_new_ylpath((const char *)"w", (const char *)"r", 0, ret_ly_ctx_compiled_size_oiiad, &ctx);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    lyd_parse_data_mem(ctx, data_tree, LYD_XML, LYD_PARSE_ONLY, LYD_VALIDATE_PRESENT, &node);
-
-    // Allocate and copy input data to a buffer
-    char *input_data = (char *)malloc(size + 1);
-    if (input_data == NULL) {
+    // Create a temporary file
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        fprintf(stderr, "Failed to create temporary file\n");
         ly_ctx_destroy(ctx);
         return 0;
     }
-    memcpy(input_data, data, size);
-    input_data[size] = '\0';
 
-    // Parse the input data into a data tree
-    lyd_parse_data_mem(ctx, input_data, LYD_XML, LYD_PARSE_ONLY, LYD_VALIDATE_PRESENT, &tree);
-
-    // Call the function-under-test
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_parse_data_mem to lyd_parse_opaq_error
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lyd_parse_opaq_error with lyd_leafref_link_node_tree
-    LY_ERR ret_lyd_parse_opaq_error_kbtzz = lyd_leafref_link_node_tree(node);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    lyd_validate_op(node, tree, LYD_TYPE_DATA_YANG, &tree);
-
-    // Clean up
-    lyd_free_all(node);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_free_all to lyd_diff_siblings
-    uint32_t ret_ly_ctx_get_options_ojirq = ly_ctx_get_options(ctx);
-    if (ret_ly_ctx_get_options_ojirq < 0){
-    	return 0;
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        fprintf(stderr, "Failed to write data to temporary file\n");
+        close(fd);
+        unlink(tmpl);
+        ly_ctx_destroy(ctx);
+        return 0;
     }
 
-    LY_ERR ret_lyd_diff_siblings_dfhkw = lyd_diff_siblings(tree, tree, (uint16_t )ret_ly_ctx_get_options_ojirq, &node);
+    // Reset the file descriptor's position to the beginning
+    lseek(fd, 0, SEEK_SET);
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Call the function-under-test
+    lys_parse_fd(ctx, fd, LYS_IN_YANG, &module);
 
-    lyd_free_all(tree);
+    // Clean up
+    close(fd);
+    unlink(tmpl);
     ly_ctx_destroy(ctx);
-    free(input_data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_8(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,80 +1,98 @@
-#include <stdio.h>
+#include <sys/stat.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include "stdbool.h"
+#include <stdio.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include "libyang.h"
 
 int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lys_module *module = NULL;
+    struct lyd_node *root = NULL, *child = NULL;
+    const char *schema = "module test {namespace urn:test;prefix t;container cont {leaf leaf1 {type string;}}}";
     LY_ERR err;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd;
-    FILE *file;
 
-    // Initialize the context
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ly_ctx_new
-    err = ly_ctx_new(NULL, 1, &ctx);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Initialize the libyang context
+    err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
         fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Create a temporary file to write the fuzz data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_new to ly_ctx_unset_options
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_new to lys_parse_path
-
-    LY_ERR ret_lys_parse_path_qtuiz = lys_parse_path(ctx, NULL, 0, NULL);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    uint32_t ret_ly_ctx_internal_modules_count_gkufy = ly_ctx_internal_modules_count(NULL);
-    if (ret_ly_ctx_internal_modules_count_gkufy < 0){
-    	return 0;
-    }
-
-    LY_ERR ret_ly_ctx_unset_options_olvpz = ly_ctx_unset_options(ctx, ret_ly_ctx_internal_modules_count_gkufy);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    fd = mkstemp(tmpl);
-    if (fd == -1) {
-        fprintf(stderr, "Failed to create temporary file\n");
+    // Parse the schema
+    err = lys_parse_mem(ctx, schema, LYS_IN_YANG, NULL);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to parse schema\n");
         ly_ctx_destroy(ctx);
         return 0;
     }
 
-    // Write fuzz data to the temporary file
-    file = fdopen(fd, "wb");
-    if (file == NULL) {
-        fprintf(stderr, "Failed to open temporary file\n");
-        close(fd);
+    // Allocate memory for the data buffer
+    char *data_buf = malloc(size + 1);
+    if (!data_buf) {
         ly_ctx_destroy(ctx);
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
+
+    // Copy the input data to the buffer and null-terminate it
+    memcpy(data_buf, data, size);
+    data_buf[size] = '\0';
+
+    // Parse the data buffer to create a data tree
+    err = lyd_parse_data_mem(ctx, data_buf, LYD_JSON, 0, LYD_VALIDATE_PRESENT, &root);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to parse data\n");
+        free(data_buf);
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
 
     // Call the function-under-test
-    lys_parse_path(ctx, tmpl, LYS_IN_YANG, &module);
+    child = lyd_child_no_keys(root);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lys_parse_path to ly_ctx_set_options
-
-    LY_ERR ret_ly_ctx_set_options_mkipb = ly_ctx_set_options(ctx, 1);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    lyd_free_all(root);
+    free(data_buf);
     ly_ctx_destroy(ctx);
-    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_35(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

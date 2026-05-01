@@ -9,90 +9,64 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <iostream>
+#include <fstream>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "/src/aom/aom/aom.h"
-#include "/src/aom/aom/aomcx.h"
-#include "aom/aom_decoder.h"
 #include "aom/aomdx.h"
-#include "/src/aom/aom/aom_encoder.h"
-#include "/src/aom/aom/aom_external_partition.h"
-#include "/src/aom/aom/aom_frame_buffer.h"
+#include "/src/aom/aom/aom.h"
+#include "/src/aom/aom/aom_codec.h"
+#include "aom/aom_decoder.h"
 #include "/src/aom/aom/aom_image.h"
-#include "/src/aom/aom/aom_integer.h"
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size == 0) {
         return 0;
     }
 
-    // Initialize decoder
-    aom_codec_ctx_t dec_ctx;
-    aom_codec_iface_t *dec_iface = aom_codec_av1_dx();
+    // Initialize codec context
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_iface_t *iface = aom_codec_av1_dx();
+    aom_codec_dec_cfg_t cfg = {0};
+    aom_codec_flags_t flags = 0;
+    int ver = AOM_DECODER_ABI_VERSION;
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_av1_dx to aom_codec_peek_stream_info
-    size_t ret_aom_uleb_size_in_bytes_xljnl = aom_uleb_size_in_bytes(AOM_MAX_TILE_COLS);
-    if (ret_aom_uleb_size_in_bytes_xljnl < 0){
-    	return 0;
+    // Initialize the decoder
+    if (aom_codec_dec_init_ver(&codec_ctx, iface, &cfg, flags, ver) != AOM_CODEC_OK) {
+        return 0;
     }
-    aom_codec_stream_info_t xalzskqu;
-    memset(&xalzskqu, 0, sizeof(xalzskqu));
-    aom_codec_err_t ret_aom_codec_peek_stream_info_xudhg = aom_codec_peek_stream_info(dec_iface, (const uint8_t *)&ret_aom_uleb_size_in_bytes_xljnl, AOM_PLANE_U, &xalzskqu);
-    // End mutation: Producer.APPEND_MUTATOR
+
+    // Prepare aom_codec_stream_info_t
+    aom_codec_stream_info_t stream_info;
+    stream_info.w = 0;
+
+    // Peek stream info
+    if (aom_codec_peek_stream_info(iface, Data, Size, &stream_info) == AOM_CODEC_OK) {
+        // Decode the input data
+        if (aom_codec_decode(&codec_ctx, Data, Size, nullptr) == AOM_CODEC_OK) {
+            // Retrieve frames
+            aom_codec_iter_t iter = nullptr;
+            aom_image_t *img;
+            while ((img = aom_codec_get_frame(&codec_ctx, &iter)) != nullptr) {
+                // Process the image (img)
+                // For the purpose of fuzzing, we don't need to do anything with img
+            }
+        }
     
-    aom_codec_dec_cfg_t dec_cfg = {0}; // Default configuration
-    aom_codec_err_t dec_res = aom_codec_dec_init_ver(&dec_ctx, dec_iface, &dec_cfg, 0, AOM_DECODER_ABI_VERSION);
-    if (dec_res != AOM_CODEC_OK) {
-        return 0;
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_get_frame to aom_codec_control
+            aom_codec_err_t ret_aom_codec_control_xrkrk = aom_codec_control(&codec_ctx, Size);
+            // End mutation: Producer.APPEND_MUTATOR
+            
+}
+
+    // Get stream info after decoding
+    if (aom_codec_get_stream_info(&codec_ctx, &stream_info) != AOM_CODEC_OK) {
+        // Handle error in getting stream info
     }
 
-    // Initialize encoder
-    aom_codec_ctx_t enc_ctx;
-    aom_codec_iface_t *enc_iface = aom_codec_av1_cx();
-    aom_codec_enc_cfg_t enc_cfg;
-    if (aom_codec_enc_config_default(enc_iface, &enc_cfg, 0) != AOM_CODEC_OK) {
-        aom_codec_destroy(&dec_ctx);
-        return 0;
-    }
-    aom_codec_err_t enc_res = aom_codec_enc_init_ver(&enc_ctx, enc_iface, &enc_cfg, 0, AOM_ENCODER_ABI_VERSION);
-    if (enc_res != AOM_CODEC_OK) {
-        aom_codec_destroy(&dec_ctx);
-        return 0;
-    }
-
-    // Decode input data
-    if (aom_codec_decode(&dec_ctx, Data, Size, NULL) != AOM_CODEC_OK) {
-        aom_codec_destroy(&enc_ctx);
-        aom_codec_destroy(&dec_ctx);
-        return 0;
-    }
-
-    // Get decoded frames
-    aom_codec_iter_t iter = NULL;
-    aom_image_t *img = nullptr;
-    while ((img = aom_codec_get_frame(&dec_ctx, &iter)) != NULL) {
-        // Encode the frame
-        if (aom_codec_encode(&enc_ctx, img, 0, 1, 0) != AOM_CODEC_OK) {
-            break;
-        }
-
-        // Get stream info
-        aom_codec_stream_info_t si;
-        if (aom_codec_get_stream_info(&dec_ctx, &si) != AOM_CODEC_OK) {
-            break;
-        }
-
-        // Get capabilities
-        aom_codec_caps_t caps = aom_codec_get_caps(dec_iface);
-
-        (void)caps; // Use capabilities for something meaningful
-    }
-
-    // Cleanup
-    aom_codec_destroy(&enc_ctx);
-    aom_codec_destroy(&dec_ctx);
+    // Destroy the codec context
+    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }

@@ -1,52 +1,111 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include "/src/libhtp/htp/bstr.h"  // Correct path to the bstr.h file
+#include "htp/htp.h"
 
 int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0; // Not enough data to create two bstr objects
+    // Initialize the transaction object
+    htp_cfg_t *cfg = htp_config_create();
+    if (cfg == NULL) {
+        return 0; // Exit if configuration creation fails
     }
 
-    // Split the input data into two parts for two bstr objects
-    size_t half_size = size / 2;
-    size_t other_half_size = size - half_size;
-
-    // Allocate and initialize the first bstr object
-    struct bstr_t str1;  // Use 'struct' keyword to define bstr_t
-    str1.realptr = (unsigned char *)malloc(half_size + 1);
-    if (str1.realptr == NULL) {
-        return 0; // Allocation failed
+    htp_connp_t *connp = htp_connp_create(cfg);
+    if (connp == NULL) {
+        htp_config_destroy(cfg);
+        return 0; // Exit if connection parser creation fails
     }
-    memcpy(str1.realptr, data, half_size);
-    str1.realptr[half_size] = '\0'; // Ensure null-termination
-    str1.len = half_size;
-    str1.size = half_size + 1;
 
-    // Allocate and initialize the second bstr object
-    struct bstr_t str2;  // Use 'struct' keyword to define bstr_t
-    str2.realptr = (unsigned char *)malloc(other_half_size + 1);
-    if (str2.realptr == NULL) {
-        free(str1.realptr);
-        return 0; // Allocation failed
+    // Ensure the data pointer is not NULL and size is non-zero
+    if (data == NULL || size == 0) {
+        htp_connp_destroy_all(connp);
+        htp_config_destroy(cfg);
+        return 0;
     }
-    memcpy(str2.realptr, data + half_size, other_half_size);
-    str2.realptr[other_half_size] = '\0'; // Ensure null-termination
-    str2.len = other_half_size;
-    str2.size = other_half_size + 1;
 
-    // Call the function-under-test
+    // Simulate a request by feeding the data to the connection parser
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bstr_index_of_nocase with bstr_index_of
-    int result = bstr_index_of(&str1, &str2);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_create to bstr_util_mem_index_of_mem
+    void* ret_htp_connp_get_user_data_vizjd = htp_connp_get_user_data(NULL);
+    if (ret_htp_connp_get_user_data_vizjd == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!connp) {
+    	return 0;
+    }
+    size_t ret_htp_connp_res_data_consumed_watpg = htp_connp_res_data_consumed(connp);
+    if (ret_htp_connp_res_data_consumed_watpg < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!connp) {
+    	return 0;
+    }
+    size_t ret_htp_connp_res_data_consumed_ijffh = htp_connp_res_data_consumed(connp);
+    if (ret_htp_connp_res_data_consumed_ijffh < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_htp_connp_get_user_data_vizjd) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!cfg) {
+    	return 0;
+    }
+    int ret_bstr_util_mem_index_of_mem_wxren = bstr_util_mem_index_of_mem(ret_htp_connp_get_user_data_vizjd, ret_htp_connp_res_data_consumed_watpg, (const void *)cfg, ret_htp_connp_res_data_consumed_ijffh);
+    if (ret_bstr_util_mem_index_of_mem_wxren < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    htp_status_t status = htp_connp_req_data(connp, NULL, data, size);
 
-
-
-    // Free allocated memory
-    free(str1.realptr);
-    free(str2.realptr);
+    // Clean up
+    htp_connp_destroy_all(connp);
+    htp_config_destroy(cfg);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_41(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

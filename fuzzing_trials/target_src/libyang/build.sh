@@ -15,7 +15,7 @@
 #
 ################################################################################
 
-git checkout devel
+git checkout 8a07083d78dbb779fe449d6b1fc17ccfda733cf9
 
 mkdir build && cd build
 cmake -DBUILD_SHARED_LIBS=OFF -DENABLE_TOOLS=OFF ..

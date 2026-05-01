@@ -1,64 +1,68 @@
 #include <string.h>
 #include <sys/stat.h>
-#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include "/src/aom/aom/aom_codec.h"
 #include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
 
-extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec;
-    aom_codec_err_t res;
-    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
-    void *user_priv = (void*)1; // Non-NULL user private data
+extern "C" {
+
+// Dummy callback functions for frame buffer operations
+int get_frame_buffer(void *user_priv, size_t min_size, aom_codec_frame_buffer_t *fb) {
+    // Allocate a buffer of at least min_size
+    fb->data = static_cast<uint8_t*>(malloc(min_size));
+    fb->size = min_size;
+    return (fb->data != NULL) ? 0 : -1;
+}
+
+int release_frame_buffer(void *user_priv, aom_codec_frame_buffer_t *fb) {
+    // Free the allocated buffer
+    free(fb->data);
+    fb->data = NULL;
+    fb->size = 0;
+    return 0;
+}
+
+}
+
+extern "C" {
+#include "aom/aom_decoder.h"
+
+// Declare the codec interface for AV1
+extern aom_codec_iface_t *aom_codec_av1_dx(void);
+}
+
+extern "C" {
+
+int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_err_t err;
 
     // Initialize the codec context
-    res = aom_codec_dec_init(&codec, iface, NULL, 0);
-    if (res != AOM_CODEC_OK) {
-        return 0; // Initialization failed
+    err = aom_codec_dec_init(&codec_ctx, aom_codec_av1_dx(), NULL, 0);
+    if (err != AOM_CODEC_OK) {
+        return 0;
     }
 
-    // Call the function-under-test
-    res = aom_codec_decode(&codec, data, size, user_priv);
+    // Set frame buffer functions
+    err = aom_codec_set_frame_buffer_functions(&codec_ctx, get_frame_buffer, release_frame_buffer, NULL);
+    if (err != AOM_CODEC_OK) {
+        aom_codec_destroy(&codec_ctx);
+        return 0;
+    }
+
+    // Decode the input data
+    err = aom_codec_decode(&codec_ctx, data, size, NULL);
+    if (err != AOM_CODEC_OK) {
+        aom_codec_destroy(&codec_ctx);
+        return 0;
+    }
 
     // Destroy the codec context
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_get_frame
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_control
-    aom_codec_caps_t ret_aom_codec_get_caps_qqmvk = aom_codec_get_caps(NULL);
-    if (ret_aom_codec_get_caps_qqmvk < 0){
-    	return 0;
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_get_caps to aom_uleb_encode
-    size_t ret_aom_uleb_size_in_bytes_nmoox = aom_uleb_size_in_bytes(AOM_PLANE_U);
-    if (ret_aom_uleb_size_in_bytes_nmoox < 0){
-    	return 0;
-    }
-    size_t ret_aom_img_num_metadata_dftyk = aom_img_num_metadata(NULL);
-    if (ret_aom_img_num_metadata_dftyk < 0){
-    	return 0;
-    }
-    int ret_aom_uleb_encode_kxnzq = aom_uleb_encode((uint64_t )ret_aom_uleb_size_in_bytes_nmoox, AOM_MAX_TILE_COLS, (uint8_t *)&ret_aom_img_num_metadata_dftyk, (size_t *)&ret_aom_codec_get_caps_qqmvk);
-    if (ret_aom_uleb_encode_kxnzq < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_err_t ret_aom_codec_control_jfqeo = aom_codec_control(&codec, (int )ret_aom_codec_get_caps_qqmvk);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_iter_t mgcgrhoz;
-    memset(&mgcgrhoz, 0, sizeof(mgcgrhoz));
-    aom_image_t* ret_aom_codec_get_frame_gkfrl = aom_codec_get_frame(&codec, &mgcgrhoz);
-    if (ret_aom_codec_get_frame_gkfrl == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_destroy(&codec);
+    aom_codec_destroy(&codec_ctx);
 
     return 0;
+}
 }
 #ifdef INC_MAIN
 #include <stdio.h>

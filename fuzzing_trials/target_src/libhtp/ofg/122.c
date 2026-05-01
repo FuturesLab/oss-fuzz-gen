@@ -1,33 +1,69 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
-#include "/src/libhtp/htp/htp.h"  // Include the necessary header for htp_tx_req_get_param
+#include "/src/libhtp/htp/htp.h" // Correct path for htp_tx_t and htp_cfg_t
+#include "/src/libhtp/htp/htp_private.h" // Include the private header for initialization and cleanup functions
 
 int LLVMFuzzerTestOneInput_122(const uint8_t *data, size_t size) {
-    // Initialize the htp_tx_t structure
-    htp_tx_t tx;
-    memset(&tx, 0, sizeof(htp_tx_t)); // Zero-initialize the structure
+    // Declare and initialize the variables
+    htp_tx_t *tx = htp_tx_create(NULL); // Use a function to create and initialize htp_tx_t
+    htp_cfg_t *cfg = htp_config_create(); // Use a function to create and initialize htp_cfg_t
+    int option;
 
-    // Ensure that size is non-zero to avoid passing a NULL pointer for the parameter name
-    if (size == 0) {
+    // Ensure the input size is sufficient to extract an integer for the option
+    if (size < sizeof(int)) {
+        htp_tx_destroy(tx); // Clean up
+        htp_config_destroy(cfg); // Clean up
         return 0;
     }
 
-    // Allocate memory for the parameter name, ensuring it is null-terminated
-    char *param_name = (char *)malloc(size + 1);
-    if (param_name == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
-    memcpy(param_name, data, size);
-    param_name[size] = '\0'; // Null-terminate the string
+    // Extract an integer from the data for the option parameter
+    option = *((int *)data);
 
     // Call the function-under-test
-    htp_param_t *result = htp_tx_req_get_param(&tx, param_name, size);
+    htp_tx_set_config(tx, cfg, option);
 
     // Clean up
-    free(param_name);
+    htp_tx_destroy(tx);
+    htp_config_destroy(cfg);
 
-    // The result is not used further, as we're just checking for memory corruption
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_122(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

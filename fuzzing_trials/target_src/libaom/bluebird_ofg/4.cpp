@@ -1,25 +1,64 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <cstdint>
-#include <cstdlib>
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
+#include <cstddef>
+#include <iostream> // Include for debugging output
+
+extern "C" {
+    #include "/src/aom/aom/aom_codec.h"
+    #include "aom/aom_decoder.h"
+    #include "aom/aomdx.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec;
-    aom_codec_err_t res;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-
-    // Initialize the codec context
-    res = aom_codec_dec_init(&codec, iface, nullptr, 0);
-    if (res != AOM_CODEC_OK) {
+    if (size == 0) {
         return 0;
     }
 
-    // Call the function-under-test
-    res = aom_codec_decode(&codec, data, size, nullptr);
+    const aom_codec_iface_t *iface = aom_codec_av1_dx();
 
-    // Destroy the codec context
+    aom_codec_ctx_t codec;
+    aom_codec_err_t res = aom_codec_dec_init(&codec, iface, nullptr, 0);
+    if (res != AOM_CODEC_OK) {
+        std::cerr << "Failed to initialize codec: " << aom_codec_err_to_string(res) << std::endl;
+        return 0;
+    }
+
+    res = aom_codec_decode(&codec, data, size, nullptr);
+    if (res != AOM_CODEC_OK) {
+        std::cerr << "Failed to decode: " << aom_codec_err_to_string(res) << std::endl;
+    }
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_set_frame_buffer_functions
+    aom_image_t ohnjtcyv;
+    memset(&ohnjtcyv, 0, sizeof(ohnjtcyv));
+    aom_img_flip(&ohnjtcyv);
+    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_ggkip = aom_codec_set_frame_buffer_functions(&codec, 0, 0, (void *)&ohnjtcyv);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_set_frame_buffer_functions to aom_codec_decode
+    size_t ret_aom_img_num_metadata_bgolj = aom_img_num_metadata(&ohnjtcyv);
+    if (ret_aom_img_num_metadata_bgolj < 0){
+    	return 0;
+    }
+    size_t ret_aom_uleb_size_in_bytes_loogk = aom_uleb_size_in_bytes(size);
+    if (ret_aom_uleb_size_in_bytes_loogk < 0){
+    	return 0;
+    }
+    aom_img_flip(&ohnjtcyv);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of aom_codec_decode
+    aom_codec_err_t ret_aom_codec_decode_oekeg = aom_codec_decode(&codec, (const uint8_t *)&ret_aom_uleb_size_in_bytes_loogk, ret_aom_uleb_size_in_bytes_loogk, (void *)&ohnjtcyv);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    aom_codec_iter_t iter = nullptr;
+    aom_image_t *img = nullptr;
+    while ((img = aom_codec_get_frame(&codec, &iter)) != nullptr) {
+        // Process the image (img) if needed
+    }
+
     aom_codec_destroy(&codec);
 
     return 0;

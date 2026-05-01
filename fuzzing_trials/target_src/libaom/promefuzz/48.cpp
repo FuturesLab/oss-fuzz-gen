@@ -1,21 +1,10 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
-// aom_codec_err_to_string at aom_codec.c:36:13 in aom_codec.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
-// aom_codec_err_to_string at aom_codec.c:36:13 in aom_codec.h
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_FORCE_VIDEO_MODE at aomcx.h:2043:1 in aomcx.h
-// aom_codec_err_to_string at aom_codec.c:36:13 in aom_codec.h
-// aom_codec_control_typechecked_AV1E_SET_FP_MT at aomcx.h:2329:1 in aomcx.h
-// aom_codec_err_to_string at aom_codec.c:36:13 in aom_codec.h
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_TPL_MODEL at aomcx.h:1968:1 in aomcx.h
-// aom_codec_err_to_string at aom_codec.c:36:13 in aom_codec.h
-// aom_codec_control_typechecked_AV1E_SET_MIN_GF_INTERVAL at aomcx.h:2010:1 in aomcx.h
-// aom_codec_err_to_string at aom_codec.c:36:13 in aom_codec.h
-// aom_codec_control_typechecked_AV1E_SET_ENABLE_ADAPTIVE_SHARPNESS at aomcx.h:2387:1 in aomcx.h
-// aom_codec_err_to_string at aom_codec.c:36:13 in aom_codec.h
-// aom_codec_control_typechecked_AV1E_SET_CDF_UPDATE_MODE at aomcx.h:1995:1 in aomcx.h
-// aom_codec_err_to_string at aom_codec.c:36:13 in aom_codec.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_INTERINTRA_COMP at aomcx.h:2162:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_MAX_PARTITION_SIZE at aomcx.h:2123:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_SCREEN_CONTENT_DETECTION_MODE at aomcx.h:2417:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_RECT_PARTITIONS at aomcx.h:2111:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_INTRA_DCT_ONLY at aomcx.h:2249:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC at aomcx.h:2405:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -29,76 +18,88 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include "aom.h"
-#include "aom_codec.h"
-#include "aom_encoder.h"
-#include "aomcx.h"
-
-static bool init_codec(aom_codec_ctx_t *codec, aom_codec_iface_t *iface) {
-    aom_codec_err_t res = aom_codec_enc_init(codec, iface, nullptr, 0);
-    if (res != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to initialize codec: %s\n", aom_codec_err_to_string(res));
-        return false;
-    }
-    return true;
-}
-
-static void cleanup_codec(aom_codec_ctx_t *codec) {
-    aom_codec_err_t res = aom_codec_destroy(codec);
-    if (res != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to destroy codec: %s\n", aom_codec_err_to_string(res));
-    }
-}
+#include "aom/aom.h"
+#include "aom/aom_codec.h"
+#include "aom/aomcx.h"
+#include "aom/aom_encoder.h"
 
 extern "C" int LLVMFuzzerTestOneInput_48(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return 0;
-
-    aom_codec_ctx_t codec;
-    aom_codec_iface_t *iface = aom_codec_av1_cx();
-
-    if (!init_codec(&codec, iface)) {
-        return 0; // Exit gracefully if codec initialization fails
+    if (Size < sizeof(aom_codec_ctx_t) + sizeof(int)) {
+        return 0;
     }
 
+    // Initialize codec context
+    aom_codec_ctx_t codec_ctx;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
+
+    // Assume first few bytes are for codec context initialization
+    memcpy(&codec_ctx, Data, sizeof(aom_codec_ctx_t));
+    Data += sizeof(aom_codec_ctx_t);
+    Size -= sizeof(aom_codec_ctx_t);
+
+    // Use the remaining data as parameters for the functions
     int param = 0;
-    memcpy(&param, Data, sizeof(int));
-
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_FORCE_VIDEO_MODE
-    aom_codec_err_t res1 = aom_codec_control_typechecked_AV1E_SET_FORCE_VIDEO_MODE(&codec, AV1E_SET_FORCE_VIDEO_MODE, param);
-    if (res1 != AOM_CODEC_OK) {
-        fprintf(stderr, "Error in AV1E_SET_FORCE_VIDEO_MODE: %s\n", aom_codec_err_to_string(res1));
+    if (Size >= sizeof(int)) {
+        memcpy(&param, Data, sizeof(int));
     }
 
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_FP_MT
-    aom_codec_err_t res2 = aom_codec_control_typechecked_AV1E_SET_FP_MT(&codec, AV1E_SET_FP_MT, param);
-    if (res2 != AOM_CODEC_OK) {
-        fprintf(stderr, "Error in AV1E_SET_FP_MT: %s\n", aom_codec_err_to_string(res2));
-    }
+    // Fuzzing aom_codec_control_typechecked_AV1E_SET_ENABLE_INTERINTRA_COMP
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_INTERINTRA_COMP(&codec_ctx, 0, param);
 
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_TPL_MODEL
-    aom_codec_err_t res3 = aom_codec_control_typechecked_AV1E_SET_ENABLE_TPL_MODEL(&codec, AV1E_SET_ENABLE_TPL_MODEL, param);
-    if (res3 != AOM_CODEC_OK) {
-        fprintf(stderr, "Error in AV1E_SET_ENABLE_TPL_MODEL: %s\n", aom_codec_err_to_string(res3));
-    }
+    // Fuzzing aom_codec_control_typechecked_AV1E_SET_MAX_PARTITION_SIZE
+    aom_codec_control_typechecked_AV1E_SET_MAX_PARTITION_SIZE(&codec_ctx, 0, param);
 
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_MIN_GF_INTERVAL
-    aom_codec_err_t res4 = aom_codec_control_typechecked_AV1E_SET_MIN_GF_INTERVAL(&codec, AV1E_SET_MIN_GF_INTERVAL, param);
-    if (res4 != AOM_CODEC_OK) {
-        fprintf(stderr, "Error in AV1E_SET_MIN_GF_INTERVAL: %s\n", aom_codec_err_to_string(res4));
-    }
+    // Fuzzing aom_codec_control_typechecked_AV1E_SET_SCREEN_CONTENT_DETECTION_MODE
+    aom_codec_control_typechecked_AV1E_SET_SCREEN_CONTENT_DETECTION_MODE(&codec_ctx, 0, param);
 
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_ENABLE_ADAPTIVE_SHARPNESS
-    aom_codec_err_t res5 = aom_codec_control_typechecked_AV1E_SET_ENABLE_ADAPTIVE_SHARPNESS(&codec, AV1E_SET_ENABLE_ADAPTIVE_SHARPNESS, param);
-    if (res5 != AOM_CODEC_OK) {
-        fprintf(stderr, "Error in AV1E_SET_ENABLE_ADAPTIVE_SHARPNESS: %s\n", aom_codec_err_to_string(res5));
-    }
+    // Fuzzing aom_codec_control_typechecked_AV1E_SET_ENABLE_RECT_PARTITIONS
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_RECT_PARTITIONS(&codec_ctx, 0, param);
 
-    // Fuzz aom_codec_control_typechecked_AV1E_SET_CDF_UPDATE_MODE
-    aom_codec_err_t res6 = aom_codec_control_typechecked_AV1E_SET_CDF_UPDATE_MODE(&codec, AV1E_SET_CDF_UPDATE_MODE, param);
-    if (res6 != AOM_CODEC_OK) {
-        fprintf(stderr, "Error in AV1E_SET_CDF_UPDATE_MODE: %s\n", aom_codec_err_to_string(res6));
-    }
+    // Fuzzing aom_codec_control_typechecked_AV1E_SET_INTRA_DCT_ONLY
+    aom_codec_control_typechecked_AV1E_SET_INTRA_DCT_ONLY(&codec_ctx, 0, param);
 
-    cleanup_codec(&codec);
+    // Fuzzing aom_codec_control_typechecked_AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC
+    aom_codec_control_typechecked_AV1E_GET_HIGH_MOTION_CONTENT_SCREEN_RTC(&codec_ctx, 0, &param);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_48(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,76 +1,110 @@
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <string.h>
-#include "libyang.h"
+#include <stdint.h>
+#include <string.h>  // Include for memcpy
+#include "libyang.h"  // Corrected include path
 
 int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *tree = NULL;
+    struct lyd_node *original_node = NULL;
+    struct lyd_node *parent_node = NULL;
+    struct lyd_node *dup_node = NULL;
     LY_ERR err;
-    int fd;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
 
-    // Create a temporary file
-    fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Reset the file offset to the beginning
-    lseek(fd, 0, SEEK_SET);
-
-    // Initialize the context
+    // Initialize libyang context
     err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
-        close(fd);
-        unlink(tmpl);
+        fprintf(stderr, "Failed to create context\n");
+        return 0;
+    }
+
+    // Create a dummy schema for testing
+    const char *schema = "module test {namespace urn:test;prefix t;leaf name {type string;}}";
+    err = lys_parse_mem(ctx, schema, LYS_IN_YANG, NULL);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to parse schema\n");
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+
+    // Check if the input data is non-empty and starts with '<' for XML format
+    if (size == 0 || data[0] != '<') {
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+
+    // Ensure the data is null-terminated before parsing
+    char *data_copy = (char *)malloc(size + 1);
+    if (!data_copy) {
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+    memcpy(data_copy, data, size);
+    data_copy[size] = '\0';
+
+    // Create a dummy data tree for testing using the input data
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of lyd_parse_data_mem
+    err = lyd_parse_data_mem(ctx, data_copy, LYD_XML, 0, size, &original_node);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    free(data_copy);  // Free the copied data after use
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to parse data\n");
+        ly_ctx_destroy(ctx);
         return 0;
     }
 
     // Call the function-under-test
-    lyd_parse_data_fd(ctx, fd, LYD_JSON, 0, LYD_VALIDATE_PRESENT, &tree);
-
-    // Cleanup
-    lyd_free_all(tree);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_free_all to lyd_new_any
-    LY_ERR ret_lyd_unlink_tree_qxvcm = lyd_unlink_tree(tree);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_unlink_tree to lyd_diff_merge_all
-    lyd_free_tree(tree);
-    uint32_t ret_ly_ctx_internal_modules_count_ihrif = ly_ctx_internal_modules_count(ctx);
-    if (ret_ly_ctx_internal_modules_count_ihrif < 0){
-    	return 0;
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function lyd_dup_single with lyd_dup_siblings
+    err = lyd_dup_siblings(original_node, parent_node, 0, &dup_node);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "lyd_dup_single failed\n");
     }
 
-    LY_ERR ret_lyd_diff_merge_all_bkjtl = lyd_diff_merge_all(&tree, tree, (uint16_t )ret_ly_ctx_internal_modules_count_ihrif);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    LY_ERR ret_lyd_unlink_tree_iejhw = lyd_unlink_tree(tree);
-    uint32_t ret_ly_ctx_get_options_xcpmg = ly_ctx_get_options(NULL);
-    if (ret_ly_ctx_get_options_xcpmg < 0){
-    	return 0;
-    }
-    const char gwvoogdo[1024] = "dlzcw";
-    const char hzdypxsj[1024] = "nlunj";
-
-    LY_ERR ret_lyd_new_any_yuvaw = lyd_new_any(tree, NULL, gwvoogdo, tree, hzdypxsj, ret_ly_ctx_get_options_xcpmg, 0, &tree);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    // Clean up
+    lyd_free_all(original_node);
+    lyd_free_all(dup_node);
     ly_ctx_destroy(ctx);
-    close(fd);
-    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_61(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

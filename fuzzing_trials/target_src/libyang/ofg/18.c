@@ -1,62 +1,78 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include "/src/libyang/build/libyang/context.h"
-#include "/src/libyang/build/libyang/parser_schema.h"
+#include <libyang.h> // Corrected the include path
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
+    struct lyd_node *parent = NULL;
+    struct lyd_node *new_node = NULL;
     struct ly_ctx *ctx = NULL;
-    struct lys_module *module = NULL;
-    const struct lysp_submodule *submodule = NULL;
-    char *module_name = NULL;
-    char *submodule_name = NULL;
-    char *revision = NULL;
+    LY_ERR err;
 
-    // Initialize the context
-    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS) {
+    // Initialize the libyang context
+    err = ly_ctx_new(NULL, 0, &ctx);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Ensure that the data size is sufficient for splitting into module name, submodule name, and revision
-    if (size < 3) {
-        ly_ctx_destroy(ctx);
-        return 0;
+    // Prepare strings for the function parameters
+    const char *name = "example-name";
+    const char *value = "example-value";
+    const char *module_key = "example-module-key";
+    const char *module_value = "example-module-value";
+
+    // Use input data to simulate fuzzing conditions
+    if (size > 0) {
+        name = (const char *)data;
+        value = (const char *)(data + 1);
     }
 
-    // Allocate memory for module name, submodule name, and revision
-    size_t part_size = size / 3;
-    module_name = (char *)malloc(part_size + 1);
-    submodule_name = (char *)malloc(part_size + 1);
-    revision = (char *)malloc(part_size + 1);
-
-    if (!module_name || !submodule_name || !revision) {
-        free(module_name);
-        free(submodule_name);
-        free(revision);
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-
-    // Copy data into module name, submodule name, and revision
-    memcpy(module_name, data, part_size);
-    module_name[part_size] = '\0';
-    memcpy(submodule_name, data + part_size, part_size);
-    submodule_name[part_size] = '\0';
-    memcpy(revision, data + 2 * part_size, part_size);
-    revision[part_size] = '\0';
-
-    // Load a module into the context for testing
-    if (lys_parse_mem(ctx, "module test { namespace urn:test; prefix t; }", LYS_IN_YANG, &module) == LY_SUCCESS) {
-        // Call the function-under-test
-        submodule = ly_ctx_get_submodule2(module, submodule_name, revision);
-    }
+    // Call the function-under-test
+    err = lyd_new_opaq(parent, ctx, name, value, module_key, module_value, &new_node);
 
     // Clean up
-    free(module_name);
-    free(submodule_name);
-    free(revision);
+    lyd_free_all(new_node);
     ly_ctx_destroy(ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_18(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

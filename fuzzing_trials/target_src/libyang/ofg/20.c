@@ -1,53 +1,89 @@
-#include <stdio.h>
+#include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
-#include "libyang.h"
+#include <libyang.h>  // Correct header file inclusion for libyang
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *node = NULL;
+    const struct lys_module *module = NULL;
+    const struct lysp_submodule *submodule = NULL;
+    char *module_name = NULL;
+    char *submodule_name = NULL;
     LY_ERR err;
 
-    // Create a context
+    // Initialize libyang context
     err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
         fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Define a simple schema for testing
-    const char *schema = "module example {namespace urn:example;prefix ex;"
-                         "leaf test {type string;}}";
+    // Create module and submodule name strings from the input data
+    if (size > 2) {
+        size_t half_size = size / 2;
+        module_name = (char *)malloc(half_size + 1);
+        submodule_name = (char *)malloc(size - half_size + 1);
 
-    // Parse the schema
-    lys_parse_mem(ctx, schema, LYS_IN_YANG, NULL);
+        if (module_name && submodule_name) {
+            memcpy(module_name, data, half_size);
+            module_name[half_size] = '\0';
 
-    // Create a data tree for testing
-    const char *data_json = "{\"example:test\": \"initial\"}";
-    err = lyd_parse_data_mem(ctx, data_json, LYD_JSON, 0, LYD_VALIDATE_PRESENT, &node);
-    if (err != LY_SUCCESS) {
-        fprintf(stderr, "Failed to parse data\n");
-        ly_ctx_destroy(ctx);
-        return 0;
+            memcpy(submodule_name, data + half_size, size - half_size);
+            submodule_name[size - half_size] = '\0';
+
+            // Load a module into the context
+            err = lys_parse_mem(ctx, "module dummy {namespace urn:dummy;prefix d;}", LYS_IN_YANG, (struct lys_module **)&module);
+            if (err == LY_SUCCESS && module) {
+                // Call the function under test
+                submodule = ly_ctx_get_submodule2(module, module_name, submodule_name);
+            }
+        }
     }
-
-    // Prepare the new value for the leaf node
-    char *new_value = malloc(size + 1);
-    if (!new_value) {
-        lyd_free_all(node);
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-    memcpy(new_value, data, size);
-    new_value[size] = '\0';
-
-    // Call the function-under-test
-    lyd_change_term(node, new_value);
 
     // Clean up
-    free(new_value);
-    lyd_free_all(node);
+    free(module_name);
+    free(submodule_name);
     ly_ctx_destroy(ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

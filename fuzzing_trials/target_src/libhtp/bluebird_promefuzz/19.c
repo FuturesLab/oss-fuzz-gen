@@ -1,100 +1,144 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "htp/htp.h"
+#include "htp/htp.h"
+#include "htp/htp.h"
+#include "/src/libhtp/htp/htp_transaction.h"
 
-// Mock function to create a default configuration
-static htp_cfg_t *create_default_cfg() {
-    // Use the library's configuration creation function if available
-    return htp_config_create();
+// Dummy implementations of incomplete types
+typedef struct htp_connp_t {
+    htp_cfg_t *cfg;
+} htp_connp_t;
+
+typedef struct htp_cfg_t {
+    htp_hook_t *hook_request_complete;
+    htp_hook_t *hook_request_start;
+    htp_hook_t *hook_response_start;
+} htp_cfg_t;
+
+static htp_tx_t *initialize_tx() {
+    htp_tx_t *tx = (htp_tx_t *)malloc(sizeof(htp_tx_t));
+    if (tx == NULL) return NULL;
+
+    memset(tx, 0, sizeof(htp_tx_t));
+
+    tx->connp = (htp_connp_t *)malloc(sizeof(htp_connp_t));
+    if (tx->connp == NULL) {
+        free(tx);
+        return NULL;
+    }
+    memset(tx->connp, 0, sizeof(htp_connp_t));
+
+    tx->connp->cfg = (htp_cfg_t *)malloc(sizeof(htp_cfg_t));
+    if (tx->connp->cfg == NULL) {
+        free(tx->connp);
+        free(tx);
+        return NULL;
+    }
+    memset(tx->connp->cfg, 0, sizeof(htp_cfg_t));
+
+    // Initialize hooks to avoid NULL dereference
+    tx->connp->cfg->hook_request_complete = NULL;
+    tx->connp->cfg->hook_request_start = NULL;
+    tx->connp->cfg->hook_response_start = NULL;
+
+    return tx;
+}
+
+static void cleanup_tx(htp_tx_t *tx) {
+    if (tx) {
+        if (tx->connp) {
+            if (tx->connp->cfg) {
+                free(tx->connp->cfg);
+            }
+            free(tx->connp);
+        }
+        free(tx);
+    }
 }
 
 int LLVMFuzzerTestOneInput_19(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    if (Size < sizeof(int)) return 0;
+
+    htp_tx_t *tx = initialize_tx();
+    if (tx == NULL) return 0;
+
+    // Use part of the input data as user data
+    void *user_data = (void *)Data;
+
+    // Fuzz htp_tx_set_user_data
+    htp_tx_set_user_data(tx, user_data);
+
+    // Fuzz htp_tx_req_has_body
+    int has_body = htp_tx_req_has_body(tx);
+
+    // Fuzz htp_tx_state_request_complete
+    if (tx->connp->cfg->hook_request_complete != NULL) {
+        htp_status_t request_complete_status = htp_tx_state_request_complete(tx);
     }
 
-    htp_cfg_t *cfg = create_default_cfg();
-    if (!cfg) {
-        return 0;
+    // Fuzz htp_tx_state_response_start
+    if (tx->connp->cfg->hook_response_start != NULL) {
+        htp_status_t response_start_status = htp_tx_state_response_start(tx);
     }
 
-    htp_connp_t *connp = htp_connp_create(cfg);
-    if (!connp) {
-        htp_config_destroy(cfg);
-        return 0;
+    // Use part of the input data as status code
+    int status_code;
+    memcpy(&status_code, Data, sizeof(int));
+
+    // Fuzz htp_tx_res_set_status_code
+    htp_tx_res_set_status_code(tx, status_code);
+
+    // Fuzz htp_tx_state_request_start
+    if (tx->connp->cfg->hook_request_start != NULL) {
+        htp_status_t request_start_status = htp_tx_state_request_start(tx);
     }
 
-    const char *client_addr = "127.0.0.1";
-    int client_port = 12345;
-    const char *server_addr = "127.0.0.1";
-    int server_port = 80;
-    htp_time_t timestamp = {0, 0};
-
-    // Open the connection twice as per the order
-    htp_connp_open(connp, client_addr, client_port, server_addr, server_port, &timestamp);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_open to htp_connp_res_data
-
-    int ret_htp_connp_res_data_igxhj = htp_connp_res_data(connp, NULL, (const void *)Data, 1);
-    if (ret_htp_connp_res_data_igxhj < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    htp_connp_open(connp, client_addr, client_port, server_addr, server_port, &timestamp);
-
-    // Process request data
-    htp_connp_req_data(connp, &timestamp, Data, Size);
-
-    // Process response data
-    htp_connp_res_data(connp, &timestamp, Data, Size);
-
-    // Close the connection
-    htp_connp_close(connp, &timestamp);
-
-    // Destroy the connection once
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_close to bstr_util_mem_index_of_mem
-    htp_connp_clear_error(connp);
-    size_t ret_htp_connp_req_data_consumed_fnllr = htp_connp_req_data_consumed(connp);
-    if (ret_htp_connp_req_data_consumed_fnllr < 0){
-    	return 0;
-    }
-    size_t ret_htp_connp_tx_freed_yatlu = htp_connp_tx_freed(connp);
-    if (ret_htp_connp_tx_freed_yatlu < 0){
-    	return 0;
-    }
-
-    int ret_bstr_util_mem_index_of_mem_ilgsz = bstr_util_mem_index_of_mem((const void *)connp, ret_htp_connp_req_data_consumed_fnllr, (const void *)connp, ret_htp_connp_tx_freed_yatlu);
-    if (ret_bstr_util_mem_index_of_mem_ilgsz < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bstr_util_mem_index_of_mem to htp_tx_res_set_status_message
-    htp_tx_t* ret_htp_connp_get_in_tx_lbbkh = htp_connp_get_in_tx(connp);
-    if (ret_htp_connp_get_in_tx_lbbkh == NULL){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function htp_tx_res_set_status_message with htp_tx_req_set_protocol
-    htp_status_t ret_htp_tx_res_set_status_message_fxias = htp_tx_req_set_protocol(ret_htp_connp_get_in_tx_lbbkh, (const char *)"r", (size_t)ret_bstr_util_mem_index_of_mem_ilgsz, 0);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    htp_connp_destroy_all(connp);
-
-    // Clean up configuration
-    htp_config_destroy(cfg);
+    // Clean up
+    cleanup_tx(tx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_19(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

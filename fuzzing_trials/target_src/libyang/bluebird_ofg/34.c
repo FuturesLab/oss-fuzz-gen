@@ -1,72 +1,79 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <sys/stat.h>
+#include "stdbool.h"
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include "/src/libyang/src/context.h"
-#include "/src/libyang/src/tree_data.h"
-#include "/src/libyang/src/tree_schema.h"
-#include "/src/libyang/src/validation.h"
+#include "libyang.h"
 
 int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *node = NULL;
-    struct lyd_node *tree = NULL;
+    const char *pattern = "[a-z]*";
+    char *value = NULL;
+    uint32_t options = 0;
+    void *context = NULL;
     LY_ERR err;
 
-    // Initialize the libyang context
+    // Initialize libyang context
     err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
         fprintf(stderr, "Failed to create context\n");
-        return 0;
+        exit(EXIT_FAILURE);
     }
 
-    // Create a dummy schema for testing
-    const char *schema = "module test {namespace urn:test;prefix t;yang-version 1.1; container test-container {leaf test-leaf {type string;}}}";
-    lys_parse_mem(ctx, schema, LYS_IN_YANG, NULL);
-
-    // Create a dummy data tree
-    const char *data_tree = "<test-container xmlns=\"urn:test\"><test-leaf>test</test-leaf></test-container>";
-    lyd_parse_data_mem(ctx, data_tree, LYD_XML, LYD_PARSE_ONLY, LYD_VALIDATE_PRESENT, &node);
-
-    // Allocate and copy input data to a buffer
-    char *input_data = (char *)malloc(size + 1);
-    if (input_data == NULL) {
+    // Allocate memory for value and copy data
+    value = malloc(size + 1);
+    if (value == NULL) {
         ly_ctx_destroy(ctx);
         return 0;
     }
-    memcpy(input_data, data, size);
-    input_data[size] = '\0';
-
-    // Parse the input data into a data tree
-    lyd_parse_data_mem(ctx, input_data, LYD_XML, LYD_PARSE_ONLY, LYD_VALIDATE_PRESENT, &tree);
+    memcpy(value, data, size);
+    value[size] = '\0';
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_parse_data_mem to lyd_compare_siblings
-    LY_ERR ret_lyd_unlink_tree_ecsjq = lyd_unlink_tree(node);
-
-    LY_ERR ret_lyd_compare_siblings_koxwl = lyd_compare_siblings(node, node, 64);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    lyd_validate_op(node, tree, LYD_TYPE_DATA_YANG, &tree);
+    err = ly_pattern_match(ctx, pattern, value, options, &context);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lyd_validate_op to lyd_diff_tree
-    struct lyd_node* ret_lyd_child_no_keys_urcnd = lyd_child_no_keys(node);
-    if (ret_lyd_child_no_keys_urcnd == NULL){
-    	return 0;
-    }
-
-    LY_ERR ret_lyd_diff_tree_gdqqq = lyd_diff_tree(ret_lyd_child_no_keys_urcnd, tree, size, &tree);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    lyd_free_all(node);
-    lyd_free_all(tree);
+    free(value);
     ly_ctx_destroy(ctx);
-    free(input_data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_34(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,32 +1,81 @@
-#include <stddef.h>
 #include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
-extern int bstr_util_cmp_mem_nocasenorzero(const void *s1, size_t n1, const void *s2, size_t n2);
+// Assuming bstr is a structure similar to this:
+typedef struct {
+    char *data;
+    size_t len;
+} bstr;
+
+// Function signature to be fuzzed
+int bstr_rchr(const bstr *str, int ch);
 
 int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to split into two non-zero segments
-    if (size < 2) {
-        return 0;
+    if (size < 1) {
+        return 0; // Need at least 1 byte to proceed
     }
 
-    // Split the input data into two parts
-    size_t n1 = size / 2;
-    size_t n2 = size - n1;
-
-    // Ensure both parts are non-zero in size
-    if (n1 == 0 || n2 == 0) {
-        return 0;
+    // Create a bstr object
+    bstr test_bstr;
+    test_bstr.len = size;
+    test_bstr.data = (char *)malloc(size + 1); // Allocate memory for data
+    if (test_bstr.data == NULL) {
+        return 0; // Memory allocation failed
     }
 
-    const void *s1 = (const void *)data;
-    const void *s2 = (const void *)(data + n1);
+    // Copy the input data to the bstr data and null-terminate it
+    memcpy(test_bstr.data, data, size);
+    test_bstr.data[size] = '\0';
+
+    // Use the first byte of data as the character to search for
+    int ch = (int)data[0];
 
     // Call the function-under-test
-    int result = bstr_util_cmp_mem_nocasenorzero(s1, n1, s2, n2);
+    bstr_rchr(&test_bstr, ch);
 
-    // Use the result in some way to avoid compiler optimizations
-    (void)result;
+    // Free allocated memory
+    free(test_bstr.data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_38(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

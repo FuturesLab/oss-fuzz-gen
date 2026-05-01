@@ -1,49 +1,73 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include "htp/htp.h" // Correct path to htp.h
+
+// Assuming the definitions of htp_tx_t and DW_TAG_subroutine_typeInfinite_loop are available
+typedef struct {
+    // Placeholder for the actual structure members
+    int dummy;
+} htp_tx_t;
+
+typedef void (*DW_TAG_subroutine_typeInfinite_loop)(void);
+
+// Dummy function to simulate the callback
+void dummy_callback(void) {
+    // Placeholder for the actual callback implementation
+}
+
+// Function-under-test
+void htp_tx_register_request_body_data(htp_tx_t *tx, DW_TAG_subroutine_typeInfinite_loop callback);
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    // Initialize htp_cfg_t
-    htp_cfg_t *cfg = htp_config_create();
-    if (cfg == NULL) {
-        return 0; // Failed to create configuration, exit early
-    }
+    // Initialize the parameters
+    htp_tx_t tx;
+    DW_TAG_subroutine_typeInfinite_loop callback = dummy_callback;
 
-    // Initialize htp_decoder_ctx_t using enum
-    enum htp_decoder_ctx_t decoder_ctx = HTP_DECODER_URLENCODED;
-
-    // Initialize bstr
-    bstr *url_string = bstr_dup_mem((const char *)data, size);
-    if (url_string == NULL) {
-        htp_config_destroy(cfg);
-        return 0; // Failed to create bstr, exit early
-    }
-
-    // Initialize uint64_t
-    uint64_t bytes_consumed = 0;
+    // Ensure tx is not NULL
+    tx.dummy = 0; // Initialize with some non-NULL value
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bstr_dup_mem to bstr_index_of_c_nocasenorzero
-    char* ret_bstr_util_strdup_to_c_muwry = bstr_util_strdup_to_c(url_string);
-    if (ret_bstr_util_strdup_to_c_muwry == NULL){
-    	return 0;
-    }
-
-    int ret_bstr_index_of_c_nocasenorzero_ustig = bstr_index_of_c_nocasenorzero(url_string, ret_bstr_util_strdup_to_c_muwry);
-    if (ret_bstr_index_of_c_nocasenorzero_ustig < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    htp_status_t status = htp_urldecode_inplace(cfg, decoder_ctx, url_string, &bytes_consumed);
-
-    // Cleanup
-    bstr_free(url_string);
-    htp_config_destroy(cfg);
+    htp_tx_register_request_body_data(&tx, callback);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,62 +1,104 @@
 // This fuzz driver is generated for library libhtp, aiming to fuzz the following functions:
-// htp_connp_set_user_data at htp_connection_parser.c:193:6 in htp_connection_parser.h
-// htp_connp_create at htp_connection_parser.c:77:14 in htp_connection_parser.h
-// htp_connp_req_data at htp_request.c:985:5 in htp_connection_parser.h
-// htp_connp_open at htp_connection_parser.c:174:6 in htp_connection_parser.h
-// htp_connp_destroy_all at htp_connection_parser.c:131:6 in htp_connection_parser.h
-// htp_connp_close at htp_connection_parser.c:59:6 in htp_connection_parser.h
+// bstr_dup_mem at bstr.c:258:7 in bstr.h
+// bstr_dup_c at bstr.c:242:7 in bstr.h
+// bstr_dup_mem at bstr.c:258:7 in bstr.h
+// bstr_dup at bstr.c:238:7 in bstr.h
+// bstr_add at bstr.c:54:7 in bstr.h
+// bstr_add_mem at bstr.c:66:7 in bstr.h
+// bstr_free at bstr.c:285:6 in bstr.h
+// bstr_free at bstr.c:285:6 in bstr.h
+// bstr_free at bstr.c:285:6 in bstr.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "htp.h"
-#include "htp.h"
+#include <stdint.h>
+#include "bstr.h"
 
-static htp_cfg_t *create_default_config() {
-    htp_cfg_t *cfg = htp_config_create();
-    if (!cfg) return NULL;
-
-    // Initialize the configuration with some default values
-    htp_config_set_field_limits(cfg, 4096, 8192);
-    htp_config_set_log_level(cfg, 0); // Assuming 0 is a valid log level
-    htp_config_set_tx_auto_destroy(cfg, 1);
-    htp_config_set_server_personality(cfg, 0); // Assuming 0 is a valid server personality
-    htp_config_set_parse_request_cookies(cfg, 1);
-    htp_config_set_parse_request_auth(cfg, 1);
-    htp_config_set_extract_request_files(cfg, 1, 10);
-    htp_config_set_allow_space_uri(cfg, 0);
-    htp_config_set_tmpdir(cfg, "./tmp");
-
-    return cfg;
+static bstr *create_bstr_from_data(const uint8_t *Data, size_t Size) {
+    bstr *b = bstr_dup_mem(Data, Size);
+    return b;
 }
 
 int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
     if (Size == 0) return 0;
 
-    htp_cfg_t *cfg = create_default_config();
-    if (!cfg) return 0;
+    // Ensure null-terminated string for bstr_dup_c
+    char *cstr = (char *)malloc(Size + 1);
+    if (!cstr) return 0;
+    memcpy(cstr, Data, Size);
+    cstr[Size] = '\0';
 
-    htp_connp_t *connp = htp_connp_create(cfg);
-    if (!connp) {
-        htp_config_destroy(cfg);
-        return 0;
+    // Test bstr_dup_c
+    bstr *b_cstr = bstr_dup_c(cstr);
+    free(cstr);
+
+    // Test bstr_dup_mem
+    bstr *b_mem = bstr_dup_mem(Data, Size);
+
+    // Test bstr_dup
+    bstr *b_dup = bstr_dup(b_mem);
+
+    // Test bstr_add
+    bstr *b_add = bstr_add(b_cstr, b_mem);
+    if (b_add != NULL) {
+        b_cstr = b_add;  // Update b_cstr if bstr_add was successful
     }
 
-    // Fuzzing htp_connp_set_user_data
-    htp_connp_set_user_data(connp, (const void *)Data);
-
-    // Fuzzing htp_connp_open
-    htp_connp_open(connp, "127.0.0.1", 8080, "127.0.0.1", 80, NULL);
-
-    // Fuzzing htp_connp_req_data
-    htp_connp_req_data(connp, NULL, Data, Size);
-
-    // Fuzzing htp_connp_close
-    htp_connp_close(connp, NULL);
+    // Test bstr_add_mem
+    bstr *b_add_mem = bstr_add_mem(b_cstr, Data, Size);
+    if (b_add_mem != NULL) {
+        b_cstr = b_add_mem;  // Update b_cstr if bstr_add_mem was successful
+    }
 
     // Cleanup
-    htp_connp_destroy_all(connp);
-    htp_config_destroy(cfg);
+    bstr_free(b_cstr);
+    bstr_free(b_mem);
+    bstr_free(b_dup);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

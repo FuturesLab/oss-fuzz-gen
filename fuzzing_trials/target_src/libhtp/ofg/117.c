@@ -1,91 +1,92 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-
-// Assume bstr is a structure representing a binary string
-typedef struct {
-    size_t length;
-    char *data;
-} bstr;
-
-// Function-under-test
-static bstr *bstr_add(bstr *dest, const bstr *src) {
-    if (dest == NULL || src == NULL) {
-        return NULL;
-    }
-    
-    // Allocate enough memory to hold the concatenated result
-    char *new_data = (char *)realloc(dest->data, dest->length + src->length + 1);
-    if (new_data == NULL) {
-        return NULL;
-    }
-
-    // Copy the source data to the end of the destination data
-    memcpy(new_data + dest->length, src->data, src->length);
-    new_data[dest->length + src->length] = '\0'; // Null-terminate for safety
-
-    // Update the destination bstr
-    dest->data = new_data;
-    dest->length += src->length;
-
-    return dest;
-}
-
-// Helper function to create a bstr from data
-bstr *create_bstr_117(const uint8_t *data, size_t size) {
-    bstr *str = (bstr *)malloc(sizeof(bstr));
-    if (str == NULL) {
-        return NULL;
-    }
-    str->length = size;
-    str->data = (char *)malloc(size + 1);
-    if (str->data == NULL) {
-        free(str);
-        return NULL;
-    }
-    memcpy(str->data, data, size);
-    str->data[size] = '\0'; // Null-terminate for safety
-    return str;
-}
-
-// Helper function to free a bstr
-void free_bstr_117(bstr *str) {
-    if (str != NULL) {
-        free(str->data);
-        free(str);
-    }
-}
+#include "/src/libhtp/htp/htp.h" // Correct path to the header where htp_tx_res_set_header is declared
 
 int LLVMFuzzerTestOneInput_117(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0; // Not enough data to split into two bstrs
+    // Initialize the required variables
+    htp_tx_t *tx = (htp_tx_t *)malloc(sizeof(htp_tx_t));
+    if (tx == NULL) {
+        return 0; // Exit if memory allocation fails
     }
-
-    // Split the input data into two parts for two bstrs
-    size_t mid = size / 2;
-
-    // Create two bstr objects
-    bstr *str1 = create_bstr_117(data, mid);
-    bstr *str2 = create_bstr_117(data + mid, size - mid);
-
-    if (str1 == NULL || str2 == NULL) {
-        free_bstr_117(str1);
-        free_bstr_117(str2);
+    
+    // Ensure data size is sufficient for splitting into two strings
+    if (size < 2) {
+        free(tx);
         return 0;
     }
 
-    // Call the function-under-test
-    bstr *result = bstr_add(str1, str2);
+    // Split data into two parts for header name and value
+    size_t name_len = size / 2;
+    size_t value_len = size - name_len;
 
-    // Free the allocated memory for str2 and result only
-    // str1 is the same as result if bstr_add is successful
-    if (result == str1) {
-        free_bstr_117(str2);
-    } else {
-        free_bstr_117(result);
-        free_bstr_117(str1);
-        free_bstr_117(str2);
+    char *header_name = (char *)malloc(name_len + 1);
+    char *header_value = (char *)malloc(value_len + 1);
+
+    if (header_name == NULL || header_value == NULL) {
+        free(tx);
+        free(header_name);
+        free(header_value);
+        return 0;
     }
+
+    // Copy data into header name and value, ensuring null-termination
+    memcpy(header_name, data, name_len);
+    header_name[name_len] = '\0';
+
+    memcpy(header_value, data + name_len, value_len);
+    header_value[value_len] = '\0';
+
+    // Choose an allocation strategy (using the correct enum value)
+    enum htp_alloc_strategy_t alloc_strategy = HTP_ALLOC_REUSE;
+
+    // Call the function-under-test
+    htp_status_t status = htp_tx_res_set_header(tx, header_name, name_len, header_value, value_len, alloc_strategy);
+
+    // Clean up
+    free(tx);
+    free(header_name);
+    free(header_value);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_117(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

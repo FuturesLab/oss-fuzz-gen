@@ -1,39 +1,86 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/time.h> // Include for struct timeval
+#include <string.h>
 #include "htp/htp.h"
 
 int LLVMFuzzerTestOneInput_26(const uint8_t *data, size_t size) {
-    htp_connp_t *connp;
-    struct timeval req_time; // Use struct timeval instead of htp_time_t
+    // Allocate and initialize htp_tx_t and htp_uri_t structures
+    htp_tx_t *tx = (htp_tx_t *)malloc(sizeof(htp_tx_t));
+    htp_uri_t *uri = (htp_uri_t *)malloc(sizeof(htp_uri_t));
 
-    // Initialize the htp_connp_t structure
-    htp_cfg_t *cfg = htp_config_create(); // Create a configuration object
-    if (cfg == NULL) {
-        return 0;
-    }
-    connp = htp_connp_create(cfg); // Pass the configuration object
-    if (connp == NULL) {
-        htp_config_destroy(cfg); // Clean up the configuration object
+    if (tx == NULL || uri == NULL) {
+        // If allocation fails, free and return
+        free(tx);
+        free(uri);
         return 0;
     }
 
-    // Initialize the timeval structure
-    req_time.tv_sec = 0;
-    req_time.tv_usec = 0;
+    // Zero out the structures to ensure all fields are initialized
+    memset(tx, 0, sizeof(htp_tx_t));
+    memset(uri, 0, sizeof(htp_uri_t));
 
-    // Use the input data to simulate a request
-    if (size > 0) {
-        // Assuming htp_connp_req_data is a function to feed data to the connection parser
-        htp_connp_req_data(connp, &req_time, data, size);
-    }
+    // Initialize the structures with non-NULL values
+    tx->request_method = strdup("GET");
+    tx->request_uri = strdup("/example");
+
+    uri->scheme = strdup("http");
+    uri->hostname = strdup("example.com");
+    uri->port = 80;
+    uri->path = strdup("/path");
+    uri->query = strdup("query=1");
 
     // Call the function-under-test
-    htp_connp_req_close(connp, &req_time);
+    htp_tx_req_set_parsed_uri(tx, uri);
 
     // Clean up
-    htp_connp_destroy_all(connp);
-    htp_config_destroy(cfg); // Clean up the configuration object
+    free(tx->request_method);
+    free(tx->request_uri);
+    free(uri->scheme);
+    free(uri->hostname);
+    free(uri->path);
+    free(uri->query);
+    free(tx);
+    free(uri);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_26(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

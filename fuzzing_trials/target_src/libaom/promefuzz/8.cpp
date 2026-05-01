@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
+// aom_codec_control_typechecked_AV1E_SET_GF_MIN_PYRAMID_HEIGHT at aomcx.h:2309:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_DELTALF_MODE at aomcx.h:2216:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_MV_COST_UPD_FREQ at aomcx.h:2276:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_QM_Y at aomcx.h:2096:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_DELTAQ_STRENGTH at aomcx.h:2345:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_DELTAQ_MODE at aomcx.h:2213:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,90 +16,111 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <cstring>
-#include <aom/aom_integer.h>
-#include <aom/aom_image.h>
-#include <aom/aom_codec.h>
-#include <aom/aom_frame_buffer.h>
-#include <aom/aom_encoder.h>
-#include <aom/aom_external_partition.h>
-#include <aom/aom.h>
-#include <aom/aom_decoder.h>
-#include <aom/aomcx.h>
-#include <aom/aomdx.h>
+#include <cstdlib>
+#include "aom.h"
+#include "aom_codec.h"
+#include "aomcx.h"
+#include "aom_decoder.h"
+#include "aom_encoder.h"
+#include "aom_external_partition.h"
+#include "aom_frame_buffer.h"
+#include "aom_image.h"
+#include "aom_integer.h"
 
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_codec_ctx_t) + sizeof(aom_roi_map_t)) {
-        return 0; // Not enough data to proceed
+    if (Size < sizeof(aom_codec_ctx_t)) {
+        return 0;
     }
 
-    // Initialize codec context
+    // Initialize a codec context
     aom_codec_ctx_t codec_ctx;
-    memset(&codec_ctx, 0, sizeof(codec_ctx));
-    codec_ctx.name = "Test Codec";
+    codec_ctx.name = "AV1 Codec";
+    codec_ctx.iface = nullptr;  // Normally set to a proper interface
+    codec_ctx.err = AOM_CODEC_OK;
+    codec_ctx.init_flags = 0;
+    codec_ctx.config.raw = nullptr;
+    codec_ctx.priv = nullptr;
 
-    // Prepare ROI map
-    aom_roi_map_t roi_map;
-    memset(&roi_map, 0, sizeof(roi_map));
-    roi_map.enabled = 1;
-    roi_map.rows = 4;
-    roi_map.roi_map = new unsigned char[roi_map.rows * roi_map.rows];
-    memcpy(roi_map.roi_map, Data, roi_map.rows * roi_map.rows);
-
-    // Attempt to set ROI map
-    aom_codec_err_t res = aom_codec_control(&codec_ctx, AOME_SET_ROI_MAP, &roi_map);
-
-    // Check for errors
-    if (res != AOM_CODEC_OK) {
-        // Handle error
+    // Fuzz the AV1E_SET_GF_MIN_PYRAMID_HEIGHT function
+    if (Size >= sizeof(int)) {
+        int gf_min_pyramid_height = *reinterpret_cast<const int *>(Data);
+        aom_codec_control_typechecked_AV1E_SET_GF_MIN_PYRAMID_HEIGHT(&codec_ctx, AV1E_SET_GF_MIN_PYRAMID_HEIGHT, gf_min_pyramid_height);
     }
 
-    // Set tuning
-    int tuning = (Data[0] % 3); // Example: Assume 3 different tuning modes
-    res = aom_codec_control(&codec_ctx, AOME_SET_TUNING, tuning);
-
-    // Check for errors
-    if (res != AOM_CODEC_OK) {
-        // Handle error
+    // Fuzz the AV1E_SET_DELTALF_MODE function
+    if (Size >= sizeof(int) * 2) {
+        int delta_lf_mode = *reinterpret_cast<const int *>(Data + sizeof(int));
+        aom_codec_control_typechecked_AV1E_SET_DELTALF_MODE(&codec_ctx, AV1E_SET_DELTALF_MODE, delta_lf_mode);
     }
 
-    // Set spatial layer ID
-    int spatial_layer_id = (Data[1] % 4); // Example: Assume 4 different layers
-    res = aom_codec_control(&codec_ctx, AOME_SET_SPATIAL_LAYER_ID, spatial_layer_id);
-
-    // Check for errors
-    if (res != AOM_CODEC_OK) {
-        // Handle error
+    // Fuzz the AV1E_SET_MV_COST_UPD_FREQ function
+    if (Size >= sizeof(int) * 3) {
+        int mv_cost_upd_freq = *reinterpret_cast<const int *>(Data + sizeof(int) * 2);
+        aom_codec_control_typechecked_AV1E_SET_MV_COST_UPD_FREQ(&codec_ctx, AV1E_SET_MV_COST_UPD_FREQ, mv_cost_upd_freq);
     }
 
-    // Use reference frame
-    int reference_frame = (Data[2] % 5); // Example: Assume 5 different reference frames
-    res = aom_codec_control(&codec_ctx, AOME_USE_REFERENCE, reference_frame);
-
-    // Check for errors
-    if (res != AOM_CODEC_OK) {
-        // Handle error
+    // Fuzz the AV1E_SET_QM_Y function
+    if (Size >= sizeof(int) * 4) {
+        int qm_y = *reinterpret_cast<const int *>(Data + sizeof(int) * 3);
+        aom_codec_control_typechecked_AV1E_SET_QM_Y(&codec_ctx, AV1E_SET_QM_Y, qm_y);
     }
 
-    // Set max intra bitrate percentage
-    int max_intra_bitrate_pct = (Data[3] % 100); // Example: Percentage value
-    res = aom_codec_control(&codec_ctx, AOME_SET_MAX_INTRA_BITRATE_PCT, max_intra_bitrate_pct);
-
-    // Check for errors
-    if (res != AOM_CODEC_OK) {
-        // Handle error
+    // Fuzz the AV1E_SET_DELTAQ_STRENGTH function
+    if (Size >= sizeof(int) * 5) {
+        int deltaq_strength = *reinterpret_cast<const int *>(Data + sizeof(int) * 4);
+        aom_codec_control_typechecked_AV1E_SET_DELTAQ_STRENGTH(&codec_ctx, AV1E_SET_DELTAQ_STRENGTH, deltaq_strength);
     }
 
-    // Set CPU used
-    int cpu_used = (Data[4] % 9); // Example: Assume 9 different CPU usage levels
-    res = aom_codec_control(&codec_ctx, AOME_SET_CPUUSED, cpu_used);
-
-    // Check for errors
-    if (res != AOM_CODEC_OK) {
-        // Handle error
+    // Fuzz the AV1E_SET_DELTAQ_MODE function
+    if (Size >= sizeof(int) * 6) {
+        int deltaq_mode = *reinterpret_cast<const int *>(Data + sizeof(int) * 5);
+        aom_codec_control_typechecked_AV1E_SET_DELTAQ_MODE(&codec_ctx, AV1E_SET_DELTAQ_MODE, deltaq_mode);
     }
 
-    // Cleanup
-    delete[] roi_map.roi_map;
+    // Clean up and handle any errors
+    if (codec_ctx.err != AOM_CODEC_OK) {
+        // Handle error if needed
+    }
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_8(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

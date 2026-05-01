@@ -1,83 +1,69 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include "libyang.h"
+#include "libyang.h"  // Corrected header file inclusion
+
+// Dummy callback function for testing
+const struct lyd_node *dummy_ext_data_clb(const struct ly_ctx *ctx, const char *mod_name, void *user_data, LY_ERR *err) {
+    *err = LY_SUCCESS;
+    return NULL;
+}
 
 int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lys_module *module = NULL;
-    LY_ERR err;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd;
-    FILE *file;
+    void *user_data = (void *)data; // Using the input data as user_data
+    ly_ext_data_clb old_clb;
 
-    // Initialize the context
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ly_ctx_new
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ly_ctx_new
-    err = ly_ctx_new(NULL, 0, &ctx);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (err != LY_SUCCESS) {
-        fprintf(stderr, "Failed to create context\n");
+    // Create a new libyang context
+    if (ly_ctx_new(NULL, 0, &ctx) != LY_SUCCESS) {
         return 0;
     }
 
-    // Create a temporary file to write the fuzz data
+    // Set the external data callback
+    old_clb = ly_ctx_set_ext_data_clb(ctx, dummy_ext_data_clb, user_data);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_new to ly_ctx_unset_options
-    int ret_ly_ctx_compiled_size_zngie = ly_ctx_compiled_size(ctx);
-    if (ret_ly_ctx_compiled_size_zngie < 0){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ly_ctx_unset_options with ly_ctx_set_options
-    LY_ERR ret_ly_ctx_unset_options_yzhey = ly_ctx_set_options(ctx, (uint32_t)ret_ly_ctx_compiled_size_zngie);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    fd = mkstemp(tmpl);
-    if (fd == -1) {
-        fprintf(stderr, "Failed to create temporary file\n");
-        ly_ctx_destroy(ctx);
-        
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_destroy to lys_parse_fd
-
-        LY_ERR ret_lys_parse_fd_ezidg = lys_parse_fd(ctx, 0, 0, NULL);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-return 0;
-    }
-
-    // Write fuzz data to the temporary file
-    file = fdopen(fd, "wb");
-    if (file == NULL) {
-        fprintf(stderr, "Failed to open temporary file\n");
-        close(fd);
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Call the function-under-test
-    lys_parse_path(ctx, tmpl, LYS_IN_YANG, &module);
-
-    // Clean up
+    // Cleanup
     ly_ctx_destroy(ctx);
-    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_38(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,122 +1,143 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "/src/libhtp/htp/bstr.h"
 #include "htp/htp.h"
 #include "htp/htp.h"
+#include "htp/htp.h"
+#include "/src/libhtp/htp/htp_transaction.h"
 
-#define MIN(a, b) ((a) < (b) ? (a) : (b))
+// Dummy implementations for missing structures
+struct htp_connp_t {
+    htp_cfg_t *cfg;
+};
 
-static void initialize_bstr(bstr *b, const uint8_t *data, size_t len) {
-    b->realptr = malloc(len);
-    if (b->realptr) {
-        memcpy(b->realptr, data, len);
-        b->len = len;
-        b->size = len;
-    } else {
-        b->realptr = NULL;
-        b->len = 0;
-        b->size = 0;
+struct htp_cfg_t {
+    int (*parse_request_line)(htp_connp_t *connp);
+};
+
+static htp_tx_t* create_dummy_transaction() {
+    htp_tx_t *tx = (htp_tx_t *)malloc(sizeof(htp_tx_t));
+    if (tx) {
+        memset(tx, 0, sizeof(htp_tx_t));
+        // Initialize with NULL or valid pointers
+        tx->request_headers = NULL;
+        tx->response_headers = NULL;
+        tx->connp = (htp_connp_t *)malloc(sizeof(htp_connp_t));
+        if (tx->connp) {
+            memset(tx->connp, 0, sizeof(htp_connp_t));
+            tx->connp->cfg = (htp_cfg_t *)malloc(sizeof(htp_cfg_t));
+            if (tx->connp->cfg) {
+                memset(tx->connp->cfg, 0, sizeof(htp_cfg_t));
+                // Set a dummy parse_request_line function
+                tx->connp->cfg->parse_request_line = NULL; // Set to NULL or a valid function pointer if available
+            }
+        }
     }
+    return tx;
 }
 
-static void free_bstr(bstr *b) {
-    if (b->realptr) {
-        free(b->realptr);
+static void destroy_dummy_transaction(htp_tx_t *tx) {
+    if (tx) {
+        if (tx->connp) {
+            if (tx->connp->cfg) {
+                free(tx->connp->cfg);
+            }
+            free(tx->connp);
+        }
+        free(tx);
     }
 }
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    if (Size < 1) return 0;
+
+    htp_tx_t *tx = create_dummy_transaction();
+    if (!tx || !tx->connp || !tx->connp->cfg) return 0;
+
+    // Fuzz htp_tx_req_set_headers_clear
+    htp_tx_req_set_headers_clear(tx);
+
+    // Fuzz htp_tx_req_set_header
+    if (Size > 4) {
+        const char *name = (const char *)Data;
+        size_t name_len = Size / 2;
+        const char *value = (const char *)Data + name_len;
+        size_t value_len = Size - name_len;
+        htp_tx_req_set_header(tx, name, name_len, value, value_len, HTP_ALLOC_COPY);
     }
 
-    // Test bstr_index_of_mem_nocase
-    bstr haystack;
-    size_t haystack_len = Size / 2;
-    initialize_bstr(&haystack, Data, haystack_len);
-    if (haystack.realptr != NULL) {
-        int index = bstr_index_of_mem_nocase(&haystack, Data + haystack_len, Size - haystack_len);
-        (void)index; // Use or log index as needed
+    // Fuzz htp_tx_req_set_protocol
+    if (Size > 3) {
+        const char *protocol = (const char *)Data;
+        size_t protocol_len = Size;
+        htp_tx_req_set_protocol(tx, protocol, protocol_len, HTP_ALLOC_COPY);
     }
 
-    // Test bstr_util_memdup_to_c
-    char *dup_str = bstr_util_memdup_to_c(Data, Size);
-    if (dup_str) {
-        free(dup_str);
+    // Fuzz htp_tx_req_set_method
+    if (Size > 2) {
+        const char *method = (const char *)Data;
+        size_t method_len = Size;
+        htp_tx_req_set_method(tx, method, method_len, HTP_ALLOC_COPY);
     }
 
-    // Test htp_tx_req_get_param_ex
-    htp_tx_t tx;
-    memset(&tx, 0, sizeof(htp_tx_t)); // Initialize tx to zero
+    // Fuzz htp_tx_res_set_status_message
+    if (Size > 1) {
+        const char *msg = (const char *)Data;
+        size_t msg_len = Size;
+        htp_tx_res_set_status_message(tx, msg, msg_len, HTP_ALLOC_COPY);
+    }
+
+    // Fuzz htp_tx_req_set_line
     if (Size > 0) {
-        htp_param_t *param = htp_tx_req_get_param_ex(&tx, HTP_SOURCE_QUERY_STRING, (const char *)Data, Size);
-        (void)param; // Use or log param as needed
-    }
-
-    // Test bstr_cmp_c_nocasenorzero
-    if (haystack.realptr != NULL) {
-        // Ensure the Data is null-terminated
-        char *null_terminated_data = (char *)malloc(Size + 1);
-        if (null_terminated_data) {
-            memcpy(null_terminated_data, Data, Size);
-            null_terminated_data[Size] = '\0';
-            int cmp_result = bstr_cmp_c_nocasenorzero(&haystack, null_terminated_data);
-            (void)cmp_result; // Use or log cmp_result as needed
-            free(null_terminated_data);
+        const char *line = (const char *)Data;
+        size_t line_len = Size;
+        if (tx->connp->cfg->parse_request_line) {
+            htp_tx_req_set_line(tx, line, line_len, HTP_ALLOC_COPY);
         }
     }
 
-    // Test bstr_index_of_c_nocasenorzero
-    if (haystack.realptr != NULL) {
-        // Ensure the Data is null-terminated
-        char *null_terminated_data = (char *)malloc(Size + 1);
-        if (null_terminated_data) {
-            memcpy(null_terminated_data, Data, Size);
-            null_terminated_data[Size] = '\0';
-            int index_c = bstr_index_of_c_nocasenorzero(&haystack, null_terminated_data);
-            (void)index_c; // Use or log index_c as needed
-            free(null_terminated_data);
-        }
-    }
-
-    // Test htp_get_version
-    char *version = htp_get_version();
-    (void)version; // Use or log version as needed
-
-    // Cleanup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_get_version to htp_tx_res_process_body_data
-    htp_tx_t aunwjrws;
-    memset(&aunwjrws, 0, sizeof(aunwjrws));
-
-    htp_status_t ret_htp_tx_res_process_body_data_yhfry = htp_tx_res_process_body_data(&aunwjrws, (const void *)version, 1);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bstr_index_of_mem_nocase to htp_tx_req_set_line
-        const bstr gbwojrry;
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_tx_res_process_body_data to htp_tx_req_add_param
-
-    htp_status_t ret_htp_tx_req_add_param_cbpct = htp_tx_req_add_param(&aunwjrws, NULL);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-        memset(&gbwojrry, 0, sizeof(gbwojrry));
-        char* ret_bstr_util_strdup_to_c_wbdvt = bstr_util_strdup_to_c(&gbwojrry);
-        if (ret_bstr_util_strdup_to_c_wbdvt == NULL){
-        	return 0;
-        }
-
-        htp_status_t ret_htp_tx_req_set_line_fsllt = htp_tx_req_set_line(NULL, ret_bstr_util_strdup_to_c_wbdvt, (size_t )index, 0);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-    free_bstr(&haystack);
-
+    destroy_dummy_transaction(tx);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

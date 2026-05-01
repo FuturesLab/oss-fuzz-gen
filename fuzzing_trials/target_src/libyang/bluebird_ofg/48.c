@@ -1,76 +1,96 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdint.h>
-#include "/src/libyang/src/tree_data.h"
-#include "/src/libyang/src/set.h"
-#include "/src/libyang/src/log.h"
-#include "/src/libyang/src/tree.h"
-#include "/src/libyang/src/context.h"
-#include "/src/libyang/src/in.h"
-#include "/src/libyang/src/tree_schema.h"  // Include for LYD_VALIDATE_PRESENT
-#include "/src/libyang/src/parser_data.h"  // Include for lyd_parse_data_mem
+#include "libyang.h"  // Corrected include path for libyang
 
 int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *root = NULL;
-    struct ly_set *set = NULL;
+    struct lyd_node *node1 = NULL, *node2 = NULL;
     LY_ERR err;
+    char *schema = "module a {namespace urn:a;prefix a;container c {leaf l {type string;}}}";
+    char *data1 = "<c xmlns=\"urn:a\"><l>test1</l></c>";
+    char *data2 = "<c xmlns=\"urn:a\"><l>test2</l></c>";
 
-    // Initialize libyang context
+    // Create a new context
     err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
         fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Create a simple YANG module for testing
-    const char *yang_module = "module test {namespace urn:test;prefix t; container top {leaf name {type string;}}}";
+    // Parse schema
+    err = lys_parse_mem(ctx, schema, LYS_IN_YANG, NULL);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to parse schema\n");
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_new to lyd_parse_op
-    struct lyd_node *yrxihqii;
-    memset(&yrxihqii, 0, sizeof(yrxihqii));
+    // Parse data1
+    err = lyd_parse_data_mem(ctx, data1, LYD_XML, LYD_PARSE_ONLY, LYD_VALIDATE_PRESENT, &node1);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to parse data1\n");
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
 
-    LY_ERR ret_lyd_parse_op_muohe = lyd_parse_op(ctx, NULL, NULL, 0, 0, size, NULL, &yrxihqii);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    lys_parse_mem(ctx, yang_module, LYS_IN_YANG, NULL);
-
-    // Create a simple XML data tree for testing
-    const char *xml_data = "<top xmlns=\"urn:test\"><name>test</name></top>";
-    lyd_parse_data_mem(ctx, xml_data, LYD_XML, 0, LYD_VALIDATE_PRESENT, &root);
-
-    // Ensure the data is non-null and null-terminate it
-    char *xpath_expr = NULL;
-    if (size > 0) {
-        xpath_expr = (char *)malloc(size + 1);
-        if (!xpath_expr) {
-
-            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ly_ctx_destroy with ly_ctx_free_parsed
-            ly_ctx_free_parsed(ctx);
-            // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-            return 0;
-        }
-        memcpy(xpath_expr, data, size);
-        xpath_expr[size] = '\0';
+    // Parse data2
+    err = lyd_parse_data_mem(ctx, data2, LYD_XML, LYD_PARSE_ONLY, LYD_VALIDATE_PRESENT, &node2);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to parse data2\n");
+        lyd_free_all(node1);
+        ly_ctx_destroy(ctx);
+        return 0;
     }
 
     // Call the function-under-test
-    lyd_find_xpath(root, xpath_expr, &set);
+    err = lyd_insert_before(node1, node2);
 
-    // Cleanup
-    lyd_free_all(root);
-    ly_set_free(set, NULL);  // Pass NULL for the destructor
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function ly_ctx_destroy with ly_ctx_free_parsed
-    ly_ctx_free_parsed(ctx);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    free(xpath_expr);
+    // Clean up
+    lyd_free_all(node1);
+    lyd_free_all(node2);
+    ly_ctx_destroy(ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_48(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

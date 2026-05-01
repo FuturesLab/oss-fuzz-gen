@@ -1,14 +1,10 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_enc_config_default at aom_encoder.c:100:17 in aom_encoder.h
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
+// aom_codec_control_typechecked_AOMD_SET_FRAME_SIZE_LIMIT at aomdx.h:611:1 in aomdx.h
+// aom_codec_control_typechecked_AV1E_SET_MIN_CR at aomcx.h:2282:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_FP_MT_UNIT_TEST at aomcx.h:2366:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_FP_MT at aomcx.h:2363:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_MS_CBR at aomcx.h:2411:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_BITRATE_ONE_PASS_CBR at aomcx.h:2393:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -18,80 +14,111 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
-#include <aom/aom_codec.h>
-#include <aom/aom_encoder.h>
-#include <aom/aomcx.h>
-}
-
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
+#include <iostream>
+#include <fstream>
+#include <aom/aomdx.h>
+#include <aom/aom.h>
+#include <aom/aom_codec.h>
+#include <aom/aom_external_partition.h>
+#include <aom/aom_decoder.h>
+#include <aom/aomcx.h>
+#include <aom/aom_integer.h>
+#include <aom/aom_frame_buffer.h>
+#include <aom/aom_image.h>
+#include <aom/aom_encoder.h>
 
-static void initialize_codec(aom_codec_ctx_t *codec_ctx, aom_codec_iface_t *iface) {
-    aom_codec_enc_cfg_t cfg;
-    if (aom_codec_enc_config_default(iface, &cfg, 0) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to get default codec config.\n");
-        exit(1);
-    }
-
-    if (aom_codec_enc_init(codec_ctx, iface, &cfg, 0) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to initialize codec.\n");
-        exit(1);
-    }
-}
-
-static void cleanup_codec(aom_codec_ctx_t *codec_ctx) {
-    if (aom_codec_destroy(codec_ctx) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to destroy codec.\n");
-    }
-}
-
-static void fuzz_codec_controls(aom_codec_ctx_t *codec_ctx, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-
-    int cq_level = Data[0] % 64; // CQ level range
-    if (aom_codec_control(codec_ctx, AOME_SET_CQ_LEVEL, cq_level) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to set CQ level.\n");
-    }
-
-    if (Size < 2) return;
-    int enable_auto_alt_ref = Data[1] % 2;
-    if (aom_codec_control(codec_ctx, AOME_SET_ENABLEAUTOALTREF, enable_auto_alt_ref) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to set auto alt ref.\n");
-    }
-
-    if (Size < 3) return;
-    int num_spatial_layers = Data[2] % 5 + 1; // 1 to 5 layers
-    if (aom_codec_control(codec_ctx, AOME_SET_NUMBER_SPATIAL_LAYERS, num_spatial_layers) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to set number of spatial layers.\n");
-    }
-
-    int loop_filter_level;
-    if (aom_codec_control(codec_ctx, AOME_GET_LOOPFILTER_LEVEL, &loop_filter_level) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to get loop filter level.\n");
-    }
-
-    if (Size < 4) return;
-    int arnr_max_frames = Data[3] % 16; // ARNR max frames range
-    if (aom_codec_control(codec_ctx, AOME_SET_ARNR_MAXFRAMES, arnr_max_frames) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to set ARNR max frames.\n");
-    }
-
-    if (Size < 5) return;
-    int sharpness = Data[4] % 8; // Sharpness range
-    if (aom_codec_control(codec_ctx, AOME_SET_SHARPNESS, sharpness) != AOM_CODEC_OK) {
-        fprintf(stderr, "Failed to set sharpness.\n");
-    }
-}
+// Define some dummy values for testing
+#define DUMMY_FRAME_SIZE_LIMIT 1000
+#define DUMMY_MIN_CR 10
+#define DUMMY_FP_MT_UNIT_TEST 1
+#define DUMMY_FP_MT 1
+#define DUMMY_MAX_CONSEC_FRAME_DROP_MS_CBR 200
+#define DUMMY_BITRATE_ONE_PASS_CBR 500
 
 extern "C" int LLVMFuzzerTestOneInput_90(const uint8_t *Data, size_t Size) {
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_cx();
+    if (Size < sizeof(aom_codec_ctx_t)) {
+        return 0; // Not enough data to initialize aom_codec_ctx_t
+    }
 
-    initialize_codec(&codec_ctx, iface);
-    fuzz_codec_controls(&codec_ctx, Data, Size);
-    cleanup_codec(&codec_ctx);
+    // Initialize aom_codec_ctx_t
+    aom_codec_ctx_t codec_ctx;
+    codec_ctx.name = reinterpret_cast<const char*>(Data);
+    codec_ctx.iface = nullptr;
+    codec_ctx.err = AOM_CODEC_OK;
+    codec_ctx.init_flags = 0;
+    codec_ctx.config.enc = nullptr;
+    codec_ctx.priv = nullptr;
+
+    // Prepare dummy file if needed
+    std::ofstream dummy_file("./dummy_file");
+    if (dummy_file.is_open()) {
+        dummy_file.write(reinterpret_cast<const char*>(Data), Size);
+        dummy_file.close();
+    }
+
+    // Fuzz aom_codec_control_typechecked_AOMD_SET_FRAME_SIZE_LIMIT
+    aom_codec_control_typechecked_AOMD_SET_FRAME_SIZE_LIMIT(&codec_ctx, AOMD_SET_FRAME_SIZE_LIMIT, DUMMY_FRAME_SIZE_LIMIT);
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_MIN_CR
+    aom_codec_control_typechecked_AV1E_SET_MIN_CR(&codec_ctx, AV1E_SET_MIN_CR, DUMMY_MIN_CR);
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_FP_MT_UNIT_TEST
+    aom_codec_control_typechecked_AV1E_SET_FP_MT_UNIT_TEST(&codec_ctx, AV1E_SET_FP_MT_UNIT_TEST, DUMMY_FP_MT_UNIT_TEST);
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_FP_MT
+    aom_codec_control_typechecked_AV1E_SET_FP_MT(&codec_ctx, AV1E_SET_FP_MT, DUMMY_FP_MT);
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_MS_CBR
+    aom_codec_control_typechecked_AV1E_SET_MAX_CONSEC_FRAME_DROP_MS_CBR(&codec_ctx, AV1E_SET_MAX_CONSEC_FRAME_DROP_MS_CBR, DUMMY_MAX_CONSEC_FRAME_DROP_MS_CBR);
+
+    // Fuzz aom_codec_control_typechecked_AV1E_SET_BITRATE_ONE_PASS_CBR
+    aom_codec_control_typechecked_AV1E_SET_BITRATE_ONE_PASS_CBR(&codec_ctx, AV1E_SET_BITRATE_ONE_PASS_CBR, DUMMY_BITRATE_ONE_PASS_CBR);
+
+    // Cleanup and handle errors if necessary
+    if (codec_ctx.err != AOM_CODEC_OK) {
+        std::cerr << "Codec error: " << codec_ctx.err << std::endl;
+    }
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_90(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

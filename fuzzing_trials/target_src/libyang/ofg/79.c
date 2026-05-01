@@ -1,44 +1,67 @@
-#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h> // Include for memcpy
-#include "/src/libyang/src/tree_data.h" // Correct path for the required declarations
-#include "/src/libyang/src/context.h" // Include for ly_ctx_new and ly_ctx_destroy
-#include "/src/libyang/src/tree_schema.h" // Include for LYD_VALIDATE_PRESENT
-#include "/src/libyang/src/parser_data.h" // Include for lyd_parse_data_mem
+#include <time.h>
+#include "libyang.h"
 
 int LLVMFuzzerTestOneInput_79(const uint8_t *data, size_t size) {
-    struct lyd_node *target_tree = NULL;
-    const struct lyd_node *source_tree = NULL;
-    uint16_t options = 0;
-    struct ly_ctx *ctx = NULL;
-    LY_ERR err;
+  struct timespec ts;
+  char *str = NULL;
+  LY_ERR result;
 
-    // Initialize the context
-    err = ly_ctx_new(NULL, 0, &ctx);
-    if (err != LY_SUCCESS) {
-        return 0;
-    }
+  // Ensure we have enough data to populate the timespec structure
+  if (size < sizeof(struct timespec)) {
+    return 0;
+  }
 
-    // Parse the input data into a target tree
-    if (size > 0) {
-        char *data_copy = (char *)malloc(size + 1);
-        if (data_copy == NULL) {
-            ly_ctx_destroy(ctx);
-            return 0;
-        }
-        memcpy(data_copy, data, size);
-        data_copy[size] = '\0';
+  // Copy data into the timespec structure
+  memcpy(&ts, data, sizeof(struct timespec));
 
-        lyd_parse_data_mem(ctx, data_copy, LYD_JSON, 0, LYD_PARSE_STRICT, &target_tree);
-        free(data_copy);
-    }
+  // Call the function-under-test
+  result = ly_time_ts2str(&ts, &str);
 
-    // Call the function-under-test
-    lyd_diff_merge_all(&target_tree, source_tree, options);
+  // Free the allocated string if it was successfully created
+  if (result == LY_SUCCESS && str != NULL) {
+    free(str);
+  }
 
-    // Clean up
-    lyd_free_all(target_tree);
-    ly_ctx_destroy(ctx);
+  return 0;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_79(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

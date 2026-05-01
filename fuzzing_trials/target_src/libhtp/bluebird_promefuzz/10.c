@@ -1,76 +1,93 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include "/src/libhtp/htp/bstr.h"
-
-static bstr *create_bstr(const uint8_t *data, size_t size) {
-    bstr *b = (bstr *)malloc(sizeof(bstr));
-    if (b == NULL) return NULL;
-    b->len = size;
-    b->size = size;
-    b->realptr = (unsigned char *)malloc(size);
-    if (b->realptr == NULL) {
-        free(b);
-        return NULL;
-    }
-    memcpy(b->realptr, data, size);
-    return b;
-}
-
-static void free_bstr(bstr *b) {
-    if (b) {
-        free(b->realptr);
-        free(b);
-    }
-}
+#include <sys/time.h>
+#include "htp/htp.h"
+#include "htp/htp.h"
+#include "htp/htp.h"
+#include "/src/libhtp/htp/htp_connection_parser.h"
 
 int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
-    if (Size < 2) return 0;  // Ensure there's enough data for meaningful fuzzing
-
-    // Split the input data into two parts
-    size_t half_size = Size / 2;
-    const uint8_t *haystack_data = Data;
-    size_t haystack_size = half_size;
-
-    const uint8_t *needle_data = Data + half_size;
-    size_t needle_size = Size - half_size;
-
-    // Create bstr instances
-    bstr *bhaystack = create_bstr(haystack_data, haystack_size);
-    bstr *bneedle = create_bstr(needle_data, needle_size);
-    if (bhaystack == NULL || bneedle == NULL) {
-        free_bstr(bhaystack);
-        free_bstr(bneedle);
+    if (Size < 1) {
         return 0;
     }
 
-    // Ensure needle is NUL-terminated for C string functions
-    char *cneedle = (char *)malloc(needle_size + 1);
-    if (cneedle == NULL) {
-        free_bstr(bhaystack);
-        free_bstr(bneedle);
+    htp_cfg_t *cfg = htp_config_create();
+    if (cfg == NULL) {
         return 0;
     }
-    memcpy(cneedle, needle_data, needle_size);
-    cneedle[needle_size] = '\0';
 
-    // Call the target functions
-    int res1 = bstr_begins_with_c_nocase(bhaystack, cneedle);
-    int res2 = bstr_begins_with_c(bhaystack, cneedle);
-    int res3 = bstr_index_of_c_nocase(bhaystack, cneedle);
-    int res4 = bstr_cmp_c_nocase(bhaystack, cneedle);
-    int res5 = bstr_begins_with_nocase(bhaystack, bneedle);
-    int res6 = bstr_index_of_nocase(bhaystack, bneedle);
+    htp_connp_t *connp = htp_connp_create(cfg);
+    if (connp == NULL) {
+        htp_config_destroy(cfg);
+        return 0;
+    }
 
-    // Clean up
-    free(cneedle);
-    free_bstr(bhaystack);
-    free_bstr(bneedle);
+    htp_connp_set_user_data(connp, (void *)Data);
 
+    struct timeval timestamp;
+    gettimeofday(&timestamp, NULL);
+
+    htp_connp_open(connp, "127.0.0.1", 80, "127.0.0.1", 8080, &timestamp);
+    htp_connp_open(connp, "127.0.0.1", 80, "127.0.0.1", 8080, &timestamp);
+
+    htp_connp_req_data(connp, &timestamp, Data, Size);
+    htp_connp_req_data_consumed(connp);
+
+    htp_connp_res_data(connp, &timestamp, Data, Size);
+    htp_connp_res_data(connp, &timestamp, Data, Size);
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function htp_connp_res_data_consumed with htp_connp_tx_freed
+    htp_connp_tx_freed(connp);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+    htp_connp_req_data(connp, &timestamp, Data, Size);
+    htp_connp_res_data(connp, &timestamp, Data, Size);
+
+    htp_connp_close(connp, &timestamp);
+
+    htp_connp_destroy_all(connp);
+    htp_config_destroy(cfg);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,57 +1,105 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include "/src/libyang/src/tree_data.h"
-#include "/src/libyang/src/tree_schema.h"
-#include "/src/libyang/src/context.h"
-#include "/src/libyang/src/parser_schema.h"
+
+#include "libyang.h"
 
 int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    struct ly_ctx *ctx = NULL;
-    struct lyd_node *parent = NULL;
-    struct lyd_node *new_node = NULL;
-    const struct lys_module *module = NULL;
-    char *module_name = "example-module";
-    char *term_name = "example-term";
-    char *term_value = NULL;
-    uint32_t options = 0;
+    struct lyd_node *sibling = NULL;
+    struct lysc_node *schema_node = NULL;
+    struct lyd_node *result = NULL;
     LY_ERR err;
 
-    // Initialize libyang context
+    // Create a context
+    struct ly_ctx *ctx = NULL;
     err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
         fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Load a sample module
-    err = lys_parse_mem(ctx, "module example-module {namespace urn:example;prefix ex; leaf example-term {type string;}}", LYS_IN_YANG, (struct lys_module **)&module);
+    // Create a dummy schema for testing
+    const char *schema = "module test {namespace urn:test;prefix t;leaf test-leaf {type string;}}";
+    err = lys_parse_mem(ctx, schema, LYS_IN_YANG, NULL);
     if (err != LY_SUCCESS) {
-        fprintf(stderr, "Failed to parse module\n");
+        fprintf(stderr, "Failed to parse schema\n");
         ly_ctx_destroy(ctx);
         return 0;
     }
 
-    // Allocate memory for term_value and copy fuzz data
-    term_value = (char *)malloc(size + 1);
-    if (!term_value) {
+    // Use the first schema node from the context for testing
+    schema_node = (struct lysc_node *)lys_find_path(ctx, NULL, "/test:test-leaf", 0);
+    if (!schema_node) {
+        fprintf(stderr, "Failed to find schema node\n");
         ly_ctx_destroy(ctx);
         return 0;
     }
-    memcpy(term_value, data, size);
-    term_value[size] = '\0';
+
+    // Parse the fuzzing input as XML data
+    char *data_str = malloc(size + 1);
+    if (!data_str) {
+        fprintf(stderr, "Failed to allocate memory\n");
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
+    memcpy(data_str, data, size);
+    data_str[size] = '\0';
+
+    err = lyd_parse_data_mem(ctx, data_str, LYD_XML, 0, LYD_VALIDATE_PRESENT, &sibling);
+    if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to parse fuzzing input as data\n");
+        free(data_str);
+        ly_ctx_destroy(ctx);
+        return 0;
+    }
 
     // Call the function-under-test
-    err = lyd_new_term(parent, module, term_name, term_value, options, &new_node);
-    if (err != LY_SUCCESS) {
-        fprintf(stderr, "lyd_new_term failed\n");
-    }
+    err = lyd_find_sibling_val(sibling, schema_node, data_str, 0, &result);
 
     // Clean up
-    lyd_free_all(new_node);
+    free(data_str);
+    lyd_free_all(sibling);
     ly_ctx_destroy(ctx);
-    free(term_value);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_43(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

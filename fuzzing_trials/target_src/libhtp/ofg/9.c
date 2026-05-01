@@ -1,24 +1,67 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include "/src/libhtp/htp/bstr.h" // Correct path for the bstr library
+#include <htp/htp.h>
 
+// Define the fuzzing function for C
 int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-    // Initialize a bstr object
-    bstr my_bstr;
-    my_bstr.len = size;
-    my_bstr.size = size;
-    my_bstr.realptr = (unsigned char *)data;
-
-    // Ensure that the size for the memory to compare is not greater than the available data size
-    size_t mem_size = size > 0 ? size - 1 : 0;
+    // Declare and initialize a htp_tx_t object
+    htp_tx_t tx;
+    
+    // Initialize the fields of htp_tx_t to non-NULL values
+    tx.request_content_length = size;
+    tx.request_transfer_coding = HTP_CODING_IDENTITY;
+    tx.request_content_type = NULL;
+    tx.request_content_encoding = NULL;
+    tx.request_headers = NULL;
 
     // Call the function-under-test
-    int result = bstr_begins_with_mem(&my_bstr, data, mem_size);
+    int result = htp_tx_req_has_body(&tx);
 
-    // Use the result to prevent any compiler optimizations that might skip the function call
-    volatile int prevent_optimization = result;
-    (void)prevent_optimization;
+    // Use the result in some way to avoid compiler optimizations
+    if (result) {
+        // Do something if the request has a body
+    } else {
+        // Do something else if the request does not have a body
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

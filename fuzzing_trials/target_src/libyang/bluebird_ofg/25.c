@@ -1,78 +1,104 @@
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include "libyang.h"
+#include <stdint.h>
+#include "/src/libyang/src/context.h"
+#include "/src/libyang/src/tree.h"
+#include "/src/libyang/src/validation.h"
+#include "/src/libyang/src/in.h"
 
 int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lys_module *module = NULL;
+    struct lyd_node *node = NULL;
+    struct lyd_node *result = NULL;
+    const struct lyd_node *tree = NULL;
     LY_ERR err;
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd;
-    FILE *file;
 
-    // Initialize the context
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ly_ctx_new
-    err = ly_ctx_new(NULL, 1, &ctx);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Initialize libyang context
+    err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
         fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Create a temporary file to write the fuzz data
+    // Parse the input data into a data tree
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_new to ly_ctx_unset_options
-    int ret_ly_ctx_compiled_size_zngie = ly_ctx_compiled_size(ctx);
-    if (ret_ly_ctx_compiled_size_zngie < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from ly_ctx_new to lyd_new_implicit_all
+    uint32_t ret_lyd_list_pos_wjcax = lyd_list_pos(NULL);
+    if (ret_lyd_list_pos_wjcax < 0){
     	return 0;
     }
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of ly_ctx_unset_options
-    LY_ERR ret_ly_ctx_unset_options_yzhey = ly_ctx_unset_options(ctx, 0);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ctx) {
+    	return 0;
+    }
+    LY_ERR ret_lyd_new_implicit_all_yprnn = lyd_new_implicit_all(NULL, ctx, ret_lyd_list_pos_wjcax, NULL);
     // End mutation: Producer.APPEND_MUTATOR
-
-    fd = mkstemp(tmpl);
-    if (fd == -1) {
-        fprintf(stderr, "Failed to create temporary file\n");
+    
+    char *data_str = (char *)malloc(size + 1);
+    if (data_str == NULL) {
         ly_ctx_destroy(ctx);
         return 0;
     }
+    memcpy(data_str, data, size);
+    data_str[size] = '\0';
 
-    // Write fuzz data to the temporary file
-    file = fdopen(fd, "wb");
-    if (file == NULL) {
-        fprintf(stderr, "Failed to open temporary file\n");
-        close(fd);
+    // Parse the data into a libyang data tree
+    err = lyd_parse_data_mem(ctx, data_str, LYD_JSON, LYD_PARSE_ONLY, 0, &node);
+    if (err != LY_SUCCESS) {
+        free(data_str);
         ly_ctx_destroy(ctx);
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
 
     // Call the function-under-test
-    lys_parse_path(ctx, tmpl, LYS_IN_YANG, &module);
+    err = lyd_validate_op(node, tree, LYD_TYPE_DATA_YANG, &result);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from lys_parse_path to lyd_validate_module_final
-
-    LY_ERR ret_lyd_validate_module_final_acfkv = lyd_validate_module_final(NULL, module, size);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    lyd_free_all(node);
+    lyd_free_all(result);
+    free(data_str);
     ly_ctx_destroy(ctx);
-    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_25(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

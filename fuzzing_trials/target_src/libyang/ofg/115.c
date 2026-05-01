@@ -1,55 +1,88 @@
-#include "/src/libyang/src/tree_data.h"
-#include "/src/libyang/src/context.h"
-#include "/src/libyang/src/tree_schema.h"
-#include "/src/libyang/src/parser_schema.h" // Include for lys_parse_mem function
-#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "libyang.h"
 
 int LLVMFuzzerTestOneInput_115(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *parent = NULL;
-    struct lyd_node *new_node = NULL;
-    const struct lys_module *module = NULL;
+    struct lys_module *module = NULL;
     LY_ERR err;
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd;
+    FILE *file;
+    LYS_INFORMAT format = LYS_IN_YANG; // Assuming YANG format for fuzzing
 
-    // Initialize the libyang context
+    // Initialize libyang context
     err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
+        fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Load a module into the context for testing
-    err = lys_parse_mem(ctx, "module test {namespace urn:test;prefix t; container parent { container child; }}", LYS_IN_YANG, &module);
-    if (err != LY_SUCCESS || !module) {
+    // Create a temporary file to store the fuzz data
+    fd = mkstemp(tmpl);
+    if (fd == -1) {
+        fprintf(stderr, "Failed to create temporary file\n");
         ly_ctx_destroy(ctx);
         return 0;
     }
 
-    // Create a parent node to attach the new node to
-    err = lyd_new_inner(NULL, module, "parent", 0, &parent);
-    if (err != LY_SUCCESS || !parent) {
+    // Write the fuzz data to the temporary file
+    file = fdopen(fd, "wb");
+    if (!file) {
+        fprintf(stderr, "Failed to open temporary file\n");
+        close(fd);
         ly_ctx_destroy(ctx);
         return 0;
     }
-
-    // Convert the input data to a string for the node name
-    char *node_name = (char *)malloc(size + 1);
-    if (!node_name) {
-        lyd_free_all(parent);
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-    memcpy(node_name, data, size);
-    node_name[size] = '\0';
+    fwrite(data, 1, size, file);
+    fclose(file);
 
     // Call the function-under-test
-    err = lyd_new_inner(parent, module, node_name, 0, &new_node);
+    lys_parse_path(ctx, tmpl, format, &module);
 
     // Clean up
-    free(node_name);
-    lyd_free_all(parent);
     ly_ctx_destroy(ctx);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_115(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

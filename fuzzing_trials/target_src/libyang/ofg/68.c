@@ -1,13 +1,15 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "/src/libyang/src/tree_data.h" // Include the correct libyang header for tree data functions
-#include "/src/libyang/src/context.h"  // Include the correct libyang header for context functions
-#include "/src/libyang/src/parser_data.h" // Include the correct libyang header for parsing data functions
+
+#include "libyang.h"
 
 int LLVMFuzzerTestOneInput_68(const uint8_t *data, size_t size) {
-    struct ly_ctx *ctx;
-    struct lyd_node *root;
+    struct ly_ctx *ctx = NULL;
+    const char *module_name = "example-module";
+    const char *namespace = "urn:example:module";
+    struct lys_module *module = NULL;
     LY_ERR err;
 
     // Initialize the libyang context
@@ -17,38 +19,60 @@ int LLVMFuzzerTestOneInput_68(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Create a dummy YANG module for testing
-    const char *yang_module = "module test {namespace \"urn:test\"; prefix t; container c {leaf l {type string;}}}";
-    err = lys_parse_mem(ctx, yang_module, LYS_IN_YANG, NULL);
-    if (err != LY_SUCCESS) {
-        fprintf(stderr, "Failed to parse YANG module\n");
+    // Ensure the input data is null-terminated
+    char *input_data = (char *)malloc(size + 1);
+    if (!input_data) {
         ly_ctx_destroy(ctx);
         return 0;
     }
+    memcpy(input_data, data, size);
+    input_data[size] = '\0';
 
-    // Convert the input data into a string and parse it as JSON data
-    char *json_data = (char *)malloc(size + 1);
-    if (!json_data) {
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-    memcpy(json_data, data, size);
-    json_data[size] = '\0';
+    // Call the function-under-test
+    module = ly_ctx_get_module_ns(ctx, module_name, namespace);
 
-    // Parse the JSON data
-    err = lyd_parse_data_mem(ctx, json_data, LYD_JSON, 0, 0, &root);
-    free(json_data);
-
-    if (err == LY_SUCCESS && root) {
-        // Call the function-under-test
-        lyd_unlink_tree(root);
-
-        // Free the data tree
-        lyd_free_all(root);
-    }
-
-    // Destroy the libyang context
+    // Clean up
+    free(input_data);
     ly_ctx_destroy(ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_68(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

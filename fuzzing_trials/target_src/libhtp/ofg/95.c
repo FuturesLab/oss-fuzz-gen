@@ -1,31 +1,84 @@
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
-#include "/src/libhtp/htp/bstr.h" // Correct path to bstr.h
 
+// Assuming the definition of bstr and bstr_dup_ex is available
+typedef struct {
+    size_t len;
+    char *data;
+} bstr;
+
+bstr *bstr_dup_ex(const bstr *str, size_t start, size_t len);
+
+// Fuzzer test function
 int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
-    // Ensure that the size is large enough to split into two parts
-    if (size < 2) {
-        return 0;
+    if (size < sizeof(bstr)) {
+        return 0; // Not enough data to form a valid bstr
     }
 
-    // Split the input data into two parts
-    size_t bstr_size = size / 2;
-    size_t char_size = size - bstr_size;
+    // Initialize a bstr from the input data
+    bstr input_bstr;
+    input_bstr.len = size - sizeof(bstr);
+    input_bstr.data = (char *)malloc(input_bstr.len + 1);
+    if (input_bstr.data == NULL) {
+        return 0; // Memory allocation failed
+    }
+    memcpy(input_bstr.data, data + sizeof(bstr), input_bstr.len);
+    input_bstr.data[input_bstr.len] = '\0'; // Null-terminate
 
-    // Initialize the bstr_t structure
-    struct bstr_t bstr_input; // Use 'struct' keyword
-    bstr_input.len = bstr_size;
-    bstr_input.size = bstr_size;
-    bstr_input.realptr = (unsigned char *)data;
+    // Define start and len for bstr_dup_ex
+    size_t start = 0;
+    size_t len = input_bstr.len;
 
-    // Initialize the char array
-    char char_input[char_size + 1];
-    memcpy(char_input, data + bstr_size, char_size);
-    char_input[char_size] = '\0'; // Null-terminate the char array
+    // Call the function-under-test
+    bstr *result = bstr_dup_ex(&input_bstr, start, len);
 
-    // Call the function under test
-    int result = bstr_cmp_c_nocasenorzero(&bstr_input, char_input);
+    // Free allocated memory
+    free(input_bstr.data);
+    if (result != NULL) {
+        free(result->data);
+        free(result);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_95(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

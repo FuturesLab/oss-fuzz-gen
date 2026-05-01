@@ -1,12 +1,10 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_dx at av1_dx_iface.c:1796:20 in aomdx.h
-// aom_codec_dec_init_ver at aom_decoder.c:25:17 in aom_decoder.h
-// aom_codec_decode at aom_decoder.c:94:17 in aom_decoder.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
-// aom_codec_get_frame at aom_decoder.c:109:14 in aom_decoder.h
-// aom_codec_get_stream_info at aom_decoder.c:75:17 in aom_decoder.h
-// aom_codec_peek_stream_info at aom_decoder.c:57:17 in aom_decoder.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_codec_control_typechecked_AV1E_SET_CHROMA_SUBSAMPLING_Y at aomcx.h:2243:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_ENABLE_RATE_GUIDE_DELTAQ at aomcx.h:2384:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_NUM_TG at aomcx.h:2105:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_TIER_MASK at aomcx.h:2279:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_ENABLE_DIST_8X8 at aomcx.h:2087:1 in aomcx.h
+// aom_codec_control_typechecked_AV1E_SET_MTU at aomcx.h:2108:1 in aomcx.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -20,54 +18,90 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <cassert>
-#include <aom/aom_codec.h>
-#include <aom/aom_decoder.h>
-#include <aom/aomdx.h>
+#include "aom.h"
+#include "aom_codec.h"
+#include "aomcx.h"
+#include "aom_decoder.h"
+#include "aomdx.h"
+#include "aom_encoder.h"
+#include "aom_external_partition.h"
+#include "aom_frame_buffer.h"
+#include "aom_image.h"
+#include "aom_integer.h"
 
 extern "C" int LLVMFuzzerTestOneInput_55(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(aom_codec_ctx_t) + sizeof(int)) {
+        return 0;
+    }
 
-    // Initialize codec context
+    // Prepare codec context and control parameters
     aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg = {0};
-    aom_codec_flags_t flags = 0;
-    int ver = AOM_DECODER_ABI_VERSION;
+    memset(&codec_ctx, 0, sizeof(codec_ctx));
+    codec_ctx.name = "test_codec";
+    codec_ctx.iface = nullptr; // Normally, we'd get this from aom_codec_av1_cx()
+    codec_ctx.err = AOM_CODEC_OK;
 
-    // Initialize the codec
-    if (aom_codec_dec_init_ver(&codec_ctx, iface, &cfg, flags, ver) != AOM_CODEC_OK) {
-        return 0;
+    // Extract control parameters from input data
+    int subsampling_y = Data[0] % 3; // Assuming valid values are 0, 1, 2
+    int enable_rate_guide_deltaq = Data[1] % 2;
+    int num_tg = Data[2] % 4; // Arbitrary maximum of 4 tile groups
+    int tier_mask = Data[3] % 2; // Assuming valid values are 0 (main) or 1 (high)
+    int enable_dist_8x8 = Data[4] % 2;
+    int mtu = Data[5] % 1500 + 1; // MTU must be > 0
+
+    // Invoke the target API functions with fuzzed parameters
+    aom_codec_control_typechecked_AV1E_SET_CHROMA_SUBSAMPLING_Y(&codec_ctx, 0, subsampling_y);
+    aom_codec_control_typechecked_AV1E_ENABLE_RATE_GUIDE_DELTAQ(&codec_ctx, 0, enable_rate_guide_deltaq);
+    aom_codec_control_typechecked_AV1E_SET_NUM_TG(&codec_ctx, 0, num_tg);
+    aom_codec_control_typechecked_AV1E_SET_TIER_MASK(&codec_ctx, 0, tier_mask);
+    aom_codec_control_typechecked_AV1E_SET_ENABLE_DIST_8X8(&codec_ctx, 0, enable_dist_8x8);
+    aom_codec_control_typechecked_AV1E_SET_MTU(&codec_ctx, 0, mtu);
+
+    // Normally, we would check codec_ctx.err to see if any errors occurred
+    if (codec_ctx.err != AOM_CODEC_OK) {
+        // Handle error if needed
     }
 
-    // Decode data
-    if (aom_codec_decode(&codec_ctx, Data, Size, nullptr) != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0;
-    }
-
-    // Get frame
-    aom_codec_iter_t iter = nullptr;
-    aom_image_t *img = nullptr;
-    while ((img = aom_codec_get_frame(&codec_ctx, &iter)) != nullptr) {
-        // Process the frame (e.g., validate or analyze image data)
-    }
-
-    // Get stream info
-    aom_codec_stream_info_t stream_info = {0};
-    if (aom_codec_get_stream_info(&codec_ctx, &stream_info) == AOM_CODEC_OK) {
-        // Use stream info (e.g., width and height)
-    }
-
-    // Peek stream info
-    if (Size >= 4) { // Ensure there's enough data to peek
-        aom_codec_stream_info_t peek_info = {0};
-        if (aom_codec_peek_stream_info(iface, Data, Size, &peek_info) == AOM_CODEC_OK) {
-            // Use peek info
-        }
-    }
-
-    // Cleanup
-    aom_codec_destroy(&codec_ctx);
+    // Cleanup if necessary (not required for this example as no dynamic allocation)
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_55(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

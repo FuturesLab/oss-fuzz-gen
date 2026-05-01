@@ -1,42 +1,77 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
-#include <ctype.h> // Include ctype.h for toupper
+#include <stdlib.h>  // Include for malloc and free
 #include "/src/libhtp/htp/bstr.h" // Correct path for bstr.h
 
 int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated to be used as a C string
-    if (size == 0) {
+    // Ensure there is enough data to split into two parts
+    if (size < 2) {
         return 0;
     }
 
-    char *cstr = (char *)malloc(size + 1);
-    if (cstr == NULL) {
+    // Split the input data into two parts
+    size_t first_part_size = size / 2;
+    size_t second_part_size = size - first_part_size;
+
+    // Initialize a bstr object
+    bstr bstr_obj;
+    bstr_obj.realptr = (unsigned char *)data;
+    bstr_obj.len = first_part_size;
+    bstr_obj.size = first_part_size; // Assuming the buffer size is equal to the length
+
+    // Ensure the second part is null-terminated for the char* parameter
+    char *char_str = (char *)malloc(second_part_size + 1);
+    if (char_str == NULL) {
         return 0;
     }
-    memcpy(cstr, data, size);
-    cstr[size] = '\0';
+    memcpy(char_str, data + first_part_size, second_part_size);
+    char_str[second_part_size] = '\0';
 
     // Call the function-under-test
-    bstr *result = bstr_wrap_c(cstr);
-
-    if (result != NULL) {
-        // Perform additional operations on the bstr object to increase coverage
-        size_t len = bstr_len(result);
-        if (len > 0) {
-            // Example operation: Convert to uppercase
-            for (size_t i = 0; i < len; i++) {
-                result->realptr[i] = toupper(result->realptr[i]);
-            }
-        }
-
-        // Assuming there is a function to free bstr objects
-        bstr_free(result);
-    }
+    int result = bstr_index_of_c_nocasenorzero(&bstr_obj, char_str);
 
     // Clean up
-    free(cstr);
+    free(char_str);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_43(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

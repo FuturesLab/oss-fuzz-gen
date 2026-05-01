@@ -1,149 +1,120 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <sys/time.h> // Include for struct timeval
+#include <string.h>
 #include "htp/htp.h"
 
 int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    htp_connp_t *connp;
-    struct timeval req_time; // Use struct timeval instead of htp_time_t
-
-    // Initialize the htp_connp_t structure
-    htp_cfg_t *cfg = htp_config_create(); // Create a configuration object
+    // Initialize the transaction object
+    htp_cfg_t *cfg = htp_config_create();
     if (cfg == NULL) {
-        return 0;
+        return 0; // Exit if configuration creation fails
     }
-    connp = htp_connp_create(cfg); // Pass the configuration object
+
+    htp_connp_t *connp = htp_connp_create(cfg);
     if (connp == NULL) {
-        htp_config_destroy(cfg); // Clean up the configuration object
+        htp_config_destroy(cfg);
+        return 0; // Exit if connection parser creation fails
+    }
+
+    // Ensure the data pointer is not NULL and size is non-zero
+    if (data == NULL || size == 0) {
+        htp_connp_destroy_all(connp);
+        htp_config_destroy(cfg);
         return 0;
     }
 
-    // Initialize the timeval structure
-    req_time.tv_sec = 0;
-    req_time.tv_usec = 0;
+    // Simulate a request by feeding the data to the connection parser
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function htp_connp_req_data with htp_connp_res_data
 
-    // Use the input data to simulate a request
-    if (size > 0) {
-        // Assuming htp_connp_req_data is a function to feed data to the connection parser
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function htp_connp_req_data with htp_connp_res_data
-        htp_connp_res_data(connp, &req_time, data, size);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    }
-
-    // Call the function-under-test
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_create to htp_tx_set_config
-    htp_tx_t* ret_htp_connp_get_out_tx_ezgkn = htp_connp_get_out_tx(connp);
-    if (ret_htp_connp_get_out_tx_ezgkn == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_create to htp_connp_open
+    char* ret_htp_get_version_yqwqd = htp_get_version();
+    if (ret_htp_get_version_yqwqd == NULL){
     	return 0;
     }
-
-    htp_tx_set_config(ret_htp_connp_get_out_tx_ezgkn, cfg, 0);
-
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!connp) {
+    	return 0;
+    }
+    size_t ret_htp_connp_res_data_consumed_jntre = htp_connp_res_data_consumed(connp);
+    if (ret_htp_connp_res_data_consumed_jntre < 0){
+    	return 0;
+    }
+    bstr zuhcgcql;
+    memset(&zuhcgcql, 0, sizeof(zuhcgcql));
+    char* ret_bstr_util_strdup_to_c_riztl = bstr_util_strdup_to_c(&zuhcgcql);
+    if (ret_bstr_util_strdup_to_c_riztl == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!connp) {
+    	return 0;
+    }
+    size_t ret_htp_connp_res_data_consumed_iriyq = htp_connp_res_data_consumed(connp);
+    if (ret_htp_connp_res_data_consumed_iriyq < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!connp) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_htp_get_version_yqwqd) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bstr_util_strdup_to_c_riztl) {
+    	return 0;
+    }
+    htp_connp_open(connp, ret_htp_get_version_yqwqd, (int )ret_htp_connp_res_data_consumed_jntre, ret_bstr_util_strdup_to_c_riztl, (int )ret_htp_connp_res_data_consumed_iriyq, NULL);
     // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_tx_set_config to htp_connp_res_data
-    int ret_htp_tx_req_has_body_zahpn = htp_tx_req_has_body(ret_htp_connp_get_out_tx_ezgkn);
-    if (ret_htp_tx_req_has_body_zahpn < 0){
-    	return 0;
-    }
-    const htp_time_t dpdxwfqa;
-    memset(&dpdxwfqa, 0, sizeof(dpdxwfqa));
-
-    int ret_htp_connp_res_data_xbmxc = htp_connp_res_data(connp, &dpdxwfqa, (const void *)cfg, (size_t )ret_htp_tx_req_has_body_zahpn);
-    if (ret_htp_connp_res_data_xbmxc < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    htp_connp_req_close(connp, &req_time);
+    
+    htp_status_t status = htp_connp_res_data(connp, NULL, data, size);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_req_close to bstr_util_cmp_mem_nocase
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_req_close to htp_tx_set_user_data
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_req_close to htp_connp_res_data
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function htp_tx_state_response_complete with htp_tx_res_set_headers_clear
-    htp_status_t ret_htp_tx_state_response_complete_ybgnb = htp_tx_res_set_headers_clear(ret_htp_connp_get_out_tx_ezgkn);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    const htp_tx_t ckisnqxj;
-    memset(&ckisnqxj, 0, sizeof(ckisnqxj));
-    int ret_htp_tx_get_is_config_shared_xfpga = htp_tx_get_is_config_shared(&ckisnqxj);
-    if (ret_htp_tx_get_is_config_shared_xfpga < 0){
-    	return 0;
-    }
-
-    int ret_htp_connp_res_data_garrs = htp_connp_res_data(connp, NULL, (const void *)ret_htp_connp_get_out_tx_ezgkn, (size_t )ret_htp_tx_get_is_config_shared_xfpga);
-    if (ret_htp_connp_res_data_garrs < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    htp_tx_set_user_data(NULL, (void *)connp);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    size_t ret_htp_connp_req_data_consumed_taojk = htp_connp_req_data_consumed(connp);
-    if (ret_htp_connp_req_data_consumed_taojk < 0){
-    	return 0;
-    }
-    size_t ret_htp_connp_tx_freed_vqyxf = htp_connp_tx_freed(connp);
-    if (ret_htp_connp_tx_freed_vqyxf < 0){
-    	return 0;
-    }
-
-    int ret_bstr_util_cmp_mem_nocase_zbjfk = bstr_util_cmp_mem_nocase((const void *)connp, ret_htp_connp_req_data_consumed_taojk, (const void *)"w", ret_htp_connp_tx_freed_vqyxf);
-    if (ret_bstr_util_cmp_mem_nocase_zbjfk < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
     htp_connp_destroy_all(connp);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_destroy_all to bstr_cmp_mem
-    bstr* ret_bstr_wrap_c_bgwyr = bstr_wrap_c((const char *)"r");
-    if (ret_bstr_wrap_c_bgwyr == NULL){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from bstr_wrap_c to bstr_index_of_mem
-    const bstr ojkyqzpu;
-    memset(&ojkyqzpu, 0, sizeof(ojkyqzpu));
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function bstr_index_of_mem with bstr_cmp_mem_nocase
-    int ret_bstr_index_of_mem_rrgpq = bstr_cmp_mem_nocase(&ojkyqzpu, (const void *)ret_bstr_wrap_c_bgwyr, 1);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_bstr_index_of_mem_rrgpq < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_bstr_cmp_mem_lbmzd = bstr_cmp_mem(ret_bstr_wrap_c_bgwyr, (const void *)connp, 0);
-    if (ret_bstr_cmp_mem_lbmzd < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    htp_config_destroy(cfg); // Clean up the configuration object
+    htp_config_destroy(cfg);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,71 +1,101 @@
+#include <sys/stat.h>
+#include "stdbool.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include "/src/libyang/src/tree_data.h"
-#include "/src/libyang/src/context.h"
-#include "/src/libyang/src/tree_schema.h"
+#include "libyang.h"
 
 int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *parent = NULL;
+    struct lyd_node *tree1 = NULL;
+    struct lyd_node *tree2 = NULL;
+    struct lyd_node *diff = NULL;
     LY_ERR err;
-    const char *schema = "module example {namespace urn:example;prefix ex;container parent {leaf child {type string;}}}";
 
-    // Initialize the libyang context
+    // Initialize libyang context
     err = ly_ctx_new(NULL, 0, &ctx);
     if (err != LY_SUCCESS) {
         fprintf(stderr, "Failed to create context\n");
         return 0;
     }
 
-    // Parse the schema
-    struct lys_module *mod = NULL;
-    err = lys_parse_mem(ctx, schema, LYS_IN_YANG, &mod);
-    if (err != LY_SUCCESS || !mod) {
-        fprintf(stderr, "Failed to parse schema\n");
+    // Load some schemas into the context (example schemas)
+    const char *schema_a = "module a {namespace urn:a;prefix a;leaf foo {type string;}}";
+    const char *schema_b = "module b {namespace urn:b;prefix b;leaf bar {type string;}}";
+    lys_parse_mem(ctx, schema_a, LYS_IN_YANG, NULL);
+    lys_parse_mem(ctx, schema_b, LYS_IN_YANG, NULL);
+
+    // Prepare data for tree1 and tree2
+    char *data1 = malloc(size + 1);
+    if (!data1) {
         ly_ctx_destroy(ctx);
         return 0;
     }
+    memcpy(data1, data, size);
+    data1[size] = 0;
 
-    // Ensure input data is not empty
-    if (size == 0) {
+    char *data2 = malloc(size + 1);
+    if (!data2) {
+        free(data1);
         ly_ctx_destroy(ctx);
         return 0;
     }
+    memcpy(data2, data, size);
+    data2[size] = 0;
 
-    // Create a parent node from the schema
-    err = lyd_new_path(NULL, ctx, "/example:parent", NULL, 0, &parent);
-    if (err != LY_SUCCESS || !parent) {
-        fprintf(stderr, "Failed to create parent node\n");
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
+    // Parse data into trees
+    lyd_parse_data_mem(ctx, data1, LYD_JSON, 0, LYD_VALIDATE_PRESENT, &tree1);
+    lyd_parse_data_mem(ctx, data2, LYD_JSON, 0, LYD_VALIDATE_PRESENT, &tree2);
 
-    // Create a child node from the input data
-    char *data_str = malloc(size + 1);
-    if (!data_str) {
-        lyd_free_tree(parent);
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-    memcpy(data_str, data, size);
-    data_str[size] = '\0';
+    // Call the function-under-test
+    lyd_diff_tree(tree1, tree2, 0, &diff);
 
-    struct lyd_node *child = NULL;
-    err = lyd_new_path(parent, ctx, "/example:parent/child", data_str, 0, &child);
-    if (err != LY_SUCCESS || !child) {
-        fprintf(stderr, "Failed to create child node\n");
-        free(data_str);
-        lyd_free_tree(parent);
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-
-    // Clean up
-    free(data_str);
-    lyd_free_tree(parent);
+    // Free resources
+    lyd_free_all(tree1);
+    lyd_free_all(tree2);
+    lyd_free_all(diff);
     ly_ctx_destroy(ctx);
+    free(data1);
+    free(data2);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

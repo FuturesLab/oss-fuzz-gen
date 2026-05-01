@@ -1,18 +1,20 @@
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdint.h>
-#include "/src/libyang/src/libyang.h"
-#include "/src/libyang/src/tree_data.h"
-#include "/src/libyang/src/tree_schema.h"
-#include "/src/libyang/src/context.h"
+
+#include "libyang.h"
 
 int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
     struct ly_ctx *ctx = NULL;
-    struct lyd_node *root = NULL;
-    const struct lysc_node *schema_node = NULL;
-    struct lyd_node *result_node = NULL;
+    char *module_name = NULL;
+    struct lys_module *module = NULL;
     LY_ERR err;
+
+    // Ensure the data is not empty
+    if (size == 0) {
+        return 0;
+    }
 
     // Initialize the libyang context
     err = ly_ctx_new(NULL, 0, &ctx);
@@ -21,43 +23,60 @@ int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Parse some schema to get a valid schema node (assuming the schema is valid)
-    const char *schema = "module test {namespace urn:test;prefix t; leaf myleaf {type string;}}";
-    lys_parse_mem(ctx, schema, LYS_IN_YANG, NULL);
-
-    // Find the schema node for "myleaf"
-    schema_node = lys_find_path(ctx, NULL, "/test:myleaf", 0);
-    if (!schema_node) {
-        fprintf(stderr, "Failed to find schema node\n");
+    // Allocate memory for module_name and ensure it's null-terminated
+    module_name = (char *)malloc(size + 1);
+    if (module_name == NULL) {
         ly_ctx_destroy(ctx);
         return 0;
     }
+    memcpy(module_name, data, size);
+    module_name[size] = '\0';
 
-    // Allocate memory for the input data
-    char *input_data = (char *)malloc(size + 1);
-    if (!input_data) {
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-    memcpy(input_data, data, size);
-    input_data[size] = '\0';
-
-    // Parse the data into a data tree
-    err = lyd_parse_data_mem(ctx, input_data, LYD_JSON, LYD_PARSE_ONLY, 0, &root);
-    if (err != LY_SUCCESS) {
-        fprintf(stderr, "Failed to parse data\n");
-        free(input_data);
-        ly_ctx_destroy(ctx);
-        return 0;
-    }
-
-    // Call the function-under-test
-    err = lyd_find_sibling_val(root, schema_node, input_data, 0, &result_node);
+    // Call the function under test
+    module = ly_ctx_get_module_implemented(ctx, module_name);
 
     // Clean up
-    lyd_free_all(root);
+    free(module_name);
     ly_ctx_destroy(ctx);
-    free(input_data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_40(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

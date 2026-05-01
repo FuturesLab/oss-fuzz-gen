@@ -1,84 +1,62 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <sys/time.h> // Include for struct timeval
-#include "htp/htp.h"
+#include <stddef.h>
+#include "htp/htp.h" // Correct path for htp.h
 
 int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
-    htp_connp_t *connp;
-    struct timeval req_time; // Use struct timeval instead of htp_time_t
-
-    // Initialize the htp_connp_t structure
-    htp_cfg_t *cfg = htp_config_create(); // Create a configuration object
-    if (cfg == NULL) {
-        return 0;
-    }
-    connp = htp_connp_create(cfg); // Pass the configuration object
-    if (connp == NULL) {
-        htp_config_destroy(cfg); // Clean up the configuration object
+    // Initialize htp_tx_t object
+    htp_tx_t tx;
+    
+    // Ensure that the size is sufficient to extract a method number
+    if (size < sizeof(enum htp_method_t)) {
         return 0;
     }
 
-    // Initialize the timeval structure
-    req_time.tv_sec = 0;
-    req_time.tv_usec = 0;
-
-    // Use the input data to simulate a request
-    if (size > 0) {
-        // Assuming htp_connp_req_data is a function to feed data to the connection parser
-        htp_connp_req_data(connp, &req_time, data, size);
-    }
+    // Extract a method number from the input data
+    enum htp_method_t method = (enum htp_method_t)(data[0] % 256); // Assuming method is within 0-255 range
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_create to bstr_util_mem_index_of_c_nocase
-    size_t ret_htp_connp_res_data_consumed_durnu = htp_connp_res_data_consumed(connp);
-    if (ret_htp_connp_res_data_consumed_durnu < 0){
-    	return 0;
-    }
-    char* ret_htp_get_version_ychvn = htp_get_version();
-    if (ret_htp_get_version_ychvn == NULL){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_get_version to bstr_begins_with_c
-    bstr dtzprbew;
-    memset(&dtzprbew, 0, sizeof(dtzprbew));
-    bstr_chop(&dtzprbew);
-
-    int ret_bstr_begins_with_c_dzddn = bstr_begins_with_c(&dtzprbew, ret_htp_get_version_ychvn);
-    if (ret_bstr_begins_with_c_dzddn < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_bstr_util_mem_index_of_c_nocase_zykbr = bstr_util_mem_index_of_c_nocase((const void *)cfg, ret_htp_connp_res_data_consumed_durnu, ret_htp_get_version_ychvn);
-    if (ret_bstr_util_mem_index_of_c_nocase_zykbr < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    htp_connp_req_close(connp, &req_time);
-
-    // Clean up
-    htp_connp_destroy_all(connp);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_destroy_all to bstr_cmp_mem
-    bstr* ret_bstr_wrap_c_bgwyr = bstr_wrap_c((const char *)"r");
-    if (ret_bstr_wrap_c_bgwyr == NULL){
-    	return 0;
-    }
-
-    int ret_bstr_cmp_mem_lbmzd = bstr_cmp_mem(ret_bstr_wrap_c_bgwyr, (const void *)connp, 0);
-    if (ret_bstr_cmp_mem_lbmzd < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    htp_config_destroy(cfg); // Clean up the configuration object
+    htp_tx_req_set_method_number(&tx, method);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_37(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

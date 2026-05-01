@@ -1,80 +1,187 @@
 // This fuzz driver is generated for library libyang, aiming to fuzz the following functions:
-// lyd_value_validate at tree_data_common.c:601:1 in tree_data.h
-// lyd_value_validate_dflt at tree_data_common.c:611:1 in tree_data.h
-// lyd_change_term_canon at tree_data_new.c:1216:1 in tree_data.h
-// lyd_change_term at tree_data_new.c:1208:1 in tree_data.h
-// lyd_value_compare at tree_data_common.c:685:1 in tree_data.h
+// ly_pattern_compile at tree_data_common.c:1728:1 in tree_data.h
 // ly_pattern_match at tree_data_common.c:1697:1 in tree_data.h
+// ly_pattern_free at tree_data_common.c:1748:1 in tree_data.h
+// lyd_parse_data_path at tree_data.c:238:1 in parser_data.h
+// lyd_change_term at tree_data_new.c:1208:1 in tree_data.h
+// lyd_value_validate at tree_data_common.c:601:1 in tree_data.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "libyang.h"
+#include "parser_data.h"
 #include "tree_data.h"
 
-static const char *dummy_schema_name = "dummy_schema";
-static const char *dummy_val_str = "{\"dummy_key\":\"dummy_value\"}";
-static const char *dummy_pattern = "[a-z]+";
+#define DUMMY_FILE_PATH "./dummy_file"
 
-static struct lys_module dummy_module = {
-    .name = "dummy_module",
-};
-
-static struct lysc_node dummy_schema = {
-    .name = "dummy_node",
-    .module = &dummy_module,
-};
-
-static struct lyd_node dummy_node = {
-    .schema = &dummy_schema,
-};
-
-static struct lysc_type dummy_realtype;
-
-int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
-
-    // Prepare a dummy string value from the fuzzer input
-    char *fuzz_value = (char *)malloc(Size + 1);
-    if (!fuzz_value) {
-        return 0;
-    }
-    memcpy(fuzz_value, Data, Size);
-    fuzz_value[Size] = '\0';
-
-    // 1. Test lyd_value_validate
-    const char *canonical = NULL;
-    LY_ERR ret = lyd_value_validate(&dummy_schema, fuzz_value, Size, NULL, &dummy_realtype, &canonical);
-    if (ret == LY_SUCCESS && canonical) {
-        // Assuming lydict_remove is a function that needs to be defined or linked properly
-        // lydict_remove(&dummy_ctx.dict, canonical);
-    }
-
-    // 2. Test lyd_change_term
-    ret = lyd_change_term(&dummy_node, fuzz_value);
-
-    // 3. Test lyd_value_validate_dflt
-    ret = lyd_value_validate_dflt(&dummy_schema, fuzz_value, NULL, NULL, &dummy_realtype, &canonical);
-    if (ret == LY_SUCCESS && canonical) {
-        // Assuming lydict_remove is a function that needs to be defined or linked properly
-        // lydict_remove(&dummy_ctx.dict, canonical);
-    }
-
-    // 4. Test lyd_change_term_canon
-    ret = lyd_change_term_canon(&dummy_node, fuzz_value);
-
-    // 5. Test ly_pattern_match
+static void test_ly_pattern_match(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    char *pattern = NULL;
+    char *string = NULL;
+    uint32_t str_len = 0;
     void *pat_comp = NULL;
-    ret = ly_pattern_match(NULL, dummy_pattern, fuzz_value, Size, &pat_comp);
+
+    if (Size < 2) {
+        return;
+    }
+
+    pattern = (char *)malloc(Size / 2 + 1);
+    string = (char *)malloc(Size / 2 + 1);
+    if (!pattern || !string) {
+        free(pattern);
+        free(string);
+        return;
+    }
+
+    memcpy(pattern, Data, Size / 2);
+    pattern[Size / 2] = '\0';
+    memcpy(string, Data + Size / 2, Size / 2);
+    string[Size / 2] = '\0';
+    str_len = Size / 2;
+
+    ly_ctx_new(NULL, 0, &ctx);
+
+    ly_pattern_match(ctx, pattern, string, str_len, &pat_comp);
+
     if (pat_comp) {
         ly_pattern_free(pat_comp);
     }
 
-    // 6. Test lyd_value_compare
-    ret = lyd_value_compare((struct lyd_node_term *)&dummy_node, fuzz_value, Size);
+    free(pattern);
+    free(string);
+    ly_ctx_destroy(ctx);
+}
 
-    free(fuzz_value);
+static void test_ly_pattern_compile(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    char *pattern = NULL;
+    void *pat_comp = NULL;
+
+    if (Size == 0) {
+        return;
+    }
+
+    pattern = (char *)malloc(Size + 1);
+    if (!pattern) {
+        return;
+    }
+    memcpy(pattern, Data, Size);
+    pattern[Size] = '\0';
+
+    ly_ctx_new(NULL, 0, &ctx);
+
+    ly_pattern_compile(ctx, pattern, &pat_comp);
+
+    if (pat_comp) {
+        ly_pattern_free(pat_comp);
+    }
+
+    free(pattern);
+    ly_ctx_destroy(ctx);
+}
+
+static void test_lyd_change_term(const uint8_t *Data, size_t Size) {
+    struct lyd_node *term = NULL;
+    const char *val_str = (const char *)Data;
+
+    if (Size == 0) {
+        return;
+    }
+
+    lyd_change_term(term, val_str);
+}
+
+static void test_lyd_parse_data_path(const uint8_t *Data, size_t Size) {
+    struct ly_ctx *ctx = NULL;
+    struct lyd_node *tree = NULL;
+    FILE *f = NULL;
+
+    if (Size == 0) {
+        return;
+    }
+
+    f = fopen(DUMMY_FILE_PATH, "wb");
+    if (!f) {
+        return;
+    }
+    fwrite(Data, 1, Size, f);
+    fclose(f);
+
+    ly_ctx_new(NULL, 0, &ctx);
+
+    lyd_parse_data_path(ctx, DUMMY_FILE_PATH, 0, 0, 0, &tree);
+
+    lyd_free_all(tree);
+    ly_ctx_destroy(ctx);
+}
+
+static void test_lyd_value_validate(const uint8_t *Data, size_t Size) {
+    const struct lysc_node *schema = NULL;
+    const char *value = (const char *)Data;
+    uint32_t value_len = Size;
+    const struct lyd_node *ctx_node = NULL;
+    const struct lysc_type *realtype = NULL;
+    const char *canonical = NULL;
+
+    if (Size == 0) {
+        return;
+    }
+
+    lyd_value_validate(schema, value, value_len, ctx_node, &realtype, &canonical);
+
+    if (canonical) {
+        lydict_remove(NULL, canonical);
+    }
+}
+
+int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
+    test_ly_pattern_match(Data, Size);
+    test_ly_pattern_compile(Data, Size);
+    test_lyd_change_term(Data, Size);
+    test_lyd_parse_data_path(Data, Size);
+    test_lyd_value_validate(Data, Size);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

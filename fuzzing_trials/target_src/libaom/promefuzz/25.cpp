@@ -1,10 +1,7 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_control_typechecked_AOME_SET_SCALEMODE at aomcx.h:1904:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_NUMBER_SPATIAL_LAYERS at aomcx.h:1943:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_TUNING at aomcx.h:1934:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_SPATIAL_LAYER_ID at aomcx.h:1907:1 in aomcx.h
-// aom_codec_control_typechecked_AV1E_SET_MAX_GF_INTERVAL at aomcx.h:2013:1 in aomcx.h
-// aom_codec_control_typechecked_AOME_SET_ENABLEAUTOBWDREF at aomcx.h:2034:1 in aomcx.h
+// aom_img_wrap at aom_image.c:226:14 in aom_image.h
+// aom_img_flip at aom_image.c:295:6 in aom_image.h
+// aom_img_free at aom_image.c:314:6 in aom_image.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,85 +11,83 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <cstddef>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <cassert>
-#include "aom_integer.h"
-#include "aom_image.h"
-#include "aom_codec.h"
-#include "aom_frame_buffer.h"
-#include "aom_encoder.h"
-#include "aom_external_partition.h"
 #include "aom.h"
+#include "aom_codec.h"
 #include "aom_decoder.h"
-#include "aomcx.h"
+#include "aom_encoder.h"
+#include "aom_image.h"
+#include "aom_integer.h"
 #include "aomdx.h"
-
-static void initialize_codec_context(aom_codec_ctx_t &ctx) {
-    memset(&ctx, 0, sizeof(ctx));
-    ctx.name = "dummy_codec";
-    ctx.iface = nullptr; // Assume a valid interface is assigned in real use
-    ctx.err = static_cast<aom_codec_err_t>(0);
-    ctx.init_flags = 0;
-    ctx.priv = nullptr;
-}
-
-static void fuzz_aom_codec_control_typechecked_AOME_SET_SCALEMODE(aom_codec_ctx_t &ctx, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(aom_scaling_mode_t)) return;
-    aom_scaling_mode_t scale_mode;
-    memcpy(&scale_mode, Data, sizeof(scale_mode));
-    aom_codec_control_typechecked_AOME_SET_SCALEMODE(&ctx, AOME_SET_SCALEMODE, &scale_mode);
-}
-
-static void fuzz_aom_codec_control_typechecked_AOME_SET_NUMBER_SPATIAL_LAYERS(aom_codec_ctx_t &ctx, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return;
-    int num_layers;
-    memcpy(&num_layers, Data, sizeof(num_layers));
-    aom_codec_control_typechecked_AOME_SET_NUMBER_SPATIAL_LAYERS(&ctx, AOME_SET_NUMBER_SPATIAL_LAYERS, num_layers);
-}
-
-static void fuzz_aom_codec_control_typechecked_AOME_SET_TUNING(aom_codec_ctx_t &ctx, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return;
-    int tuning;
-    memcpy(&tuning, Data, sizeof(tuning));
-    aom_codec_control_typechecked_AOME_SET_TUNING(&ctx, AOME_SET_TUNING, tuning);
-}
-
-static void fuzz_aom_codec_control_typechecked_AOME_SET_SPATIAL_LAYER_ID(aom_codec_ctx_t &ctx, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return;
-    int layer_id;
-    memcpy(&layer_id, Data, sizeof(layer_id));
-    aom_codec_control_typechecked_AOME_SET_SPATIAL_LAYER_ID(&ctx, AOME_SET_SPATIAL_LAYER_ID, layer_id);
-}
-
-static void fuzz_aom_codec_control_typechecked_AV1E_SET_MAX_GF_INTERVAL(aom_codec_ctx_t &ctx, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(unsigned int)) return;
-    unsigned int max_gf_interval;
-    memcpy(&max_gf_interval, Data, sizeof(max_gf_interval));
-    aom_codec_control_typechecked_AV1E_SET_MAX_GF_INTERVAL(&ctx, AV1E_SET_MAX_GF_INTERVAL, max_gf_interval);
-}
-
-static void fuzz_aom_codec_control_typechecked_AOME_SET_ENABLEAUTOBWDREF(aom_codec_ctx_t &ctx, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return;
-    int enable_autobwdref;
-    memcpy(&enable_autobwdref, Data, sizeof(enable_autobwdref));
-    aom_codec_control_typechecked_AOME_SET_ENABLEAUTOBWDREF(&ctx, AOME_SET_ENABLEAUTOBWDREF, enable_autobwdref);
-}
+#include "aomcx.h"
+#include "aom_external_partition.h"
+#include "aom_frame_buffer.h"
 
 extern "C" int LLVMFuzzerTestOneInput_25(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(aom_img_fmt_t) + 3 * sizeof(unsigned int)) {
+        return 0;
+    }
 
-    aom_codec_ctx_t codec_ctx;
-    initialize_codec_context(codec_ctx);
+    aom_img_fmt_t fmt = static_cast<aom_img_fmt_t>(Data[0]);
+    unsigned int d_w = Data[1] % 128; // Limit width to a small number for fuzzing
+    unsigned int d_h = Data[2] % 128; // Limit height to a small number for fuzzing
+    unsigned int stride_align = Data[3] % 64; // Limit stride alignment to a small number
 
-    fuzz_aom_codec_control_typechecked_AOME_SET_SCALEMODE(codec_ctx, Data, Size);
-    fuzz_aom_codec_control_typechecked_AOME_SET_NUMBER_SPATIAL_LAYERS(codec_ctx, Data, Size);
-    fuzz_aom_codec_control_typechecked_AOME_SET_TUNING(codec_ctx, Data, Size);
-    fuzz_aom_codec_control_typechecked_AOME_SET_SPATIAL_LAYER_ID(codec_ctx, Data, Size);
-    fuzz_aom_codec_control_typechecked_AV1E_SET_MAX_GF_INTERVAL(codec_ctx, Data, Size);
-    fuzz_aom_codec_control_typechecked_AOME_SET_ENABLEAUTOBWDREF(codec_ctx, Data, Size);
+    unsigned char *img_data = new unsigned char[d_w * d_h * 3 / 2]; // Allocate minimal buffer
+
+    aom_image_t *img = nullptr;
+    img = aom_img_wrap(img, fmt, d_w, d_h, stride_align, img_data);
+
+    if (img != nullptr) {
+        aom_img_flip(img);
+        aom_img_free(img);
+    }
+
+    delete[] img_data;
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_25(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

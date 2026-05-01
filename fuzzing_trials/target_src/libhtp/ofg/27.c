@@ -1,52 +1,91 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
-// Assuming the definition of bstr is something like this:
+// Assuming bstr is a structure defined somewhere in the codebase
 typedef struct {
     char *data;
-    size_t len;
+    size_t length;
 } bstr;
 
-// Function under test
-int bstr_index_of(const bstr *str1, const bstr *str2);
+// To avoid multiple definition error, we will make this function static
+static bstr* bstr_expand(bstr *str, size_t new_size) {
+    if (str == NULL || new_size <= str->length) {
+        return str;
+    }
+    char *new_data = (char *)realloc(str->data, new_size);
+    if (new_data == NULL) {
+        return NULL;
+    }
+    str->data = new_data;
+    str->length = new_size;
+    return str;
+}
 
-// Fuzzing harness
 int LLVMFuzzerTestOneInput_27(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0; // Not enough data to split into two strings
+    if (size < sizeof(size_t)) {
+        return 0;
     }
 
-    // Split the input data into two parts
-    size_t mid = size / 2;
-
-    // Initialize the first bstr
-    bstr str1;
-    str1.data = (char *)malloc(mid + 1);
-    if (str1.data == NULL) {
-        return 0; // Allocation failed
+    // Initialize bstr structure
+    bstr str;
+    str.length = size;
+    str.data = (char *)malloc(size);
+    if (str.data == NULL) {
+        return 0;
     }
-    memcpy(str1.data, data, mid);
-    str1.data[mid] = '\0'; // Null-terminate
-    str1.len = mid;
 
-    // Initialize the second bstr
-    bstr str2;
-    str2.data = (char *)malloc(size - mid + 1);
-    if (str2.data == NULL) {
-        free(str1.data);
-        return 0; // Allocation failed
-    }
-    memcpy(str2.data, data + mid, size - mid);
-    str2.data[size - mid] = '\0'; // Null-terminate
-    str2.len = size - mid;
+    // Copy data into bstr
+    memcpy(str.data, data, size);
+
+    // Extract new_size from the input data
+    size_t new_size = *((size_t *)data);
 
     // Call the function under test
-    int index = bstr_index_of(&str1, &str2);
+    bstr *result = bstr_expand(&str, new_size);
 
     // Clean up
-    free(str1.data);
-    free(str2.data);
+    free(str.data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_27(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

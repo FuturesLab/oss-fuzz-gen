@@ -1,36 +1,62 @@
-#include <cstdint>
-#include <cstdlib>
-#include <aom/aom_decoder.h>
-#include <aom/aomdx.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <aom/aom_image.h>
 
 extern "C" int LLVMFuzzerTestOneInput_47(const uint8_t *data, size_t size) {
-    // Initialize the codec context
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg_t cfg = {0}; // Default configuration
+    // Declare and initialize variables
+    aom_image_t img;
+    aom_image_t *img_ptr = &img;
+    aom_img_fmt_t fmt = AOM_IMG_FMT_I420; // Choose a valid image format
+    unsigned int d_w = 640; // Default width
+    unsigned int d_h = 480; // Default height
+    unsigned int align = 1; // Default alignment
 
-    // Initialize the codec
-    if (aom_codec_dec_init(&codec_ctx, iface, &cfg, 0) != AOM_CODEC_OK) {
-        return 0;
+    // Call the function-under-test
+    aom_image_t *result = aom_img_alloc(img_ptr, fmt, d_w, d_h, align);
+
+    // Free the allocated image if successful
+    if (result != NULL) {
+        aom_img_free(result);
     }
-
-    // Decode the input data
-    if (aom_codec_decode(&codec_ctx, data, size, NULL) != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0;
-    }
-
-    // Initialize the iterator
-    aom_codec_iter_t iter = NULL;
-    aom_image_t *img;
-
-    // Get frames in a loop
-    while ((img = aom_codec_get_frame(&codec_ctx, &iter)) != NULL) {
-        // Process the image frame if needed
-    }
-
-    // Destroy the codec context
-    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_47(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,50 +1,73 @@
+#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h> // Include for memcpy
-#include <htp/htp.h>
-#include <htp/bstr.h> // Include for bstr
+#include <string.h>
+
+// Function prototype for the function-under-test
+int bstr_util_mem_index_of_c_nocase(const void *mem, size_t mem_size, const char *str);
 
 int LLVMFuzzerTestOneInput_101(const uint8_t *data, size_t size) {
-    // Initialize the htp_tx_t structure
-    htp_tx_t *tx = htp_tx_create(NULL);
-    if (tx == NULL) {
-        return 0; // If creation fails, exit
-    }
-
-    // Ensure that the input data is not empty
-    if (size == 0) {
-        htp_tx_destroy(tx);
+    // Ensure that 'size' is large enough to have meaningful input for both 'mem' and 'str'
+    if (size < 2) {
         return 0;
     }
 
-    // Create a bstr object to hold the response line
-    bstr *response_line_bstr = bstr_dup_mem((const char *)data, size);
-    if (response_line_bstr == NULL) {
-        htp_tx_destroy(tx);
-        return 0; // If creation fails, exit
+    // Split the input data into two parts: 'mem' and 'str'
+    size_t mem_size = size / 2;
+    const void *mem = (const void *)data;
+    const char *str = (const char *)(data + mem_size);
+
+    // Ensure 'str' is null-terminated
+    char *mutable_str = (char *)malloc(size - mem_size + 1);
+    if (mutable_str == NULL) {
+        return 0;
     }
-
-    // Assign the bstr object to the response_line
-    tx->response_line = response_line_bstr;
-
-    // Set up additional fields for meaningful processing
-    // For example, setting a valid response protocol
-    tx->response_protocol_number = HTP_PROTOCOL_0_9; // Use a specific protocol for better coverage
-
-    // Ensure the response line is null-terminated for processing
-    bstr_add_c(response_line_bstr, '\0');
+    memcpy(mutable_str, str, size - mem_size);
+    mutable_str[size - mem_size] = '\0';
 
     // Call the function-under-test
-    htp_status_t status = htp_tx_state_response_line(tx);
-
-    // Check the status to ensure the function is processing the input
-    if (status != HTP_OK) {
-        // Handle error or log it if needed
-    }
+    int result = bstr_util_mem_index_of_c_nocase(mem, mem_size, mutable_str);
 
     // Clean up
-    bstr_free(response_line_bstr);
-    htp_tx_destroy(tx);
+    free(mutable_str);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_101(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
