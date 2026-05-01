@@ -1,39 +1,68 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <sys/time.h> // Include for struct timeval
 #include <htp/htp.h>
+#include <htp/htp_connection_parser.h>  // Include the header for htp_connp_t definition
+#include <htp/htp_private.h>            // Include the private header that contains the full definition of htp_connp_t
 
 int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    htp_connp_t *connp;
-    struct timeval req_time; // Use struct timeval instead of htp_time_t
+    // Initialize a dummy htp_connp_t object
+    htp_connp_t connp;
 
-    // Initialize the htp_connp_t structure
-    htp_cfg_t *cfg = htp_config_create(); // Create a configuration object
-    if (cfg == NULL) {
-        return 0;
-    }
-    connp = htp_connp_create(cfg); // Pass the configuration object
-    if (connp == NULL) {
-        htp_config_destroy(cfg); // Clean up the configuration object
+    // Ensure the data is not NULL and has a non-zero size
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize the timeval structure
-    req_time.tv_sec = 0;
-    req_time.tv_usec = 0;
-
-    // Use the input data to simulate a request
-    if (size > 0) {
-        // Assuming htp_connp_req_data is a function to feed data to the connection parser
-        htp_connp_req_data(connp, &req_time, data, size);
-    }
+    // Assign some non-NULL value to user_data for testing
+    int user_data = 42;
+    connp.user_data = &user_data;
 
     // Call the function-under-test
-    htp_connp_req_close(connp, &req_time);
+    void *result = htp_connp_get_user_data(&connp);
 
-    // Clean up
-    htp_connp_destroy_all(connp);
-    htp_config_destroy(cfg); // Clean up the configuration object
+    // Optional: Use the result in some way to avoid compiler optimizations
+    if (result == NULL) {
+        return 0;
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_40(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

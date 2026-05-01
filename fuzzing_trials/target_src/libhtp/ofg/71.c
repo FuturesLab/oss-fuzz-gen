@@ -1,62 +1,63 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <htp/htp.h>
 
-// Assuming the bstr structure is defined as follows:
-typedef struct {
-    char *data;
-    size_t length;
-} bstr;
-
-// Function-under-test
-bstr *bstr_add_noex(bstr *dest, const bstr *src);
-
-// Helper function to create a bstr from data
-bstr *create_bstr_71(const uint8_t *data, size_t size) {
-    bstr *str = (bstr *)malloc(sizeof(bstr));
-    if (str == NULL) {
-        return NULL;
-    }
-    str->data = (char *)malloc(size + 1);
-    if (str->data == NULL) {
-        free(str);
-        return NULL;
-    }
-    memcpy(str->data, data, size);
-    str->data[size] = '\0'; // Null-terminate the string
-    str->length = size;
-    return str;
-}
-
-// Fuzzing harness
 int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0; // Not enough data to split into two bstr objects
-    }
+    // Initialize the htp_tx_t structure
+    htp_tx_t tx;
+    memset(&tx, 0, sizeof(htp_tx_t));
 
-    // Split the input data into two parts for two bstr objects
-    size_t mid = size / 2;
-
-    // Create bstr objects
-    bstr *dest = create_bstr_71(data, mid);
-    bstr *src = create_bstr_71(data + mid, size - mid);
-
-    if (dest == NULL || src == NULL) {
-        free(dest);
-        free(src);
-        return 0;
+    // Ensure that the structure is not NULL
+    if (size > 0) {
+        // Assign some non-NULL values to the fields of htp_tx_t
+        tx.request_method = (char *)data;
+        tx.request_uri = (char *)data;
+        tx.request_protocol = (char *)data;
     }
 
     // Call the function-under-test
-    bstr *result = bstr_add_noex(dest, src);
+    int result = htp_tx_get_is_config_shared(&tx);
 
-    // Clean up
-    free(dest->data);
-    free(dest);
-    free(src->data);
-    free(src);
-
-    // Assuming result is managed by the caller, no need to free it here
-
+    // Return 0 to indicate the fuzzer should continue testing
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_71(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

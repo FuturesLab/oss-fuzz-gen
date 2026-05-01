@@ -1,80 +1,108 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include "/src/libhtp/htp/bstr.h"
-#include "htp/htp.h"
 
-#define MAX_BSTR_SIZE 1024
-
-static bstr *create_bstr_from_input(const uint8_t *Data, size_t Size) {
-    size_t len = Size < MAX_BSTR_SIZE ? Size : MAX_BSTR_SIZE;
-    bstr *b = (bstr *)malloc(sizeof(bstr));
-    if (!b) return NULL;
-
-    b->realptr = (unsigned char *)malloc(len);
-    if (!b->realptr) {
-        free(b);
-        return NULL;
+static void fuzz_bstr_begins_with_mem(const bstr *bhaystack, const uint8_t *Data, size_t Size) {
+    if (Size > 0) {
+        bstr_begins_with_mem(bhaystack, Data, Size);
     }
-
-    memcpy(b->realptr, Data, len);
-    b->len = len;
-    b->size = len;
-
-    return b;
 }
 
-static void free_bstr(bstr *b) {
-    if (b) {
-        free(b->realptr);
-        free(b);
+static void fuzz_bstr_begins_with_mem_nocase(const bstr *bhaystack, const uint8_t *Data, size_t Size) {
+    if (Size > 0) {
+        bstr_begins_with_mem_nocase(bhaystack, Data, Size);
+    }
+}
+
+static void fuzz_bstr_cmp_mem(const bstr *b, const uint8_t *Data, size_t Size) {
+    if (Size > 0) {
+        bstr_cmp_mem(b, Data, Size);
+    }
+}
+
+static void fuzz_bstr_index_of_mem(const bstr *bhaystack, const uint8_t *Data, size_t Size) {
+    if (Size > 0) {
+        bstr_index_of_mem(bhaystack, Data, Size);
+    }
+}
+
+static void fuzz_bstr_util_cmp_mem(const uint8_t *Data, size_t Size) {
+    if (Size > 1) {
+        size_t len1 = Size / 2;
+        size_t len2 = Size - len1;
+        bstr_util_cmp_mem(Data, len1, Data + len1, len2);
+    }
+}
+
+static void fuzz_bstr_cmp_mem_nocase(const bstr *b, const uint8_t *Data, size_t Size) {
+    if (Size > 0) {
+        bstr_cmp_mem_nocase(b, Data, Size);
     }
 }
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
-
-    htp_cfg_t *cfg = htp_config_create();
-    if (!cfg) return 0;
-
-    bstr *input = create_bstr_from_input(Data, Size);
-    if (!input) {
-        htp_config_destroy(cfg);
+    if (Size < sizeof(bstr)) {
         return 0;
     }
 
-    uint64_t flags = 0;
-    int expected_status_code = 0;
-    htp_status_t result;
+    bstr bhaystack;
+    bhaystack.len = Size / 2;
+    bhaystack.size = Size;
+    bhaystack.realptr = (unsigned char *)Data;
 
-    // Test htp_urldecode_inplace
-    result = htp_urldecode_inplace(cfg, HTP_DECODER_URLENCODED, input, &flags);
-    if (result == HTP_OK) {
-        bstr_adjust_len(input, input->len / 2);
-    }
-
-    // Test bstr_to_lowercase
-    bstr *lowercase_bstr = bstr_to_lowercase(input);
-    if (lowercase_bstr) {
-        bstr_adjust_size(lowercase_bstr, lowercase_bstr->size / 2);
-    }
-
-    // Test bstr_add_mem_noex
-    bstr *appended_bstr = bstr_add_mem_noex(input, Data, Size / 2);
-    if (appended_bstr) {
-        bstr_adjust_len(appended_bstr, appended_bstr->len);
-    }
-
-    // Test htp_urldecode_inplace_ex
-    result = htp_urldecode_inplace_ex(cfg, HTP_DECODER_URLENCODED, input, &flags, &expected_status_code);
-
-    free_bstr(input);
-    htp_config_destroy(cfg);
+    fuzz_bstr_begins_with_mem(&bhaystack, Data, Size);
+    fuzz_bstr_begins_with_mem_nocase(&bhaystack, Data, Size);
+    fuzz_bstr_cmp_mem(&bhaystack, Data, Size);
+    fuzz_bstr_index_of_mem(&bhaystack, Data, Size);
+    fuzz_bstr_util_cmp_mem(Data, Size);
+    fuzz_bstr_cmp_mem_nocase(&bhaystack, Data, Size);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

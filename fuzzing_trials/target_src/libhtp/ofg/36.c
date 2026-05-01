@@ -1,44 +1,81 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h> // Include for memset
-#include "/src/libhtp/htp/htp.h"  // Correct path for the header file
-#include "/src/libhtp/htp/htp_config.h" // Include for htp_cfg_t definition
+#include <string.h>
 
-// Remove the 'extern "C"' as it is not valid in C code
+// Assuming the definition of bstr is provided somewhere
+typedef struct {
+    size_t len;
+    char *data;
+} bstr;
+
+// Function-under-test declaration
+int bstr_cmp_c(const bstr *, const char *);
+
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_36(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for our needs
-    if (size < sizeof(int)) {
+    // Ensure size is sufficient for creating a bstr and a C-string
+    if (size < 2) {
         return 0;
     }
 
-    // Allocate and initialize htp_tx_t
-    htp_tx_t *tx = (htp_tx_t *)malloc(sizeof(htp_tx_t));
-    if (tx == NULL) {
-        return 0;
-    }
+    // Create a bstr from the input data
+    bstr bstr_input;
+    bstr_input.len = size / 2;
+    bstr_input.data = (char *)data;
 
-    // Initialize the htp_tx_t structure
-    // Assuming there are init functions or zeroing is sufficient
-    // If there are specific init functions, replace the following with those
-    memset(tx, 0, sizeof(htp_tx_t));
+    // Create a C-string from the remaining input data
+    char *cstr_input = (char *)(data + bstr_input.len);
+    size_t cstr_len = size - bstr_input.len;
 
-    // Create and configure htp_cfg_t using the provided function
-    htp_cfg_t *cfg = htp_config_create();
-    if (cfg == NULL) {
-        free(tx);
-        return 0;
-    }
-
-    // Extract an integer from the data for the third parameter
-    int config_value = *(int *)data;
+    // Ensure the C-string is null-terminated
+    char cstr_buffer[cstr_len + 1];
+    memcpy(cstr_buffer, cstr_input, cstr_len);
+    cstr_buffer[cstr_len] = '\0';
 
     // Call the function-under-test
-    htp_tx_set_config(tx, cfg, config_value);
+    int result = bstr_cmp_c(&bstr_input, cstr_buffer);
 
-    // Clean up
-    free(tx);
-    htp_config_destroy(cfg);
+    // Use the result in some way to avoid compiler optimizations
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_36(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

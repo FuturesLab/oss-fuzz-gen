@@ -1,23 +1,70 @@
-#include <stddef.h>
 #include <stdint.h>
-
-extern int bstr_util_mem_index_of_mem(const void *haystack, size_t haystack_len, const void *needle, size_t needle_len);
+#include <stdlib.h>
+#include "/src/libhtp/htp/htp.h"
+#include "/src/libhtp/htp/htp_connection_parser_private.h" // Include the correct header for htp_connp_t
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to split into haystack and needle
-    if (size < 2) {
-        return 0;
+    // Initialize a configuration object
+    htp_cfg_t *cfg = htp_config_create();
+    if (cfg == NULL) {
+        return 0; // If configuration creation fails, exit early
     }
 
-    // Split the input data into two parts: haystack and needle
-    size_t haystack_len = size / 2;
-    size_t needle_len = size - haystack_len;
+    // Call the function-under-test with the configuration object
+    htp_connp_t *connp = htp_connp_create(cfg);
+    if (connp == NULL) {
+        htp_config_destroy(cfg);
+        return 0; // Exit if connection creation fails
+    }
 
-    const void *haystack = (const void *)data;
-    const void *needle = (const void *)(data + haystack_len);
+    // Create a timestamp object, initialized to zero
+    htp_time_t timestamp = {0};
 
-    // Call the function-under-test
-    bstr_util_mem_index_of_mem(haystack, haystack_len, needle, needle_len);
+    // Feed the input data to the connection parser with a timestamp
+    htp_connp_req_data(connp, &timestamp, data, size);
+
+    // Clean up resources
+    htp_connp_destroy_all(connp);
+    htp_config_destroy(cfg);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_29(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,89 +1,142 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 #include "htp/htp.h"
+#include "htp/htp.h"
+#include "htp/htp.h"
+#include "htp/htp.h"
+#include "/src/libhtp/htp/bstr.h"
 
-static htp_cfg_t* initialize_cfg() {
-    htp_cfg_t *cfg = htp_config_create();
-    if (cfg) {
-        // Initialize cfg fields as necessary
+static bstr *create_bstr(const uint8_t *data, size_t size) {
+    bstr *b = (bstr *)malloc(sizeof(bstr));
+    if (!b) return NULL;
+    b->realptr = (unsigned char *)malloc(size);
+    if (!b->realptr) {
+        free(b);
+        return NULL;
     }
-    return cfg;
+    memcpy(b->realptr, data, size);
+    b->len = size;
+    b->size = size;
+    return b;
 }
 
-static void cleanup_cfg(htp_cfg_t *cfg) {
-    if (cfg) {
-        htp_config_destroy(cfg);
+static void free_bstr(bstr *b) {
+    if (b) {
+        free(b->realptr);
+        free(b);
     }
-}
-
-static htp_connp_t* create_connection_parser(htp_cfg_t *cfg) {
-    return htp_connp_create(cfg);
-}
-
-static void process_request_data(htp_connp_t *connp, const uint8_t *data, size_t size) {
-    htp_time_t timestamp = {0};
-    htp_connp_req_data(connp, &timestamp, data, size);
-    size_t consumed = htp_connp_req_data_consumed(connp);
-    // Handle consumed bytes if needed
-}
-
-static void process_response_data(htp_connp_t *connp, const uint8_t *data, size_t size) {
-    htp_time_t timestamp = {0};
-    htp_connp_res_data(connp, &timestamp, data, size);
-    size_t consumed = htp_connp_res_data_consumed(connp);
-    // Handle consumed bytes if needed
-}
-
-static void close_connection_parser(htp_connp_t *connp) {
-    htp_time_t timestamp = {0};
-    htp_connp_close(connp, &timestamp);
 }
 
 int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
+    if (Size < 1) return 0;
+
+    // Fuzz bstr_add_mem_noex
+    bstr *b1 = create_bstr(Data, Size);
+    if (b1) {
+        bstr *result = bstr_add_mem_noex(b1, Data, Size);
+        (void)result; // Use result if needed
+        free_bstr(b1);
     }
 
-    htp_cfg_t *cfg = initialize_cfg();
-    if (!cfg) {
-        return 0;
+    // Fuzz htp_urldecode_inplace
+    if (Size >= sizeof(bstr) + sizeof(uint64_t)) {
+        htp_cfg_t *cfg = htp_config_create();
+        if (cfg) {
+            enum htp_decoder_ctx_t ctx = HTP_DECODER_URLENCODED;
+            bstr *input = create_bstr(Data, Size - sizeof(uint64_t));
+            uint64_t flags = 0;
+            if (input) {
+                htp_status_t status = htp_urldecode_inplace(cfg, ctx, input, &flags);
+                (void)status; // Use status if needed
+                free_bstr(input);
+            }
+            htp_config_destroy(cfg);
+        }
     }
 
-    htp_connp_t *connp = create_connection_parser(cfg);
-    if (!connp) {
-        cleanup_cfg(cfg);
-        return 0;
+    // Fuzz htp_urldecode_inplace_ex
+    if (Size >= sizeof(bstr) + sizeof(uint64_t) + sizeof(int)) {
+        htp_cfg_t *cfg = htp_config_create();
+        if (cfg) {
+            enum htp_decoder_ctx_t ctx = HTP_DECODER_URLENCODED;
+            bstr *input = create_bstr(Data, Size - sizeof(uint64_t) - sizeof(int));
+            uint64_t flags = 0;
+            int expected_status_code = 0;
+            if (input) {
+                htp_status_t status = htp_urldecode_inplace_ex(cfg, ctx, input, &flags, &expected_status_code);
+                (void)status; // Use status if needed
+                free_bstr(input);
+            }
+            htp_config_destroy(cfg);
+        }
     }
 
-    size_t half_size = Size / 2;
-    process_request_data(connp, Data, half_size);
-    process_response_data(connp, Data + half_size, Size - half_size);
-
-    close_connection_parser(connp);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_create to bstr_util_mem_index_of_c
-    const bstr lwwizttx;
-    memset(&lwwizttx, 0, sizeof(lwwizttx));
-    char* ret_bstr_util_strdup_to_c_ljkeo = bstr_util_strdup_to_c(&lwwizttx);
-    if (ret_bstr_util_strdup_to_c_ljkeo == NULL){
-    	return 0;
+    // Fuzz bstr_to_lowercase
+    bstr *b2 = create_bstr(Data, Size);
+    if (b2) {
+        bstr *result = bstr_to_lowercase(b2);
+        (void)result; // Use result if needed
+        free_bstr(b2);
     }
 
-    int ret_bstr_util_mem_index_of_c_uypak = bstr_util_mem_index_of_c((const void *)cfg, 64, ret_bstr_util_strdup_to_c_ljkeo);
-    if (ret_bstr_util_mem_index_of_c_uypak < 0){
-    	return 0;
+    // Fuzz bstr_adjust_len
+    bstr *b3 = create_bstr(Data, Size);
+    if (b3) {
+        size_t new_len = Size / 2; // Adjust length to half
+        bstr_adjust_len(b3, new_len);
+        free_bstr(b3);
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cleanup_cfg(cfg);
+    // Fuzz bstr_adjust_size
+    bstr *b4 = create_bstr(Data, Size);
+    if (b4) {
+        size_t new_size = Size * 2; // Adjust size to double
+        bstr_adjust_size(b4, new_size);
+        free_bstr(b4);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

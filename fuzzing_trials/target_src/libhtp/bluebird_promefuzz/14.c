@@ -1,59 +1,114 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include "htp/htp.h"
-#include "htp/htp.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include "/src/libhtp/htp/bstr.h"
 
-static htp_connp_t *create_connp() {
-    htp_cfg_t *cfg = htp_config_create();
-    if (!cfg) return NULL;
+static bstr *create_bstr(const uint8_t *Data, size_t Size) {
+    if (Size == 0) return NULL;
 
-    htp_connp_t *connp = htp_connp_create(cfg);
-    if (!connp) {
-        htp_config_destroy(cfg);
+    bstr *b = malloc(sizeof(bstr));
+    if (!b) return NULL;
+
+    b->len = Size;
+    b->size = Size;
+    b->realptr = malloc(Size);
+    if (!b->realptr) {
+        free(b);
         return NULL;
     }
 
-    return connp;
+    memcpy(b->realptr, Data, Size);
+    return b;
 }
 
-static void destroy_connp(htp_connp_t *connp) {
-    if (connp) {
-        htp_connp_destroy_all(connp);
+static void free_bstr(bstr *b) {
+    if (b) {
+        free(b->realptr);
+        free(b);
     }
 }
 
 int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(void *)) return 0;
+    if (Size < 1) return 0;
 
-    htp_connp_t *connp = create_connp();
-    if (!connp) return 0;
+    bstr *b = create_bstr(Data, Size);
+    if (!b) return 0;
 
-    // Fuzz htp_connp_tx_create
-    htp_tx_t *tx = htp_connp_tx_create(connp);
-    if (tx) {
-        // Fuzz htp_tx_set_user_data
-        htp_tx_set_user_data(tx, (void *)Data);
+    // Test bstr_chr
+    int search_byte = Data[0];
+    int index = bstr_chr(b, search_byte);
+
+    // Test bstr_char_at_end
+    size_t pos_from_end = Size / 2;
+    int char_at_end = bstr_char_at_end(b, pos_from_end);
+
+    // Test bstr_char_at
+    size_t pos_from_start = Size / 2;
+    int char_at_start = bstr_char_at(b, pos_from_start);
+
+    // Test bstr_dup_ex
+    if (Size > 1) {
+        size_t offset = 1;
+        size_t len = Size - 1;
+        bstr *duplicate = bstr_dup_ex(b, offset, len);
+        free_bstr(duplicate);
     }
 
-    // Fuzz htp_connp_get_user_data
-    void *user_data = htp_connp_get_user_data(connp);
-    (void)user_data; // Suppress unused variable warning
+    // Test bstr_to_lowercase
+    bstr *lowercase = bstr_to_lowercase(b);
 
-    // Fuzz htp_connp_get_out_tx
-    htp_tx_t *out_tx = htp_connp_get_out_tx(connp);
-    (void)out_tx; // Suppress unused variable warning
+    // Test bstr_add_c
+    const char *cstr = "additional string";
+    bstr *appended = bstr_add_c(b, cstr);
 
-    // Fuzz htp_connp_get_in_tx
-    htp_tx_t *in_tx = htp_connp_get_in_tx(connp);
-    if (in_tx) {
-        // Fuzz htp_tx_state_request_start
-        htp_status_t status = htp_tx_state_request_start(in_tx);
-        (void)status; // Suppress unused variable warning
-    }
+    free_bstr(appended);
+    free_bstr(b);
 
-    destroy_connp(connp);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,14 +1,10 @@
 // This fuzz driver is generated for library libhtp, aiming to fuzz the following functions:
-// bstr_dup at bstr.c:238:7 in bstr.h
-// bstr_free at bstr.c:285:6 in bstr.h
-// bstr_dup_mem at bstr.c:258:7 in bstr.h
-// bstr_free at bstr.c:285:6 in bstr.h
-// bstr_dup_c at bstr.c:242:7 in bstr.h
-// bstr_free at bstr.c:285:6 in bstr.h
-// bstr_dup_lower at bstr.c:254:7 in bstr.h
-// bstr_free at bstr.c:285:6 in bstr.h
-// bstr_to_lowercase at bstr.c:334:7 in bstr.h
-// bstr_free at bstr.c:285:6 in bstr.h
+// bstr_rchr at bstr.c:318:5 in bstr.h
+// bstr_index_of_c at bstr.c:294:5 in bstr.h
+// bstr_begins_with_c_nocase at bstr.c:122:5 in bstr.h
+// bstr_cmp_c_nocase at bstr.c:218:5 in bstr.h
+// bstr_index_of_c_nocase at bstr.c:298:5 in bstr.h
+// bstr_add_c at bstr.c:58:7 in bstr.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -20,58 +16,111 @@
 #include <string.h>
 #include "bstr.h"
 
-static bstr *create_bstr_from_data(const uint8_t *Data, size_t Size) {
-    bstr *new_bstr = (bstr *)malloc(sizeof(bstr));
-    if (new_bstr == NULL) return NULL;
-
-    new_bstr->len = Size;
-    new_bstr->size = Size + 1; // Extra room for null terminator
-    new_bstr->realptr = (unsigned char *)malloc(new_bstr->size);
-    if (new_bstr->realptr == NULL) {
-        free(new_bstr);
+static bstr *create_bstr(const uint8_t *Data, size_t Size) {
+    bstr *b = malloc(sizeof(bstr));
+    if (b == NULL) {
         return NULL;
     }
+    b->len = Size;
+    b->size = Size;
+    b->realptr = malloc(Size);
+    if (b->realptr == NULL) {
+        free(b);
+        return NULL;
+    }
+    memcpy(b->realptr, Data, Size);
+    return b;
+}
 
-    memcpy(new_bstr->realptr, Data, Size);
-    new_bstr->realptr[Size] = '\0'; // Ensure null termination
-
-    return new_bstr;
+static void free_bstr(bstr *b) {
+    if (b) {
+        free(b->realptr);
+        free(b);
+    }
 }
 
 int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < 1) return 0;
 
-    // Test bstr_dup
-    bstr *original_bstr = create_bstr_from_data(Data, Size);
-    if (original_bstr != NULL) {
-        bstr *dup_bstr = bstr_dup(original_bstr);
-        bstr_free(dup_bstr);
+    // Create a bstr from the input data
+    bstr *b = create_bstr(Data, Size);
+    if (b == NULL) return 0;
+
+    // Ensure the C string is null-terminated
+    char *cneedle = malloc(Size + 1);
+    if (cneedle == NULL) {
+        free_bstr(b);
+        return 0;
     }
+    memcpy(cneedle, Data, Size);
+    cneedle[Size] = '\0';
 
-    // Test bstr_dup_mem
-    bstr *dup_mem_bstr = bstr_dup_mem(Data, Size);
-    bstr_free(dup_mem_bstr);
+    // Test bstr_rchr
+    int c = Data[0];
+    int rchr_result = bstr_rchr(b, c);
 
-    // Test bstr_dup_c
-    char *cstr = (char *)malloc(Size + 1);
-    if (cstr != NULL) {
-        memcpy(cstr, Data, Size);
-        cstr[Size] = '\0';
-        bstr *dup_c_bstr = bstr_dup_c(cstr);
-        bstr_free(dup_c_bstr);
-        free(cstr);
+    // Test bstr_index_of_c
+    int index_of_c_result = bstr_index_of_c(b, cneedle);
+
+    // Test bstr_begins_with_c_nocase
+    int begins_with_result = bstr_begins_with_c_nocase(b, cneedle);
+
+    // Test bstr_cmp_c_nocase
+    int cmp_c_nocase_result = bstr_cmp_c_nocase(b, cneedle);
+
+    // Test bstr_index_of_c_nocase
+    int index_of_c_nocase_result = bstr_index_of_c_nocase(b, cneedle);
+
+    // Test bstr_add_c
+    bstr *new_b = bstr_add_c(b, cneedle);
+    if (new_b != b) {
+        free_bstr(b);
     }
+    b = new_b;
 
-    // Test bstr_dup_lower
-    if (original_bstr != NULL) {
-        bstr *dup_lower_bstr = bstr_dup_lower(original_bstr);
-        bstr_free(dup_lower_bstr);
-
-        // Test bstr_to_lowercase
-        bstr *lowercase_bstr = bstr_to_lowercase(original_bstr);
-    }
-
-    bstr_free(original_bstr);
+    // Cleanup
+    free_bstr(b);
+    free(cneedle);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

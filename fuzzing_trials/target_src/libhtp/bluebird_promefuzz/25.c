@@ -1,89 +1,99 @@
+#include <sys/stat.h>
+#include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include "/src/libhtp/htp/bstr.h"
-
-static bstr *create_bstr_with_size(size_t size) {
-    bstr *b = (bstr *)malloc(sizeof(bstr));
-    if (b == NULL) return NULL;
-    b->len = 0;
-    b->size = size;
-    b->realptr = (unsigned char *)malloc(size);
-    if (b->realptr == NULL) {
-        free(b);
-        return NULL;
-    }
-    return b;
-}
-
-static void free_bstr(bstr *b) {
-    if (b) {
-        free(b->realptr);
-        free(b);
-    }
-}
+#include <sys/time.h>
+#include "htp/htp.h"
+#include "htp/htp.h"
+#include "htp/htp.h"
+#include "/src/libhtp/htp/htp_connection_parser.h"
 
 int LLVMFuzzerTestOneInput_25(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Create bstr objects
-    bstr *b1 = create_bstr_with_size(128);
-    bstr *b2 = create_bstr_with_size(128);
-    if (!b1 || !b2) {
-        free_bstr(b1);
-        free_bstr(b2);
+    if (Size < 1) {
         return 0;
     }
 
-    // Ensure the data is null-terminated
-    char *cstr = (char *)malloc(Size + 1);
-    if (!cstr) {
-        free_bstr(b1);
-        free_bstr(b2);
-        return 0;
-    }
-    memcpy(cstr, Data, Size);
-    cstr[Size] = '\0';
-
-    // Fuzz bstr_add_c
-    b1 = bstr_add_c(b1, cstr);
-    if (!b1) {
-        free(cstr);
-        free_bstr(b2);
+    htp_cfg_t *cfg = htp_config_create();
+    if (cfg == NULL) {
         return 0;
     }
 
-    // Fuzz bstr_adjust_len
-    size_t new_len = Size % 128;
-    bstr_adjust_len(b1, new_len);
-
-    // Fuzz bstr_add_noex
-    b1 = bstr_add_noex(b1, b2);
-
-    // Fuzz bstr_add
-    b1 = bstr_add(b1, b2);
-    if (!b1) {
-        free(cstr);
-        free_bstr(b2);
+    htp_connp_t *connp = htp_connp_create(cfg);
+    if (connp == NULL) {
+        htp_config_destroy(cfg);
         return 0;
     }
 
-    // Fuzz bstr_add_mem_noex
-    b1 = bstr_add_mem_noex(b1, Data, Size);
+    htp_connp_set_user_data(connp, (void *)Data);
 
-    // Fuzz bstr_adjust_size
-    size_t new_size = (Size % 256) + 1;
-    bstr_adjust_size(b1, new_size);
+    struct timeval timestamp;
+    gettimeofday(&timestamp, NULL);
 
-    // Clean up
-    free(cstr);
-    free_bstr(b1);
-    free_bstr(b2);
+    htp_connp_open(connp, "127.0.0.1", 80, "127.0.0.1", 8080, &timestamp);
 
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_open to htp_tx_set_user_data
+    htp_tx_t iqpvirxs;
+    memset(&iqpvirxs, 0, sizeof(iqpvirxs));
+    htp_status_t ret_htp_tx_res_set_headers_clear_wqlwy = htp_tx_res_set_headers_clear(&iqpvirxs);
+    htp_tx_set_user_data(&iqpvirxs, (void *)&timestamp);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    htp_connp_open(connp, "127.0.0.1", 80, "127.0.0.1", 8080, &timestamp);
+
+    htp_connp_req_data(connp, &timestamp, Data, Size);
+    htp_connp_req_data_consumed(connp);
+
+    htp_connp_res_data(connp, &timestamp, Data, Size);
+    htp_connp_res_data(connp, &timestamp, Data, Size);
+    htp_connp_res_data_consumed(connp);
+
+    htp_connp_req_data(connp, &timestamp, Data, Size);
+    htp_connp_res_data(connp, &timestamp, Data, Size);
+
+    htp_connp_close(connp, &timestamp);
+
+    htp_connp_destroy_all(connp);
+    htp_config_destroy(cfg);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_25(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,32 +1,82 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 
+// Assuming the definition of bstr is as follows:
+typedef struct {
+    char *data;
+    size_t length;
+} bstr;
+
 // Function-under-test
-int64_t bstr_util_mem_to_pint(const void *mem, size_t len, int base, size_t *processed);
+void bstr_free(bstr *str);
 
 int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient for testing
-    if (size < sizeof(int) + sizeof(size_t)) {
-        return 0;
+    bstr str;
+    
+    // Initialize the bstr structure
+    if (size > 0) {
+        str.data = (char *)malloc(size);
+        if (str.data == NULL) {
+            return 0; // Exit if memory allocation fails
+        }
+        // Copy data into str.data
+        for (size_t i = 0; i < size; i++) {
+            str.data[i] = (char)data[i];
+        }
+        str.length = size;
+    } else {
+        str.data = (char *)malloc(1); // Allocate at least 1 byte
+        if (str.data == NULL) {
+            return 0; // Exit if memory allocation fails
+        }
+        str.data[0] = '\0';
+        str.length = 0;
     }
 
-    // Extract base and processed size from the data
-    int base = *((int *)data);
-    size_t processed = 0;
-
-    // Adjust the pointer to skip the extracted base
-    const void *mem = data + sizeof(int);
-
-    // Adjust the length to account for the extracted base
-    size_t len = size - sizeof(int);
-
     // Call the function-under-test
-    int64_t result = bstr_util_mem_to_pint(mem, len, base, &processed);
+    bstr_free(&str);
 
-    // Use the result and processed in some way to avoid unused variable warnings
-    (void)result;
-    (void)processed;
+    // Free the allocated memory
+    free(str.data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

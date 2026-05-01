@@ -1,29 +1,68 @@
 #include <stddef.h>
 #include <stdint.h>
-#include <string.h>
-#include <stdio.h> // Optional, for debugging purposes
+#include <stdlib.h>
 
-// Assume the function-under-test is declared in a header file
-int bstr_util_mem_index_of_mem_nocase(const void *haystack, size_t haystack_len, const void *needle, size_t needle_len);
+extern int64_t bstr_util_mem_to_pint(const void *mem, size_t mem_size, int base, size_t *processed);
 
 int LLVMFuzzerTestOneInput_78(const uint8_t *data, size_t size) {
-    // Split the input data into two parts: haystack and needle
-    const size_t min_size = 1; // Minimum size for haystack and needle
-    if (size < 2 * min_size) {
-        return 0; // Not enough data to split into two parts
+    if (size < 1) {
+        return 0;
     }
 
-    size_t haystack_len = size / 2;
-    size_t needle_len = size - haystack_len;
+    // Ensure we have a non-zero size for processed
+    size_t processed = 0;
 
-    const void *haystack = (const void *)data;
-    const void *needle = (const void *)(data + haystack_len);
+    // Choose a base for conversion, ensuring it is within a typical range (2 to 36)
+    int base = 10;
+    if (size > 1) {
+        base = (data[0] % 35) + 2; // Base in the range 2 to 36
+    }
 
     // Call the function-under-test
-    int result = bstr_util_mem_index_of_mem_nocase(haystack, haystack_len, needle, needle_len);
+    int64_t result = bstr_util_mem_to_pint((const void *)data, size, base, &processed);
 
-    // Use the result in some way to avoid compiler optimizations
+    // Optionally, use the result and processed to prevent any compiler optimizations
     (void)result;
+    (void)processed;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_78(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

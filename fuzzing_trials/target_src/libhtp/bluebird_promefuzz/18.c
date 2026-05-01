@@ -1,73 +1,101 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include "/src/libhtp/htp/bstr.h"
+#include <time.h>
+#include "htp/htp.h"
+#include "htp/htp.h"
+#include "htp/htp.h"
+#include "/src/libhtp/htp/htp_connection_parser.h"
 
-static bstr *create_bstr_from_data(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(bstr)) return NULL;
-
-    bstr *b = (bstr *)malloc(sizeof(bstr));
-    if (!b) return NULL;
-
-    b->len = Size - sizeof(bstr);
-    b->size = Size - sizeof(bstr);
-    b->realptr = (unsigned char *)malloc(b->len);
-    if (!b->realptr) {
-        free(b);
-        return NULL;
+static htp_cfg_t *create_default_config() {
+    htp_cfg_t *cfg = htp_config_create();
+    if (cfg) {
+        // Initialize cfg with default values if necessary
     }
-    memcpy(b->realptr, Data + sizeof(bstr), b->len);
+    return cfg;
+}
 
-    return b;
+static htp_connp_t *initialize_connection_parser(htp_cfg_t *cfg) {
+    return htp_connp_create(cfg);
 }
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(bstr)) return 0;
+    if (Size < 1) return 0;
 
-    // Create bstr from input data
-    bstr *b1 = create_bstr_from_data(Data, Size);
-    bstr *b2 = create_bstr_from_data(Data, Size);
+    // Step 1: Prepare the environment
+    htp_cfg_t *cfg = create_default_config();
+    if (!cfg) return 0;
 
-    if (!b1 || !b2) {
-        free(b1);
-        free(b2);
+    htp_connp_t *connp = initialize_connection_parser(cfg);
+    if (!connp) {
+        htp_config_destroy(cfg);
         return 0;
     }
 
-    // Test bstr_dup
-    bstr *dup = bstr_dup(b1);
-    if (dup) {
-        free(dup->realptr);
-        free(dup);
-    }
+    // Step 2: Fuzz htp_connp_open
+    const char *client_addr = "127.0.0.1";
+    const char *server_addr = "127.0.0.1";
+    int client_port = 8080;
+    int server_port = 80;
+    htp_time_t timestamp;
+    gettimeofday(&timestamp, NULL);
 
-    // Test bstr_index_of
-    int index = bstr_index_of(b1, b2);
+    htp_connp_open(connp, client_addr, client_port, server_addr, server_port, &timestamp);
 
-    // Test bstr_cmp_nocase
-    int cmp_nocase = bstr_cmp_nocase(b1, b2);
+    // Step 3: Fuzz htp_connp_req_data
+    htp_connp_req_data(connp, &timestamp, Data, Size);
 
-    // Test bstr_cmp_c_nocase
-    char cstr[] = "test";
-    int cmp_c_nocase = bstr_cmp_c_nocase(b1, cstr);
+    // Step 4: Fuzz htp_connp_set_user_data
+    htp_connp_set_user_data(connp, Data);
 
-    // Test bstr_cmp
-    int cmp = bstr_cmp(b1, b2);
+    // Step 5: Fuzz htp_connp_get_last_error
+    htp_log_t *last_error = htp_connp_get_last_error(connp);
 
-    // Test bstr_begins_with
-    int begins_with = bstr_begins_with(b1, b2);
-
-    // Cleanup
-    free(b1->realptr);
-    free(b1);
-    free(b2->realptr);
-    free(b2);
+    // Step 6: Cleanup
+    htp_connp_destroy_all(connp);
+    htp_config_destroy(cfg);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_18(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

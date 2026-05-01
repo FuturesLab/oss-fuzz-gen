@@ -1,31 +1,77 @@
 #include <stdint.h>
 #include <stddef.h>
-#include "/src/libhtp/htp/htp.h"  // Include the appropriate header for htp_tx_t and htp_status_t
+#include <string.h>
+#include <stdlib.h> // Include stdlib.h for malloc and free
+#include "/src/libhtp/htp/bstr.h" // Correct path for bstr.h
 
+// Remove the extern "C" linkage specification since this is a C file
 int LLVMFuzzerTestOneInput_74(const uint8_t *data, size_t size) {
-    // Ensure there is enough data for the required parameters
-    if (size < 10) {
-        return 0;
+    if (size < 2) {
+        return 0; // Not enough data to form two strings
     }
 
-    // Initialize the htp_tx_t structure
-    htp_tx_t tx;
-    // Assuming htp_tx_t is a struct, initialize its fields if necessary
-    // For example: tx.some_field = some_value;
+    // Split the data into two parts for bstr and char* inputs
+    size_t bstr_size = size / 2;
+    size_t char_size = size - bstr_size;
 
-    // Extract parts of the data for the function parameters
-    const char *header_name = (const char *)data;
-    size_t header_name_len = size / 4;
-    const char *header_value = (const char *)(data + header_name_len);
-    size_t header_value_len = size / 4;
+    // Create and initialize a bstr object
+    bstr bstr_input;
+    bstr_input.realptr = (unsigned char *)data; // Use realptr instead of data
+    bstr_input.len = bstr_size;
+    bstr_input.size = bstr_size; // Initialize size to match len
 
-    // Use the correct enum type for htp_alloc_strategy_t
-    enum htp_alloc_strategy_t alloc_strategy = (enum htp_alloc_strategy_t)(data[size - 1] % 3); // Assuming there are 3 strategies
+    // Create a null-terminated string for the char* input
+    char *char_input = (char *)malloc(char_size + 1);
+    if (char_input == NULL) {
+        return 0; // Memory allocation failed
+    }
+    memcpy(char_input, data + bstr_size, char_size);
+    char_input[char_size] = '\0';
 
     // Call the function-under-test
-    htp_status_t status = htp_tx_req_set_header(&tx, header_name, header_name_len, header_value, header_value_len, alloc_strategy);
+    int result = bstr_index_of_c(&bstr_input, char_input);
 
-    // Optionally, check the status or perform other operations
+    // Clean up
+    free(char_input);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_74(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,74 +1,106 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <time.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
 #include "htp/htp.h"
+#include "htp/htp.h"
+#include "htp/htp.h"
+#include "/src/libhtp/htp/htp_transaction.h"
+#include "htp/htp.h"
+#include "htp/htp.h"
+#include "htp/htp.h"
+#include "/src/libhtp/htp/htp_connection_parser.h"
 
-// Since htp_cfg_t is an incomplete type, we cannot directly allocate or access its fields.
-// We need to use the provided API to create and manipulate htp_cfg_t objects.
-// Assuming there is an API function like htp_config_create() to create a configuration.
-
-static htp_cfg_t *create_random_config() {
-    htp_cfg_t *cfg = htp_config_create();
-    if (!cfg) {
-        return NULL;
-    }
-
-    // Initialize the config with some random values or defaults using hypothetical API functions
-    htp_config_set_field_limits(cfg, rand() % 500, rand() % 1000);
-    htp_config_set_log_level(cfg, 0); // Assuming 0 is a valid log level
-    htp_config_set_tx_auto_destroy(cfg, rand() % 2);
-    htp_config_set_server_personality(cfg, 0); // Assuming 0 is a valid personality
-    htp_config_set_parse_request_cookies(cfg, rand() % 2);
-    htp_config_set_parse_request_auth(cfg, rand() % 2);
-
-    return cfg;
+static int dummy_callback(htp_tx_data_t *data) {
+    // A simple dummy callback function
+    return 0;
 }
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    // Initialize a transaction object
+    htp_tx_t tx = {0};
+
+    // Fuzzing htp_tx_register_response_body_data
+    htp_tx_register_response_body_data(&tx, dummy_callback);
+
+    // Fuzzing htp_tx_set_user_data
+    void *user_data = (void *)Data;
+    htp_tx_set_user_data(&tx, user_data);
+
+    // Initialize a configuration object
+    htp_cfg_t *cfg = htp_config_create();
+    if (cfg == NULL) {
         return 0;
     }
+    int is_cfg_shared = (Size > 0) ? Data[0] % 2 : 0; // Randomize between shared/private
 
-    // Create and initialize a configuration
-    htp_cfg_t *cfg = create_random_config();
-    if (!cfg) {
-        return 0;
-    }
+    // Fuzzing htp_tx_set_config
+    htp_tx_set_config(&tx, cfg, is_cfg_shared);
 
-    // Create a connection parser
+    // Fuzzing htp_tx_req_set_method_number
+    enum htp_method_t method_number = (Size > 0) ? Data[0] % HTP_M_INVALID : HTP_M_UNKNOWN;
+    htp_tx_req_set_method_number(&tx, method_number);
+
+    // Initialize a connection parser object
     htp_connp_t *connp = htp_connp_create(cfg);
-    if (!connp) {
-        htp_config_destroy(cfg); // Assuming there is a destroy function
+    if (connp == NULL) {
+        htp_config_destroy(cfg);
         return 0;
     }
 
-    // Open connection with random data
-    const char *client_addr = "127.0.0.1";
-    const char *server_addr = "127.0.0.1";
-    int client_port = 8080;
-    int server_port = 80;
-    htp_connp_open(connp, client_addr, client_port, server_addr, server_port, NULL);
+    // Fuzzing htp_connp_get_out_tx
+    htp_tx_t *out_tx = htp_connp_get_out_tx(connp);
 
-    // Process request data
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function htp_connp_req_data with htp_connp_res_data
-    htp_connp_res_data(connp, NULL, Data, Size);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Set user data
-    htp_connp_set_user_data(connp, (void *)Data);
-
-    // Close the connection
-    htp_connp_close(connp, NULL);
+    // Fuzzing htp_tx_register_request_body_data
+    htp_tx_register_request_body_data(&tx, dummy_callback);
 
     // Clean up
     htp_connp_destroy_all(connp);
-    htp_config_destroy(cfg); // Assuming there is a destroy function
+    htp_config_destroy(cfg);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

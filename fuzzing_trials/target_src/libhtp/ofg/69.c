@@ -1,44 +1,71 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <strings.h> // Include this for strncasecmp
-
-// Assuming the definition of bstr is something like this
-typedef struct {
-    char *data;
-    size_t len;
-} bstr;
-
-// Remove the mock function definition for bstr_cmp_nocase
-// It seems like there is a multiple definition error, indicating that
-// the real implementation is linked elsewhere. Therefore, we should not
-// define it here. Instead, we will assume it is defined elsewhere.
+#include <stdlib.h>
+#include <htp/htp.h>
+#include <htp/htp_config.h>
 
 int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to create two bstr objects
-    if (size < 2) {
+    htp_connp_t *connp;
+    htp_cfg_t *cfg;
+
+    // Initialize the htp_cfg_t object
+    cfg = htp_config_create();
+    if (cfg == NULL) {
         return 0;
     }
 
-    // Split the data into two parts for two bstr objects
-    size_t half_size = size / 2;
+    // Initialize the htp_connp_t object with the configuration
+    connp = htp_connp_create(cfg);
+    if (connp == NULL) {
+        htp_config_destroy(cfg);
+        return 0;
+    }
 
-    // Create the first bstr object
-    bstr s1;
-    s1.data = (char *)data;
-    s1.len = half_size;
-
-    // Create the second bstr object
-    bstr s2;
-    s2.data = (char *)(data + half_size);
-    s2.len = size - half_size;
+    // Use the data to simulate some operations on connp
+    // For example, you could use the data to simulate input to the connection
+    htp_connp_req_data(connp, 0, data, size);
 
     // Call the function-under-test
-    // Assuming bstr_cmp_nocase is defined elsewhere and linked properly
-    int result = bstr_cmp_nocase(&s1, &s2);
-
-    // Use the result in some way to avoid compiler optimizations
-    (void)result;
+    htp_connp_destroy(connp);
+    htp_config_destroy(cfg);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_69(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

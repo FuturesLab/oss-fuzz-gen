@@ -1,47 +1,71 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
-#include "/src/libhtp/htp/bstr.h"  // Correct path to the bstr.h header
-
-// Function-under-test
-int bstr_index_of_c_nocasenorzero(const bstr *b, const char *str);
+#include <string.h>  // Include for memcpy
+#include <htp/htp.h>
 
 int LLVMFuzzerTestOneInput_63(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0; // Not enough data to create two non-empty strings
+    // Check if the size is sufficient to create an htp_tx_t object
+    if (size < sizeof(htp_tx_t)) {
+        return 0;
     }
 
-    // Split the input data into two parts for bstr and char*
-    size_t split_index = size / 2;
-
-    // Initialize bstr
-    bstr b;
-    b.len = split_index;
-    b.size = split_index + 1; // Allocate space for null-termination
-    b.realptr = (unsigned char *)malloc(b.size);
-    if (b.realptr == NULL) {
-        return 0; // Memory allocation failed
+    // Allocate memory for htp_tx_t
+    htp_tx_t *tx = (htp_tx_t *)malloc(sizeof(htp_tx_t));
+    if (tx == NULL) {
+        return 0;
     }
-    memcpy(b.realptr, data, b.len);
-    b.realptr[b.len] = '\0'; // Null-terminate the bstr data
 
-    // Initialize char* string
-    size_t str_len = size - split_index;
-    char *str = (char *)malloc(str_len + 1);
-    if (str == NULL) {
-        free(b.realptr);
-        return 0; // Memory allocation failed
-    }
-    memcpy(str, data + split_index, str_len);
-    str[str_len] = '\0'; // Null-terminate the char* string
+    // Initialize the htp_tx_t object with data
+    // Assuming the data is enough to fill htp_tx_t, otherwise, adjust accordingly
+    memcpy(tx, data, sizeof(htp_tx_t));
 
     // Call the function-under-test
-    int result = bstr_index_of_c_nocasenorzero(&b, str);
+    void *user_data = htp_tx_get_user_data(tx);
 
-    // Cleanup
-    free(b.realptr);
-    free(str);
+    // Use the result (in this case, we are just discarding it)
+    (void)user_data;
+
+    // Free the allocated memory
+    free(tx);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_63(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

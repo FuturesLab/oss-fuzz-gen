@@ -1,41 +1,63 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include "/src/libhtp/htp/htp.h" // Correct path to the header file
+#include <htp/htp.h>
 
-// Remove the 'extern "C"' linkage specification for C++ compatibility
 int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract meaningful inputs
-    if (size < 10) {
-        return 0;
+    // Initialize the transaction object
+    htp_tx_t *tx = htp_tx_create(NULL);
+    if (tx == NULL) {
+        return 0; // If creation fails, exit early
     }
 
-    // Initialize the htp_tx_t structure
-    htp_tx_t tx;
-    memset(&tx, 0, sizeof(htp_tx_t));
+    // Ensure the data is not NULL and size is greater than 0
+    if (data != NULL && size > 0) {
+        // Call the function-under-test
+        htp_status_t status = htp_tx_res_process_body_data(tx, data, size);
 
-    // Define and initialize header name and value
-    const char *header_name = (const char *)data;
-    size_t header_name_len = size / 4; // Use a quarter of the data for the header name
+        // You can add additional checks or logging based on the status if needed
+    }
 
-    const char *header_value = (const char *)(data + header_name_len);
-    size_t header_value_len = size / 4; // Use another quarter of the data for the header value
+    // Clean up the transaction object
+    htp_tx_destroy(tx);
 
-    // Ensure null termination for strings
-    char name_buffer[256];
-    char value_buffer[256];
-    memcpy(name_buffer, header_name, header_name_len < 255 ? header_name_len : 255);
-    name_buffer[header_name_len < 255 ? header_name_len : 255] = '\0';
-
-    memcpy(value_buffer, header_value, header_value_len < 255 ? header_value_len : 255);
-    value_buffer[header_value_len < 255 ? header_value_len : 255] = '\0';
-
-    // Define and initialize the allocation strategy
-    enum htp_alloc_strategy_t alloc_strategy = HTP_ALLOC_REUSE;
-
-    // Call the function-under-test
-    htp_status_t status = htp_tx_res_set_header(&tx, name_buffer, header_name_len, value_buffer, header_value_len, alloc_strategy);
-
-    // Return 0 as required by LLVMFuzzerTestOneInput
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

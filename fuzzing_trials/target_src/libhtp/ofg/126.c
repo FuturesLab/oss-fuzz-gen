@@ -1,43 +1,78 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>  // Include for memcpy
-#include <htp/htp.h>
-#include <htp/bstr.h> // Include for bstr functions
-// #include "/src/libhtp/htp/htp_transaction.c" // Include for htp_tx_process_request_line
+#include <string.h>
+#include "/src/libhtp/htp/bstr.h" // Correct path for bstr.h
+
+// Function-under-test
+int bstr_cmp_mem_nocase(const bstr *b, const void *mem, size_t len);
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_126(const uint8_t *data, size_t size) {
-    // Initialize a htp_tx_t structure
-    htp_tx_t *tx = htp_tx_create(NULL);
-    if (tx == NULL) {
-        return 0;
+    if (size < 1) {
+        return 0; // Not enough data to perform meaningful fuzzing
     }
 
-    // Use the data to set some fields in the htp_tx_t structure
-    if (size > 0) {
-        // Create a bstr object from the input data
-        bstr *method_bstr = bstr_dup_mem((const char *)data, size);
-        if (method_bstr != NULL) {
-            tx->request_method = method_bstr;
-        }
+    // Initialize a bstr object
+    bstr b;
+    b.realptr = (unsigned char *)data;
+    b.len = size / 2; // Use half of the data for bstr
+    b.size = b.len; // Assuming the buffer size is the same as the length
 
-        // Simulate setting other fields and processing the transaction
-        bstr *uri_bstr = bstr_dup_mem((const char *)data, size);
-        if (uri_bstr != NULL) {
-            tx->request_uri = uri_bstr;
-        }
-
-        // Assuming there's a function to process the transaction
-        // This is a placeholder for actual processing logic
-        // htp_status_t process_status = htp_tx_process_request_line(tx);
-        // if (process_status != HTP_OK) {
-        //     bstr_free(uri_bstr);
-        // }
-    }
+    // Use the other half of the data for the memory buffer
+    const void *mem = data + b.len;
+    size_t mem_len = size - b.len;
 
     // Call the function-under-test
-    htp_status_t status = htp_tx_destroy(tx);
+    int result = bstr_cmp_mem_nocase(&b, mem, mem_len);
 
-    // Return 0 as required by LLVMFuzzerTestOneInput
+    // Use the result in some way to prevent compiler optimizations
+    (void)result;
+
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_126(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -2,58 +2,93 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <htp/htp.h>
 
-// Assuming bstr is a structure defined somewhere in the codebase
-typedef struct {
-    char *data;
-    size_t length;
-} bstr;
-
-// Mock implementation of bstr_add_c_noex for demonstration purposes
-static bstr* bstr_add_c_noex(bstr *b, const char *cstr) {
-    if (b == NULL || cstr == NULL) {
-        return NULL;
+// Function to create and initialize an htp_connp_t
+htp_connp_t *create_connp() {
+    // Initialize a new connection parser
+    htp_connp_t *connp = htp_connp_create(NULL);
+    if (connp == NULL) {
+        return NULL; // Exit if memory allocation fails
     }
-    size_t new_length = b->length + strlen(cstr);
-    char *new_data = (char *)realloc(b->data, new_length + 1);
-    if (new_data == NULL) {
-        return NULL;
-    }
-    strcat(new_data, cstr);
-    b->data = new_data;
-    b->length = new_length;
-    return b;
+    return connp;
 }
 
 int LLVMFuzzerTestOneInput_87(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
+    // Create and initialize htp_connp_t
+    htp_connp_t *connp = create_connp();
+    if (connp == NULL) {
+        return 0; // Exit if memory allocation fails
     }
 
-    // Initialize bstr structure
-    bstr my_bstr;
-    my_bstr.data = (char *)malloc(1);
-    if (my_bstr.data == NULL) {
-        return 0;
+    // Initialize htp_tx_t with the connection parser
+    htp_tx_t *tx = htp_tx_create(connp);
+    if (tx == NULL) {
+        htp_connp_destroy_all(connp);
+        return 0; // Exit if memory allocation fails
     }
-    my_bstr.data[0] = '\0';
-    my_bstr.length = 0;
 
-    // Convert data to a null-terminated string
-    char *cstr = (char *)malloc(size + 1);
-    if (cstr == NULL) {
-        free(my_bstr.data);
-        return 0;
+    // Ensure that user_data is not NULL and is meaningful
+    if (size > 0) {
+        // Copy the input data to a new buffer to ensure it's null-terminated
+        char *user_data = (char *)malloc(size + 1);
+        if (user_data == NULL) {
+            htp_tx_destroy(tx);
+            htp_connp_destroy_all(connp);
+            return 0; // Exit if memory allocation fails
+        }
+        memcpy(user_data, data, size);
+        user_data[size] = '\0'; // Null-terminate the string
+
+        // Call the function-under-test
+        htp_tx_set_user_data(tx, user_data);
+
+        // Free the allocated user_data
+        free(user_data);
     }
-    memcpy(cstr, data, size);
-    cstr[size] = '\0';
-
-    // Call the function-under-test
-    bstr *result = bstr_add_c_noex(&my_bstr, cstr);
 
     // Clean up
-    free(my_bstr.data);
-    free(cstr);
+    htp_tx_destroy(tx);
+    htp_connp_destroy_all(connp);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_87(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

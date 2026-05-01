@@ -1,26 +1,42 @@
 // This fuzz driver is generated for library libhtp, aiming to fuzz the following functions:
-// htp_connp_req_data at htp_request.c:985:5 in htp_connection_parser.h
+// bstr_util_strdup_to_c at bstr.c:621:7 in bstr.h
+// htp_tx_create at htp_transaction.c:56:11 in htp_transaction.h
+// bstr_dup_c at bstr.c:242:7 in bstr.h
+// bstr_free at bstr.c:285:6 in bstr.h
 // htp_connp_create at htp_connection_parser.c:77:14 in htp_connection_parser.h
-// htp_connp_open at htp_connection_parser.c:174:6 in htp_connection_parser.h
-// htp_connp_close at htp_connection_parser.c:59:6 in htp_connection_parser.h
-// htp_connp_destroy_all at htp_connection_parser.c:131:6 in htp_connection_parser.h
-// htp_connp_res_data at htp_response.c:1269:5 in htp_connection_parser.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "htp.h"
+#include "htp.h"
+#include "htp.h"
+#include "htp_transaction.h"
+#include "htp.h"
+#include "htp.h"
+#include "htp.h"
+#include "htp_connection_parser.h"
+#include "bstr.h"
 
-// Mock function to create a default configuration
-static htp_cfg_t *create_default_cfg() {
-    // Use the library's configuration creation function if available
-    return htp_config_create();
+static htp_cfg_t *create_dummy_cfg() {
+    htp_cfg_t *cfg = htp_config_create();
+    if (cfg) {
+        // Initialize cfg as needed
+    }
+    return cfg;
 }
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size == 0) return 0;
 
-    htp_cfg_t *cfg = create_default_cfg();
+    // Prepare environment
+    htp_cfg_t *cfg = create_dummy_cfg();
     if (!cfg) return 0;
 
     htp_connp_t *connp = htp_connp_create(cfg);
@@ -29,30 +45,112 @@ int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    const char *client_addr = "127.0.0.1";
-    int client_port = 12345;
-    const char *server_addr = "127.0.0.1";
-    int server_port = 80;
-    htp_time_t timestamp = {0, 0};
+    htp_tx_t *tx = htp_tx_create(connp);
+    if (!tx) {
+        htp_connp_destroy_all(connp);
+        htp_config_destroy(cfg);
+        return 0;
+    }
 
-    // Open the connection twice as per the order
-    htp_connp_open(connp, client_addr, client_port, server_addr, server_port, &timestamp);
-    htp_connp_open(connp, client_addr, client_port, server_addr, server_port, &timestamp);
+    // Ensure null-terminated string
+    char *cstr = (char *)malloc(Size + 1);
+    if (!cstr) {
+        htp_connp_destroy_all(connp);
+        htp_config_destroy(cfg);
+        return 0;
+    }
+    memcpy(cstr, Data, Size);
+    cstr[Size] = '\0';
 
-    // Process request data
-    htp_connp_req_data(connp, &timestamp, Data, Size);
+    // Fuzzing target functions
+    bstr *b = bstr_dup_c(cstr);
+    if (b) {
+        char *dup_cstr1 = bstr_util_strdup_to_c(b);
+        char *dup_cstr2 = bstr_util_strdup_to_c(b);
+        free(dup_cstr1);
+        free(dup_cstr2);
+        bstr_free(b);
+    }
 
-    // Process response data
-    htp_connp_res_data(connp, &timestamp, Data, Size);
+    b = bstr_dup_c(cstr);
+    if (b) {
+        char *dup_cstr1 = bstr_util_strdup_to_c(b);
+        char *dup_cstr2 = bstr_util_strdup_to_c(b);
+        free(dup_cstr1);
+        free(dup_cstr2);
+        bstr_free(b);
+    }
 
-    // Close the connection
-    htp_connp_close(connp, &timestamp);
+    b = bstr_dup_c(cstr);
+    if (b) {
+        char *dup_cstr1 = bstr_util_strdup_to_c(b);
+        char *dup_cstr2 = bstr_util_strdup_to_c(b);
+        free(dup_cstr1);
+        free(dup_cstr2);
+        bstr_free(b);
+    }
 
-    // Destroy the connection once
+    b = bstr_dup_c(cstr);
+    if (b) {
+        char *dup_cstr1 = bstr_util_strdup_to_c(b);
+        char *dup_cstr2 = bstr_util_strdup_to_c(b);
+        free(dup_cstr1);
+        free(dup_cstr2);
+        bstr_free(b);
+    }
+
+    b = bstr_dup_c(cstr);
+    if (b) {
+        char *dup_cstr1 = bstr_util_strdup_to_c(b);
+        char *dup_cstr2 = bstr_util_strdup_to_c(b);
+        free(dup_cstr1);
+        free(dup_cstr2);
+        bstr_free(b);
+    }
+
+    // Cleanup
+    free(cstr);
     htp_connp_destroy_all(connp);
-
-    // Clean up configuration
     htp_config_destroy(cfg);
-
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

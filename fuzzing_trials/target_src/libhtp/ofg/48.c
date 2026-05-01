@@ -1,40 +1,93 @@
+#include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include "/src/libhtp/htp/bstr.h" // Correct path to the bstr header
 
+// Assuming bstr is a struct defined in the library
+typedef struct {
+    char *data;
+    size_t length;
+} bstr;
+
+// Function prototype for the function-under-test
+bstr *bstr_add_mem_noex(bstr *str, const void *mem, size_t len);
+
+// Helper function to create a new bstr
+bstr *create_bstr_48(const char *initial_data) {
+    bstr *new_bstr = (bstr *)malloc(sizeof(bstr));
+    if (new_bstr == NULL) {
+        return NULL;
+    }
+    size_t data_len = strlen(initial_data);
+    new_bstr->data = (char *)malloc(data_len + 1);
+    if (new_bstr->data == NULL) {
+        free(new_bstr);
+        return NULL;
+    }
+    memcpy(new_bstr->data, initial_data, data_len);
+    new_bstr->data[data_len] = '\0';
+    new_bstr->length = data_len;
+    return new_bstr;
+}
+
+// LLVMFuzzerTestOneInput function
 int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to split into two parts
-    if (size < 2) {
-        return 0;
+    // Create an initial bstr object
+    bstr *initial_bstr = create_bstr_48("initial");
+    if (initial_bstr == NULL) {
+        return 0; // Exit if memory allocation fails
     }
 
-    // Split the input data into two parts
-    size_t bstr_size = size / 2;
-    size_t char_size = size - bstr_size;
-
-    // Allocate memory for bstr and char array
-    bstr *bstr_input = (bstr *)malloc(sizeof(bstr));
-    char *char_input = (char *)malloc(char_size + 1);
-
-    // Initialize bstr
-    bstr_input->realptr = (unsigned char *)malloc(bstr_size + 1);
-    memcpy(bstr_input->realptr, data, bstr_size);
-    bstr_input->realptr[bstr_size] = '\0'; // Null-terminate
-    bstr_input->len = bstr_size;
-    bstr_input->size = bstr_size + 1; // Set the size of the buffer
-
-    // Initialize char array
-    memcpy(char_input, data + bstr_size, char_size);
-    char_input[char_size] = '\0'; // Null-terminate
-
     // Call the function-under-test
-    int result = bstr_cmp_c_nocase(bstr_input, char_input);
+    bstr *result_bstr = bstr_add_mem_noex(initial_bstr, data, size);
 
     // Clean up
-    free(bstr_input->realptr);
-    free(bstr_input);
-    free(char_input);
+    if (result_bstr != NULL) {
+        free(result_bstr->data);
+        free(result_bstr);
+    } else {
+        free(initial_bstr->data);
+        free(initial_bstr);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_48(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

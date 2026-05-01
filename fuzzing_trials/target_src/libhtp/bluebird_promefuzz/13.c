@@ -1,97 +1,117 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <sys/time.h>
 #include "htp/htp.h"
-
-// Mock function to create a default configuration
-static htp_cfg_t *create_default_cfg() {
-    // Use the library's configuration creation function if available
-    return htp_config_create();
-}
+#include "htp/htp.h"
+#include "htp/htp.h"
+#include "/src/libhtp/htp/htp_connection_parser.h"
 
 int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
     if (Size < 1) {
         return 0;
     }
 
-    htp_cfg_t *cfg = create_default_cfg();
-    if (!cfg) {
+    htp_cfg_t *cfg = htp_config_create();
+    if (cfg == NULL) {
         return 0;
     }
 
     htp_connp_t *connp = htp_connp_create(cfg);
-    if (!connp) {
+    if (connp == NULL) {
         htp_config_destroy(cfg);
         return 0;
     }
 
-    const char *client_addr = "127.0.0.1";
-    int client_port = 12345;
-    const char *server_addr = "127.0.0.1";
-    int server_port = 80;
-    htp_time_t timestamp = {0, 0};
+    htp_connp_set_user_data(connp, (void *)Data);
 
-    // Open the connection twice as per the order
-    htp_connp_open(connp, client_addr, client_port, server_addr, server_port, &timestamp);
+    struct timeval timestamp;
+    gettimeofday(&timestamp, NULL);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_open to htp_connp_res_data
-    htp_tx_t rybctayd;
-    memset(&rybctayd, 0, sizeof(rybctayd));
-    htp_status_t ret_htp_tx_state_request_headers_crkge = htp_tx_state_request_headers(&rybctayd);
+    htp_connp_open(connp, "127.0.0.1", 80, "127.0.0.1", 8080, &timestamp);
 
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_tx_state_request_headers to htp_tx_register_response_body_data
-
-    htp_tx_register_response_body_data(&rybctayd, NULL);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_htp_connp_res_data_nijkz = htp_connp_res_data(connp, &timestamp, (const void *)&rybctayd, -1);
-    if (ret_htp_connp_res_data_nijkz < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_open to bstr_util_mem_index_of_c
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!connp) {
     	return 0;
     }
-
+    size_t ret_htp_connp_res_data_consumed_ymjbj = htp_connp_res_data_consumed(connp);
+    if (ret_htp_connp_res_data_consumed_ymjbj < 0){
+    	return 0;
+    }
+    bstr ncyeoxcx;
+    memset(&ncyeoxcx, 0, sizeof(ncyeoxcx));
+    char* ret_bstr_util_strdup_to_c_ionsu = bstr_util_strdup_to_c(&ncyeoxcx);
+    if (ret_bstr_util_strdup_to_c_ionsu == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_bstr_util_strdup_to_c_ionsu) {
+    	return 0;
+    }
+    int ret_bstr_util_mem_index_of_c_cazfv = bstr_util_mem_index_of_c((const void *)&timestamp, ret_htp_connp_res_data_consumed_ymjbj, ret_bstr_util_strdup_to_c_ionsu);
+    if (ret_bstr_util_mem_index_of_c_cazfv < 0){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
+    
+    htp_connp_open(connp, "127.0.0.1", 80, "127.0.0.1", 8080, &timestamp);
 
-    htp_connp_open(connp, client_addr, client_port, server_addr, server_port, &timestamp);
-
-    // Process request data
     htp_connp_req_data(connp, &timestamp, Data, Size);
+    htp_connp_req_data_consumed(connp);
 
-    // Process response data
     htp_connp_res_data(connp, &timestamp, Data, Size);
+    htp_connp_res_data(connp, &timestamp, Data, Size);
+    htp_connp_res_data_consumed(connp);
 
-    // Close the connection
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_res_data to bstr_util_mem_to_pint
-    size_t ret_htp_connp_tx_freed_xfrav = htp_connp_tx_freed(connp);
-    if (ret_htp_connp_tx_freed_xfrav < 0){
-    	return 0;
-    }
-    int ret_htp_tx_get_is_config_shared_mzoqa = htp_tx_get_is_config_shared(&rybctayd);
-    if (ret_htp_tx_get_is_config_shared_mzoqa < 0){
-    	return 0;
-    }
-    size_t ret_htp_connp_tx_freed_jrhdx = htp_connp_tx_freed(connp);
-    if (ret_htp_connp_tx_freed_jrhdx < 0){
-    	return 0;
-    }
-
-    int64_t ret_bstr_util_mem_to_pint_spsjw = bstr_util_mem_to_pint((const void *)connp, ret_htp_connp_tx_freed_xfrav, ret_htp_tx_get_is_config_shared_mzoqa, &ret_htp_connp_tx_freed_jrhdx);
-    if (ret_bstr_util_mem_to_pint_spsjw < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
+    htp_connp_req_data(connp, &timestamp, Data, Size);
+    htp_connp_res_data(connp, &timestamp, Data, Size);
 
     htp_connp_close(connp, &timestamp);
 
-    // Destroy the connection once
     htp_connp_destroy_all(connp);
-
-    // Clean up configuration
     htp_config_destroy(cfg);
-
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_13(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

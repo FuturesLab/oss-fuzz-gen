@@ -1,39 +1,76 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-#include "/src/libhtp/htp/htp.h" // Correct path for htp.h
-#include "/src/libhtp/htp/htp_connection_parser.h" // Include the header that defines htp_connp_t
+#include <htp/htp.h>
+#include <htp/htp_connection_parser.h>
+#include <htp/htp_transaction.h>
+#include <htp/htp_config.h>
 
 int LLVMFuzzerTestOneInput_115(const uint8_t *data, size_t size) {
-    if (size < 10) {
-        // Ensure there's enough data for the test
+    // Create a default configuration
+    htp_cfg_t *cfg = htp_config_create();
+    if (cfg == NULL) {
         return 0;
     }
 
-    // Initialize htp_connp_t structure
-    htp_connp_t *connp = htp_connp_create(NULL);
+    // Initialize the htp_connp_t structure with the configuration
+    htp_connp_t *connp = htp_connp_create(cfg);
     if (connp == NULL) {
+        htp_config_destroy(cfg);
         return 0;
     }
 
-    // Prepare parameters
-    const char *client_addr = "127.0.0.1"; // Example client address
-    int client_port = 8080; // Example client port
-    const char *server_addr = "192.168.0.1"; // Example server address
-    int server_port = 80; // Example server port
-    htp_time_t *timestamp = (htp_time_t *)malloc(sizeof(htp_time_t));
-    if (timestamp == NULL) {
-        htp_connp_destroy_all(connp);
-        return 0;
+    // Ensure that the data is not empty before processing
+    if (size > 0) {
+        // Use the provided data to simulate some connection data
+        // Use a NULL timestamp for simplicity
+        htp_connp_req_data(connp, NULL, data, size);
     }
 
     // Call the function-under-test
-    htp_connp_open(connp, client_addr, client_port, server_addr, server_port, timestamp);
+    htp_tx_t *tx = htp_connp_get_out_tx(connp);
 
     // Clean up
     htp_connp_destroy_all(connp);
-    free(timestamp);
+    htp_config_destroy(cfg);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_115(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

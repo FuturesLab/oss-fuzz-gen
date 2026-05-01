@@ -1,84 +1,144 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdint.h>
-#include "/src/libhtp/htp/bstr.h"
-
-static bstr *create_bstr(size_t size) {
-    bstr *b = (bstr *)malloc(sizeof(bstr));
-    if (b) {
-        b->len = 0;
-        b->size = size;
-        b->realptr = (unsigned char *)malloc(size);
-        if (!b->realptr) {
-            free(b);
-            return NULL;
-        }
-    }
-    return b;
-}
-
-static void free_bstr(bstr *b) {
-    if (b) {
-        free(b->realptr);
-        free(b);
-    }
-}
+#include <sys/time.h>
+#include "htp/htp.h"
+#include "htp/htp.h"
+#include "htp/htp.h"
+#include "/src/libhtp/htp/htp_connection_parser.h"
 
 int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Ensure there's at least one byte
-
-    // Create a bstr with some initial size
-    bstr *b = create_bstr(128);
-    if (!b) return 0;
-
-    // Create a null-terminated string from the input data
-    char *cstr = (char *)malloc(Size + 1);
-    if (!cstr) {
-        free_bstr(b);
+    if (Size < 1) {
         return 0;
     }
-    memcpy(cstr, Data, Size);
-    cstr[Size] = '\0';
 
-    // Test bstr_add_c
-    bstr *result = bstr_add_c(b, cstr);
-    if (result) {
-        b = result;
+    htp_cfg_t *cfg = htp_config_create();
+    if (cfg == NULL) {
+        return 0;
     }
 
-    // Test bstr_chop
-    bstr_chop(b);
-
-    // Create another bstr for testing
-    bstr *b2 = create_bstr(64);
-    if (b2) {
-        // Test bstr_add_noex
-        bstr_add_noex(b, b2);
-
-        // Test bstr_add_c_noex
-        bstr_add_c_noex(b, cstr);
-
-        free_bstr(b2);
+    htp_connp_t *connp = htp_connp_create(cfg);
+    if (connp == NULL) {
+        htp_config_destroy(cfg);
+        return 0;
     }
 
-    // Test bstr_wrap_c
-    bstr *wrapped_bstr = bstr_wrap_c(cstr);
-    if (wrapped_bstr) {
-        // Test bstr_adjust_realptr
-        bstr_adjust_realptr(wrapped_bstr, b->realptr);
+    htp_connp_set_user_data(connp, (void *)Data);
 
-        // Since wrapped_bstr shares the realptr with b, we should not free it twice
-        free(wrapped_bstr); // Only free the wrapper, not the realptr
+    struct timeval timestamp;
+    gettimeofday(&timestamp, NULL);
+
+    htp_connp_open(connp, "127.0.0.1", 80, "127.0.0.1", 8080, &timestamp);
+    htp_connp_open(connp, "127.0.0.1", 80, "127.0.0.1", 8080, &timestamp);
+
+    htp_connp_req_data(connp, &timestamp, Data, Size);
+    htp_connp_req_data_consumed(connp);
+
+    htp_connp_res_data(connp, &timestamp, Data, Size);
+    htp_connp_res_data(connp, &timestamp, Data, Size);
+    htp_connp_res_data_consumed(connp);
+
+    htp_connp_req_data(connp, &timestamp, Data, Size);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_req_data to htp_tx_req_process_body_data
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!connp) {
+    	return 0;
+    }
+    htp_tx_t* ret_htp_connp_get_in_tx_knhrz = htp_connp_get_in_tx(connp);
+    if (ret_htp_connp_get_in_tx_knhrz == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!connp) {
+    	return 0;
+    }
+    size_t ret_htp_connp_res_data_consumed_pqmur = htp_connp_res_data_consumed(connp);
+    if (ret_htp_connp_res_data_consumed_pqmur < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_htp_connp_get_in_tx_knhrz) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!connp) {
+    	return 0;
     }
 
-    // Cleanup
-    free(cstr);
-    free_bstr(b);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from htp_connp_res_data_consumed to htp_tx_req_get_param
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!connp) {
+    	return 0;
+    }
+    void* ret_htp_connp_get_user_data_zpstr = htp_connp_get_user_data(connp);
+    if (ret_htp_connp_get_user_data_zpstr == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_htp_connp_get_in_tx_knhrz) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_htp_connp_get_user_data_zpstr) {
+    	return 0;
+    }
+    htp_param_t* ret_htp_tx_req_get_param_hgoyn = htp_tx_req_get_param(ret_htp_connp_get_in_tx_knhrz, (const char *)ret_htp_connp_get_user_data_zpstr, ret_htp_connp_res_data_consumed_pqmur);
+    if (ret_htp_tx_req_get_param_hgoyn == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    htp_status_t ret_htp_tx_req_process_body_data_nqyjo = htp_tx_req_process_body_data(ret_htp_connp_get_in_tx_knhrz, (const void *)connp, ret_htp_connp_res_data_consumed_pqmur);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    htp_connp_res_data(connp, &timestamp, Data, Size);
 
+    htp_connp_close(connp, &timestamp);
+
+    htp_connp_destroy_all(connp);
+    htp_config_destroy(cfg);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

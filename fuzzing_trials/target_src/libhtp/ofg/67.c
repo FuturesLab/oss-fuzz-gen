@@ -1,40 +1,79 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <htp/htp.h>
-#include <htp/htp_private.h> // Include the private header for complete type definitions
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <string.h>
+#include "/src/libhtp/htp/htp.h"  // Correct path for htp_uri_t and htp_uri_free
 
 int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
-    // Initialize necessary variables
-    htp_connp_t *connp = NULL;
-    htp_cfg_t *cfg = htp_config_create();
-
-    // Check if the configuration was created successfully
-    if (cfg == NULL) {
-        return 0; // Exit if creation fails
+    // Allocate memory for htp_uri_t structure
+    htp_uri_t *uri = (htp_uri_t *)malloc(sizeof(htp_uri_t));
+    if (uri == NULL) {
+        return 0; // Exit if memory allocation fails
     }
 
-    // Create a new connection parser object using the library's function
-    connp = htp_connp_create(cfg);
-    if (connp == NULL) {
-        htp_config_destroy(cfg); // Clean up the configuration object
-        return 0; // Exit if creation fails
+    // Allocate memory for bstr structure
+    uri->path = (bstr *)malloc(sizeof(bstr));
+    if (uri->path == NULL) {
+        free(uri);
+        return 0; // Exit if memory allocation fails
     }
 
-    // Call the function-under-test
-    size_t result = htp_connp_res_data_consumed(connp);
+    // Allocate memory for the actual string in bstr
+    uri->path->realptr = (unsigned char *)malloc(size + 1);
+    if (uri->path->realptr == NULL) {
+        free(uri->path);
+        free(uri);
+        return 0; // Exit if memory allocation fails
+    }
 
-    // Destroy the connection parser object to free resources
-    htp_connp_destroy(connp);
-    htp_config_destroy(cfg); // Clean up the configuration object
+    // Initialize the bstr structure
+    memcpy(uri->path->realptr, data, size);
+    uri->path->realptr[size] = '\0'; // Null-terminate the string
+    uri->path->len = size;
+    uri->path->size = size + 1;
 
+    // Fuzz the htp_uri_free function
+    htp_uri_free(uri);
+
+    // Free allocated memory
+    // Note: htp_uri_free is expected to free the memory for uri->path and uri itself
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-#ifdef __cplusplus
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_67(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
 #endif

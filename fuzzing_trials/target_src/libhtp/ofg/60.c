@@ -1,29 +1,67 @@
+#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h> // Include string.h for memset
-#include "/src/libhtp/htp/htp.h" // Correct path for htp.h
+#include <string.h>
 
-// Remove 'extern "C"' as it is not compatible with C code
+// Assuming the function is defined elsewhere
+int bstr_util_mem_index_of_mem_nocase(const void *haystack, size_t haystack_len, const void *needle, size_t needle_len);
+
 int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    htp_tx_t tx;
-    int protocol_version;
-
-    // Ensure size is sufficient to extract an integer for protocol_version
-    if (size < sizeof(int)) {
+    // Split the input data into two parts: haystack and needle
+    // Ensure that both parts are not empty
+    if (size < 2) {
         return 0;
     }
 
-    // Initialize htp_tx_t object
-    // Assuming that htp_tx_t has a function to initialize it, replace with actual initialization if available
-    // For this example, we assume it's zero-initialized
-    memset(&tx, 0, sizeof(htp_tx_t));
+    size_t haystack_len = size / 2;
+    size_t needle_len = size - haystack_len;
 
-    // Extract an integer from data for protocol_version
-    protocol_version = *(const int *)data;
+    const void *haystack = data;
+    const void *needle = data + haystack_len;
 
     // Call the function-under-test
-    htp_tx_req_set_protocol_0_9(&tx, protocol_version);
+    int result = bstr_util_mem_index_of_mem_nocase(haystack, haystack_len, needle, needle_len);
+
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_60(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

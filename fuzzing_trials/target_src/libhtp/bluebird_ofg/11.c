@@ -1,31 +1,79 @@
-#include <stdint.h>
+#include <string.h>
+#include <sys/stat.h>
 #include <stddef.h>
-#include "htp/htp.h"  // Include the appropriate header for htp_tx_t and htp_status_t
+#include <stdint.h>
+#include <stdlib.h>
+#include "htp/htp.h"
+#include "/src/libhtp/htp/htp_connection_parser.h"
+#include "/src/libhtp/htp/htp_config.h"
+#include "/src/libhtp/htp/htp_connection_parser_private.h" // Include the correct header for htp_connp_tx_freed
 
 int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    // Ensure there is enough data for the required parameters
-    if (size < 10) {
+    htp_connp_t *connp;
+    htp_cfg_t *cfg;
+    htp_time_t timestamp = {0}; // Initialize timestamp to zero
+
+    // Initialize the htp_cfg_t structure
+    cfg = htp_config_create();
+    if (cfg == NULL) {
         return 0;
     }
 
-    // Initialize the htp_tx_t structure
-    htp_tx_t tx;
-    // Assuming htp_tx_t is a struct, initialize its fields if necessary
-    // For example: tx.some_field = some_value;
+    // Initialize the htp_connp_t structure
+    connp = htp_connp_create(cfg);
+    if (connp == NULL) {
+        htp_config_destroy(cfg);
+        return 0;
+    }
 
-    // Extract parts of the data for the function parameters
-    const char *header_name = (const char *)data;
-    size_t header_name_len = size / 4;
-    const char *header_value = (const char *)(data + header_name_len);
-    size_t header_value_len = size / 4;
-
-    // Use the correct enum type for htp_alloc_strategy_t
-    enum htp_alloc_strategy_t alloc_strategy = (enum htp_alloc_strategy_t)(data[size - 1] % 3); // Assuming there are 3 strategies
+    // Use the input data to simulate actual input to the function under test
+    htp_connp_req_data(connp, &timestamp, data, size);
 
     // Call the function-under-test
-    htp_status_t status = htp_tx_req_set_header(&tx, header_name, header_name_len, header_value, header_value_len, alloc_strategy);
+    size_t result = htp_connp_tx_freed(connp);
 
-    // Optionally, check the status or perform other operations
+    // Clean up
+    htp_connp_destroy_all(connp);
+    htp_config_destroy(cfg);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
