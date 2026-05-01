@@ -1,47 +1,44 @@
 #include <string.h>
 #include <sys/stat.h>
-#include <cstddef>
-#include <cstdint>
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
+#include <stdint.h>
+#include <stddef.h>
+
+extern "C" {
+    #include "/src/aom/aom/aom_codec.h"
+    #include "/src/aom/aom/aom_encoder.h"
+    #include "/src/aom/aom/aomcx.h" // Include the header for codec interface functions
+
+    // Function under test
+    const char * aom_codec_error_detail(const aom_codec_ctx_t *);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec;
-    aom_codec_err_t res;
-    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
-    void *user_priv = (void*)1; // Non-NULL user private data
-
     // Initialize the codec context
-    res = aom_codec_dec_init(&codec, iface, NULL, 0);
-    if (res != AOM_CODEC_OK) {
-        return 0; // Initialization failed
+    aom_codec_ctx_t codec_ctx;
+    aom_codec_iface_t *iface = aom_codec_av1_cx(); // Ensure the correct function is used
+    aom_codec_enc_cfg cfg;
+
+    // Initialize the codec configuration
+    if (aom_codec_enc_config_default(iface, &cfg, 0) != AOM_CODEC_OK) {
+        return 0;
     }
 
-    // Call the function-under-test
-    res = aom_codec_decode(&codec, data, size, user_priv);
+    // Initialize the codec
+    if (aom_codec_enc_init(&codec_ctx, iface, &cfg, 0) != AOM_CODEC_OK) {
+        return 0;
+    }
+
+    // Call the function under test
+    const char *error_detail = aom_codec_error_detail(&codec_ctx);
+
+    // Use the error detail string (if any)
+    if (error_detail != NULL) {
+        // For fuzzing purposes, you might want to do something with the error_detail
+        // For example, log it or perform some checks
+    }
 
     // Destroy the codec context
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_set_frame_buffer_functions
-    aom_image_t itwfpvem;
-    memset(&itwfpvem, 0, sizeof(itwfpvem));
-    aom_img_flip(&itwfpvem);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_img_flip to aom_img_plane_width
-    aom_codec_caps_t ret_aom_codec_get_caps_ndyra = aom_codec_get_caps(NULL);
-    if (ret_aom_codec_get_caps_ndyra < 0){
-    	return 0;
-    }
-    int ret_aom_img_plane_width_agock = aom_img_plane_width(&itwfpvem, (int )ret_aom_codec_get_caps_ndyra);
-    if (ret_aom_img_plane_width_agock < 0){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_ydahc = aom_codec_set_frame_buffer_functions(&codec, 0, 0, (void *)&itwfpvem);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_destroy(&codec);
+    aom_codec_destroy(&codec_ctx);
 
     return 0;
 }

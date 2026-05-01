@@ -1,41 +1,39 @@
 #include <string.h>
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdlib>
+#include "/src/aom/aom/aom_image.h"
 
 extern "C" {
-    #include "/src/aom/aom/aom_codec.h"
+    // Include the header for the function-under-test
     #include "/src/aom/aom/aom_image.h"
-    #include "aom/aom_decoder.h"
-    #include "aom/aomdx.h"  // Include this header for aom_codec_av1_dx
 }
 
+// Define the function-under-test
+extern "C" int aom_img_plane_height(const aom_image_t *img, int plane);
+
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    // Initialize the codec context
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx();
-    aom_codec_dec_cfg cfg = {0, 0, 0};
+    // Initialize the aom_image_t structure
+    aom_image_t img;
+    img.d_w = 640; // Set a default width
+    img.d_h = 480; // Set a default height
+    img.fmt = AOM_IMG_FMT_I420; // Set a default format
+    img.bit_depth = 8; // Set a default bit depth
 
-    // Initialize the codec
-    if (aom_codec_dec_init(&codec_ctx, iface, &cfg, 0) != AOM_CODEC_OK) {
+    // Ensure the data size is sufficient for testing
+    if (size < sizeof(aom_image_t)) {
         return 0;
     }
 
-    // Decode the input data
-    if (aom_codec_decode(&codec_ctx, data, size, NULL) != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0;
-    }
-
-    // Initialize the iterator
-    aom_codec_iter_t iter = NULL;
-    aom_image_t *img = NULL;
+    // Use the first byte of data to determine the plane index
+    int plane = static_cast<int>(data[0] % 3); // Assuming 3 planes: Y, U, V
 
     // Call the function-under-test
-    img = aom_codec_get_frame(&codec_ctx, &iter);
+    int height = aom_img_plane_height(&img, plane);
 
-    // Cleanup
-    aom_codec_destroy(&codec_ctx);
+    // Use the result in some way to avoid compiler optimizations removing the call
+    volatile int result = height;
+    (void)result;
 
     return 0;
 }

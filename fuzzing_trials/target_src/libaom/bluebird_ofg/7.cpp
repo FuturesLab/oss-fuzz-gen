@@ -1,35 +1,42 @@
 #include <string.h>
 #include <sys/stat.h>
-#include <cstddef>
 #include <cstdint>
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
+#include <cstdlib>
+#include "/src/aom/aom/aom_image.h"
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec;
-    aom_codec_err_t res;
-    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
-    void *user_priv = (void*)1; // Non-NULL user private data
+    // Ensure there is enough data to extract parameters
+    if (size < sizeof(unsigned int) * 3 + sizeof(aom_img_fmt_t)) {
+        return 0;
+    }
 
-    // Initialize the codec context
-    res = aom_codec_dec_init(&codec, iface, NULL, 0);
-    if (res != AOM_CODEC_OK) {
-        return 0; // Initialization failed
+    // Extract parameters from the data
+    unsigned int width = *(reinterpret_cast<const unsigned int*>(data));
+    unsigned int height = *(reinterpret_cast<const unsigned int*>(data + sizeof(unsigned int)));
+    unsigned int stride = *(reinterpret_cast<const unsigned int*>(data + 2 * sizeof(unsigned int)));
+    aom_img_fmt_t fmt = *(reinterpret_cast<const aom_img_fmt_t*>(data + 3 * sizeof(unsigned int)));
+
+    // Ensure width, height, and stride are non-zero
+    width = width == 0 ? 1 : width;
+    height = height == 0 ? 1 : height;
+    stride = stride == 0 ? 1 : stride;
+
+    // Allocate memory for the image data
+    unsigned char *img_data = new unsigned char[width * height];
+    
+    // Ensure img_data is not null
+    if (!img_data) {
+        return 0;
     }
 
     // Call the function-under-test
-    res = aom_codec_decode(&codec, data, size, user_priv);
+    aom_image_t *img = aom_img_wrap(nullptr, fmt, width, height, stride, img_data);
 
-    // Destroy the codec context
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_error
-    const char* ret_aom_codec_error_ptces = aom_codec_error(&codec);
-    if (ret_aom_codec_error_ptces == NULL){
-    	return 0;
+    // Clean up
+    if (img) {
+        aom_img_free(img);
     }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_destroy(&codec);
+    delete[] img_data;
 
     return 0;
 }

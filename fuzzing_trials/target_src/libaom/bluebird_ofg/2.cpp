@@ -1,54 +1,83 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <cstdint>
-#include <cstdlib>
+#include <cstddef>
+#include <iostream> // Include for debugging output
 
 extern "C" {
-#include "/src/aom/aom/aom_codec.h"
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
-
-// Dummy callback functions for frame buffer operations
-int get_frame_buffer_dummy(void *priv, size_t min_size, aom_codec_frame_buffer_t *fb) {
-    // Allocate a buffer of the requested size
-    fb->data = static_cast<uint8_t *>(malloc(min_size));
-    fb->size = min_size;
-    return (fb->data != NULL) ? 0 : -1; // Return 0 on success, -1 on failure
+    #include "/src/aom/aom/aom_codec.h"
+    #include "aom/aom_decoder.h"
+    #include "aom/aomdx.h"
 }
 
-int release_frame_buffer_dummy(void *priv, aom_codec_frame_buffer_t *fb) {
-    // Free the allocated buffer
-    free(fb->data);
-    fb->data = NULL;
-    fb->size = 0;
-    return 0; // Return 0 on success
-}
+extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
+    if (size == 0) {
+        return 0;
+    }
 
-int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    // Initialize the codec context
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
-    aom_codec_err_t res = aom_codec_dec_init(&codec_ctx, iface, NULL, 0);
+    const aom_codec_iface_t *iface = aom_codec_av1_dx();
 
+    aom_codec_ctx_t codec;
+    aom_codec_err_t res = aom_codec_dec_init(&codec, iface, nullptr, 0);
     if (res != AOM_CODEC_OK) {
-        return 0; // Exit if codec initialization fails
+        std::cerr << "Failed to initialize codec: " << aom_codec_err_to_string(res) << std::endl;
+        return 0;
     }
 
-    // Set the frame buffer functions with dummy callbacks
-    aom_codec_set_frame_buffer_functions(&codec_ctx, get_frame_buffer_dummy, release_frame_buffer_dummy, NULL);
-
-    // Decode the input data
-    if (aom_codec_decode(&codec_ctx, data, size, NULL) != AOM_CODEC_OK) {
-        aom_codec_destroy(&codec_ctx);
-        return 0; // Exit if decoding fails
+    res = aom_codec_decode(&codec, data, size, nullptr);
+    if (res != AOM_CODEC_OK) {
+        std::cerr << "Failed to decode: " << aom_codec_err_to_string(res) << std::endl;
     }
 
-    // Clean up the codec context
-    aom_codec_destroy(&codec_ctx);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_set_frame_buffer_functions
+    aom_image_t ohnjtcyv;
+    memset(&ohnjtcyv, 0, sizeof(ohnjtcyv));
+    aom_img_flip(&ohnjtcyv);
+    aom_codec_err_t ret_aom_codec_set_frame_buffer_functions_ggkip = aom_codec_set_frame_buffer_functions(&codec, 0, 0, (void *)&ohnjtcyv);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_set_frame_buffer_functions to aom_codec_control
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_set_frame_buffer_functions to aom_codec_dec_init_ver
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!iface) {
+    	return 0;
+    }
+    const char* ret_aom_codec_iface_name_mhyqr = aom_codec_iface_name(iface);
+    if (ret_aom_codec_iface_name_mhyqr == NULL){
+    	return 0;
+    }
+    aom_codec_caps_t ret_aom_codec_get_caps_upqga = aom_codec_get_caps(NULL);
+    if (ret_aom_codec_get_caps_upqga < 0){
+    	return 0;
+    }
+    size_t ret_aom_uleb_size_in_bytes_kbjqj = aom_uleb_size_in_bytes(-1);
+    if (ret_aom_uleb_size_in_bytes_kbjqj < 0){
+    	return 0;
+    }
+    aom_codec_dec_cfg_t zzypuysf;
+    memset(&zzypuysf, 0, sizeof(zzypuysf));
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!iface) {
+    	return 0;
+    }
+    aom_codec_err_t ret_aom_codec_dec_init_ver_xgwqj = aom_codec_dec_init_ver(&codec, iface, &zzypuysf, ret_aom_codec_get_caps_upqga, (int )ret_aom_uleb_size_in_bytes_kbjqj);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    aom_codec_err_t ret_aom_codec_control_mbrmt = aom_codec_control(&codec, size);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    aom_codec_iter_t iter = nullptr;
+    aom_image_t *img = nullptr;
+    while ((img = aom_codec_get_frame(&codec, &iter)) != nullptr) {
+        // Process the image (img) if needed
+    }
+
+    aom_codec_destroy(&codec);
 
     return 0;
-}
-
 }
 #ifdef INC_MAIN
 #include <stdio.h>

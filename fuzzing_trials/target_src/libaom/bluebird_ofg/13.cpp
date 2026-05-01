@@ -1,35 +1,45 @@
 #include <string.h>
 #include <sys/stat.h>
-#include <cstddef>
 #include <cstdint>
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
+#include <cstddef>
+#include <iostream>
+
+// Assuming the OBU_TYPE is an enum, define it for the context of this fuzzing harness
+extern "C" {
+    typedef enum {
+        OBU_TYPE_0,
+        OBU_TYPE_1,
+        OBU_TYPE_2,
+        OBU_TYPE_3,
+        OBU_TYPE_4,
+        OBU_TYPE_5,
+        OBU_TYPE_6,
+        OBU_TYPE_7,
+        OBU_TYPE_8,
+        OBU_TYPE_9,
+        OBU_TYPE_MAX
+    } OBU_TYPE;
+
+    // Function-under-test
+    const char * aom_obu_type_to_string(OBU_TYPE type);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec;
-    aom_codec_err_t res;
-    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
-    void *user_priv = (void*)1; // Non-NULL user private data
-
-    // Initialize the codec context
-    res = aom_codec_dec_init(&codec, iface, NULL, 0);
-    if (res != AOM_CODEC_OK) {
-        return 0; // Initialization failed
+    // Ensure size is sufficient to extract an OBU_TYPE
+    if (size < 1) {
+        return 0;
     }
+
+    // Extract a value from the data and map it to the OBU_TYPE enum
+    OBU_TYPE type = static_cast<OBU_TYPE>(data[0] % OBU_TYPE_MAX);
 
     // Call the function-under-test
-    res = aom_codec_decode(&codec, data, size, user_priv);
+    const char *result = aom_obu_type_to_string(type);
 
-    // Destroy the codec context
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_error_detail
-    const char* ret_aom_codec_error_detail_kfksn = aom_codec_error_detail(&codec);
-    if (ret_aom_codec_error_detail_kfksn == NULL){
-    	return 0;
+    // Optional: Print the result for debugging purposes
+    if (result) {
+        std::cout << "OBU Type: " << type << " -> " << result << std::endl;
     }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_destroy(&codec);
 
     return 0;
 }

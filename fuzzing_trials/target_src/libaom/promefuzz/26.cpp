@@ -1,14 +1,11 @@
 // This fuzz driver is generated for library libaom, aiming to fuzz the following functions:
-// aom_codec_av1_cx at av1_cx_iface.c:5284:20 in aomcx.h
-// aom_codec_enc_config_default at aom_encoder.c:100:17 in aom_encoder.h
-// aom_codec_enc_init_ver at aom_encoder.c:38:17 in aom_encoder.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_control at aom_codec.c:88:17 in aom_codec.h
-// aom_codec_destroy at aom_codec.c:68:17 in aom_codec.h
+// aom_uleb_encode at aom_integer.c:58:5 in aom_integer.h
+// aom_img_add_metadata at aom_image.c:390:5 in aom_image.h
+// aom_img_remove_metadata at aom_image.c:422:6 in aom_image.h
+// aom_uleb_encode_fixed_size at aom_integer.c:79:5 in aom_integer.h
+// aom_uleb_size_in_bytes at aom_integer.c:23:8 in aom_integer.h
+// aom_uleb_decode at aom_integer.c:31:5 in aom_integer.h
+// aom_img_num_metadata at aom_image.c:439:8 in aom_image.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -19,54 +16,136 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
+#include <cstddef>
 #include <cstring>
-#include <exception>
-#include "aom/aom_codec.h"
-#include "aom/aom_encoder.h"
-#include "aom/aomcx.h"
+#include <cstdio>
+#include "aomdx.h"
+#include "aom.h"
+#include "aom_codec.h"
+#include "aom_external_partition.h"
+#include "aom_decoder.h"
+#include "aomcx.h"
+#include "aom_integer.h"
+#include "aom_frame_buffer.h"
+#include "aom_image.h"
+#include "aom_encoder.h"
 
 extern "C" int LLVMFuzzerTestOneInput_26(const uint8_t *Data, size_t Size) {
-    if (Size < 6) {
-        return 0;  // Not enough data to proceed
+    // Fuzz aom_uleb_encode
+    if (Size >= sizeof(uint64_t) + sizeof(size_t)) {
+        uint64_t value;
+        size_t available;
+        memcpy(&value, Data, sizeof(uint64_t));
+        memcpy(&available, Data + sizeof(uint64_t), sizeof(size_t));
+
+        uint8_t coded_value[10]; // LEB128 can use up to 10 bytes
+        size_t coded_size = 0;
+        aom_uleb_encode(value, available, coded_value, &coded_size);
     }
 
-    aom_codec_ctx_t codec_ctx;
-    aom_codec_iface_t *iface = aom_codec_av1_cx();
-    aom_codec_enc_cfg_t cfg;
+    // Fuzz aom_img_add_metadata
+    if (Size >= sizeof(aom_image_t) + sizeof(uint32_t) + sizeof(size_t) + sizeof(aom_metadata_insert_flags_t)) {
+        aom_image_t img;
+        uint32_t type;
+        size_t sz;
+        aom_metadata_insert_flags_t insert_flag;
 
-    if (aom_codec_enc_config_default(iface, &cfg, 0)) {
-        return 0;  // Failed to get default config
+        memcpy(&img, Data, sizeof(aom_image_t));
+        memcpy(&type, Data + sizeof(aom_image_t), sizeof(uint32_t));
+        memcpy(&sz, Data + sizeof(aom_image_t) + sizeof(uint32_t), sizeof(size_t));
+        memcpy(&insert_flag, Data + sizeof(aom_image_t) + sizeof(uint32_t) + sizeof(size_t), sizeof(aom_metadata_insert_flags_t));
+
+        const uint8_t *metadata_data = Data + sizeof(aom_image_t) + sizeof(uint32_t) + sizeof(size_t) + sizeof(aom_metadata_insert_flags_t);
+
+        if (Size >= sizeof(aom_image_t) + sizeof(uint32_t) + sizeof(size_t) + sizeof(aom_metadata_insert_flags_t) + sz) {
+            img.metadata = nullptr; // Initialize metadata to avoid leaks
+            aom_img_add_metadata(&img, type, metadata_data, sz, insert_flag);
+            // Clean up metadata to prevent leaks
+            if (img.metadata != nullptr) {
+                aom_img_remove_metadata(&img);
+            }
+        }
     }
 
-    if (aom_codec_enc_init(&codec_ctx, iface, &cfg, 0)) {
-        return 0;  // Failed to initialize codec
+    // Fuzz aom_uleb_encode_fixed_size
+    if (Size >= sizeof(uint64_t) + 2 * sizeof(size_t)) {
+        uint64_t value;
+        size_t available, pad_to_size;
+        memcpy(&value, Data, sizeof(uint64_t));
+        memcpy(&available, Data + sizeof(uint64_t), sizeof(size_t));
+        memcpy(&pad_to_size, Data + sizeof(uint64_t) + sizeof(size_t), sizeof(size_t));
+
+        uint8_t coded_value[10];
+        size_t coded_size = 0;
+        aom_uleb_encode_fixed_size(value, available, pad_to_size, coded_value, &coded_size);
     }
 
-    try {
-        int enable_auto_alt_ref = Data[0] % 2;
-        aom_codec_control(&codec_ctx, AOME_SET_ENABLEAUTOALTREF, enable_auto_alt_ref);
+    // Fuzz aom_uleb_size_in_bytes
+    if (Size >= sizeof(uint64_t)) {
+        uint64_t value;
+        memcpy(&value, Data, sizeof(uint64_t));
 
-        aom_scaling_mode_t scaling_mode;
-        scaling_mode.h_scaling_mode = static_cast<AOM_SCALING_MODE>(Data[1] % 9);
-        aom_codec_control(&codec_ctx, AOME_SET_SCALEMODE, &scaling_mode);
-
-        int num_spatial_layers = Data[2] % 4;
-        aom_codec_control(&codec_ctx, AOME_SET_NUMBER_SPATIAL_LAYERS, num_spatial_layers);
-
-        int tuning = Data[3] % 3;
-        aom_codec_control(&codec_ctx, AOME_SET_TUNING, tuning);
-
-        int spatial_layer_id = Data[4] % 4;
-        aom_codec_control(&codec_ctx, AOME_SET_SPATIAL_LAYER_ID, spatial_layer_id);
-
-        int max_gf_interval = Data[5] % 100;
-        aom_codec_control(&codec_ctx, AV1E_SET_MAX_GF_INTERVAL, max_gf_interval);
-    } catch (const std::exception &e) {
-        // Handle any exceptions that might be thrown by the codec control functions
+        size_t size_in_bytes = aom_uleb_size_in_bytes(value);
     }
 
-    aom_codec_destroy(&codec_ctx);
+    // Fuzz aom_uleb_decode
+    if (Size >= 1) {
+        uint64_t value;
+        size_t length = 0;
+
+        aom_uleb_decode(Data, Size, &value, &length);
+    }
+
+    // Fuzz aom_img_num_metadata
+    if (Size >= sizeof(aom_image_t)) {
+        aom_image_t img;
+        memcpy(&img, Data, sizeof(aom_image_t));
+
+        // Ensure metadata is initialized to avoid dereferencing null pointers
+        img.metadata = nullptr;
+
+        size_t num_metadata = aom_img_num_metadata(&img);
+    }
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_26(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

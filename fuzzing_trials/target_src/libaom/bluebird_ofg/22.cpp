@@ -1,32 +1,35 @@
 #include <string.h>
 #include <sys/stat.h>
-#include <cstddef>
 #include <cstdint>
-#include "aom/aom_decoder.h"
-#include "aom/aomdx.h"
+#include <cstddef>
+#include <cstring>  // Include for memcpy
+
+extern "C" {
+    #include "/src/aom/aom/aom_codec.h"
+
+    const char * aom_codec_error(const aom_codec_ctx_t *);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    aom_codec_ctx_t codec;
-    aom_codec_err_t res;
-    aom_codec_iface_t *iface = aom_codec_av1_dx(); // Use AV1 decoder interface
-    void *user_priv = (void*)1; // Non-NULL user private data
-
-    // Initialize the codec context
-    res = aom_codec_dec_init(&codec, iface, NULL, 0);
-    if (res != AOM_CODEC_OK) {
-        return 0; // Initialization failed
+    // Initialize aom_codec_ctx_t structure
+    aom_codec_ctx_t codec_ctx;
+    
+    // Ensure codec_ctx is not NULL
+    if (size < sizeof(aom_codec_ctx_t)) {
+        return 0;
     }
 
+    // Copy data into codec_ctx to simulate different inputs
+    memcpy(&codec_ctx, data, sizeof(aom_codec_ctx_t));
+
     // Call the function-under-test
-    res = aom_codec_decode(&codec, data, size, user_priv);
+    const char *error_message = aom_codec_error(&codec_ctx);
 
-    // Destroy the codec context
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from aom_codec_decode to aom_codec_set_option
-    aom_codec_err_t ret_aom_codec_set_option_aqikk = aom_codec_set_option(NULL, (const char *)data, (const char *)user_priv);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    aom_codec_destroy(&codec);
+    // Use the error_message in some way to avoid compiler optimizations
+    if (error_message) {
+        volatile const char *msg = error_message;
+        (void)msg;
+    }
 
     return 0;
 }

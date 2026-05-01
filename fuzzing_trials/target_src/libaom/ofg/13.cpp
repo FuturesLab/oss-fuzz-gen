@@ -1,33 +1,66 @@
 #include <cstdint>
 #include <cstdlib>
+#include <cstring>
 #include <aom/aom_image.h>
 
-extern "C" int aom_img_plane_width(const aom_image_t *, int);
+extern "C" {
+    aom_metadata_t * aom_img_metadata_alloc(uint32_t type, const uint8_t *data, size_t data_size, aom_metadata_insert_flags_t flags);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient for creating a valid aom_image_t structure
-    if (size < sizeof(aom_image_t)) {
-        return 0;
-    }
-
-    // Initialize aom_image_t structure
-    aom_image_t img;
-    img.fmt = AOM_IMG_FMT_I420;  // Set a valid image format
-    img.d_w = 640;               // Set a width
-    img.d_h = 480;               // Set a height
-    img.stride[0] = 640;         // Set a stride for the Y plane
-    img.stride[1] = 320;         // Set a stride for the U plane
-    img.stride[2] = 320;         // Set a stride for the V plane
-
-    // Use the first byte of data as the plane index
-    int plane_index = data[0] % 3; // Ensure the plane index is within valid range
+    // Define and initialize the parameters for aom_img_metadata_alloc
+    uint32_t type = 1; // Example type, can be varied
+    const uint8_t *metadata_data = data; // Use the input data as metadata
+    size_t data_size = size; // Size of the input data
+    aom_metadata_insert_flags_t flags = static_cast<aom_metadata_insert_flags_t>(0); // Example flag, can be varied
 
     // Call the function-under-test
-    int width = aom_img_plane_width(&img, plane_index);
+    aom_metadata_t *metadata = aom_img_metadata_alloc(type, metadata_data, data_size, flags);
 
-    // Use the result in some way (e.g., print, log, or further processing)
-    // Here, we simply return 0 as the function's result doesn't affect fuzzing
-    (void)width; // Suppress unused variable warning
+    // Clean up if necessary
+    if (metadata != nullptr) {
+        // Assuming there's a function to free the allocated metadata
+        // aom_img_metadata_free(metadata);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_13(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
