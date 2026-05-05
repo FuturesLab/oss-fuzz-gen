@@ -1,65 +1,89 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Initialize variables for tjDecompressToYUV2
+    // Initialize variables for tj3Decompress16 function call
     tjhandle handle = tjInitDecompress();
     if (handle == nullptr) {
-        return 0;
+        return 0; // If initialization fails, return early
     }
 
-    const unsigned char *jpegBuf = data;
-    unsigned long jpegSize = (unsigned long)size;
+    // Assuming a reasonable maximum width and height for the decompression
+    int width = 256;
+    int height = 256;
+    int pixelFormat = TJPF_RGB; // Use a common pixel format
 
-    // Allocate memory for the YUV buffer
-    int width = 640;  // Example width
-    int height = 480; // Example height
-    int subsamp = TJSAMP_420; // Example subsampling
-    int flags = 0; // No flags
-
-    unsigned char *yuvBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, 4, height, subsamp));
-    if (yuvBuf == nullptr) {
+    // Allocate memory for the decompressed image buffer
+    uint16_t *destBuffer = (uint16_t *)malloc(width * height * tjPixelSize[pixelFormat]);
+    if (destBuffer == nullptr) {
         tjDestroy(handle);
-        return 0;
+        return 0; // If memory allocation fails, return early
     }
 
-    // Call the function-under-test
-    tjDecompressToYUV2(handle, jpegBuf, jpegSize, yuvBuf, width, 4, height, flags);
-
-    // Cleanup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjDecompressToYUV2 to tj3DecompressToYUVPlanes8
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tj3Init
-    tjhandle ret_tj3Init_qmago = tj3Init(TJXOPT_ARITHMETIC);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    unsigned char* ret_tjAlloc_gpltq = tjAlloc(TJFLAG_FASTDCT);
-    if (ret_tjAlloc_gpltq == NULL){
-    	return 0;
-    }
-    int hguubqjt = size;
-    tjscalingfactor* ret_tj3GetScalingFactors_rsshh = tj3GetScalingFactors(&hguubqjt);
-    if (ret_tj3GetScalingFactors_rsshh == NULL){
-    	return 0;
+    // Ensure the input data is not empty and has a minimal size to be processed
+    if (size > 0) {
+        // Call the function-under-test
+        int pitch = width * tjPixelSize[pixelFormat];
+        int result = tj3Decompress16(handle, data, size, destBuffer, pitch, pixelFormat);
+        if (result != 0) {
+            // Handle decompression error
+            tjDestroy(handle);
+            free(destBuffer);
+            return 0;
+        }
     }
 
-    int ret_tj3DecompressToYUVPlanes8_gexau = tj3DecompressToYUVPlanes8(ret_tj3Init_qmago, yuvBuf, TJ_NUMINIT, &ret_tjAlloc_gpltq, &hguubqjt);
-    if (ret_tj3DecompressToYUVPlanes8_gexau < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(yuvBuf);
+    // Clean up resources
+    free(destBuffer);
     tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

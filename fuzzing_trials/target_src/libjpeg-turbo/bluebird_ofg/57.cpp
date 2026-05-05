@@ -1,48 +1,94 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
-    if (size < 1) {
-        return 0;
-    }  // Ensure that size is sufficient for processing
-
-    // Initialize TurboJPEG handle
-    tjhandle handle = tjInitTransform();
-    if (!handle) {
+    // Initialize variables for tjDecompressToYUV2
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
         return 0;
     }
 
-    // Prepare output buffer
-    unsigned char *dstBuf = nullptr;
-    unsigned long dstSize = 0;
+    unsigned char *jpegBuf = const_cast<unsigned char *>(data);
+    unsigned long jpegSize = static_cast<unsigned long>(size);
 
-    // Prepare transformation structure
-    tjtransform transform;
-    std::memset(&transform, 0, sizeof(tjtransform));  // Initialize all fields to zero
+    // Assuming some default width, height, and subsampling for the YUV image
+    int width = 128;  // Default width
+    int height = 128; // Default height
+    int subsamp = TJSAMP_420; // Default subsampling
+    int flags = 0; // Default flags
+    int align = 1; // Default alignment
 
-    // Define options for transformation
-    int options = 0;  // No specific options, can vary this if needed
+    // Calculate the buffer size needed for the YUV image
+    int yuvSize = tjBufSizeYUV2(width, align, height, subsamp);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjBufSizeYUV2 to tj3Set
+    tjhandle ret_tj3Init_nhpdn = tj3Init(TJXOPT_PERFECT);
+    int ret_tj3Set_rhvpd = tj3Set(ret_tj3Init_nhpdn, TJ_NUMSAMP, (int )yuvSize);
+    if (ret_tj3Set_rhvpd < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    unsigned char *yuvBuf = static_cast<unsigned char *>(malloc(yuvSize));
+    if (yuvBuf == nullptr) {
+        tjDestroy(handle);
+        return 0;
+    }
 
     // Call the function-under-test
-    int result = tjTransform(handle, data, (unsigned long)size, 1, &dstBuf, &dstSize, &transform, options);
+    tjDecompressToYUV2(handle, jpegBuf, jpegSize, yuvBuf, width, align, height, flags);
 
     // Clean up
-    if (dstBuf) {
-        tjFree(dstBuf);
-    }
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjDestroy with tj3GetErrorCode
-    tj3GetErrorCode(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    free(yuvBuf);
+    tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_57(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

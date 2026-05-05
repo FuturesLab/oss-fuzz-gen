@@ -1,68 +1,93 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" {
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitTransform();
-    if (!handle) {
-        return 0;
+    if (size < sizeof(int)) {
+        return 0; // Ensure there is enough data to extract an integer
     }
 
-    unsigned char *jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
-    tjtransform transform;
-    transform.op = TJXOP_NONE; // No transform operation
-    transform.options = 0;
-    transform.r = {0, 0, 0, 0}; // No cropping
-    transform.customFilter = nullptr;
-
-    int flags = 0; // No flags
-
-    // Allocate memory for the destination buffer
-    unsigned char *dstBuf = nullptr;
-    unsigned long dstSize = 0;
+    // Extract an integer from the data
+    int initOption = *(reinterpret_cast<const int*>(data));
 
     // Call the function-under-test
+    tjhandle handle = tj3Init(initOption);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of tjTransform
-    int result = tjTransform(handle, data, (unsigned long)size, 1, &dstBuf, &dstSize, &transform, TJFLAG_PROGRESSIVE);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Clean up
-    if (dstBuf) {
-        tjFree(dstBuf);
+    // Clean up if initialization was successful
+    if (handle != nullptr) {
+        tj3Destroy(handle);
     }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjTransform to tj3Decompress8
-    tjhandle ret_tj3Init_cycpy = tj3Init(TJ_ALPHAFIRST);
-    unsigned char* ret_tjAlloc_isirt = tjAlloc(TJXOPT_NOOUTPUT);
-    if (ret_tjAlloc_isirt == NULL){
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Init to tjDecodeYUVPlanes
+    void* ret_tj3Alloc_zlqoh = tj3Alloc(TJFLAG_FORCESSE);
+    if (ret_tj3Alloc_zlqoh == NULL){
     	return 0;
     }
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tj3Decompress8 with tj3Decompress16
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of tj3Decompress16
-    int ret_tj3Decompress8_cwjxf = tj3Decompress16(ret_tj3Init_cycpy, (const unsigned char *)"w", 0, NULL, TJFLAG_PROGRESSIVE, (int)dstSize);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_tj3Decompress8_cwjxf < 0){
+    void* ret_tj3Alloc_yimxn = tj3Alloc(TJXOPT_PERFECT);
+    if (ret_tj3Alloc_yimxn == NULL){
     	return 0;
     }
-
+    const int reqtqtqr = 0;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_tj3Alloc_zlqoh) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_tj3Alloc_yimxn) {
+    	return 0;
+    }
+    int ret_tjDecodeYUVPlanes_zsack = tjDecodeYUVPlanes(handle, (const unsigned char **)&ret_tj3Alloc_zlqoh, &reqtqtqr, TJFLAG_BOTTOMUP, (unsigned char *)ret_tj3Alloc_yimxn, TJFLAG_ACCURATEDCT, TJFLAG_LIMITSCANS, TJ_NUMPF, TJXOPT_OPTIMIZE, TJ_NUMCS);
+    if (ret_tjDecodeYUVPlanes_zsack < 0){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
-
-    tjDestroy(handle);
-
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_40(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

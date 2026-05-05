@@ -1,51 +1,61 @@
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
+#include <cstdio>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    // Initialize tjhandle
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0;
+    // Call the function-under-test
+    char *errorStr = tjGetErrorStr();
+
+    // Print the error string to verify the function call
+    // This is just for debugging purposes and can be removed in production fuzzing
+    if (errorStr != nullptr) {
+        printf("Error String: %s\n", errorStr);
     }
-
-    // Allocate memory for the YUV buffer
-    // Assuming a maximum image size for fuzzing purposes
-    const int maxWidth = 4096;
-    const int maxHeight = 4096;
-    const int numChannels = 3; // YUV has 3 channels
-    unsigned char *yuvBuffer = (unsigned char *)malloc(maxWidth * maxHeight * numChannels);
-    if (yuvBuffer == nullptr) {
-        tjDestroy(handle);
-        return 0;
-    }
-
-    // Set a width and height for the YUV image
-    int width = 128; // Example width
-    int height = 128; // Example height
-
-    // Ensure data is not null and has a minimum size
-    if (data == nullptr || size < 2) {
-        free(yuvBuffer);
-        tjDestroy(handle);
-        return 0;
-    }
-
-    // Call the function-under-test with valid parameters
-    int jpegSubsamp, jpegColorspace;
-    unsigned char *nonConstData = const_cast<unsigned char *>(data);
-    if (tjDecompressHeader2(handle, nonConstData, size, &width, &height, &jpegSubsamp) == 0) {
-        tj3DecompressToYUV8(handle, nonConstData, size, yuvBuffer, 0);
-    }
-
-    // Clean up
-    free(yuvBuffer);
-    tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,65 +1,92 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_54(const uint8_t *data, size_t size) {
-    if (size < 12) { // Ensure there's enough data for YUV planes
-        return 0;
-    }
+    // Ensure the size is sufficient for the parameters
+    if (size < 16) return 0;
 
-    // Initialize TurboJPEG handle
-    tjhandle handle = tj3Init(TJINIT_COMPRESS);
-    if (handle == nullptr) {
-        return 0;
-    }
+    // Initialize tjhandle
+    tjhandle handle = tjInitCompress();
+    if (!handle) return 0;
 
-    // Prepare YUV planes
-    const int width = 8;  // Increased width for more meaningful testing
-    const int height = 8; // Increased height for more meaningful testing
-    const int numPlanes = 3; // Y, U, V planes
-    const int planeSizes[] = {width * height, width * height / 4, width * height / 4};
-    
-    const unsigned char *yuvPlanes[numPlanes];
-    unsigned char *allocatedPlanes[numPlanes];
+    // Extract parameters from data
+    const unsigned char *srcBuf = data;
+    int width = (int)data[0] + 1;  // Avoid zero width
+    int height = (int)data[1] + 1; // Avoid zero height
+    int pitch = width * 3; // Assuming 3 bytes per pixel (RGB)
+    int subsamp = TJSAMP_444; // Use a valid subsampling option
 
-    // Declare all variables before using goto
-    unsigned char *jpegBuf = nullptr;
-    size_t jpegSize = 0;
-
-    // Allocate memory for each plane
-    size_t offset = 0;
-    for (int i = 0; i < numPlanes; i++) {
-        allocatedPlanes[i] = (unsigned char *)malloc(planeSizes[i]);
-        if (allocatedPlanes[i] == nullptr) {
+    // Allocate YUV planes
+    unsigned char *yuvPlanes[3];
+    int yuvStrides[3];
+    int planeSize = tjBufSizeYUV2(width, 1, height, subsamp);
+    for (int i = 0; i < 3; i++) {
+        yuvPlanes[i] = (unsigned char *)malloc(planeSize);
+        if (!yuvPlanes[i]) {
             for (int j = 0; j < i; j++) {
-                free(allocatedPlanes[j]);
+                free(yuvPlanes[j]);
             }
-            tj3Destroy(handle);
+            tjDestroy(handle);
             return 0;
         }
-        // Fill the plane with data from the input
-        size_t copySize = planeSizes[i] < (size - offset) ? planeSizes[i] : (size - offset);
-        memcpy(allocatedPlanes[i], data + offset, copySize);
-        offset += copySize;
-        yuvPlanes[i] = allocatedPlanes[i];
+        yuvStrides[i] = width;
+        memset(yuvPlanes[i], 0, planeSize); // Initialize allocated memory
     }
 
     // Call the function-under-test
-    if (tj3CompressFromYUVPlanes8(handle, yuvPlanes, width, planeSizes, height, &jpegBuf, &jpegSize) == 0 && jpegBuf != nullptr) {
-        // Successfully compressed
-        tj3Free(jpegBuf);
-    }
+    tj3EncodeYUVPlanes8(handle, srcBuf, width, pitch, height, subsamp, yuvPlanes, yuvStrides);
 
     // Clean up
-    for (int i = 0; i < numPlanes; i++) {
-        free(allocatedPlanes[i]);
+    for (int i = 0; i < 3; i++) {
+        free(yuvPlanes[i]);
     }
-    tj3Destroy(handle);
+    tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_54(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

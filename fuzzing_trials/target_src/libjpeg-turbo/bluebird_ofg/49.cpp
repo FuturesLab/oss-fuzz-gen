@@ -1,78 +1,77 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include "unistd.h"
-#include <fcntl.h>
-#include <sys/types.h>
+#include <string.h>
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 extern "C" {
     #include "../src/turbojpeg.h"
+    // If the above path does not exist, try the following paths in order:
+    // #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    // #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // Failed to create temp file
+    if (size < 10) {
+        return 0; // Not enough data to be a valid JPEG
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        return 0; // Failed to write data
-    }
-    close(fd);
-
-    // Initialize the parameters for tjLoadImage
-    int width = 0;
-    int height = 0;
-    int subsamp = 0;
-    int colorspace = 0;
-    int flags = 0;
-
-    // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of tjLoadImage
-    int pxakmwbd = size;
-    unsigned char *image = tjLoadImage(tmpl, &width, 1, &height, &pxakmwbd, flags);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Clean up
-    if (image != NULL) {
-        tjFree(image);
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
+        return 0; // Failed to initialize TurboJPEG
     }
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjFree to tjEncodeYUV
-        unsigned char* ret_tjAlloc_vwypc = tjAlloc(width);
-        if (ret_tjAlloc_vwypc == NULL){
-        	return 0;
+    int width, height, jpegSubsamp, jpegColorspace;
+    if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
+        unsigned char* buffer = (unsigned char*)malloc(width * height * tjPixelSize[TJPF_RGB]);
+        if (buffer != nullptr) {
+            if (tjDecompress2(handle, data, size, buffer, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT) == 0) {
+                // Successfully decompressed the image
+            }
+            free(buffer);
         }
-        int rshqxqki = 0;
+    }
 
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tj3GetScalingFactors
-        int kdivpcco = -1;
-        tjscalingfactor* ret_tj3GetScalingFactors_abiah = tj3GetScalingFactors(&kdivpcco);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        if (ret_tj3GetScalingFactors_abiah == NULL){
-        	return 0;
-        }
-
-        int ret_tjEncodeYUV_xbcmo = tjEncodeYUV(0, ret_tjAlloc_vwypc, TJ_BGR, size, rshqxqki, TJ_NUMPF, image, TJ_NUMPF, TJ_NUMXOP);
-        if (ret_tjEncodeYUV_xbcmo < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-    unlink(tmpl); // Remove the temporary file
-
+    tjDestroy(handle);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_49(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

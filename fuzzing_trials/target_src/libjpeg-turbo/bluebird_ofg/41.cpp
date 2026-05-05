@@ -1,74 +1,110 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    // Initialize variables for tjDecompressToYUV2
-    tjhandle handle = tjInitDecompress();
+    if (size < 1) {
+        return 0;
+    }
+
+    // Initialize TurboJPEG handle
+    tjhandle handle = tjInitTransform();
     if (handle == nullptr) {
         return 0;
     }
 
-    const unsigned char *jpegBuf = data;
-    unsigned long jpegSize = (unsigned long)size;
+    // Allocate memory for the destination buffer
+    unsigned char *dstBuf = nullptr;
+    unsigned long dstSize = 0;
 
-    // Allocate memory for the YUV buffer
-    int width = 640;  // Example width
-    int height = 480; // Example height
-    int subsamp = TJSAMP_420; // Example subsampling
-    int flags = 0; // No flags
+    // Initialize transformation parameters
+    tjtransform transform;
+    memset(&transform, 0, sizeof(tjtransform)); // Zero out the structure
 
-    unsigned char *yuvBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, 4, height, subsamp));
-    if (yuvBuf == nullptr) {
-        tjDestroy(handle);
-        return 0;
-    }
+    // Set some transformation options for fuzzing
+    transform.op = TJXOP_NONE;  // No transformation
+    transform.options = 0;      // No options
 
     // Call the function-under-test
-    tjDecompressToYUV2(handle, jpegBuf, jpegSize, yuvBuf, width, 4, height, flags);
+    int result = tjTransform(handle, data, (unsigned long)size, 1, &dstBuf, &dstSize, &transform, 0);
 
-    // Cleanup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjDecompressToYUV2 to tj3DecompressToYUVPlanes8
-    tjhandle ret_tj3Init_qmago = tj3Init(TJFLAG_NOREALLOC);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Init to tj3DecompressHeader
-    unsigned char* ret_tjAlloc_hyiwc = tjAlloc(TJ_NUMINIT);
-    if (ret_tjAlloc_hyiwc == NULL){
-    	return 0;
+    // Clean up
+    if (dstBuf != nullptr) {
+        tjFree(dstBuf);
     }
 
-    int ret_tj3DecompressHeader_aixia = tj3DecompressHeader(ret_tj3Init_qmago, ret_tjAlloc_hyiwc, TJXOPT_PERFECT);
-    if (ret_tj3DecompressHeader_aixia < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjTransform to tjCompressFromYUV
+    tjhandle ret_tj3Init_mzjqm = tj3Init(TJFLAG_FORCESSE);
+    char* ret_tj3GetErrorStr_jhwld = tj3GetErrorStr(handle);
+    if (ret_tj3GetErrorStr_jhwld == NULL){
     	return 0;
     }
-
+    void* ret_tj3Alloc_dwgek = tj3Alloc(TJFLAG_NOREALLOC);
+    if (ret_tj3Alloc_dwgek == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_tj3GetErrorStr_jhwld) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_tj3Alloc_dwgek) {
+    	return 0;
+    }
+    int ret_tjCompressFromYUV_fpuhb = tjCompressFromYUV(ret_tj3Init_mzjqm, (const unsigned char *)ret_tj3GetErrorStr_jhwld, (int )dstSize, (int )dstSize, (int )dstSize, (int )dstSize, (unsigned char **)&ret_tj3Alloc_dwgek, &dstSize, (int )dstSize, (int )dstSize);
+    if (ret_tjCompressFromYUV_fpuhb < 0){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
-
-    unsigned char* ret_tjAlloc_gpltq = tjAlloc(TJFLAG_FASTDCT);
-    if (ret_tjAlloc_gpltq == NULL){
-    	return 0;
-    }
-    int hguubqjt = size;
-    tjscalingfactor* ret_tj3GetScalingFactors_rsshh = tj3GetScalingFactors(&hguubqjt);
-    if (ret_tj3GetScalingFactors_rsshh == NULL){
-    	return 0;
-    }
-
-    int ret_tj3DecompressToYUVPlanes8_gexau = tj3DecompressToYUVPlanes8(ret_tj3Init_qmago, yuvBuf, TJ_NUMINIT, &ret_tjAlloc_gpltq, &hguubqjt);
-    if (ret_tj3DecompressToYUVPlanes8_gexau < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(yuvBuf);
+    
     tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_41(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

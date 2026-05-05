@@ -1,74 +1,86 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitTransform();
-    if (!handle) {
+    // Initialize variables
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
         return 0;
     }
 
-    unsigned char *jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
-    tjtransform transform;
-    transform.op = TJXOP_NONE; // No transform operation
-    transform.options = 0;
-    transform.r = {0, 0, 0, 0}; // No cropping
-    transform.customFilter = nullptr;
+    unsigned char *jpegBuf = const_cast<unsigned char*>(data);
+    unsigned long jpegSize = static_cast<unsigned long>(size);
 
-    int flags = 0; // No flags
+    // Set arbitrary values for width, height, and pixel format
+    int width = 100;  // Must be a positive integer
+    int height = 100; // Must be a positive integer
+    int pixelFormat = TJPF_RGB; // Using RGB pixel format
 
-    // Allocate memory for the destination buffer
-    unsigned char *dstBuf = nullptr;
-    unsigned long dstSize = 0;
+    // Calculate buffer size for decompressed image
+    int pitch = 0; // 0 means the library will calculate the pitch
+    int flags = 0; // No flags set
+
+    // Allocate buffer for decompressed image
+    unsigned char *dstBuf = (unsigned char *)malloc(tjBufSize(width, height, pixelFormat));
+    if (dstBuf == nullptr) {
+        tjDestroy(handle);
+        return 0;
+    }
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of tjTransform
-    int result = tjTransform(handle, data, (unsigned long)size, 1, &dstBuf, &dstSize, &transform, TJFLAG_PROGRESSIVE);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    int result = tjDecompress(handle, jpegBuf, jpegSize, dstBuf, width, pitch, height, pixelFormat, flags);
 
     // Clean up
-    if (dstBuf) {
-        tjFree(dstBuf);
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjTransform to tj3Decompress8
-    tjhandle ret_tj3Init_cycpy = tj3Init(TJ_ALPHAFIRST);
-    unsigned char* ret_tjAlloc_isirt = tjAlloc(TJXOPT_NOOUTPUT);
-    if (ret_tjAlloc_isirt == NULL){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjAlloc to tj3Compress12
-    tjhandle ret_tjInitCompress_njvgd = tjInitCompress();
-    int acxrmyre = 0;
-    tjscalingfactor* ret_tjGetScalingFactors_uscgs = tjGetScalingFactors(&acxrmyre);
-    if (ret_tjGetScalingFactors_uscgs == NULL){
-    	return 0;
-    }
-
-    int ret_tj3Compress12_meiib = tj3Compress12(ret_tjInitCompress_njvgd, NULL, TJFLAG_LIMITSCANS, TJXOPT_OPTIMIZE, acxrmyre, TJ_NUMPF, &ret_tjAlloc_isirt, (size_t *)&dstSize);
-    if (ret_tj3Compress12_meiib < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    int ret_tj3Decompress8_cwjxf = tj3Decompress8(ret_tj3Init_cycpy, ret_tjAlloc_isirt, 0, NULL, TJFLAG_PROGRESSIVE, (int )dstSize);
-    if (ret_tj3Decompress8_cwjxf < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    free(dstBuf);
     tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_28(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

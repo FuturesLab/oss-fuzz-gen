@@ -1,45 +1,63 @@
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <cstdint>  // Include for uint8_t
-#include <unistd.h> // Include for close()
+#include <cstdint> // Include for uint8_t
+#include <cstddef> // Include for size_t
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_97(const uint8_t *data, size_t size) {
-    // Create a temporary file to store the image data
-    char tmpl[] = "/tmp/fuzzimageXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-
-    // Write the fuzz data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (file == nullptr) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Initialize variables for the function call
-    int width = 0;
-    int height = 0;
-    int pixelFormat = TJPF_RGB; // Use a valid pixel format
-    int flags = 0; // No flags
+    // Declare and initialize parameters for tjBufSize
+    int width = 1;  // Minimum valid width
+    int height = 1; // Minimum valid height
+    int jpegSubsamp = TJSAMP_444; // A valid subsampling option
 
     // Call the function-under-test
-    unsigned char *imageBuffer = tjLoadImage(tmpl, &width, 1, &height, &pixelFormat, flags);
+    unsigned long bufferSize = tjBufSize(width, height, jpegSubsamp);
 
-    // Clean up
-    if (imageBuffer != nullptr) {
-        tjFree(imageBuffer);
-    }
-    remove(tmpl);
+    // Use the bufferSize in some way to avoid compiler optimizations removing the call
+    // For fuzzing purposes, it's enough to call the function, so we can just return 0
+    (void)bufferSize; // Suppress unused variable warning
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_97(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

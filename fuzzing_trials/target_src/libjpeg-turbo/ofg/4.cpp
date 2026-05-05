@@ -1,32 +1,79 @@
 #include <stddef.h>
 #include <stdint.h>
+#include <cstdlib>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-
-    // Including the function signature from the library
-    size_t tj3JPEGBufSize(int width, int height, int jpegSubsamp);
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    // Ensure the input data is large enough to extract three integers
-    if (size < 3 * sizeof(int)) {
-        return 0;
+    if (size == 0) {
+        return 0; // Return early if size is zero to avoid unnecessary processing
     }
 
-    // Extract three integers from the input data
-    int width = *((int*)data);
-    int height = *((int*)(data + sizeof(int)));
-    int jpegSubsamp = *((int*)(data + 2 * sizeof(int)));
+    tjhandle handle = tj3Init(TJINIT_COMPRESS); // Initialize a TurboJPEG handle for compression
+    if (!handle) {
+        return 0; // If initialization fails, exit
+    }
 
-    // Call the function-under-test with the extracted integers
-    size_t result = tj3JPEGBufSize(width, height, jpegSubsamp);
+    unsigned char *iccProfile = new unsigned char[size];
+    if (!iccProfile) {
+        tj3Destroy(handle);
+        return 0; // If memory allocation fails, exit
+    }
 
-    // Use the result in some way (e.g., print it, or just return 0)
-    // For fuzzing, we typically don't need to do anything with the result
-    (void)result; // Suppress unused variable warning
+    // Copy the input data to the ICC profile buffer
+    for (size_t i = 0; i < size; ++i) {
+        iccProfile[i] = data[i];
+    }
 
+    // Call the function-under-test
+    int result = tj3SetICCProfile(handle, iccProfile, size);
+
+    // Clean up
+    delete[] iccProfile;
+    tj3Destroy(handle);
+
+    return result;
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

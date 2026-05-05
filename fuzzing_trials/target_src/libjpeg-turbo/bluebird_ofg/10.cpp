@@ -1,53 +1,106 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitTransform();
-    if (!handle) {
-        return 0;
+    if (size < 6) {
+        return 0; // Ensure there's enough data for width, height, subsampling, and at least some image data
     }
 
-    unsigned char *jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
-    tjtransform transform;
-    transform.op = TJXOP_NONE; // No transform operation
-    transform.options = 0;
-    transform.r = {0, 0, 0, 0}; // No cropping
-    transform.customFilter = nullptr;
+    // Initialize variables
+    tjhandle handle = tjInitCompress();
+    if (!handle) {
+        return 0; // Return if initialization fails
+    }
 
-    int flags = 0; // No flags
+    // Extract parameters from the input data
+    int width = data[0] + 1;  // Ensure width is at least 1
+    int height = data[1] + 1; // Ensure height is at least 1
+    int subsampling = data[2] % 3; // Choose a valid subsampling value (0, 1, or 2)
+    int padding = 4; // Typical padding for YUV planes
 
-    // Allocate memory for the destination buffer
-    unsigned char *dstBuf = nullptr;
-    unsigned long dstSize = 0;
+    // Calculate the minimum size needed for the image data
+    int minImageSize = width * height * 3; // Assuming 3 bytes per pixel for RGB
+    if (size < minImageSize + 3) {
+        tjDestroy(handle);
+        return 0; // Not enough data for the image
+    }
 
-    // Call the function-under-test
-    int result = tjTransform(handle, data, (unsigned long)size, 1, &dstBuf, &dstSize, &transform, flags);
+    // Allocate memory for YUV buffer
+    unsigned char *yuvBuffer = (unsigned char *)malloc(tjBufSizeYUV2(width, padding, height, subsampling));
+    if (!yuvBuffer) {
+        tjDestroy(handle);
+        return 0; // Memory allocation failed
+    }
+
+    // Fill the source buffer with data to ensure the function is tested with meaningful input
+    unsigned char *srcBuf = (unsigned char *)malloc(width * height * 3);
+    if (!srcBuf) {
+        free(yuvBuffer);
+        tjDestroy(handle);
+        return 0; // Memory allocation failed
+    }
+    memcpy(srcBuf, data + 3, width * height * 3);
+
+    // Call the function-under-test with valid parameters
+    int result = tjEncodeYUV3(handle, srcBuf, width, 0, height, TJPF_RGB, yuvBuffer, padding, subsampling, TJFLAG_ACCURATEDCT);
+
+    // Check for errors
+    if (result != 0) {
+        // Handle error (optional logging or debugging)
+    }
 
     // Clean up
-    if (dstBuf) {
-        tjFree(dstBuf);
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjTransform to tj3Decompress8
-    tjhandle ret_tj3Init_cycpy = tj3Init(TJ_ALPHAFIRST);
-    unsigned char* ret_tjAlloc_isirt = tjAlloc(TJXOPT_NOOUTPUT);
-    if (ret_tjAlloc_isirt == NULL){
-    	return 0;
-    }
-
-    int ret_tj3Decompress8_cwjxf = tj3Decompress8(ret_tj3Init_cycpy, ret_tjAlloc_isirt, 0, NULL, TJFLAG_PROGRESSIVE, (int )dstSize);
-    if (ret_tj3Decompress8_cwjxf < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    free(yuvBuffer);
+    free(srcBuf);
     tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

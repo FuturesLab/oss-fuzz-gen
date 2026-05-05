@@ -1,52 +1,71 @@
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_106(const uint8_t *data, size_t size) {
-    // Initialize variables
-    tjhandle handle = tj3Init(TJINIT_COMPRESS);
+    // Initialize TurboJPEG decompressor handle
+    tjhandle handle = tjInitDecompress();
     if (handle == nullptr) {
         return 0; // If initialization fails, exit early
     }
 
-    // Ensure the input data is large enough to set dimensions and pixel format
-    if (size < 6) { // At least 6 bytes to set width, height, and pixel format
-        tj3Destroy(handle);
+    // Ensure the data size is non-zero
+    if (size == 0) {
+        tjDestroy(handle);
         return 0;
     }
-
-    // Set image dimensions and pixel format from input data
-    int width = data[0] + (data[1] << 8);  // Use first two bytes for width
-    int height = data[2] + (data[3] << 8); // Use next two bytes for height
-    int pixelFormat = data[4] % TJ_NUMPF;  // Use fifth byte for pixel format, ensure it's valid
-    int pitch = width * tjPixelSize[pixelFormat];
-
-    // Ensure the input data is large enough to represent an image
-    if (size < 6 + width * height * tjPixelSize[pixelFormat]) {
-        tj3Destroy(handle);
-        return 0;
-    }
-
-    // Allocate memory for the output buffer
-    unsigned char *compressedBuffer = nullptr;
-    size_t compressedSize = 0;
 
     // Call the function-under-test
-    int result = tj3Compress8(handle, data + 6, width, pitch, height, pixelFormat, &compressedBuffer, &compressedSize);
+    int result = tj3DecompressHeader(handle, data, size);
 
-    // Free the allocated compressed buffer if it was allocated
-    if (compressedBuffer != nullptr) {
-        tj3Free(compressedBuffer);
-    }
-
-    // Clean up the TurboJPEG handle
-    tj3Destroy(handle);
+    // Clean up and destroy the TurboJPEG handle
+    tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_106(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

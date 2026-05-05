@@ -1,56 +1,111 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <unistd.h> // For close and remove
+#include <fcntl.h>  // For mkstemp
+#include <sys/types.h> // For ssize_t
+#include <sys/stat.h>  // For open
 
 extern "C" {
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
-    if (size < 10) {
-        return 0; // Ensure there is enough data for the input parameters
+    // Create a temporary file to write the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Initialize tjhandle
-    tjhandle handle = tjInitCompress();
-    if (handle == nullptr) {
-        return 0; // Failed to initialize, exit early
+    // Write the data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0;
     }
+    close(fd);
 
-    // Extract parameters from the data
-    int width = (int)data[0] + 1;  // Ensure width is at least 1
-    int height = (int)data[1] + 1; // Ensure height is at least 1
-    int pixelFormat = (int)data[2] % TJ_NUMPF;
-    int quality = (int)data[3] % 101; // Quality range 0-100
-    int flags = (int)data[4] % (TJFLAG_ACCURATEDCT + 1);
-
-    // Prepare input image buffer
-    int pixelSize = tjPixelSize[pixelFormat];
-    size_t imageSize = width * height * pixelSize;
-    if (size < imageSize + 10) {
-        tjDestroy(handle);
-        return 0; // Not enough data for the image, exit early
-    }
-    const unsigned char *srcBuf = data + 10;
-
-    // Prepare output buffer
-    unsigned char *jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
+    // Initialize variables for tjLoadImage parameters
+    int width = 0;
+    int height = 0;
+    int pixelFormat = TJPF_RGB; // Use a valid pixel format
+    int flags = 0; // No specific flags
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of tjCompress2
-    int result = tjCompress2(handle, srcBuf, width, 0, TJ_NUMXOP, pixelFormat, &jpegBuf, &jpegSize, TJSAMP_444, quality, flags);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    unsigned char *imageBuffer = tjLoadImage(tmpl, &width, 1, &height, &pixelFormat, flags);
 
     // Clean up
-    if (jpegBuf != nullptr) {
-        tjFree(jpegBuf);
+    if (imageBuffer != NULL) {
+        tjFree(imageBuffer);
     }
-    tjDestroy(handle);
+
+    // Remove the temporary file
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjLoadImage to tjDecodeYUV
+    tjhandle ret_tjInitCompress_wbvby = tjInitCompress();
+    char* ret_tjGetErrorStr_ygqkp = tjGetErrorStr();
+    if (ret_tjGetErrorStr_ygqkp == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!imageBuffer) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_tjGetErrorStr_ygqkp) {
+    	return 0;
+    }
+    int ret_tjDecodeYUV_tcxdz = tjDecodeYUV(ret_tjInitCompress_wbvby, imageBuffer, TJ_NUMERR, TJ_NUMINIT, (unsigned char *)ret_tjGetErrorStr_ygqkp, 1, TJFLAG_ACCURATEDCT, TJFLAG_FORCESSE, TJXOPT_PERFECT, -1);
+    if (ret_tjDecodeYUV_tcxdz < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_37(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,82 +1,92 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" {
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_55(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitTransform();
-    if (!handle) {
-        return 0;
+    if (size < sizeof(int)) {
+        return 0; // Ensure there is enough data to extract an integer
     }
 
-    unsigned char *jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
-    tjtransform transform;
-    transform.op = TJXOP_NONE; // No transform operation
-    transform.options = 0;
-    transform.r = {0, 0, 0, 0}; // No cropping
-    transform.customFilter = nullptr;
-
-    int flags = 0; // No flags
-
-    // Allocate memory for the destination buffer
-    unsigned char *dstBuf = nullptr;
-    unsigned long dstSize = 0;
+    // Extract an integer from the data
+    int initOption = *(reinterpret_cast<const int*>(data));
 
     // Call the function-under-test
+    tjhandle handle = tj3Init(initOption);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of tjTransform
-    int result = tjTransform(handle, data, (unsigned long)size, 1, &dstBuf, &dstSize, &transform, TJFLAG_PROGRESSIVE);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Clean up
-    if (dstBuf) {
-        tjFree(dstBuf);
+    // Clean up if initialization was successful
+    if (handle != nullptr) {
+        tj3Destroy(handle);
     }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjTransform to tj3Decompress8
-    tjhandle ret_tj3Init_cycpy = tj3Init(TJ_ALPHAFIRST);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Init to tjCompress
-    void* ret_tj3Alloc_ofhvb = tj3Alloc(TJFLAG_FASTDCT);
-    if (ret_tj3Alloc_ofhvb == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Init to tjEncodeYUV3
+    unsigned char* ret_tjAlloc_wwkpe = tjAlloc(TJFLAG_FORCESSE3);
+    if (ret_tjAlloc_wwkpe == NULL){
     	return 0;
     }
-    int ret_tjDestroy_lxtpf = tjDestroy(handle);
-    if (ret_tjDestroy_lxtpf < 0){
+    void* ret_tj3Alloc_cakdg = tj3Alloc(TJXOPT_PROGRESSIVE);
+    if (ret_tj3Alloc_cakdg == NULL){
     	return 0;
     }
-    int unzyhhak = 0;
-    tjscalingfactor* ret_tj3GetScalingFactors_yyggz = tj3GetScalingFactors(&unzyhhak);
-    if (ret_tj3GetScalingFactors_yyggz == NULL){
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_tjAlloc_wwkpe) {
     	return 0;
     }
-    unsigned long uhlfmdsp = -1;
-
-    int ret_tjCompress_dvhuu = tjCompress(ret_tj3Init_cycpy, (unsigned char *)ret_tj3Alloc_ofhvb, TJFLAG_PROGRESSIVE, ret_tjDestroy_lxtpf, unzyhhak, TJFLAG_FORCEMMX, (unsigned char *)data, &uhlfmdsp, TJFLAG_NOREALLOC, 64, TJ_YUV);
-    if (ret_tjCompress_dvhuu < 0){
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_tj3Alloc_cakdg) {
     	return 0;
     }
-
+    int ret_tjEncodeYUV3_lgkvo = tjEncodeYUV3(handle, ret_tjAlloc_wwkpe, TJFLAG_STOPONWARNING, TJFLAG_FORCEMMX, TJXOPT_PROGRESSIVE, TJFLAG_FORCEMMX, (unsigned char *)ret_tj3Alloc_cakdg, TJFLAG_ACCURATEDCT, TJXOPT_GRAY, TJFLAG_FORCESSE);
+    if (ret_tjEncodeYUV3_lgkvo < 0){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
-
-    unsigned char* ret_tjAlloc_isirt = tjAlloc(TJXOPT_NOOUTPUT);
-    if (ret_tjAlloc_isirt == NULL){
-    	return 0;
-    }
-
-    int ret_tj3Decompress8_cwjxf = tj3Decompress8(ret_tj3Init_cycpy, ret_tjAlloc_isirt, 0, NULL, TJFLAG_PROGRESSIVE, (int )dstSize);
-    if (ret_tj3Decompress8_cwjxf < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    tjDestroy(handle);
-
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_55(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

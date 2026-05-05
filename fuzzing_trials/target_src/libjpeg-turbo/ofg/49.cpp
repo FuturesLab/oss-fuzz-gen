@@ -1,82 +1,76 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <cstring> // Include for memcpy
-#include <cstdlib> // Include for malloc and free
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-
-    // Function-under-test
-    size_t tj3TransformBufSize(tjhandle handle, const tjtransform *transform);
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    // Initialize tjhandle and tjtransform
-    tjhandle handle = tjInitTransform();
+    tjhandle handle = tjInitDecompress();
     if (handle == NULL) {
         return 0;
     }
 
-    tjtransform transform;
-    transform.op = TJXOP_NONE;  // No transformation
-
-    // Use input data to set options and region of interest
-    if (size >= sizeof(int)) {
-        transform.options = *((int*)data); // Set options using input data
-        data += sizeof(int);
-        size -= sizeof(int);
-    } else {
-        transform.options = 0; // Default to no options if not enough data
+    // Ensure data size is non-zero for meaningful decompression
+    if (size == 0) {
+        tjDestroy(handle);
+        return 0;
     }
 
-    if (size >= sizeof(tjregion)) {
-        memcpy(&transform.r, data, sizeof(tjregion)); // Set region of interest using input data
-        data += sizeof(tjregion);
-        size -= sizeof(tjregion);
-    } else {
-        transform.r.x = 0;          // Default region of interest x-coordinate
-        transform.r.y = 0;          // Default region of interest y-coordinate
-        transform.r.w = 1;          // Default region of interest width
-        transform.r.h = 1;          // Default region of interest height
-    }
-    transform.customFilter = NULL; // No custom filter
+    // Allocate and initialize width, height, jpegSubsamp, and jpegColorspace
+    int width = 0;
+    int height = 0;
+    int jpegSubsamp = 0;
+    int jpegColorspace = 0;
 
-    // Ensure we have some data left to simulate a JPEG buffer
-    if (size > 0) {
-        // Simulate a JPEG buffer with the remaining data
-        unsigned char *jpegBuf = (unsigned char *)malloc(size);
-        if (jpegBuf == NULL) {
-            tjDestroy(handle);
-            return 0;
-        }
-        memcpy(jpegBuf, data, size);
-
-        // Call the function-under-test
-        size_t bufSize = tj3TransformBufSize(handle, &transform);
-        
-        // Use the buffer size to ensure the function is effectively tested
-        if (bufSize > 0) {
-            unsigned char *dstBuf = (unsigned char *)malloc(bufSize);
-            if (dstBuf != NULL) {
-                // Perform a transformation to ensure the function is utilized
-                unsigned char *dstBufs[1] = { dstBuf };
-                size_t dstSizes[1] = { bufSize };
-                tjtransform transforms[1] = { transform };
-
-                int result = tj3Transform(handle, jpegBuf, size, 1, dstBufs, dstSizes, transforms);
-                if (result == 0) {
-                    // Transformation succeeded
-                }
-                free(dstBuf);
-            }
-        }
-
-        // Free the simulated JPEG buffer
-        free(jpegBuf);
-    }
+    // Call the function-under-test
+    tjDecompressHeader3(handle, data, (unsigned long)size, &width, &height, &jpegSubsamp, &jpegColorspace);
 
     // Clean up
     tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_49(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

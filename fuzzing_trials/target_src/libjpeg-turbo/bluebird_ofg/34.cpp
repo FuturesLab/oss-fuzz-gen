@@ -1,68 +1,97 @@
+#include <string.h>
+#include <sys/stat.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <unistd.h> // For close() and unlink()
+
 extern "C" {
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
+
+    unsigned short * tj3LoadImage16(tjhandle handle, const char *filename, int *width, int align, int *height, int *pixelFormat);
+    void tjFree(unsigned char *buffer); // Corrected declaration for tjFree to match the actual function signature
 }
 
-#include <cstdint>
-#include <cstdlib>
-#include <cstring> // Include for memcpy
-
 extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    if (size < 10) {
+    // Create a temporary file to write the fuzzing data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
-    } // Ensure there is enough data for the test
+    }
 
-    // Initialize variables
+    // Write the data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
+
+    // Initialize TurboJPEG handle
     tjhandle handle = tjInitDecompress();
     if (handle == nullptr) {
+        unlink(tmpl);
         return 0;
     }
 
-    const unsigned char *yuvPlanes[3];
-    int strides[3];
-    unsigned char *dstBuf;
-    int width, height, subsamp, flags;
-
-    // Determine width and height based on input size
-    width = 8; // Minimal width
-    height = size / (3 * width); // Calculate height based on available data
-
-    if (height < 8) { // Ensure minimal height
-        tjDestroy(handle);
-        return 0;
-    }
-
-    // Set up YUV planes
-    yuvPlanes[0] = data;
-    yuvPlanes[1] = data + width * height;
-    yuvPlanes[2] = data + 2 * width * height;
-
-    // Set up strides
-    strides[0] = width;
-    strides[1] = width / 2;
-    strides[2] = width / 2;
-
-    // Set up other parameters
-    subsamp = TJSAMP_420; // Common subsampling
-    flags = 0; // No specific flags
-
-    // Allocate buffer for the destination
-    dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]);
-    if (dstBuf == nullptr) {
-        tjDestroy(handle);
-        return 0;
-    }
+    // Prepare variables for the function call
+    int width = 0;
+    int height = 0;
+    int pixelFormat = TJPF_RGB; // Using a valid pixel format
+    int align = 4; // Common alignment value
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 9 of tjDecodeYUVPlanes
-    tjDecodeYUVPlanes(handle, yuvPlanes, strides, subsamp, dstBuf, width, 0, height, TJPF_RGB, TJXOPT_PROGRESSIVE);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    unsigned short *image = tj3LoadImage16(handle, tmpl, &width, align, &height, &pixelFormat);
 
     // Clean up
-    free(dstBuf);
+    if (image != nullptr) {
+        tjFree(reinterpret_cast<unsigned char *>(image)); // Cast to match the function signature
+    }
     tjDestroy(handle);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_34(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
