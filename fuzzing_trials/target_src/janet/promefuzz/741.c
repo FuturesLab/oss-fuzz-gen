@@ -1,74 +1,112 @@
 // This fuzz driver is generated for library janet, aiming to fuzz the following functions:
-// janet_init at vm.c:1652:5 in janet.h
-// janet_checkint at janet.c:34521:5 in janet.h
-// janet_checkint16 at janet.c:34549:5 in janet.h
-// janet_tuple_begin at tuple.c:34:8 in janet.h
-// janet_checkint at janet.c:34521:5 in janet.h
-// janet_checkint16 at janet.c:34549:5 in janet.h
-// janet_checkint at janet.c:34521:5 in janet.h
-// janet_checkint16 at janet.c:34549:5 in janet.h
-// janet_compare at value.c:371:5 in janet.h
-// janet_checkint16 at janet.c:34549:5 in janet.h
-// janet_checkint at janet.c:34521:5 in janet.h
-// janet_hash at value.c:309:9 in janet.h
-// janet_deinit at vm.c:1732:6 in janet.h
+// janet_panics at janet.c:4435:6 in janet.h
+// janet_length at value.c:641:9 in janet.h
+// janet_scan_numeric at strtod.c:500:5 in janet.h
+// janet_getstring at janet.c:4516:1 in janet.h
+// janet_to_string at janet.c:28692:16 in janet.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include "janet.h"
 
-static Janet create_janet_from_data(const uint8_t *Data, size_t Size) {
-    Janet janet_value;
-    if (Size >= sizeof(double)) {
-        janet_value.number = *(double *)Data;
-    } else if (Size >= sizeof(int64_t)) {
-        janet_value.i64 = *(int64_t *)Data;
-    } else if (Size >= sizeof(uint64_t)) {
-        janet_value.u64 = *(uint64_t *)Data;
-    } else {
-        janet_value.pointer = NULL;
+static void fuzz_janet_panics(const uint8_t *Data, size_t Size) {
+    if (Size > 0) {
+        // Ensure the data is null-terminated for safe string operations
+        uint8_t *message = (uint8_t *)malloc(Size + 1);
+        if (!message) return;
+        memcpy(message, Data, Size);
+        message[Size] = '\0';
+        janet_panics((JanetString)message);
+        free(message);
     }
-    return janet_value;
 }
 
-static int is_valid_janet_type(Janet x) {
-    // Check if the Janet value is of a type that is safe to operate on
-    // For simplicity, assume numbers and non-null pointers are valid
-    return x.pointer != NULL || x.number != 0.0;
+static void fuzz_janet_length(const uint8_t *Data, size_t Size) {
+    if (Size >= sizeof(Janet)) {
+        Janet x;
+        memcpy(&x, Data, sizeof(Janet));
+        janet_length(x);
+    }
+}
+
+static void fuzz_janet_scan_numeric(const uint8_t *Data, size_t Size) {
+    if (Size > 0) {
+        Janet out;
+        janet_scan_numeric(Data, (int32_t)Size, &out);
+    }
+}
+
+static void fuzz_janet_string_head(const uint8_t *Data, size_t Size) {
+    if (Size >= sizeof(JanetStringHead)) {
+        JanetString s = (JanetString)Data;
+        janet_string_head(s);
+    }
+}
+
+static void fuzz_janet_getstring(const uint8_t *Data, size_t Size) {
+    if (Size >= sizeof(Janet) + sizeof(int32_t)) {
+        const Janet *argv = (const Janet *)Data;
+        int32_t n = *(int32_t *)(Data + sizeof(Janet));
+        janet_getstring(argv, n);
+    }
+}
+
+static void fuzz_janet_to_string(const uint8_t *Data, size_t Size) {
+    if (Size >= sizeof(Janet)) {
+        Janet x;
+        memcpy(&x, Data, sizeof(Janet));
+        janet_to_string(x);
+    }
 }
 
 int LLVMFuzzerTestOneInput_741(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    janet_init();
-
-    Janet janet_value1 = create_janet_from_data(Data, Size);
-    Janet janet_value2 = create_janet_from_data(Data + (Size / 2), Size / 2);
-
-    janet_checkint(janet_value1);
-    janet_checkint16(janet_value1);
-
-    int32_t length = (int32_t)(Data[0] % 128); // ensure non-negative length
-    Janet *tuple = janet_tuple_begin(length);
-
-    // Ensure both Janet values are valid and of compatible types before comparing
-    if (is_valid_janet_type(janet_value1) && is_valid_janet_type(janet_value2) &&
-        (janet_checkint(janet_value1) || janet_checkint16(janet_value1)) &&
-        (janet_checkint(janet_value2) || janet_checkint16(janet_value2))) {
-        janet_compare(janet_value1, janet_value2);
-    }
-
-    // Ensure the Janet value is valid for hashing
-    if (janet_checkint(janet_value1) || janet_checkint16(janet_value1)) {
-        janet_hash(janet_value1);
-    }
-
-    janet_deinit();
-
+    fuzz_janet_panics(Data, Size);
+    fuzz_janet_length(Data, Size);
+    fuzz_janet_scan_numeric(Data, Size);
+    fuzz_janet_string_head(Data, Size);
+    fuzz_janet_getstring(Data, Size);
+    fuzz_janet_to_string(Data, Size);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_741(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,54 +1,81 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
-#include "janet.h"
 
+// Define the JanetCFunction type as a placeholder
+typedef void (*JanetCFunction)(void);
+
+// Example JanetCFunction implementation
+void example_function(void) {
+    // This is a dummy function for demonstration purposes
+}
+
+// Function-under-test
+void janet_register(const char *name, JanetCFunction func);
+
+// Fuzzing harness
 int LLVMFuzzerTestOneInput_511(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
-
-    // Initialize the Janet environment
-    janet_init();
-
-    // Create a new environment table
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function janet_table with janet_table_weakk
-    env = janet_table_weakk(JANET_FILE_NOT_CLOSEABLE);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Allocate memory for the string and copy the data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_nanbox_from_pointer
-
-    Janet ret_janet_nanbox_from_pointer_osvtf = janet_nanbox_from_pointer((void *)env, JANET_PRETTY_ONELINE);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
+    // Ensure the data size is sufficient for a null-terminated string
+    if (size == 0) {
         return 0;
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
 
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
+    // Allocate memory for the name string and ensure null-termination
+    char *name = (char *)malloc(size + 1);
+    if (name == NULL) {
+        return 0;
+    }
+    memcpy(name, data, size);
+    name[size] = '\0';
+
+    // Use the example function as the JanetCFunction
+    JanetCFunction func = example_function;
 
     // Call the function-under-test
-    janet_dostring(env, str, source, &result);
+    janet_register(name, func);
 
-    // Clean up
-    free(str);
-    janet_deinit();
+    // Free the allocated memory
+    free(name);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_511(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

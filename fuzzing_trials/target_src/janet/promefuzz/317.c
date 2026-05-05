@@ -1,98 +1,129 @@
 // This fuzz driver is generated for library janet, aiming to fuzz the following functions:
+// janet_nanbox_from_double at janet.c:37710:7 in janet.h
+// janet_nanbox_from_double at janet.c:37710:7 in janet.h
+// janet_table_put at janet.c:33237:6 in janet.h
+// janet_cstring at string.c:88:16 in janet.h
+// janet_symbol at janet.c:32957:16 in janet.h
 // janet_init at vm.c:1652:5 in janet.h
-// janet_table_init at janet.c:33101:13 in janet.h
-// janet_table_init at janet.c:33101:13 in janet.h
-// janet_resolve_ext at janet.c:34439:14 in janet.h
-// janet_table_clone at janet.c:33287:13 in janet.h
-// janet_table_merge_table at janet.c:33313:6 in janet.h
-// janet_table_init_raw at janet.c:33106:13 in janet.h
-// janet_env_lookup at marsh.c:130:13 in janet.h
+// janet_nanbox_from_double at janet.c:37710:7 in janet.h
+// janet_resolve at janet.c:34444:18 in janet.h
+// janet_table_get_ex at janet.c:33200:7 in janet.h
+// janet_table_get at janet.c:33179:7 in janet.h
+// janet_table_rawget at janet.c:33212:7 in janet.h
+// janet_nanbox_from_pointer at janet.c:37686:7 in janet.h
+// janet_nanbox_from_double at janet.c:37710:7 in janet.h
+// janet_table_put at janet.c:33237:6 in janet.h
+// janet_deinit at vm.c:1732:6 in janet.h
+// janet_table at janet.c:33121:13 in janet.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
 #include "janet.h"
 
-static void initialize_janet_vm() {
-    static int initialized = 0;
-    if (!initialized) {
-        janet_init();
-        initialized = 1;
-    }
-}
-
-static JanetTable *initialize_table(int32_t capacity) {
-    JanetTable *table = (JanetTable *)malloc(sizeof(JanetTable));
+static JanetTable *create_dummy_table() {
+    JanetTable *table = janet_table(10);
     if (table) {
-        janet_table_init(table, capacity);
+        for (int i = 0; i < 5; i++) {
+            Janet key = janet_wrap_integer(i);
+            Janet value = janet_wrap_integer(i * 10);
+            janet_table_put(table, key, value);
+        }
     }
     return table;
 }
 
-static JanetSymbol generate_symbol(const uint8_t *Data, size_t Size) {
-    return (JanetSymbol)(Data[0] % 256); // Simplified symbol generation
-}
-
-static void fuzz_janet_table_init(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int32_t)) return;
-    int32_t capacity = *(int32_t *)Data;
-    JanetTable table;
-    janet_table_init(&table, capacity);
-}
-
-static void fuzz_janet_resolve_ext(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(JanetSymbol)) return;
-    JanetTable *table = initialize_table(10);
-    JanetSymbol sym = generate_symbol(Data, Size);
-    janet_resolve_ext(table, sym);
-    free(table);
-}
-
-static void fuzz_janet_table_clone(const uint8_t *Data, size_t Size) {
-    JanetTable *table = initialize_table(10);
-    if (table) {
-        JanetTable *cloned_table = janet_table_clone(table);
-        (void)cloned_table; // Use cloned_table if needed
-        free(table);
+static JanetSymbol create_dummy_symbol(const uint8_t *Data, size_t Size) {
+    if (Size == 0) {
+        return janet_cstring("default");
     }
-}
-
-static void fuzz_janet_table_merge_table(const uint8_t *Data, size_t Size) {
-    JanetTable *table1 = initialize_table(10);
-    JanetTable *table2 = initialize_table(5);
-    if (table1 && table2) {
-        janet_table_merge_table(table1, table2);
-        free(table1);
-        free(table2);
-    }
-}
-
-static void fuzz_janet_table_init_raw(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int32_t)) return;
-    int32_t capacity = *(int32_t *)Data;
-    JanetTable table;
-    janet_table_init_raw(&table, capacity);
-}
-
-static void fuzz_janet_env_lookup(const uint8_t *Data, size_t Size) {
-    JanetTable *env = initialize_table(10);
-    if (env) {
-        JanetTable *new_env = janet_env_lookup(env);
-        (void)new_env; // Use new_env if needed
-        free(env);
-    }
+    char buffer[256];
+    size_t copy_size = Size < 255 ? Size : 255;
+    memcpy(buffer, Data, copy_size);
+    buffer[copy_size] = '\0';
+    return janet_symbol(buffer, copy_size);
 }
 
 int LLVMFuzzerTestOneInput_317(const uint8_t *Data, size_t Size) {
-    initialize_janet_vm();
-    fuzz_janet_table_init(Data, Size);
-    fuzz_janet_resolve_ext(Data, Size);
-    fuzz_janet_table_clone(Data, Size);
-    fuzz_janet_table_merge_table(Data, Size);
-    fuzz_janet_table_init_raw(Data, Size);
-    fuzz_janet_env_lookup(Data, Size);
+    if (Size < 1) return 0;
+
+    // Initialize the Janet environment
+    janet_init();
+
+    JanetTable *env = create_dummy_table();
+    Janet result;
+    JanetTable *which = NULL;
+
+    // Create a valid symbol from input data
+    JanetSymbol sym = create_dummy_symbol(Data, Size);
+
+    // Create a valid key from input data
+    Janet key = janet_wrap_integer(Data[0]);
+
+    // Fuzz janet_resolve
+    janet_resolve(env, sym, &result);
+
+    // Fuzz janet_table_get_ex
+    janet_table_get_ex(env, key, &which);
+
+    // Fuzz janet_table_get
+    janet_table_get(env, key);
+
+    // Fuzz janet_table_rawget
+    janet_table_rawget(env, key);
+
+    // Fuzz janet_wrap_table
+    Janet wrapped_table = janet_wrap_table(env);
+
+    // Fuzz janet_table_put
+    if (Size > 1) {
+        Janet value = janet_wrap_integer(Data[1]);
+        janet_table_put(env, key, value);
+    }
+
+    // Cleanup the Janet environment
+    janet_deinit();
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_317(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

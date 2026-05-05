@@ -1,57 +1,93 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 #include "janet.h"
 
-int LLVMFuzzerTestOneInput_252(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
+// Function signature for the function-under-test
+void janet_var_sm(JanetTable *table, const char *key, Janet value, const char *doc, const char *source, int32_t flags);
 
-    // Initialize the Janet environment
+// Fuzzing harness
+int LLVMFuzzerTestOneInput_252(const uint8_t *data, size_t size) {
+    // Initialize Janet
     janet_init();
 
-    // Create a new environment table
+    // Create a JanetTable
+    JanetTable *table = janet_table(10);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function janet_table with janet_table_weakv
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table_weakv
-    env = janet_table_weakv(JANET_EV_TCTAG_ERR_KEYWORD);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Allocate memory for the string and copy the data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_core_env
-
-    JanetTable* ret_janet_core_env_ytvcl = janet_core_env(env);
-    if (ret_janet_core_env_ytvcl == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
+    // Ensure we have enough data for the strings and integer
+    if (size < 4) { // Adjusted to ensure we have enough space for null-terminators
+        janet_deinit();
         return 0;
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
 
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
+    // Allocate buffers for strings and ensure they are null-terminated
+    char key[256] = {0}; // Buffer for key
+    char doc[256] = {0}; // Buffer for doc
+    char source[256] = {0}; // Buffer for source
+
+    // Copy data into buffers and ensure null-termination
+    size_t key_len = size > 255 ? 255 : size;
+    memcpy(key, data, key_len);
+    key[key_len] = '\0';
+
+    size_t doc_len = size > 254 ? 254 : size - 1;
+    memcpy(doc, data + 1, doc_len);
+    doc[doc_len] = '\0';
+
+    size_t source_len = size > 253 ? 253 : size - 2;
+    memcpy(source, data + 2, source_len);
+    source[source_len] = '\0';
+
+    int32_t flags = (int32_t)data[3];
+
+    // Create a Janet value (for simplicity, we'll use a number)
+    Janet value = janet_wrap_integer((int32_t)size);
 
     // Call the function-under-test
-    janet_dostring(env, str, source, &result);
+    janet_var_sm(table, key, value, doc, source, flags);
 
-    // Clean up
-    free(str);
+    // Clean up Janet
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_252(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,137 +1,106 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 #include "janet.h"
 
-static void initialize_janet_environment(JanetTable *env) {
-    env->gc.flags = 0;
-    env->gc.data.next = NULL;
-    env->count = 0;
-    env->capacity = 0;
-    env->deleted = 0;
-    env->data = NULL;
-    env->proto = NULL;
+static JanetTable *create_dummy_table() {
+    JanetTable *table = janet_table(0);
+    Janet key = janet_cstringv("dummy_key");
+    Janet value = janet_cstringv("dummy_value");
+    janet_table_put(table, key, value);
+    return table;
 }
 
-static void ensure_janet_table_initialized(JanetTable *env) {
-    if (env->capacity == 0) {
-        env->capacity = 8;  // Set a default capacity
-        env->data = malloc(sizeof(JanetKV) * env->capacity);
-        memset(env->data, 0, sizeof(JanetKV) * env->capacity);
-    }
+static JanetTable *create_dummy_env() {
+    return janet_table(0);
 }
 
-static void fuzz_janet_var_sm(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
-        return;
-    }
-    ensure_janet_table_initialized(env);
-    char *name = (char *)malloc(Size + 1);
-    memcpy(name, Data, Size);
-    name[Size] = '\0';
-    Janet val = { .u64 = 0 };
-    const char *documentation = "Documentation";
-    const char *source_file = "source.janet";
-    int32_t source_line = 42;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of janet_var_sm
-    janet_var_sm(env, name, val, NULL, source_file, source_line);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    free(name);
-}
-
-static void fuzz_janet_dobytes(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return;
-    }
-    ensure_janet_table_initialized(env);
-    Janet out;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of janet_dobytes
-    janet_dobytes(env, Data, JANET_STACKFRAME_TAILCALL, "./dummy_file", &out);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-}
-
-static void fuzz_janet_var(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
-        return;
-    }
-    ensure_janet_table_initialized(env);
-    char *name = (char *)malloc(Size + 1);
-    memcpy(name, Data, Size);
-    name[Size] = '\0';
-    Janet val = { .u64 = 0 };
-    const char *documentation = "Documentation";
-    janet_var(env, name, val, documentation);
-    free(name);
-}
-
-static void fuzz_janet_def_sm(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
-        return;
-    }
-    ensure_janet_table_initialized(env);
-    char *name = (char *)malloc(Size + 1);
-    memcpy(name, Data, Size);
-    name[Size] = '\0';
-    Janet val = { .u64 = 0 };
-    const char *documentation = "Documentation";
-    const char *source_file = "source.janet";
-    int32_t source_line = 42;
-    janet_def_sm(env, name, val, documentation, source_file, source_line);
-    free(name);
-}
-
-static void fuzz_janet_dostring(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return;
-    }
-    ensure_janet_table_initialized(env);
-    char *str = (char *)malloc(Size + 1);
-    memcpy(str, Data, Size);
-    str[Size] = '\0';
-    Janet out;
-    janet_dostring(env, str, "./dummy_file", &out);
-    free(str);
-}
-
-static void fuzz_janet_def(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
-        return;
-    }
-    ensure_janet_table_initialized(env);
-    char *name = (char *)malloc(Size + 1);
-    memcpy(name, Data, Size);
-    name[Size] = '\0';
-    Janet val = { .u64 = 0 };
-    const char *documentation = "Documentation";
-    janet_def(env, name, val, documentation);
-    free(name);
+static Janet create_dummy_janet() {
+    return janet_cstringv("dummy_key");
 }
 
 int LLVMFuzzerTestOneInput_759(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return 0;
+
     janet_init();
-    JanetTable env;
-    initialize_janet_environment(&env);
 
-    fuzz_janet_var_sm(&env, Data, Size);
-    fuzz_janet_dobytes(&env, Data, Size);
-    fuzz_janet_var(&env, Data, Size);
-    fuzz_janet_def_sm(&env, Data, Size);
-    fuzz_janet_dostring(&env, Data, Size);
-    fuzz_janet_def(&env, Data, Size);
+    // Fuzz janet_table_get_ex
+    JanetTable *table = create_dummy_table();
+    JanetTable *which = NULL;
+    Janet key = create_dummy_janet();
+    janet_table_get_ex(table, key, &which);
 
-    free(env.data);
+    // Fuzz janet_cfuns_prefix
+    JanetReg cfuns[] = {
+        {NULL, NULL, NULL} // Terminator
+    };
+    char regprefix[256];
+    snprintf(regprefix, sizeof(regprefix), "prefix_%zu", Size);
+    janet_cfuns_prefix(create_dummy_env(), regprefix, cfuns);
+
+    // Fuzz janet_cfuns_ext
+    JanetRegExt cfuns_ext[] = {
+        {NULL, NULL, NULL, NULL, 0} // Terminator
+    };
+    janet_cfuns_ext(create_dummy_env(), regprefix, cfuns_ext);
+
+    // Fuzz janet_core_lookup_table
+    JanetTable *replacements = create_dummy_table();
+    JanetTable *lookup_table = janet_core_lookup_table(replacements);
+
+    // Fuzz janet_env_lookup
+    JanetTable *env = create_dummy_env();
+    JanetTable *new_env = janet_env_lookup(env);
+
+    // Fuzz janet_cfuns
+    janet_cfuns(create_dummy_env(), regprefix, cfuns);
+
     janet_deinit();
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_759(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

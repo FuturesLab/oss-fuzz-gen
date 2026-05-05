@@ -1,11 +1,13 @@
 // This fuzz driver is generated for library janet, aiming to fuzz the following functions:
+// janet_string at string.c:49:16 in janet.h
+// janet_table at janet.c:33121:13 in janet.h
 // janet_init at vm.c:1652:5 in janet.h
-// janet_cfuns at janet.c:34239:6 in janet.h
-// janet_table_merge_table at janet.c:33313:6 in janet.h
-// janet_var at janet.c:34118:6 in janet.h
-// janet_def_sm at janet.c:34099:6 in janet.h
-// janet_dostring at run.c:139:5 in janet.h
-// janet_cfuns_prefix at janet.c:34259:6 in janet.h
+// janet_nanbox_to_pointer at janet.c:37680:7 in janet.h
+// janet_compile at compile.c:1199:20 in janet.h
+// janet_getstring at janet.c:4516:1 in janet.h
+// janet_to_string at janet.c:28692:16 in janet.h
+// janet_string_equal at string.c:82:5 in janet.h
+// janet_description at janet.c:28681:16 in janet.h
 // janet_deinit at vm.c:1732:6 in janet.h
 #include <stdint.h>
 #include <stddef.h>
@@ -14,67 +16,89 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include "janet.h"
 
-static void initialize_janet_table(JanetTable *table) {
-    memset(table, 0, sizeof(JanetTable));
-    table->capacity = 16;
-    table->data = (JanetKV *)calloc(table->capacity, sizeof(JanetKV));
+static Janet create_janet_string(const uint8_t *data, size_t size) {
+    return janet_wrap_string(janet_string(data, size));
 }
 
-static void cleanup_janet_table(JanetTable *table) {
-    free(table->data);
+static JanetTable *create_janet_table() {
+    JanetTable *table = janet_table(0);
+    return table;
 }
 
 int LLVMFuzzerTestOneInput_508(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size == 0) return 0;
 
     // Initialize Janet VM
     janet_init();
 
-    // Initialize Janet environment
-    JanetTable env;
-    initialize_janet_table(&env);
+    // Fuzz janet_unwrap_string
+    Janet janetString = create_janet_string(Data, Size);
+    JanetString unwrappedString = janet_unwrap_string(janetString);
 
-    // Prepare dummy JanetReg for janet_cfuns and janet_cfuns_prefix
-    JanetReg cfuns[] = {
-        {"dummy_func", NULL, "Dummy function"},
-        {NULL, NULL, NULL}
-    };
+    // Fuzz janet_compile
+    JanetTable *env = create_janet_table();
+    JanetCompileResult compileResult = janet_compile(janetString, env, unwrappedString);
 
-    // Test janet_cfuns
-    janet_cfuns(&env, "prefix_", cfuns);
+    // Fuzz janet_getstring
+    Janet argv[1] = {janetString};
+    JanetString getStringResult = janet_getstring(argv, 0);
 
-    // Test janet_table_merge_table
-    JanetTable other;
-    initialize_janet_table(&other);
-    janet_table_merge_table(&env, &other);
-    cleanup_janet_table(&other);
+    // Fuzz janet_to_string
+    JanetString toStringResult = janet_to_string(janetString);
 
-    // Test janet_var
-    Janet var_value;
-    var_value.u64 = 12345;
-    janet_var(&env, "test_var", var_value, "A test variable");
+    // Fuzz janet_string_equal
+    int stringEqualResult = janet_string_equal(unwrappedString, getStringResult);
 
-    // Test janet_def_sm
-    Janet def_value;
-    def_value.i64 = -6789;
-    janet_def_sm(&env, "test_def", def_value, "A test definition", "source.janet", 42);
-
-    // Test janet_dostring
-    char code[] = "(print \"Hello, World!\")";
-    Janet out;
-    janet_dostring(&env, code, "dummy_path", &out);
-
-    // Test janet_cfuns_prefix
-    janet_cfuns_prefix(&env, "prefix_", cfuns);
+    // Fuzz janet_description
+    JanetString descriptionResult = janet_description(janetString);
 
     // Cleanup
-    cleanup_janet_table(&env);
+    // No need to manually free env->data as it is managed by the Janet GC
 
     // Deinitialize Janet VM
     janet_deinit();
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_508(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

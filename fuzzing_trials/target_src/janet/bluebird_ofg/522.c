@@ -1,39 +1,71 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include "janet.h"
+#include <stddef.h>
+#include <string.h> // Include for memcpy
+#include "janet.h" // Correct path for janet.h
+
+extern void janet_os_rwlock_runlock(JanetOSRWLock *);
+
+// Assuming a reasonable size for JanetOSRWLock for fuzzing purposes
+#define JANET_OS_RWLOCK_SIZE 64
 
 int LLVMFuzzerTestOneInput_522(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0; // Not enough data to work with
-    }
-
-    // Initialize Janet
-    janet_init();
-
-    // Prepare the JanetTable parameter
-    JanetTable *env = janet_table(0);
-
-    // Prepare the string parameters
-    char *source = (char *)malloc(size + 1);
-    if (!source) {
-        janet_deinit();
+    if (size < JANET_OS_RWLOCK_SIZE) {
         return 0;
     }
-    memcpy(source, data, size);
-    source[size] = '\0'; // Ensure null-terminated
 
-    const char *source_name = "fuzz_source"; // A simple source name
+    // Allocate memory for rwlock and initialize it with some data from the fuzz input
+    JanetOSRWLock *rwlock = (JanetOSRWLock *)malloc(JANET_OS_RWLOCK_SIZE);
+    if (rwlock == NULL) {
+        return 0; // Handle allocation failure
+    }
 
-    // Prepare the Janet result parameter
-    Janet result;
+    memcpy(rwlock, data, JANET_OS_RWLOCK_SIZE);
 
     // Call the function-under-test
-    janet_dostring(env, source, source_name, &result);
+    janet_os_rwlock_runlock(rwlock);
 
-    // Clean up
-    free(source);
-    janet_deinit();
+    // Free the allocated memory
+    free(rwlock);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_522(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,91 +1,113 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 #include "janet.h"
 
-#define MAX_CAPACITY 1024
-
-static void fuzz_janet_dobytes(const uint8_t *Data, size_t Size) {
-    JanetTable env;
-    janet_table_init_raw(&env, 10);
-
-    Janet out;
-    janet_dobytes(&env, Data, (int32_t)Size, "fuzz_source", &out);
+static void initialize_janet_runtime() {
+    janet_init();
 }
 
-static void fuzz_janet_table_init_raw(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int32_t)) {
-        return;
+static void cleanup_janet_runtime() {
+    janet_deinit();
+}
+
+static void initialize_parser(JanetParser *parser) {
+    janet_parser_init(parser);
+}
+
+static void cleanup_parser(JanetParser *parser) {
+    janet_parser_deinit(parser);
+}
+
+static void feed_data_to_parser(JanetParser *parser, const uint8_t *Data, size_t Size) {
+    for (size_t i = 0; i < Size; i++) {
+        // Ensure parser and its state are valid before consuming
+        if (parser->error != NULL) {
+            break;
+        }
+        janet_parser_consume(parser, Data[i]);
     }
-
-    int32_t capacity;
-    memcpy(&capacity, Data, sizeof(int32_t));
-    capacity = capacity < 0 ? 0 : (capacity > MAX_CAPACITY ? MAX_CAPACITY : capacity);
-
-    JanetTable table;
-    janet_table_init_raw(&table, capacity);
 }
 
-static void fuzz_janet_env_lookup(const uint8_t *Data, size_t Size) {
-    JanetTable env;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of janet_table_init_raw
-    janet_table_init_raw(&env, JANET_SANDBOX_UNMARSHAL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    JanetTable *new_env = janet_env_lookup(&env);
-    (void)new_env; // Suppress unused variable warning
+static void signal_end_of_parsing(JanetParser *parser) {
+    if (parser->error == NULL) {
+        janet_parser_eof(parser);
+    }
 }
 
-static void fuzz_janet_core_env(const uint8_t *Data, size_t Size) {
-    JanetTable replacements;
-    janet_table_init_raw(&replacements, 10);
-
-    JanetTable *core_env = janet_core_env(NULL);
-    JanetTable *custom_env = janet_core_env(&replacements);
-    (void)core_env;
-    (void)custom_env;
+static void flush_parser(JanetParser *parser) {
+    if (parser->error != NULL) {
+        janet_parser_flush(parser);
+    }
 }
 
-static void fuzz_janet_core_lookup_table(const uint8_t *Data, size_t Size) {
-    JanetTable replacements;
-    janet_table_init_raw(&replacements, 10);
-
-    JanetTable *lookup_table = janet_core_lookup_table(NULL);
-    JanetTable *custom_lookup_table = janet_core_lookup_table(&replacements);
-    (void)lookup_table;
-    (void)custom_lookup_table;
-}
-
-static void fuzz_janet_def(const uint8_t *Data, size_t Size) {
-    JanetTable env;
-    janet_table_init_raw(&env, 10);
-
-    const char *name = "fuzz_var";
-    Janet val;
-    val.u64 = 0;
-
-    janet_def(&env, name, val, "Fuzz variable documentation");
+static int check_parser_has_more(JanetParser *parser) {
+    return janet_parser_has_more(parser);
 }
 
 int LLVMFuzzerTestOneInput_99(const uint8_t *Data, size_t Size) {
-    janet_init();
+    // Check if the input size is sufficient to avoid parsing errors
+    if (Size == 0) {
+        return 0;
+    }
 
-    fuzz_janet_dobytes(Data, Size);
-    fuzz_janet_table_init_raw(Data, Size);
-    fuzz_janet_env_lookup(Data, Size);
-    fuzz_janet_core_env(Data, Size);
-    fuzz_janet_core_lookup_table(Data, Size);
-    fuzz_janet_def(Data, Size);
+    initialize_janet_runtime();
 
-    janet_deinit();
+    JanetParser parser;
+    initialize_parser(&parser);
+
+    feed_data_to_parser(&parser, Data, Size);
+
+    if (parser.error == NULL && check_parser_has_more(&parser)) {
+        // Simulate consuming more data if parser has more values
+        signal_end_of_parsing(&parser);
+    }
+
+    flush_parser(&parser);
+
+    cleanup_parser(&parser);
+    cleanup_janet_runtime();
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_99(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

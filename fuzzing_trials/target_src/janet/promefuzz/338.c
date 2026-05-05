@@ -1,86 +1,117 @@
 // This fuzz driver is generated for library janet, aiming to fuzz the following functions:
-// janet_table_init at janet.c:33101:13 in janet.h
-// janet_table_merge_table at janet.c:33313:6 in janet.h
-// janet_env_lookup at marsh.c:130:13 in janet.h
-// janet_core_env at janet.c:7992:13 in janet.h
-// janet_env_lookup_into at marsh.c:104:6 in janet.h
-// janet_table at janet.c:33121:13 in janet.h
 // janet_init at vm.c:1652:5 in janet.h
-#include <stdint.h>
+// janet_deinit at vm.c:1732:6 in janet.h
+// janet_abstract at janet.c:1343:7 in janet.h
+// janet_abstract at janet.c:1343:7 in janet.h
+// janet_getabstract at janet.c:4754:7 in janet.h
+// janet_abstract_incref at janet.c:1488:9 in janet.h
+// janet_abstract_decref at janet.c:1492:9 in janet.h
+// janet_deinit at vm.c:1732:6 in janet.h
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include "janet.h"
+#include <janet.h>
 
-static void fuzz_janet_table_init(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int32_t)) return;
-    int32_t capacity = *(const int32_t *)Data;
-    JanetTable table;
-    janet_table_init(&table, capacity);
-}
+static const JanetAbstractType dummyType = {
+    "dummyType",
+    NULL, // gc
+    NULL, // gcmark
+    NULL, // get
+    NULL, // put
+    NULL, // marshal
+    NULL, // unmarshal
+    NULL, // tostring
+    NULL, // compare
+    NULL, // hash
+    NULL, // next
+    NULL, // call
+    NULL, // length
+    NULL, // bytes
+    NULL  // gcperthread
+};
 
-static void fuzz_janet_table_merge_table(const uint8_t *Data, size_t Size) {
-    if (Size < 2 * sizeof(JanetTable)) return;
-    const JanetTable *table1 = (const JanetTable *)(Data);
-    const JanetTable *table2 = (const JanetTable *)(Data + sizeof(JanetTable));
-    janet_table_merge_table((JanetTable *)table1, (JanetTable *)table2);
-}
-
-static void fuzz_janet_env_lookup(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(JanetTable)) return;
-    const JanetTable *env = (const JanetTable *)Data;
-    JanetTable *new_env = janet_env_lookup((JanetTable *)env);
-    // Clean up if necessary
-    if (new_env) {
-        // Assuming a function to clean up the table
-    }
-}
-
-static void fuzz_janet_core_env(const uint8_t *Data, size_t Size) {
-    JanetTable *replacements = NULL;
-    if (Size >= sizeof(JanetTable)) {
-        replacements = (JanetTable *)Data;
-    }
-    JanetTable *env = janet_core_env(replacements);
-    // Clean up if necessary
-    if (env) {
-        // Assuming a function to clean up the table
-    }
-}
-
-static void fuzz_janet_env_lookup_into(const uint8_t *Data, size_t Size) {
-    if (Size < 2 * sizeof(JanetTable) + sizeof(int)) return;
-    JanetTable *renv = (JanetTable *)Data;
-    JanetTable *env = (JanetTable *)(Data + sizeof(JanetTable));
-    const char *prefix = NULL;
-    int recurse = *(int *)(Data + 2 * sizeof(JanetTable));
-    janet_env_lookup_into(renv, env, prefix, recurse);
-}
-
-static void fuzz_janet_table(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int32_t)) return;
-    int32_t capacity = *(const int32_t *)Data;
-    JanetTable *table = janet_table(capacity);
-    // Clean up if necessary
-    if (table) {
-        // Assuming a function to clean up the table
+static void setup_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_338(const uint8_t *Data, size_t Size) {
-    static int initialized = 0;
-    if (!initialized) {
-        janet_init();
-        initialized = 1;
+    if (Size < sizeof(Janet) + sizeof(int32_t)) {
+        return 0;
     }
-    fuzz_janet_table_init(Data, Size);
-    fuzz_janet_table_merge_table(Data, Size);
-    fuzz_janet_env_lookup(Data, Size);
-    fuzz_janet_core_env(Data, Size);
-    fuzz_janet_env_lookup_into(Data, Size);
-    fuzz_janet_table(Data, Size);
+
+    setup_dummy_file(Data, Size);
+
+    janet_init(); // Initialize Janet environment
+
+    Janet *argv = malloc(2 * sizeof(Janet));
+    if (!argv) {
+        janet_deinit();
+        return 0;
+    }
+
+    argv[0] = janet_wrap_abstract(janet_abstract(&dummyType, sizeof(int)));
+    argv[1] = janet_wrap_abstract(janet_abstract(&dummyType, sizeof(int)));
+
+    int32_t index = *((int32_t *)(Data + Size - sizeof(int32_t)));
+    index = index % 2; // Ensure index is within bounds
+    if (index < 0) index += 2; // Correct negative index
+
+    void *abstract = NULL;
+    if (index >= 0 && index < 2) {
+        abstract = janet_getabstract(argv, index, &dummyType);
+        if (abstract) {
+            janet_abstract_incref(abstract);
+            janet_abstract_decref(abstract);
+        }
+    }
+
+    free(argv); // Free allocated memory
+    janet_deinit(); // Deinitialize Janet environment
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_338(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

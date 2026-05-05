@@ -1,54 +1,70 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "janet.h"
 
 int LLVMFuzzerTestOneInput_489(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
-
     // Initialize the Janet environment
     janet_init();
 
-    // Create a new environment table
+    // Create two JanetTable objects
+    JanetTable *table1 = janet_table(10); // Create a table with initial capacity
+    JanetTable *table2 = janet_table(10); // Create another table with initial capacity
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table
-    env = janet_table(JANET_EV_TCTAG_INTEGER);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Allocate memory for the string and copy the data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_nanbox_from_pointer
-
-    Janet ret_janet_nanbox_from_pointer_osvtf = janet_nanbox_from_pointer((void *)env, JANET_PRETTY_ONELINE);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
-        return 0;
+    // Populate the tables with some data
+    // Note: This is a simple example. In reality, you might want to parse 'data' and 'size' to add entries
+    for (size_t i = 0; i < size; i++) {
+        Janet key = janet_wrap_integer((int32_t)i);
+        Janet value = janet_wrap_integer((int32_t)data[i]);
+        janet_table_put(table1, key, value);
+        janet_table_put(table2, key, value);
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
-
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of janet_dostring
-    janet_dostring(env, str, (const char *)"r", &result);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    janet_table_merge_table(table1, table2);
 
     // Clean up
-    free(str);
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_489(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

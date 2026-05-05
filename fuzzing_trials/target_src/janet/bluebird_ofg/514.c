@@ -1,49 +1,111 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <stdint.h>
 #include "janet.h"
 
-int LLVMFuzzerTestOneInput_514(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
+// Function to be fuzzed
+int my_janet_truthy(Janet value);
 
-    // Initialize the Janet environment
+int LLVMFuzzerTestOneInput_514(const uint8_t *data, size_t size) {
+    // Initialize the Janet runtime
     janet_init();
 
-    // Create a new environment table
-    env = janet_table(0);
+    // Initialize a Janet object
+    Janet janet_value;
 
-    // Allocate memory for the string and copy the data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_nanbox_from_pointer
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of janet_nanbox_from_pointer
-    Janet ret_janet_nanbox_from_pointer_osvtf = janet_nanbox_from_pointer((void *)env, JANET_FILE_READ);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
-        return 0;
+    // Ensure the data is not empty to create a valid Janet object
+    if (size > 0) {
+        // Use the first byte of data to determine the type of Janet object
+        switch (data[0] % 6) {
+            case 0:
+                // Integer type
+                janet_value = janet_wrap_integer((int32_t)data[0]);
+                break;
+            case 1:
+                // Number type
+                janet_value = janet_wrap_number((double)data[0]);
+                break;
+            case 2:
+                // Boolean type
+                janet_value = janet_wrap_boolean(data[0] % 2);
+                break;
+            case 3:
+                // Nil type
+                janet_value = janet_wrap_nil();
+                break;
+            case 4:
+                // String type
+                if (size > 1) {
+                    janet_value = janet_wrap_string(janet_string(data + 1, size - 1));
+                } else {
+                    janet_value = janet_wrap_nil();
+                }
+                break;
+            case 5:
+                // C function type (using a dummy function pointer)
+                janet_value = janet_wrap_cfunction(NULL);
+                break;
+            default:
+                // Default to nil if no valid type is found
+                janet_value = janet_wrap_nil();
+                break;
+        }
+    } else {
+        // Default to nil if size is zero
+        janet_value = janet_wrap_nil();
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
-
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
 
     // Call the function-under-test
-    janet_dostring(env, str, source, &result);
+    int result = my_janet_truthy(janet_value);
 
-    // Clean up
-    free(str);
+    // Deinitialize the Janet runtime
     janet_deinit();
 
+    // Return 0 to indicate successful execution
     return 0;
 }
+
+// Dummy implementation of the function to be fuzzed
+int my_janet_truthy(Janet value) {
+    // Implement the logic or call the actual function here
+    return janet_truthy(value);
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_514(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

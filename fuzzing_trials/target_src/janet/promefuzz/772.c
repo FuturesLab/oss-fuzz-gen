@@ -1,95 +1,93 @@
 // This fuzz driver is generated for library janet, aiming to fuzz the following functions:
-// janet_smalloc at gc.c:706:7 in janet.h
-// janet_gcpressure at gc.c:52:6 in janet.h
-// janet_gcpressure at gc.c:52:6 in janet.h
-// janet_gcpressure at gc.c:52:6 in janet.h
-// janet_smalloc at gc.c:706:7 in janet.h
-// janet_srealloc at gc.c:735:7 in janet.h
-// janet_gcpressure at gc.c:52:6 in janet.h
-// janet_scalloc at gc.c:725:7 in janet.h
-// janet_gcpressure at gc.c:52:6 in janet.h
+// janet_parser_consume at parse.c:697:6 in janet.h
+// janet_parser_eof at parse.c:717:6 in janet.h
+// janet_parser_has_more at parse.c:855:5 in janet.h
+// janet_parser_flush at parse.c:737:6 in janet.h
+// janet_parser_deinit at parse.c:804:6 in janet.h
+// janet_init at vm.c:1652:5 in janet.h
+// janet_deinit at vm.c:1732:6 in janet.h
+// janet_parser_init at parse.c:784:6 in janet.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include "janet.h"
+#include <janet.h>
 
-static void fuzz_janet_smalloc(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(size_t)) return;
-    size_t alloc_size = *((size_t *)Data);
-    if (alloc_size == 0 || alloc_size > 1024 * 1024 * 10) return; // Limit allocation size
-    void *ptr = janet_smalloc(alloc_size);
-    if (ptr) {
-        // Simulate some usage of the allocated memory
-        janet_gcpressure(alloc_size);
-        // Normally, janet's garbage collector would handle freeing
-    }
-}
+static void fuzz_janet_parser(JanetParser *parser, const uint8_t *data, size_t size) {
+    // Initialize the parser
+    janet_parser_init(parser);
 
-static void fuzz_janet_malloc(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(size_t)) return;
-    size_t alloc_size = *((size_t *)Data);
-    if (alloc_size == 0 || alloc_size > 1024 * 1024 * 10) return; // Limit allocation size
-    void *ptr = janet_malloc(alloc_size);
-    if (ptr) {
-        // Simulate some usage of the allocated memory
-        janet_gcpressure(alloc_size);
-        free(ptr);
+    // Consume the input data
+    for (size_t i = 0; i < size; i++) {
+        janet_parser_consume(parser, data[i]);
     }
-}
 
-static void fuzz_janet_calloc(const uint8_t *Data, size_t Size) {
-    if (Size < 2 * sizeof(size_t)) return;
-    size_t nmemb = ((size_t *)Data)[0];
-    size_t elem_size = ((size_t *)Data)[1];
-    if (nmemb == 0 || elem_size == 0 || nmemb > 1024 * 1024 || elem_size > 1024) return; // Limit allocation size
-    void *ptr = janet_calloc(nmemb, elem_size);
-    if (ptr) {
-        // Simulate some usage of the allocated memory
-        janet_gcpressure(nmemb * elem_size);
-        free(ptr);
-    }
-}
+    // Signal end of input
+    janet_parser_eof(parser);
 
-static void fuzz_janet_srealloc(const uint8_t *Data, size_t Size) {
-    if (Size < 2 * sizeof(size_t)) return;
-    size_t initial_size = ((size_t *)Data)[0];
-    size_t new_size = ((size_t *)Data)[1];
-    if (initial_size == 0 || initial_size > 1024 * 1024 * 10) return; // Limit allocation size
-    if (new_size == 0 || new_size > 1024 * 1024 * 10) return; // Limit allocation size
-    void *ptr = janet_smalloc(initial_size);
-    if (ptr) {
-        ptr = janet_srealloc(ptr, new_size);
-        if (ptr) {
-            // Simulate some usage of the reallocated memory
-            janet_gcpressure(new_size);
-            // Normally, janet's garbage collector would handle freeing
-        }
+    // Check if parser has more values
+    if (janet_parser_has_more(parser)) {
+        // If there are more values, flush the parser
+        janet_parser_flush(parser);
     }
-}
 
-static void fuzz_janet_scalloc(const uint8_t *Data, size_t Size) {
-    if (Size < 2 * sizeof(size_t)) return;
-    size_t nmemb = ((size_t *)Data)[0];
-    size_t elem_size = ((size_t *)Data)[1];
-    if (nmemb == 0 || elem_size == 0 || nmemb > 1024 * 1024 || elem_size > 1024) return; // Limit allocation size
-    void *ptr = janet_scalloc(nmemb, elem_size);
-    if (ptr) {
-        // Simulate some usage of the allocated memory
-        janet_gcpressure(nmemb * elem_size);
-        // Normally, janet's garbage collector would handle freeing
-    }
+    // Deinitialize the parser
+    janet_parser_deinit(parser);
 }
 
 int LLVMFuzzerTestOneInput_772(const uint8_t *Data, size_t Size) {
-    fuzz_janet_smalloc(Data, Size);
-    fuzz_janet_malloc(Data, Size);
-    fuzz_janet_calloc(Data, Size);
-    fuzz_janet_srealloc(Data, Size);
-    fuzz_janet_scalloc(Data, Size);
+    if (Size == 0) {
+        return 0;
+    }
+
+    // Initialize Janet VM
+    if (!janet_init()) {
+        return 0; // Ensure the Janet VM initializes correctly
+    }
+
+    JanetParser parser;
+    fuzz_janet_parser(&parser, Data, Size);
+
+    // Deinitialize Janet VM
+    janet_deinit();
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_772(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

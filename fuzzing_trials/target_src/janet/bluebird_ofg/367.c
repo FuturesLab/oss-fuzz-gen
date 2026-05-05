@@ -1,88 +1,90 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include "janet.h"
 
 int LLVMFuzzerTestOneInput_367(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
-
-    // Initialize the Janet environment
-    janet_init();
-
-    // Create a new environment table
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function janet_table with janet_table_weakk
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function janet_table_weakk with janet_table_weakv
-    env = janet_table_weakv(0);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Allocate memory for the string and copy the data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_core_env
-
-    JanetTable* ret_janet_core_env_ytvcl = janet_core_env(env);
-    if (ret_janet_core_env_ytvcl == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_core_env to janet_table_find
-    JanetParser hmlhxawb;
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_core_env to janet_table_remove
-    Janet ret_janet_wrap_number_khjfw = janet_wrap_number(JANET_FILE_SERIALIZABLE);
-
-    Janet ret_janet_table_remove_iqemr = janet_table_remove(ret_janet_core_env_ytvcl, ret_janet_wrap_number_khjfw);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    memset(&hmlhxawb, 0, sizeof(hmlhxawb));
-    Janet ret_janet_parser_produce_wrapped_unnjy = janet_parser_produce_wrapped(&hmlhxawb);
-
-    JanetKV* ret_janet_table_find_hfszt = janet_table_find(env, ret_janet_parser_produce_wrapped_unnjy);
-    if (ret_janet_table_find_hfszt == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
+    // Ensure the data is not empty
+    if (size == 0) {
         return 0;
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
 
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
+    // Initialize Janet
+    janet_init();
 
-    // Call the function-under-test
-    janet_dostring(env, str, source, &result);
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_dostring to janet_abstract_decref
-
-    int32_t ret_janet_abstract_decref_dywcz = janet_abstract_decref((void *)env);
-    if (ret_janet_abstract_decref_dywcz < 0){
-    	return 0;
+    // Initialize JanetTable
+    JanetTable *env = janet_table(10);
+    if (!env) {
+        janet_deinit();
+        return 0;
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Create a null-terminated string from the input data
+    char *prefix = (char *)malloc(size + 1);
+    if (!prefix) {
+        janet_deinit();
+        return 0;
+    }
+    memcpy(prefix, data, size);
+    prefix[size] = '\0';
 
-    free(str);
+    // Create a dummy JanetReg array
+    JanetReg regs[] = {
+        {NULL, NULL, 0, NULL}
+    };
+
+    // Check if the prefix is a valid Janet symbol
+    if (janet_csymbol(prefix)) {
+        // Call the function-under-test if prefix is a valid Janet symbol
+        janet_cfuns_prefix(env, prefix, regs);
+    }
+
+    // Clean up
+    free(prefix);
+
+    // Deinitialize Janet
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_367(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

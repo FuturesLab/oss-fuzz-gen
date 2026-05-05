@@ -1,4 +1,4 @@
-#include <stdint.h>
+#include <sys/stat.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
@@ -8,64 +8,90 @@
 #include <string.h>
 #include "janet.h"
 
-static void initialize_janet_table(JanetTable *table) {
-    memset(table, 0, sizeof(JanetTable));
-    table->capacity = 16;
-    table->data = (JanetKV *)calloc(table->capacity, sizeof(JanetKV));
+static void initialize_dummy_data(JanetKV *data, int32_t capacity) {
+    for (int32_t i = 0; i < capacity; i++) {
+        data[i].key.u64 = i + 1; // Simple non-NIL initialization
+        data[i].value.u64 = i + 100; // Arbitrary value
+    }
 }
 
-static void cleanup_janet_table(JanetTable *table) {
-    free(table->data);
+static Janet create_valid_janet_key(const uint8_t *Data, size_t Size) {
+    Janet key;
+    if (Size >= sizeof(uint64_t)) {
+        key.u64 = *((uint64_t *)Data);
+    } else {
+        key.u64 = 1; // Use a default valid key
+    }
+    // Ensure the key is a valid Janet type
+    // Here we wrap the key as a number since it's a simple and valid Janet type
+    return janet_wrap_number((double)key.u64);
 }
 
 int LLVMFuzzerTestOneInput_793(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(uint64_t)) return 0;
 
-    // Initialize Janet VM
-    janet_init();
+    int32_t capacity = 10;
+    JanetKV data[capacity];
+    initialize_dummy_data(data, capacity);
 
-    // Initialize Janet environment
-    JanetTable env;
-    initialize_janet_table(&env);
+    // Fuzz janet_dictionary_get
+    Janet key = create_valid_janet_key(Data, Size);
+    Janet result = janet_dictionary_get(data, capacity, key);
 
-    // Prepare dummy JanetReg for janet_cfuns and janet_cfuns_prefix
-    JanetReg cfuns[] = {
-        {"dummy_func", NULL, "Dummy function"},
-        {NULL, NULL, NULL}
-    };
+    // Fuzz janet_table_init
+    JanetTable table;
+    janet_table_init(&table, capacity);
 
-    // Test janet_cfuns
-    janet_cfuns(&env, "prefix_", cfuns);
+    // Fuzz janet_dictionary_next
+    const JanetKV *next_kv = janet_dictionary_next(data, capacity, NULL);
 
-    // Test janet_table_merge_table
-    JanetTable other;
-    initialize_janet_table(&other);
-    janet_table_merge_table(&env, &other);
-    cleanup_janet_table(&other);
+    // Fuzz janet_table_get_ex
+    JanetTable *which = NULL;
+    Janet table_result = janet_table_get_ex(&table, key, &which);
 
-    // Test janet_var
-    Janet var_value;
-    var_value.u64 = 12345;
-    janet_var(&env, "test_var", var_value, "A test variable");
-
-    // Test janet_def_sm
-    Janet def_value;
-    def_value.i64 = -6789;
-    janet_def_sm(&env, "test_def", def_value, "A test definition", "source.janet", 42);
-
-    // Test janet_dostring
-    char code[] = "(print \"Hello, World!\")";
-    Janet out;
-    janet_dostring(&env, code, "dummy_path", &out);
-
-    // Test janet_cfuns_prefix
-    janet_cfuns_prefix(&env, "prefix_", cfuns);
-
-    // Cleanup
-    cleanup_janet_table(&env);
-
-    // Deinitialize Janet VM
-    janet_deinit();
+    // Fuzz janet_dictionary_view
+    const JanetKV *view_data = NULL;
+    int32_t len = 0, cap = 0;
+    int view_result = janet_dictionary_view(janet_wrap_table(&table), &view_data, &len, &cap);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_793(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

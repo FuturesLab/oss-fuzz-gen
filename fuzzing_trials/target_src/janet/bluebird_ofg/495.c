@@ -1,52 +1,72 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "janet.h"
 
 int LLVMFuzzerTestOneInput_495(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
-
-    // Initialize the Janet environment
-    janet_init();
-
-    // Create a new environment table
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table
-    env = janet_table(JANET_FILE_SERIALIZABLE);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Allocate memory for the string and copy the data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_table_init_raw
-
-    JanetTable* ret_janet_table_init_raw_zbuld = janet_table_init_raw(env, JANET_EV_TCTAG_ERR_STRINGF);
-    if (ret_janet_table_init_raw_zbuld == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
+    // Ensure that the input size is non-zero to avoid undefined behavior
+    if (size == 0) {
         return 0;
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
 
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
+    // Initialize the Janet runtime
+    janet_init();
+
+    // Create a Janet object with the input data
+    Janet janet_obj = janet_stringv(data, size);
 
     // Call the function-under-test
-    janet_dostring(env, str, source, &result);
+    int32_t hash_value = janet_hash(janet_obj);
 
-    // Clean up
-    free(str);
+    // Use the hash_value to prevent compiler optimizations from removing the call
+    if (hash_value == 0) {
+        // Clean up the Janet runtime before returning
+        janet_deinit();
+        return 0;
+    }
+
+    // Clean up the Janet runtime
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_495(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

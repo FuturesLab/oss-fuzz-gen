@@ -14,7 +14,7 @@
 # limitations under the License.
 #
 ################################################################################
-export CFLAGS="$CFLAGS -fPIC"
+export CFLAGS="$CFLAGS"
 make
 
 if [ "$SANITIZER" = "none" ]; then

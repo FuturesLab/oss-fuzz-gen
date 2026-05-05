@@ -1,91 +1,150 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
 #include "janet.h"
 
-static void initialize_fiber(JanetFiber *fiber) {
-    if (fiber) {
-        fiber->flags = 0;
-        fiber->frame = 0;
-        fiber->stackstart = 0;
-        fiber->stacktop = 0;
-        fiber->capacity = 1024;
-        fiber->maxstack = 2048;
-        fiber->env = janet_table(0); // Properly initialize the environment
-        fiber->data = NULL;
-        fiber->child = NULL;
-        fiber->last_value.u64 = 0;
-#ifdef JANET_EV
-        fiber->sched_id = 0;
-        fiber->ev_callback = NULL;
-        fiber->ev_stream = NULL;
-        fiber->ev_state = NULL;
-        fiber->supervisor_channel = NULL;
-#endif
+static JanetTable *initialize_janet_table() {
+    return janet_table(0);
+}
+
+static void initialize_janet() {
+    static int janet_initialized = 0;
+    if (!janet_initialized) {
+        janet_init();
+        janet_initialized = 1;
     }
 }
 
-static void initialize_stream(JanetStream *stream) {
-    if (stream) {
-        stream->handle = 0;
-        stream->flags = 0;
-        stream->index = 0;
-        stream->read_fiber = NULL;
-        stream->write_fiber = NULL;
-        stream->methods = NULL;
-    }
+static void fuzz_janet_dobytes(const uint8_t *Data, size_t Size) {
+    JanetTable *env = initialize_janet_table();
+    Janet out;
+    janet_dobytes(env, Data, (int32_t)Size, "./dummy_file", &out);
+}
+
+static void fuzz_janet_var(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(uint64_t) + 1) {
+        return;
+    } // Ensure there is enough data for both name and value
+
+    JanetTable *env = initialize_janet_table();
+    char *name = malloc(Size + 1);
+    memcpy(name, Data, Size);
+    name[Size] = '\0'; // Ensure null termination
+    Janet val;
+    val.u64 = *(const uint64_t *)(Data + 1); // Use part of the data as a value
+    janet_var(env, name, val, "Fuzz documentation");
+    free(name);
+}
+
+static void fuzz_janet_dostring(const uint8_t *Data, size_t Size) {
+    JanetTable *env = initialize_janet_table();
+    Janet out;
+    char *str = malloc(Size + 1);
+    memcpy(str, Data, Size);
+    str[Size] = '\0'; // Ensure null termination
+    janet_dostring(env, str, "./dummy_file", &out);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_dostring to janet_continue
+    JanetFiber cacywrpp;
+    memset(&cacywrpp, 0, sizeof(cacywrpp));
+    janet_async_in_flight(&cacywrpp);
+    Janet ret_janet_resolve_core_bynpn = janet_resolve_core((const char *)"w");
+    JanetSignal ret_janet_continue_lsocv = janet_continue(&cacywrpp, out, &ret_janet_resolve_core_bynpn);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(str);
+}
+
+static void fuzz_janet_def_sm(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(uint64_t) + 1) {
+        return;
+    } // Ensure enough data for name and value
+
+    JanetTable *env = initialize_janet_table();
+    char *name = malloc(Size + 1);
+    memcpy(name, Data, Size);
+    name[Size] = '\0'; // Ensure null termination
+    Janet val;
+    val.u64 = *(const uint64_t *)(Data + 1);
+    janet_def_sm(env, name, val, "Fuzz documentation", "./dummy_file", 42);
+    free(name);
+}
+
+static void fuzz_janet_env_lookup_into(const uint8_t *Data, size_t Size) {
+    JanetTable *renv = initialize_janet_table();
+    JanetTable *env = initialize_janet_table();
+    char *prefix = malloc(Size + 1);
+    memcpy(prefix, Data, Size);
+    prefix[Size] = '\0'; // Ensure null termination
+    int recurse = Size % 2; // Randomly choose recurse based on size
+    janet_env_lookup_into(renv, env, prefix, recurse);
+    free(prefix);
+}
+
+static void fuzz_janet_var_sm(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(uint64_t) + 1) {
+        return;
+    } // Ensure enough data for name and value
+
+    JanetTable *env = initialize_janet_table();
+    char *name = malloc(Size + 1);
+    memcpy(name, Data, Size);
+    name[Size] = '\0'; // Ensure null termination
+    Janet val;
+    val.u64 = *(const uint64_t *)(Data + 1);
+    janet_var_sm(env, name, val, "Fuzz documentation", "./dummy_file", 42);
+    free(name);
 }
 
 int LLVMFuzzerTestOneInput_548(const uint8_t *Data, size_t Size) {
-    (void)Data; // Unused parameter
-    (void)Size; // Unused parameter
-
-    // Initialize the Janet runtime
-    janet_init();
-
-    JanetFiber fiber;
-    initialize_fiber(&fiber);
-
-    JanetStream stream;
-    initialize_stream(&stream);
-
-    fiber.ev_stream = &stream;
-
-    // Fuzz janet_async_end
-    janet_async_end(&fiber);
-
-    // Fuzz janet_schedule
-    Janet value;
-    value.u64 = 0;
-    janet_schedule(&fiber, value);
-
-    // Fuzz janet_current_fiber
-    JanetFiber *current_fiber = janet_current_fiber();
-    if (current_fiber) {
-        janet_async_end(current_fiber);
-    }
-
-    // Fuzz janet_async_in_flight
-    janet_async_in_flight(&fiber);
-
-    // Fuzz janet_loop1
-    JanetFiber *loop_fiber = janet_loop1();
-    if (loop_fiber) {
-        janet_async_end(loop_fiber);
-    }
-
-    // Fuzz janet_root_fiber
-    JanetFiber *root_fiber = janet_root_fiber();
-    if (root_fiber) {
-        janet_async_end(root_fiber);
-    }
-
-    // Cleanup the Janet runtime
-    janet_deinit();
-
+    initialize_janet();
+    fuzz_janet_dobytes(Data, Size);
+    fuzz_janet_var(Data, Size);
+    fuzz_janet_dostring(Data, Size);
+    fuzz_janet_def_sm(Data, Size);
+    fuzz_janet_env_lookup_into(Data, Size);
+    fuzz_janet_var_sm(Data, Size);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_548(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

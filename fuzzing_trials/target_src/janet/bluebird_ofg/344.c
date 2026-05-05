@@ -1,47 +1,83 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "janet.h"
 
-int LLVMFuzzerTestOneInput_344(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
+// Function prototype for janet_struct_find
+const JanetKV *janet_struct_find(JanetStruct st, Janet key);
 
-    // Initialize the Janet environment
+int LLVMFuzzerTestOneInput_344(const uint8_t *data, size_t size) {
+    // Initialize Janet runtime
     janet_init();
 
-    // Create a new environment table
+    // Create a dummy JanetKV array with some default values
+    JanetKV kv_array[2];
+    kv_array[0].key = janet_wrap_integer(1);
+    kv_array[0].value = janet_wrap_string(janet_cstring("value1"));
+    kv_array[1].key = janet_wrap_integer(2);
+    kv_array[1].value = janet_wrap_string(janet_cstring("value2"));
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table
+    // Create a Janet structure from the kv_array
+    JanetStruct janet_struct = janet_struct_begin(2);
+    janet_struct_put(janet_struct, kv_array[0].key, kv_array[0].value);
+    janet_struct_put(janet_struct, kv_array[1].key, kv_array[1].value);
+    janet_struct_end(janet_struct);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table
-    env = janet_table(JANET_NANBOX_64_POINTER_SHIFT);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Allocate memory for the string and copy the data
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
+    // Ensure the size is sufficient to create a Janet integer
+    if (size < sizeof(int32_t)) {
+        janet_deinit();
         return 0;
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
 
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
+    // Use the first 4 bytes of data to create a Janet integer
+    int32_t key_value = *(int32_t *)data;
+    Janet key = janet_wrap_integer(key_value);
 
     // Call the function-under-test
-    janet_dostring(env, str, source, &result);
+    const JanetKV *result = janet_struct_find(janet_struct, key);
 
-    // Clean up
-    free(str);
+    // Clean up Janet runtime
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_344(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,67 +1,141 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include "janet.h"
 
-static JanetAbstractType dummy_type = {
-    .name = "dummy",
-    .gc = NULL,
-    .gcmark = NULL,
-    .get = NULL,
-    .put = NULL,
-    .marshal = NULL,
-    .unmarshal = NULL,
-    .tostring = NULL,
-    .compare = NULL,
-    .hash = NULL,
-    .next = NULL,
-    .call = NULL,
-    .length = NULL,
-    .bytes = NULL,
-    .gcperthread = NULL
-};
+static void initialize_janet_table(JanetTable *table) {
+    memset(table, 0, sizeof(JanetTable));
+    table->capacity = 8; // Arbitrary initial capacity
+    table->data = (JanetKV *)calloc(table->capacity, sizeof(JanetKV));
+}
 
 int LLVMFuzzerTestOneInput_1089(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(size_t)) {
+    if (Size < 1) {
         return 0;
-    }
+    } // Ensure there is at least some data
 
-    // Properly initialize Janet runtime
+    // Initialize the Janet environment
     janet_init();
+    JanetTable env;
+    initialize_janet_table(&env);
 
-    // Use the first part of Data to determine the size for abstract allocation
-    size_t abstract_size = *((size_t *)Data);
-    Data += sizeof(size_t);
-    Size -= sizeof(size_t);
+    // Prepare a dummy output
+    Janet out;
+    out.u64 = 0; // Initialize Janet union to avoid undefined behavior
 
-    // Ensure abstract_size is within a reasonable range to prevent out-of-memory errors
-    if (abstract_size > 1024 * 1024) { // Limit size to 1MB for safety
-        janet_deinit();
-        return 0;
+    // Fuzz janet_dobytes
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of janet_dobytes
+    janet_dobytes(&env, Data, JANET_LITTLE_ENDIAN, "./dummy_file", &out);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+
+    // Fuzz janet_dostring
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_dobytes to janet_compile_lint
+    Janet ret_janet_wrap_fiber_kafqk = janet_wrap_fiber(NULL);
+    int32_t ret_janet_hash_xuheb = janet_hash(out);
+    if (ret_janet_hash_xuheb < 0){
+    	return 0;
+    }
+    JanetArray* ret_janet_array_weak_bmrve = janet_array_weak(JANET_SANDBOX_THREADS);
+    if (ret_janet_array_weak_bmrve == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_janet_array_weak_bmrve) {
+    	return 0;
+    }
+    JanetCompileResult ret_janet_compile_lint_avmcm = janet_compile_lint(ret_janet_wrap_fiber_kafqk, &env, (const uint8_t *)&ret_janet_hash_xuheb, ret_janet_array_weak_bmrve);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    char *nullTerminatedString = (char *)malloc(Size + 1);
+    if (nullTerminatedString) {
+        memcpy(nullTerminatedString, Data, Size);
+        nullTerminatedString[Size] = '\0'; // Ensure null termination
+        janet_dostring(&env, nullTerminatedString, "./dummy_file", &out);
+        free(nullTerminatedString);
     }
 
-    // Register a dummy abstract type
-    janet_register_abstract_type(&dummy_type);
+    // Fuzz janet_def_sm
+    janet_def_sm(&env, "dummySymbol", out, "dummy documentation", "./dummy_file", 1);
 
-    // Begin and end a threaded abstract object
-    void *abstract_object = janet_abstract_begin_threaded(&dummy_type, abstract_size);
-    if (abstract_object) {
-        janet_abstract_end_threaded(abstract_object);
+    // Fuzz janet_def
+    janet_def(&env, "dummyVar", out, "dummy documentation");
+
+    // Fuzz janet_env_lookup_into
+    JanetTable renv;
+    initialize_janet_table(&renv);
+    janet_env_lookup_into(&renv, &env, "prefix_", 1);
+
+    // Fuzz janet_var_sm
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_env_lookup_into to janet_compile_lint
+    Janet ret_janet_wrap_u64_ombtb = janet_wrap_u64(JANET_LITTLE_ENDIAN);
+    int32_t ret_janet_hash_iijif = janet_hash(out);
+    if (ret_janet_hash_iijif < 0){
+    	return 0;
     }
-
-    // Begin a non-threaded abstract object
-    void *abstract_object_non_threaded = janet_abstract_begin(&dummy_type, abstract_size);
-
-    // Increment and decrement reference count
-    if (abstract_object_non_threaded) {
-        int32_t ref_count = janet_abstract_incref(abstract_object_non_threaded);
-        ref_count = janet_abstract_decref(abstract_object_non_threaded);
+    JanetArray* ret_janet_array_weak_mmxqx = janet_array_weak(JANET_PRETTY_COLOR);
+    if (ret_janet_array_weak_mmxqx == NULL){
+    	return 0;
     }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_janet_array_weak_mmxqx) {
+    	return 0;
+    }
+    JanetCompileResult ret_janet_compile_lint_rxjeo = janet_compile_lint(ret_janet_wrap_u64_ombtb, &env, (const uint8_t *)&ret_janet_hash_iijif, ret_janet_array_weak_mmxqx);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    janet_var_sm(&env, "dummyVarSM", out, "dummy documentation", "./dummy_file", 1);
 
-    // Properly deinitialize Janet runtime
+    // Clean up
+    free(env.data);
+    free(renv.data);
     janet_deinit();
-
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_1089(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
