@@ -1,67 +1,113 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_set_sample_flags at isom_write.c:8052:8 in isomedia.h
-// gf_isom_set_write_callback at isom_intern.c:1104:8 in isomedia.h
-// gf_isom_set_media_subtype at isom_write.c:6197:8 in isomedia.h
-// gf_isom_get_pcm_config at sample_descs.c:1972:8 in isomedia.h
-// gf_isom_set_visual_info at isom_write.c:1769:8 in isomedia.h
-// gf_isom_get_visual_info at isom_read.c:3821:8 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_text_set_scroll_delay at tx3g.c:358:8 in isomedia.h
+// gf_isom_text_set_wrap at tx3g.c:411:8 in isomedia.h
+// gf_isom_text_add_style at tx3g.c:290:8 in isomedia.h
+// gf_isom_text_set_forced at tx3g.c:423:8 in isomedia.h
+// gf_isom_text_reset_styles at tx3g.c:612:8 in isomedia.h
+// gf_isom_text_reset at tx3g.c:636:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "isomedia.h"
 
-static GF_Err dummy_on_block_out(void *usr_data, u8 *block, u32 block_size, void *cbk_data, u32 cbk_magic) {
-    return GF_OK;
+// Dummy struct definitions to resolve unknown types
+typedef struct {
+    // Add necessary fields if needed
+} GF_TextStyleBox, GF_TextHighlightColorBox, GF_TextScrollDelayBox, GF_TextBoxBox, GF_TextWrapBox, GF_TextKaraokeBox;
+
+// Define the struct _3gpp_text_sample since it's incomplete in the header
+struct _3gpp_text_sample {
+    char *text;
+    u32 len;
+    GF_TextStyleBox *styles;
+    GF_TextHighlightColorBox *highlight_color;
+    GF_TextScrollDelayBox *scroll_delay;
+    GF_TextBoxBox *box;
+    GF_TextWrapBox *wrap;
+    Bool is_forced;
+    GF_List *others;
+    GF_TextKaraokeBox *cur_karaoke;
+};
+
+static GF_TextSample* create_text_sample() {
+    GF_TextSample *sample = (GF_TextSample *)malloc(sizeof(struct _3gpp_text_sample));
+    if (sample) {
+        memset(sample, 0, sizeof(struct _3gpp_text_sample));
+    }
+    return sample;
 }
 
-static GF_Err dummy_on_block_patch(void *usr_data, u8 *block, u32 block_size, u64 block_offset, Bool is_insert) {
-    return GF_OK;
-}
-
-static void dummy_on_last_block_start(void *usr_data) {
+static GF_StyleRecord* create_style_record() {
+    GF_StyleRecord *style = (GF_StyleRecord *)malloc(sizeof(GF_StyleRecord));
+    return style;
 }
 
 int LLVMFuzzerTestOneInput_193(const uint8_t *Data, size_t Size) {
-    if (Size < 19) { // Minimum size to access all Data indices used
-        return 0;
+    if (Size < 1) return 0;
+
+    GF_TextSample *text_sample = create_text_sample();
+    if (!text_sample) return 0;
+
+    u32 scroll_delay = Data[0];
+    gf_isom_text_set_scroll_delay(text_sample, scroll_delay);
+
+    u8 wrap_flags = Data[0] % 2; // Ensure wrap_flags is either 0 or 1
+    gf_isom_text_set_wrap(text_sample, wrap_flags);
+
+    GF_StyleRecord *style_record = create_style_record();
+    if (style_record) {
+        gf_isom_text_add_style(text_sample, style_record);
+        free(style_record);
     }
 
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
-    if (!isom_file) {
-        return 0;
-    }
+    Bool is_forced = Data[0] % 2; // Ensure is_forced is either 0 or 1
+    gf_isom_text_set_forced(text_sample, is_forced);
 
-    // Prepare dummy file
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (dummy_file) {
-        fwrite(Data, 1, Size, dummy_file);
-        fclose(dummy_file);
-    }
+    gf_isom_text_reset_styles(text_sample);
+    gf_isom_text_reset(text_sample);
 
-    // Fuzz gf_isom_set_sample_flags
-    gf_isom_set_sample_flags(isom_file, Data[0], Data[1], Data[2], Data[3], Data[4], Data[5]);
-
-    // Fuzz gf_isom_set_write_callback
-    gf_isom_set_write_callback(isom_file, dummy_on_block_out, dummy_on_block_patch, dummy_on_last_block_start, NULL, Data[6]);
-
-    // Fuzz gf_isom_set_media_subtype
-    gf_isom_set_media_subtype(isom_file, Data[7], Data[8], Data[9]);
-
-    // Fuzz gf_isom_get_pcm_config
-    u32 flags, pcm_size;
-    gf_isom_get_pcm_config(isom_file, Data[10], Data[11], &flags, &pcm_size);
-
-    // Fuzz gf_isom_set_visual_info
-    gf_isom_set_visual_info(isom_file, Data[12], Data[13], Data[14], Data[15]);
-
-    // Fuzz gf_isom_get_visual_info
-    u32 width, height;
-    gf_isom_get_visual_info(isom_file, Data[16], Data[17], &width, &height);
-
-    gf_isom_close(isom_file);
+    free(text_sample);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_193(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

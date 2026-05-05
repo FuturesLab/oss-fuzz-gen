@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -5,61 +6,114 @@
 #include <stdio.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+// Dummy definitions for incomplete types
+struct GF_TextKaraokeBox {};
+struct GF_TextWrapBox {};
+struct GF_TextBoxBox {};
+struct GF_TextScrollDelayBox {};
+struct GF_TextHighlightColorBox {};
+struct GF_TextStyleBox {};
+struct GF_List {};
+
+typedef struct _3gpp_text_sample {
+    char *text;
+    u32 len;
+    struct GF_TextStyleBox *styles;
+    struct GF_TextHighlightColorBox *highlight_color;
+    struct GF_TextScrollDelayBox *scroll_delay;
+    struct GF_TextBoxBox *box;
+    struct GF_TextWrapBox *wrap;
+    int is_forced;
+    struct GF_List *others;
+    struct GF_TextKaraokeBox *cur_karaoke;
+} GF_TextSample;
+
+static GF_TextSample* create_text_sample() {
+    GF_TextSample *sample = (GF_TextSample *)malloc(sizeof(GF_TextSample));
+    if (sample) {
+        memset(sample, 0, sizeof(GF_TextSample));
+        sample->text = NULL;
+        sample->len = 0;
+        sample->styles = NULL;
+        sample->highlight_color = NULL;
+        sample->scroll_delay = NULL;
+        sample->box = NULL;
+        sample->wrap = NULL;
+        sample->is_forced = 0;
+        sample->others = NULL;
+        sample->cur_karaoke = NULL;
+    }
+    return sample;
+}
+
+static void destroy_text_sample(GF_TextSample *sample) {
+    if (sample) {
+        free(sample->text);
+        free(sample);
     }
 }
 
 int LLVMFuzzerTestOneInput_21(const uint8_t *Data, size_t Size) {
-    if (Size < 4) { // Ensure we have enough data to work with
-        return 0;
-    }
+    if (Size < 4) return 0;
 
-    write_dummy_file(Data, Size);
+    GF_TextSample *sample = create_text_sample();
+    if (!sample) return 0;
 
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    if (!isom_file) {
-        return 0;
-    }
+    u32 scroll_delay = *(u32 *)Data;
+    u32 start_time = scroll_delay;
+    u32 end_time = scroll_delay;
+    u16 start_char = (u16)(scroll_delay & 0xFFFF);
+    u16 end_char = (u16)((scroll_delay >> 16) & 0xFFFF);
+    u32 argb_color = scroll_delay;
+    char *text_data = (char *)Data;
+    u32 text_len = Size;
 
-    u32 trackNumber = 1;  // Arbitrary track number
-    u32 sampleDescriptionIndex = 0;  // Arbitrary sample description index
-    u32 outOriginalFormat, outSchemeType, outSchemeVersion;
-    const char *outSchemeURI, *outKMS_URI;
-    Bool outSelectiveEncryption;
-    u32 outIVLength, outKeyIndicationLength;
+    gf_isom_text_set_scroll_delay(sample, scroll_delay);
+    gf_isom_text_add_karaoke(sample, start_time);
+    gf_isom_text_sample_size(sample);
+    gf_isom_text_set_highlight_color(sample, argb_color);
+    gf_isom_text_set_karaoke_segment(sample, end_time, start_char, end_char);
+    gf_isom_text_add_text(sample, text_data, text_len);
 
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_open to gf_isom_set_single_moof_mode
-    Bool ret_gf_isom_is_JPEG2000_qpntk = gf_isom_is_JPEG2000(NULL);
-
-    gf_isom_set_single_moof_mode(isom_file, ret_gf_isom_is_JPEG2000_qpntk);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    gf_isom_get_ismacryp_info(isom_file, trackNumber, sampleDescriptionIndex, &outOriginalFormat, &outSchemeType, &outSchemeVersion, &outSchemeURI, &outKMS_URI, &outSelectiveEncryption, &outIVLength, &outKeyIndicationLength);
-
-    Bool hasPaddingBits = gf_isom_has_padding_bits(isom_file, trackNumber);
-
-    u32 idx = 0;
-    u32 track_group_type, track_group_id;
-    Bool enumTrackGroup = gf_isom_enum_track_group(isom_file, trackNumber, &idx, &track_group_type, &track_group_id);
-
-    Bool isAdobeProtected = gf_isom_is_adobe_protection_media(isom_file, trackNumber, sampleDescriptionIndex);
-
-    u32 sample_group_description_index = 0;  // Arbitrary sample group description index
-    u32 grouping_type = 0;  // Arbitrary grouping type
-    u32 default_index;
-    const u8 *data;
-    u32 size;
-    Bool getSampleGroupInfo = gf_isom_get_sample_group_info(isom_file, trackNumber, sample_group_description_index, grouping_type, &default_index, &data, &size);
-
-    Bool isTrackEncrypted = gf_isom_is_track_encrypted(isom_file, trackNumber);
-
-    gf_isom_close(isom_file);
-
+    destroy_text_sample(sample);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_21(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

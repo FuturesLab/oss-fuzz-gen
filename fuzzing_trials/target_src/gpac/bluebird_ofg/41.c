@@ -1,58 +1,77 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "unistd.h"  // Include for close() and unlink()
-#include <fcntl.h>   // Include for mkstemp()
+#include <string.h>
+#include <unistd.h>  // Include this for mkstemp and close
 #include "/src/gpac/include/gpac/isomedia.h"
-#include "/src/gpac/include/gpac/constants.h"
 
 int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    GF_ISOFile *file = NULL;
-    Bool root_meta = GF_FALSE;
-    u32 track_num = 1; // Initialize with a non-zero value
+    GF_ISOFile *movie;
+    char filename[] = "/tmp/fuzzfileXXXXXX";
+    int fd;
 
-    // Create a temporary file to simulate an ISO file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure the data size is sufficient for creating a temporary file
+    if (size == 0) {
         return 0;
     }
 
-    // Write data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
+    // Create a temporary file to use as the filename
+    fd = mkstemp(filename);
+    if (fd == -1) {
         return 0;
     }
     close(fd);
 
-    // Open the ISO file using the temporary file path
-    file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
-    if (file == NULL) {
-        unlink(tmpl);
+    // Initialize the GF_ISOFile structure
+    movie = gf_isom_open(filename, GF_ISOM_OPEN_WRITE, NULL);
+    if (movie == NULL) {
         return 0;
     }
 
-    // Fuzz the function-under-test
-    gf_isom_has_meta_xml(file, root_meta, track_num);
+    // Call the function-under-test
+    gf_isom_set_final_name(movie, filename);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_has_meta_xml to gf_isom_set_media_type
-    const char mlaevgte[1024] = "wlnvv";
-    u32 ret_gf_isom_probe_file_ofyaq = gf_isom_probe_file(mlaevgte);
-    u32 ret_gf_isom_probe_file_tikwm = gf_isom_probe_file((const char *)"r");
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_set_media_type with gf_isom_hint_max_chunk_size
-    GF_Err ret_gf_isom_set_media_type_ojjxu = gf_isom_hint_max_chunk_size(file, ret_gf_isom_probe_file_ofyaq, ret_gf_isom_probe_file_tikwm);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    gf_isom_close(file);
-    unlink(tmpl);
+    gf_isom_close(movie);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_41(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

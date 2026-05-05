@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -5,69 +6,101 @@
 #include <stdio.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-#define DUMMY_FILE_PATH "./dummy_file"
+#define DUMMY_FILE "./dummy_file"
 
-static GF_ISOFile* initialize_iso_file() {
-    // Allocate memory for the GF_ISOFile structure
-    GF_ISOFile *isom_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_WRITE, NULL);
-    return isom_file;
-}
-
-static void cleanup_iso_file(GF_ISOFile *isom_file) {
-    if (!isom_file) return;
-    gf_isom_close(isom_file);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen(DUMMY_FILE, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_44(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(GF_ISOFile *)) return 0;
 
-    // Initialize the ISO file
-    GF_ISOFile *isom_file = initialize_iso_file();
+    GF_ISOFile *isom_file = gf_isom_open(DUMMY_FILE, GF_ISOM_OPEN_READ, NULL);
     if (!isom_file) return 0;
 
-    // Prepare dummy file
-    FILE *dummy_file = fopen(DUMMY_FILE_PATH, "wb");
-    if (!dummy_file) {
-        cleanup_iso_file(isom_file);
-        return 0;
-    }
-    fwrite(Data, 1, Size, dummy_file);
-    fclose(dummy_file);
+    // Prepare parameters
+    Bool root_meta = GF_TRUE;
+    u32 track_num = 0;
+    u32 item_id = 1;
+    u8 *out_data = NULL;
+    u32 out_size = 0;
+    u32 out_alloc_size = 0;
+    const char *mime_type = NULL;
+    Bool use_annex_b = GF_FALSE;
+    Bool is_binary = GF_FALSE;
+    Bool keep_refs = GF_FALSE;
+    const char *keep_props = NULL;
 
-    // Extract parameters from the input data
-    u32 trackNumber = Data[0];
-    u64 EditDuration = Size > 8 ? *((u64*)(Data + 1)) : 0;
-    u64 MediaTime = Size > 16 ? *((u64*)(Data + 9)) : 0;
-    GF_ISOEditType EditMode = Size > 17 ? (GF_ISOEditType)Data[17] : 0;
-    u64 EditTime = Size > 25 ? *((u64*)(Data + 18)) : 0;
-    u32 MediaRate = Size > 29 ? *((u32*)(Data + 26)) : 0;
-    u32 EditIndex = Size > 33 ? *((u32*)(Data + 30)) : 1;
-    u64 trackDuration = Size > 41 ? *((u64*)(Data + 34)) : 0;
+    // Write dummy file for file-based operations
+    write_dummy_file(Data, Size);
 
-    // Variables for output parameters
-    u64 outEditTime, outSegmentDuration, outMediaTime;
-    GF_ISOEditType outEditMode;
+    // Call gf_isom_set_meta_xml
+    gf_isom_set_meta_xml(isom_file, root_meta, track_num, DUMMY_FILE, NULL, 0, is_binary);
 
-    // Test gf_isom_append_edit
-    gf_isom_append_edit(isom_file, trackNumber, EditDuration, MediaTime, EditMode);
+    // Call gf_isom_extract_meta_item_mem
+    gf_isom_extract_meta_item_mem(isom_file, root_meta, track_num, item_id, &out_data, &out_size, &out_alloc_size, &mime_type, use_annex_b);
 
-    // Test gf_isom_set_edit
-    gf_isom_set_edit(isom_file, trackNumber, EditTime, EditDuration, MediaTime, EditMode);
+    // Call gf_isom_get_meta_item_info
+    u32 itemID, type, protection_scheme, protection_scheme_version;
+    Bool is_self_reference;
+    const char *item_name, *item_mime_type, *item_encoding, *item_url, *item_urn;
+    gf_isom_get_meta_item_info(isom_file, root_meta, track_num, item_id, &itemID, &type, &protection_scheme, &protection_scheme_version, &is_self_reference, &item_name, &item_mime_type, &item_encoding, &item_url, &item_urn);
 
-    // Test gf_isom_get_edit
-    gf_isom_get_edit(isom_file, trackNumber, EditIndex, &outEditTime, &outSegmentDuration, &outMediaTime, &outEditMode);
+    // Call gf_isom_extract_meta_xml
+    gf_isom_extract_meta_xml(isom_file, root_meta, track_num, DUMMY_FILE, &is_binary);
 
-    // Test gf_isom_set_edit_with_rate
-    gf_isom_set_edit_with_rate(isom_file, trackNumber, EditTime, EditDuration, MediaTime, MediaRate);
+    // Call gf_isom_remove_meta_item
+    gf_isom_remove_meta_item(isom_file, root_meta, track_num, item_id, keep_refs, keep_props);
 
-    // Test gf_isom_force_track_duration
-    gf_isom_force_track_duration(isom_file, trackNumber, trackDuration);
+    // Call gf_isom_extract_meta_item
+    gf_isom_extract_meta_item(isom_file, root_meta, track_num, item_id, DUMMY_FILE);
 
-    // Test gf_isom_modify_edit
-    gf_isom_modify_edit(isom_file, trackNumber, EditIndex, EditDuration, MediaTime, EditMode);
-
-    // Cleanup
-    cleanup_iso_file(isom_file);
+    // Free allocated memory
+    free(out_data);
+    gf_isom_close(isom_file);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_44(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

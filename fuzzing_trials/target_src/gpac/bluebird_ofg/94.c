@@ -1,59 +1,107 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "unistd.h"  // Include for close() and unlink()
-#include <fcntl.h>   // Include for mkstemp()
+#include <unistd.h>
+#include <fcntl.h>
 #include "/src/gpac/include/gpac/isomedia.h"
-#include "/src/gpac/include/gpac/constants.h"
 
 int LLVMFuzzerTestOneInput_94(const uint8_t *data, size_t size) {
     GF_ISOFile *file = NULL;
     Bool root_meta = GF_FALSE;
-    u32 track_num = 1; // Initialize with a non-zero value
+    u32 track_num = 1;
 
-    // Create a temporary file to simulate an ISO file
+    // Ensure the input data is not empty
+    if (size == 0) {
+        return 0;
+    }
+
+    // Create a temporary file to store the input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write data to the temporary file
+    // Write the input data to the temporary file
     if (write(fd, data, size) != size) {
         close(fd);
-        unlink(tmpl);
         return 0;
     }
+
+    // Close the file descriptor
     close(fd);
 
-    // Open the ISO file using the temporary file path
+    // Open the ISO file using the temporary file
     file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
     if (file == NULL) {
-        unlink(tmpl);
+        // Clean up the temporary file if opening fails
+        remove(tmpl);
         return 0;
     }
 
-    // Fuzz the function-under-test
+    // Call the function-under-test
+    gf_isom_get_meta_type(file, root_meta, track_num);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_has_meta_xml with gf_isom_get_meta_item_count
-    gf_isom_get_meta_item_count(file, root_meta, track_num);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Close the ISO file and clean up
 
-
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_get_meta_item_count to gf_isom_get_brand_info
-    u32 ret_gf_isom_get_next_moof_number_ftezw = gf_isom_get_next_moof_number(NULL);
-    u32 ret_gf_isom_get_supported_box_type_rongq = gf_isom_get_supported_box_type(0);
-    u32 mglbocma;
-    memset(&mglbocma, 0, sizeof(mglbocma));
-
-    GF_Err ret_gf_isom_get_brand_info_pefcr = gf_isom_get_brand_info(file, &ret_gf_isom_get_next_moof_number_ftezw, &ret_gf_isom_get_supported_box_type_rongq, &mglbocma);
-
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_get_meta_type to gf_isom_avc_config_new
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    u32 ret_gf_isom_guess_specification_mdkxp = gf_isom_guess_specification(file);
+    u32 ret_gf_isom_get_timescale_mojbj = gf_isom_get_timescale(NULL);
+    GF_AVCConfig lfgwmrrw;
+    memset(&lfgwmrrw, 0, sizeof(lfgwmrrw));
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    GF_Err ret_gf_isom_avc_config_new_gjvdk = gf_isom_avc_config_new(file, ret_gf_isom_guess_specification_mdkxp, &lfgwmrrw, NULL, (const char *)data, &ret_gf_isom_get_timescale_mojbj);
     // End mutation: Producer.APPEND_MUTATOR
-
+    
     gf_isom_close(file);
-    unlink(tmpl);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_94(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

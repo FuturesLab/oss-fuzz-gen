@@ -1,71 +1,109 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_is_track_fragmented at movie_fragments.c:3512:6 in isomedia.h
-// gf_isom_is_cenc_media at drm_sample.c:681:6 in isomedia.h
-// gf_isom_is_self_contained at isom_read.c:2158:6 in isomedia.h
-// gf_isom_has_padding_bits at isom_read.c:2680:6 in isomedia.h
-// gf_isom_enable_raw_pack at isom_read.c:1799:6 in isomedia.h
-// gf_isom_is_track_encrypted at isom_read.c:1624:6 in isomedia.h
+// gf_isom_remove_track at isom_write.c:2942:8 in isomedia.h
+// gf_isom_set_sample_rap_group at isom_write.c:7715:8 in isomedia.h
+// gf_isom_vvc_set_inband_config at avc_ext.c:2427:8 in isomedia.h
+// gf_isom_fragment_set_sample_rap_group at isom_write.c:7720:8 in isomedia.h
+// gf_isom_set_fragment_original_duration at movie_fragments.c:3171:8 in isomedia.h
+// gf_isom_add_sample_group_info at isom_write.c:7555:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "isomedia.h"
 
-#define DUMMY_FILE_PATH "./dummy_file"
+#define DUMMY_FILE "./dummy_file"
 
-static GF_ISOFile* create_dummy_iso_file(const uint8_t *Data, size_t Size) {
-    // Write the data to a dummy file
-    FILE *file = fopen(DUMMY_FILE_PATH, "wb");
-    if (!file) return NULL;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+static GF_ISOFile* create_dummy_iso_file() {
+    // Create a dummy file on disk for testing
+    FILE *file = fopen(DUMMY_FILE, "wb");
+    if (file) {
+        fwrite("dummy", 1, 5, file);
+        fclose(file);
+    }
 
-    // Open the dummy file as a GF_ISOFile
-    GF_ISOFile *iso_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_READ, NULL);
+    // Open the file using gpac API to get a GF_ISOFile object
+    GF_ISOFile *iso_file = gf_isom_open(DUMMY_FILE, GF_ISOM_OPEN_WRITE, NULL);
     return iso_file;
 }
 
-static void close_iso_file(GF_ISOFile *iso_file) {
-    if (iso_file) {
-        gf_isom_close(iso_file);
-    }
+static void cleanup_iso_file(GF_ISOFile *iso_file) {
+    if (!iso_file) return;
+    gf_isom_close(iso_file);
+    remove(DUMMY_FILE);
 }
 
 int LLVMFuzzerTestOneInput_95(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 3) return 0;
+    if (Size < sizeof(u32) * 3 + sizeof(Bool)) return 0;
 
-    GF_ISOFile *iso_file = create_dummy_iso_file(Data, Size);
+    GF_ISOFile *iso_file = create_dummy_iso_file();
     if (!iso_file) return 0;
 
-    u32 trackNumber = *(u32*)Data;
-    u32 sampleDescriptionIndex = *((u32*)Data + 1);
-    u32 pack_num_samples = *((u32*)Data + 2);
+    u32 trackNumber = *((u32 *)Data);
+    u32 sampleNumber = *((u32 *)(Data + sizeof(u32)));
+    Bool is_rap = *((Bool *)(Data + sizeof(u32) * 2));
+    u32 num_leading_samples = *((u32 *)(Data + sizeof(u32) * 2 + sizeof(Bool)));
 
-    // Fuzz gf_isom_is_track_fragmented
-    gf_isom_is_track_fragmented(iso_file, trackNumber);
+    // Fuzz gf_isom_remove_track
+    gf_isom_remove_track(iso_file, trackNumber);
 
-    // Fuzz gf_isom_is_cenc_media
-    gf_isom_is_cenc_media(iso_file, trackNumber, sampleDescriptionIndex);
+    // Fuzz gf_isom_set_sample_rap_group
+    gf_isom_set_sample_rap_group(iso_file, trackNumber, sampleNumber, is_rap, num_leading_samples);
 
-    // Fuzz gf_isom_is_self_contained
-    gf_isom_is_self_contained(iso_file, trackNumber, sampleDescriptionIndex);
+    // Fuzz gf_isom_vvc_set_inband_config
+    gf_isom_vvc_set_inband_config(iso_file, trackNumber, sampleNumber, is_rap);
 
-    // Fuzz gf_isom_has_padding_bits
-    gf_isom_has_padding_bits(iso_file, trackNumber);
+    // Fuzz gf_isom_fragment_set_sample_rap_group
+    gf_isom_fragment_set_sample_rap_group(iso_file, trackNumber, sampleNumber, is_rap, num_leading_samples);
 
-    // Fuzz gf_isom_enable_raw_pack
-    gf_isom_enable_raw_pack(iso_file, trackNumber, pack_num_samples);
+    // Fuzz gf_isom_set_fragment_original_duration
+    gf_isom_set_fragment_original_duration(iso_file, trackNumber, sampleNumber, num_leading_samples);
 
-    // Fuzz gf_isom_is_track_encrypted
-    gf_isom_is_track_encrypted(iso_file, trackNumber);
+    // Fuzz gf_isom_add_sample_group_info
+    gf_isom_add_sample_group_info(iso_file, trackNumber, sampleNumber, (void *)Data, Size, is_rap, NULL);
 
-    close_iso_file(iso_file);
+    cleanup_iso_file(iso_file);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_95(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

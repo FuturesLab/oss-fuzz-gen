@@ -1,116 +1,135 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_track_cenc_add_sample_info at drm_sample.c:1309:8 in isomedia.h
+// gf_isom_get_meta_image_props at meta.c:735:8 in isomedia.h
+// gf_isom_dump_supported_box at box_funcs.c:2293:8 in isomedia.h
+// gf_isom_text_dump at box_dump.c:4470:8 in isomedia.h
+// gf_isom_get_sample_for_media_time at isom_read.c:2192:8 in isomedia.h
+// gf_isom_set_nalu_extract_mode at isom_read.c:5481:8 in isomedia.h
+// gf_isom_add_sample_reference at isom_write.c:1269:8 in isomedia.h
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_set_cenc_protection at drm_sample.c:758:8 in isomedia.h
-// gf_isom_get_sample_cenc_info at isom_read.c:5790:8 in isomedia.h
-// gf_isom_ismacryp_sample_from_data at drm_sample.c:48:16 in isomedia.h
-// gf_isom_fragment_add_subsample at movie_fragments.c:3133:8 in isomedia.h
-// gf_isom_extract_meta_item_get_cenc_info at meta.c:506:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "isomedia.h"
 
-#define DUMMY_FILE_PATH "./dummy_file"
-#define TMP_DIR "/tmp"
+static void fuzz_gf_isom_get_meta_image_props(GF_ISOFile *isom_file) {
+    Bool root_meta = rand() % 2;
+    u32 track_num = rand() % 10;
+    u32 item_id = rand() % 100;
+    GF_ImageItemProperties out_image_props;
+    GF_List *unmapped_props = NULL;
 
-// Helper function to create a dummy ISO file
-static GF_ISOFile* create_dummy_iso_file() {
-    // Since GF_ISOFile is an incomplete type, we cannot allocate it directly.
-    // We will assume some hypothetical initialization function exists.
-    GF_ISOFile *file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_READ, TMP_DIR);
-    return file;
+    gf_isom_get_meta_image_props(isom_file, root_meta, track_num, item_id, &out_image_props, unmapped_props);
 }
 
-// Helper function to free a dummy ISO file
-static void free_dummy_iso_file(GF_ISOFile *file) {
-    if (file) gf_isom_close(file);
+static void fuzz_gf_isom_dump_supported_box() {
+    FILE *trace = fopen("./dummy_file", "wb");
+    if (!trace) return;
+
+    u32 idx = rand() % 100;
+    gf_isom_dump_supported_box(idx, trace);
+
+    fclose(trace);
+}
+
+static void fuzz_gf_isom_text_dump(GF_ISOFile *isom_file) {
+    FILE *dump = fopen("./dummy_file", "wb");
+    if (!dump) return;
+
+    u32 trackNumber = rand() % 10;
+    GF_TextDumpType dump_type = rand() % 3;
+
+    gf_isom_text_dump(isom_file, trackNumber, dump, dump_type);
+
+    fclose(dump);
+}
+
+static void fuzz_gf_isom_get_sample_for_media_time(GF_ISOFile *isom_file) {
+    u32 trackNumber = rand() % 10;
+    u64 desiredTime = rand() % 1000;
+    u32 sampleDescriptionIndex;
+    GF_ISOSearchMode SearchMode = rand() % 3;
+    GF_ISOSample *sample = NULL;
+    u32 sample_number;
+    u64 data_offset;
+
+    gf_isom_get_sample_for_media_time(isom_file, trackNumber, desiredTime, &sampleDescriptionIndex, SearchMode, &sample, &sample_number, &data_offset);
+}
+
+static void fuzz_gf_isom_set_nalu_extract_mode(GF_ISOFile *isom_file) {
+    u32 trackNumber = rand() % 10;
+    GF_ISONaluExtractMode nalu_extract_mode = rand() % 3;
+
+    gf_isom_set_nalu_extract_mode(isom_file, trackNumber, nalu_extract_mode);
+}
+
+static void fuzz_gf_isom_add_sample_reference(GF_ISOFile *isom_file) {
+    u32 trackNumber = rand() % 10;
+    u32 sampleDescriptionIndex = rand() % 10;
+    GF_ISOSample *sample = NULL;
+    u64 dataOffset = rand() % 1000;
+
+    gf_isom_add_sample_reference(isom_file, trackNumber, sampleDescriptionIndex, sample, dataOffset);
 }
 
 int LLVMFuzzerTestOneInput_230(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 10) return 0;
+    // Assuming gf_isom_open and gf_isom_close are functions to handle GF_ISOFile objects.
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    if (!isom_file) return 0;
 
-    GF_ISOFile *iso_file = create_dummy_iso_file();
-    if (!iso_file) return 0;
+    fuzz_gf_isom_get_meta_image_props(isom_file);
+    fuzz_gf_isom_dump_supported_box();
+    fuzz_gf_isom_text_dump(isom_file);
+    fuzz_gf_isom_get_sample_for_media_time(isom_file);
+    fuzz_gf_isom_set_nalu_extract_mode(isom_file);
+    fuzz_gf_isom_add_sample_reference(isom_file);
 
-    // Extract parameters for gf_isom_set_cenc_protection
-    u32 trackNumber = *((u32 *)Data);
-    u32 sampleDescriptionIndex = *((u32 *)(Data + 4));
-    u32 scheme_type = *((u32 *)(Data + 8));
-    u32 scheme_version = *((u32 *)(Data + 12));
-    u32 default_IsEncrypted = *((u32 *)(Data + 16));
-    u32 default_crypt_byte_block = *((u32 *)(Data + 20));
-    u32 default_skip_byte_block = *((u32 *)(Data + 24));
-    u8 *key_info = (u8 *)(Data + 28);
-    u32 key_info_size = (Size > 28) ? (Size - 28) : 0;
-
-    gf_isom_set_cenc_protection(iso_file, trackNumber, sampleDescriptionIndex, scheme_type, scheme_version,
-                                default_IsEncrypted, default_crypt_byte_block, default_skip_byte_block,
-                                key_info, key_info_size);
-
-    // Extract parameters for gf_isom_get_sample_cenc_info
-    u32 sampleNumber = *((u32 *)(Data + 4));
-    Bool IsEncrypted;
-    u32 crypt_byte_block;
-    u32 skip_byte_block;
-    const u8 *retrieved_key_info;
-    u32 retrieved_key_info_size;
-
-    gf_isom_get_sample_cenc_info(iso_file, trackNumber, sampleNumber, &IsEncrypted, &crypt_byte_block,
-                                 &skip_byte_block, &retrieved_key_info, &retrieved_key_info_size);
-
-    // Extract parameters for gf_isom_ismacryp_sample_from_data
-    u8 *sample_data = (u8 *)(Data + 28);
-    u32 dataLength = (Size > 28) ? (Size - 28) : 0;
-    Bool use_selective_encryption = *((Bool *)(Data + 8));
-    u8 KI_length = *((u8 *)(Data + 9));
-    u8 IV_length = *((u8 *)(Data + 10));
-
-    GF_ISMASample *isma_sample = gf_isom_ismacryp_sample_from_data(sample_data, dataLength, use_selective_encryption, KI_length, IV_length);
-    if (isma_sample) free(isma_sample);
-
-    // Extract parameters for gf_isom_fragment_add_subsample
-    GF_ISOTrackID TrackID = *((GF_ISOTrackID *)(Data + 4));
-    u32 flags = *((u32 *)(Data + 8));
-    u32 subSampleSize = *((u32 *)(Data + 12));
-    u8 priority = *((u8 *)(Data + 16));
-    u32 reserved = *((u32 *)(Data + 17));
-    Bool discardable = *((Bool *)(Data + 21));
-
-    gf_isom_fragment_add_subsample(iso_file, TrackID, flags, subSampleSize, priority, reserved, discardable);
-
-    // Extract parameters for gf_isom_extract_meta_item_get_cenc_info
-    Bool root_meta = *((Bool *)(Data + 8));
-    u32 item_id = *((u32 *)(Data + 12));
-    Bool is_protected;
-    u32 skip_byte_block_meta;
-    u32 crypt_byte_block_meta;
-    const u8 *key_info_meta;
-    u32 key_info_size_meta;
-    u32 aux_info_type_parameter;
-    u8 *sai_out_data = NULL;
-    u32 sai_out_size;
-    u32 sai_out_alloc_size;
-
-    gf_isom_extract_meta_item_get_cenc_info(iso_file, root_meta, trackNumber, item_id, &is_protected,
-                                            &skip_byte_block_meta, &crypt_byte_block_meta, &key_info_meta,
-                                            &key_info_size_meta, &aux_info_type_parameter, &sai_out_data,
-                                            &sai_out_size, &sai_out_alloc_size);
-    if (sai_out_data) free(sai_out_data);
-
-    // Extract parameters for gf_isom_track_cenc_add_sample_info
-    u32 container_type = *((u32 *)(Data + 8));
-    u8 *buf = (u8 *)(Data + 28);
-    u32 len = (Size > 28) ? (Size - 28) : 0;
-    Bool use_subsamples = *((Bool *)(Data + 12));
-    Bool use_saio_32bit = *((Bool *)(Data + 13));
-    Bool is_multi_key = *((Bool *)(Data + 14));
-
-    gf_isom_track_cenc_add_sample_info(iso_file, trackNumber, container_type, buf, len, use_subsamples, use_saio_32bit, is_multi_key);
-
-    free_dummy_iso_file(iso_file);
+    gf_isom_close(isom_file);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_230(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

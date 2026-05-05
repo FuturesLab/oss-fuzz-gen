@@ -1,58 +1,108 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_get_media_subtype at isom_read.c:1644:5 in isomedia.h
-// gf_isom_get_payt_count at hint_track.c:968:5 in isomedia.h
-// gf_isom_get_constant_sample_size at isom_read.c:1780:5 in isomedia.h
-// gf_isom_get_content_light_level_info at isom_read.c:6500:33 in isomedia.h
-// gf_isom_get_track_group at isom_read.c:6437:5 in isomedia.h
-// gf_isom_get_media_timescale at isom_read.c:1459:5 in isomedia.h
+// gf_isom_new_xml_metadata_description at sample_descs.c:1188:8 in isomedia.h
+// gf_isom_get_media_language at isom_read.c:1100:8 in isomedia.h
+// gf_isom_xml_subtitle_get_description at sample_descs.c:1243:8 in isomedia.h
+// gf_isom_change_ismacryp_protection at drm_sample.c:386:8 in isomedia.h
+// gf_isom_ac3_config_new at sample_descs.c:701:8 in isomedia.h
+// gf_isom_add_track_kind at isom_write.c:3126:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+#define DUMMY_FILE_PATH "./dummy_file"
+
+// Mock function to create a dummy ISO file
+static GF_ISOFile* create_dummy_iso_file() {
+    // Return a NULL pointer as a placeholder for an actual ISO file
+    return NULL;
 }
 
 int LLVMFuzzerTestOneInput_208(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 3) return 0;
+    if (Size < 1) return 0;
 
-    // Initialize variables for API functions
-    GF_ISOFile *isom_file = NULL;  // This should be initialized properly
-    u32 trackNumber = *((u32 *)Data);
-    u32 sampleDescriptionIndex = *((u32 *)(Data + sizeof(u32)));
-    u32 track_group_type = *((u32 *)(Data + 2 * sizeof(u32)));
+    // Create a dummy ISO file
+    GF_ISOFile* iso_file = create_dummy_iso_file();
 
-    // Write dummy data to file if needed
-    write_dummy_file(Data, Size);
+    // Prepare dummy data
+    u32 trackNumber = Data[0]; // Use the first byte as track number
+    u32 outDescriptionIndex;
+    char* lang = NULL;
 
-    // Call target API functions with different combinations
-    u32 media_subtype = gf_isom_get_media_subtype(isom_file, trackNumber, sampleDescriptionIndex);
-    u32 payt_count = gf_isom_get_payt_count(isom_file, trackNumber);
-    u32 constant_sample_size = gf_isom_get_constant_sample_size(isom_file, trackNumber);
-    const GF_ContentLightLevelInfo *clli_info = gf_isom_get_content_light_level_info(isom_file, trackNumber, sampleDescriptionIndex);
-    u32 track_group_id = gf_isom_get_track_group(isom_file, trackNumber, track_group_type);
-    u32 media_timescale = gf_isom_get_media_timescale(isom_file, trackNumber);
+    // Prepare dummy strings
+    const char* xmlnamespace = "http://example.com/ns";
+    const char* schema_loc = "http://example.com/schema";
+    const char* content_encoding = "UTF-8";
+    const char* schemeURI = "http://example.com/scheme";
+    const char* value = "kind_value";
+    char* scheme_uri = "http://example.com/scheme_uri";
+    char* kms_uri = "http://example.com/kms_uri";
+    GF_AC3Config ac3_config;
+    memset(&ac3_config, 0, sizeof(GF_AC3Config));
 
-    // Handle return values to suppress compiler warnings
-    (void)media_subtype;
-    (void)payt_count;
-    (void)constant_sample_size;
-    (void)clli_info;
-    (void)track_group_id;
-    (void)media_timescale;
+    // Fuzz gf_isom_new_xml_metadata_description
+    gf_isom_new_xml_metadata_description(iso_file, trackNumber, xmlnamespace, schema_loc, content_encoding, &outDescriptionIndex);
 
-    // Clean up resources if necessary
-    // For example, if isom_file was dynamically allocated, it should be freed here
+    // Fuzz gf_isom_get_media_language
+    gf_isom_get_media_language(iso_file, trackNumber, &lang);
+    if (lang) free(lang);
+
+    // Fuzz gf_isom_xml_subtitle_get_description
+    const char* xmlnamespace_out = NULL;
+    const char* xml_schema_loc_out = NULL;
+    const char* mimes_out = NULL;
+    gf_isom_xml_subtitle_get_description(iso_file, trackNumber, outDescriptionIndex, &xmlnamespace_out, &xml_schema_loc_out, &mimes_out);
+
+    // Fuzz gf_isom_change_ismacryp_protection
+    gf_isom_change_ismacryp_protection(iso_file, trackNumber, outDescriptionIndex, scheme_uri, kms_uri);
+
+    // Fuzz gf_isom_ac3_config_new
+    gf_isom_ac3_config_new(iso_file, trackNumber, &ac3_config, NULL, NULL, &outDescriptionIndex);
+
+    // Fuzz gf_isom_add_track_kind
+    gf_isom_add_track_kind(iso_file, trackNumber, schemeURI, value);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_208(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

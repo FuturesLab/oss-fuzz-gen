@@ -1,66 +1,110 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_dump_ismacryp_protection at box_dump.c:4563:8 in isomedia.h
-// gf_isom_get_sample_references at isom_read.c:6727:8 in isomedia.h
-// gf_isom_dump_ismacryp_sample at box_dump.c:4598:8 in isomedia.h
-// gf_isom_set_sample_cenc_default_group at isom_write.c:7843:8 in isomedia.h
-// gf_isom_update_bitrate at sample_descs.c:1776:8 in isomedia.h
-// gf_isom_dump_hint_sample at box_dump.c:3460:8 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_mvc_config_new at avc_ext.c:1882:8 in isomedia.h
+// gf_isom_sdp_get at hint_track.c:909:8 in isomedia.h
+// gf_isom_svc_config_new at avc_ext.c:1876:8 in isomedia.h
+// gf_isom_new_dims_description at sample_descs.c:962:8 in isomedia.h
+// gf_isom_get_data_reference at isom_read.c:1723:8 in isomedia.h
+// gf_isom_avc_config_new at avc_ext.c:1575:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 #include "isomedia.h"
 
-static GF_ISOFile* initialize_iso_file() {
-    // Since GF_ISOFile is an incomplete type, allocate it through the API if available
-    GF_ISOFile *isoFile = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
-    return isoFile;
+static GF_ISOFile* create_dummy_iso_file() {
+    // Using a dummy file for the ISO file
+    FILE *dummy_file = fopen("./dummy_file", "wb");
+    if (dummy_file) {
+        fclose(dummy_file);
+    }
+
+    // Assuming GF_ISOFile is properly initialized using a provided API
+    GF_ISOFile *file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    return file;
+}
+
+static void cleanup_iso_file(GF_ISOFile *file) {
+    if (file) {
+        gf_isom_close(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_175(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 6) return 0; // Ensure enough data for all parameters
-
-    GF_ISOFile *isom_file = initialize_iso_file();
+    GF_ISOFile *isom_file = create_dummy_iso_file();
     if (!isom_file) return 0;
 
-    FILE *trace = fopen("./dummy_file", "w");
-    if (!trace) {
-        gf_isom_close(isom_file);
-        return 0;
-    }
+    GF_AVCConfig cfg;
+    const char *url = "http://example.com";
+    const char *urn = "urn:example";
+    u32 outDescriptionIndex = 0;
+    u32 trackNumber = 1;
 
-    const u32 trackNumber = *((u32 *)Data);
-    const u32 sampleNumber = *((u32 *)(Data + sizeof(u32)));
-    const u32 sampleDescriptionIndex = *((u32 *)(Data + 2 * sizeof(u32)));
+    // Fuzz gf_isom_mvc_config_new
+    gf_isom_mvc_config_new(isom_file, trackNumber, &cfg, url, urn, &outDescriptionIndex);
 
-    // Fuzz gf_isom_dump_ismacryp_protection
-    gf_isom_dump_ismacryp_protection(isom_file, trackNumber, trace);
+    // Fuzz gf_isom_sdp_get
+    const char *sdp = NULL;
+    u32 sdp_length = 0;
+    gf_isom_sdp_get(isom_file, &sdp, &sdp_length);
 
-    // Fuzz gf_isom_get_sample_references
-    u32 refID, nb_refs;
-    const u32 *refs;
-    gf_isom_get_sample_references(isom_file, trackNumber, sampleNumber, &refID, &nb_refs, &refs);
+    // Fuzz gf_isom_svc_config_new
+    gf_isom_svc_config_new(isom_file, trackNumber, &cfg, url, urn, &outDescriptionIndex);
 
-    // Fuzz gf_isom_dump_ismacryp_sample
-    gf_isom_dump_ismacryp_sample(isom_file, trackNumber, sampleNumber, trace);
+    // Fuzz gf_isom_new_dims_description
+    GF_DIMSDescription dims_desc;
+    gf_isom_new_dims_description(isom_file, trackNumber, &dims_desc, url, urn, &outDescriptionIndex);
 
-    // Fuzz gf_isom_set_sample_cenc_default_group
-    gf_isom_set_sample_cenc_default_group(isom_file, trackNumber, sampleNumber);
+    // Fuzz gf_isom_get_data_reference
+    const char *outURL = NULL;
+    const char *outURN = NULL;
+    gf_isom_get_data_reference(isom_file, trackNumber, 1, &outURL, &outURN);
 
-    // Fuzz gf_isom_update_bitrate
-    u32 average_bitrate = *((u32 *)(Data + 3 * sizeof(u32)));
-    u32 max_bitrate = *((u32 *)(Data + 4 * sizeof(u32)));
-    u32 decode_buffer_size = *((u32 *)(Data + 5 * sizeof(u32)));
-    gf_isom_update_bitrate(isom_file, trackNumber, sampleDescriptionIndex, average_bitrate, max_bitrate, decode_buffer_size);
+    // Fuzz gf_isom_avc_config_new
+    gf_isom_avc_config_new(isom_file, trackNumber, &cfg, url, urn, &outDescriptionIndex);
 
-    // Fuzz gf_isom_dump_hint_sample
-    gf_isom_dump_hint_sample(isom_file, trackNumber, sampleNumber, trace);
-
-    fclose(trace);
-    gf_isom_close(isom_file);
+    cleanup_iso_file(isom_file);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_175(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

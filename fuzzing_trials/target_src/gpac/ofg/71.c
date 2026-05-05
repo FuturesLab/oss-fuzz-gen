@@ -1,59 +1,67 @@
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>  // For memcpy
-#include <unistd.h>  // For close
+#include <stddef.h>
 #include <gpac/isomedia.h>
-#include <gpac/constants.h>
-#include <gpac/tools.h>
 
 int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size) {
-    GF_ISOFile *file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!file) {
+    // Ensure the size is sufficient to extract trackNumber and next_dts
+    if (size < sizeof(uint32_t) + sizeof(uint64_t)) {
         return 0;
     }
 
-    // Ensure the size is sufficient to avoid out-of-bounds access
-    if (size < 1) {
-        gf_isom_close(file);
+    // Initialize the GF_ISOFile structure
+    GF_ISOFile *movie = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_READ, NULL);
+    if (!movie) {
         return 0;
     }
 
-    // Create a temporary file for the XML
-    char tmpl[] = "/tmp/fuzz_xmlXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        gf_isom_close(file);
-        return 0;
-    }
-    close(fd);
+    // Extract trackNumber and next_dts from the input data
+    uint32_t trackNumber = *(uint32_t *)data;
+    uint64_t next_dts = *(uint64_t *)(data + sizeof(uint32_t));
 
-    // Write the data to the temporary file
-    FILE *xmlFile = fopen(tmpl, "wb");
-    if (!xmlFile) {
-        gf_isom_close(file);
-        return 0;
-    }
-    fwrite(data, 1, size, xmlFile);
-    fclose(xmlFile);
+    // Call the function-under-test
+    gf_isom_patch_last_sample_duration(movie, trackNumber, next_dts);
 
-    Bool root_meta = GF_TRUE;
-    u32 track_num = 1;
-    unsigned char *data_copy = (unsigned char *)malloc(size);
-    if (!data_copy) {
-        remove(tmpl);
-        gf_isom_close(file);
-        return 0;
-    }
-    memcpy(data_copy, data, size);
-    u32 data_size = size;
-    Bool IsBinaryXML = GF_FALSE;
-
-    gf_isom_set_meta_xml(file, root_meta, track_num, tmpl, data_copy, data_size, IsBinaryXML);
-
-    free(data_copy);
-    remove(tmpl);
-    gf_isom_close(file);
+    // Clean up
+    gf_isom_close(movie);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_71(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

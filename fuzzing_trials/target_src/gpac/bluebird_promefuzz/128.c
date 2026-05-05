@@ -1,54 +1,104 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_ISOFile* open_dummy_iso_file() {
-    // Create a dummy file to simulate ISO file operations
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return NULL;
-    fclose(file);
-
-    // Open the dummy file using gpac's ISO file opening function
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
-    return isom_file;
-}
-
-static void close_dummy_iso_file(GF_ISOFile *file) {
     if (file) {
-        gf_isom_close(file);
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_128(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 3 * sizeof(u32)) {
+        return 0;
+    }
 
-    GF_ISOFile *isom_file = open_dummy_iso_file();
+    // Prepare the environment
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
     if (!isom_file) return 0;
 
-    u32 trackNumber = Data[0];
-    u64 EditDuration = (Size > 8) ? *(u64 *)(Data + 1) : 0;
-    u64 MediaTime = (Size > 16) ? *(u64 *)(Data + 9) : 0;
-    GF_ISOEditType EditMode = (GF_ISOEditType)((Size > 17) ? Data[17] : 0);
-    u64 magic = (Size > 25) ? *(u64 *)(Data + 18) : 0;
-    GF_ISOTrackID reference_track_ID = (Size > 26) ? *(u32 *)(Data + 26) : 0;
-    u64 decode_traf_time = (Size > 34) ? *(u64 *)(Data + 30) : 0;
-    u64 traf_duration = (Size > 42) ? *(u64 *)(Data + 38) : 0;
-    u32 edit_index = (Size > 46) ? *(u32 *)(Data + 46) : 0;
-    u64 decode_time = (Size > 54) ? *(u64 *)(Data + 50) : 0;
-    u64 ntp = (Size > 62) ? *(u64 *)(Data + 58) : 0;
-    u64 timestamp = (Size > 70) ? *(u64 *)(Data + 66) : 0;
-    Bool at_mux = (Size > 71) ? Data[71] & 1 : 0;
+    u32 trackNumber = *((u32 *)(Data));
+    u32 sampleDescriptionIndex = *((u32 *)(Data + sizeof(u32)));
+    GF_ISOTrackID trackID = *((GF_ISOTrackID *)(Data + 2 * sizeof(u32)));
 
-    gf_isom_append_edit(isom_file, trackNumber, EditDuration, MediaTime, EditMode);
-    gf_isom_set_track_magic(isom_file, trackNumber, magic);
-    gf_isom_set_traf_mss_timeext(isom_file, reference_track_ID, decode_traf_time, traf_duration);
-    gf_isom_modify_edit(isom_file, trackNumber, edit_index, EditDuration, MediaTime, EditMode);
-    gf_isom_set_traf_base_media_decode_time(isom_file, reference_track_ID, decode_time);
-    gf_isom_set_fragment_reference_time(isom_file, reference_track_ID, ntp, timestamp, at_mux);
+    // Write a dummy file
+    write_dummy_file(Data, Size);
 
-    close_dummy_iso_file(isom_file);
+    // Test gf_isom_get_track_id
+    GF_ISOTrackID track_id = gf_isom_get_track_id(isom_file, trackNumber);
+    (void)track_id;
+
+    // Test gf_isom_get_media_subtype
+    u32 media_subtype = gf_isom_get_media_subtype(isom_file, trackNumber, sampleDescriptionIndex);
+    (void)media_subtype;
+
+    // Test gf_isom_get_udta_count
+    u32 udta_count = gf_isom_get_udta_count(isom_file, trackNumber);
+    (void)udta_count;
+
+    // Test gf_isom_find_od_id_for_track
+    u32 od_id = gf_isom_find_od_id_for_track(isom_file, trackNumber);
+    (void)od_id;
+
+    // Test gf_isom_get_vvc_type
+    GF_ISOMVVCType vvc_type = gf_isom_get_vvc_type(isom_file, trackNumber, sampleDescriptionIndex);
+    (void)vvc_type;
+
+    // Test gf_isom_get_track_by_id
+    u32 track_by_id = gf_isom_get_track_by_id(isom_file, trackID);
+    (void)track_by_id;
+
+    // Cleanup
+    gf_isom_close(isom_file);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_128(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

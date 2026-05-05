@@ -1,70 +1,139 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_remove_track_references at isom_write.c:5036:8 in isomedia.h
-// gf_isom_add_sample_info at isom_write.c:7672:8 in isomedia.h
-// gf_isom_ac4_config_update at sample_descs.c:815:8 in isomedia.h
-// gf_isom_add_track_to_root_od at isom_write.c:136:8 in isomedia.h
-// gf_isom_remove_edits at isom_write.c:2797:8 in isomedia.h
-// gf_isom_set_root_od_id at isom_write.c:540:8 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_apple_set_tag_ex at isom_write.c:6298:8 in isomedia.h
+// gf_isom_apple_enum_tag_ex at isom_read.c:4491:8 in isomedia.h
+// gf_isom_guess_specification at isom_read.c:4276:5 in isomedia.h
+// gf_isom_apple_set_tag at isom_write.c:6583:8 in isomedia.h
+// gf_isom_apple_get_tag at isom_read.c:4448:8 in isomedia.h
+// gf_isom_apple_enum_tag at isom_read.c:4654:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 #include "isomedia.h"
 
 static GF_ISOFile* create_dummy_iso_file() {
-    // Since GF_ISOFile is an incomplete type, we cannot allocate it directly.
-    // Instead, we assume there is a function to create or open an ISO file.
-    // Here we mock this by returning NULL, assuming the functions handle NULL gracefully.
-    return NULL;
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    return isom_file;
 }
 
-static GF_AC4Config* create_dummy_ac4_config() {
-    GF_AC4Config* cfg = (GF_AC4Config*)malloc(sizeof(GF_AC4Config));
-    if (!cfg) return NULL;
-    // Initialize the config with default values
-    cfg->sample_rate = 48000;
-    cfg->frame_size = 1024;
-    return cfg;
+static void cleanup_iso_file(GF_ISOFile *isom_file) {
+    if (isom_file) {
+        gf_isom_close(isom_file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_91(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0; // Ensure there's enough data
+    GF_ISOFile *isom_file = create_dummy_iso_file();
+    if (!isom_file) return 0;
 
-    GF_ISOFile* iso_file = create_dummy_iso_file();
-
-    uint32_t trackNumber = Data[0];
-    uint32_t sampleNumber = Data[1];
-    uint32_t groupingType = Data[2];
-    uint32_t sampleGroupDescriptionIndex = Data[3];
-    uint32_t groupingTypeParameter = Size > 4 ? Data[4] : 0;
-    uint32_t sampleDescriptionIndex = Size > 5 ? Data[5] : 0;
-    uint32_t OD_ID = Size > 6 ? Data[6] : 0;
-
-    GF_AC4Config* ac4_config = create_dummy_ac4_config();
-    if (!ac4_config) {
-        return 0;
+    // Fuzz gf_isom_apple_set_tag_ex
+    if (Size >= sizeof(GF_ISOiTunesTag)) {
+        GF_ISOiTunesTag for_tag;
+        memcpy(&for_tag, Data, sizeof(GF_ISOiTunesTag));
+        const u8 *data = Data + sizeof(GF_ISOiTunesTag);
+        u32 data_len = (Size > sizeof(GF_ISOiTunesTag)) ? (Size - sizeof(GF_ISOiTunesTag)) : 0;
+        u64 int_val = 0;
+        u32 int_val2 = 0;
+        const char *name = NULL;
+        const char *mean = NULL;
+        u32 locale = 0;
+        gf_isom_apple_set_tag_ex(isom_file, for_tag, data, data_len, int_val, int_val2, name, mean, locale);
     }
 
-    // Fuzz gf_isom_remove_track_references
-    gf_isom_remove_track_references(iso_file, trackNumber);
+    // Fuzz gf_isom_apple_enum_tag_ex
+    if (Size >= sizeof(u32)) {
+        u32 idx;
+        memcpy(&idx, Data, sizeof(u32));
+        GF_ISOiTunesTag out_tag;
+        const u8 *data;
+        u32 data_len;
+        u64 out_int_val;
+        u32 out_int_val2;
+        u32 out_flags;
+        const char *out_mean;
+        const char *out_name;
+        u32 out_locale;
+        gf_isom_apple_enum_tag_ex(isom_file, idx, &out_tag, &data, &data_len, &out_int_val, &out_int_val2, &out_flags, &out_mean, &out_name, &out_locale);
+    }
 
-    // Fuzz gf_isom_add_sample_info
-    gf_isom_add_sample_info(iso_file, trackNumber, sampleNumber, groupingType, 
-                            sampleGroupDescriptionIndex, groupingTypeParameter);
+    // Fuzz gf_isom_guess_specification
+    gf_isom_guess_specification(isom_file);
 
-    // Fuzz gf_isom_ac4_config_update
-    gf_isom_ac4_config_update(iso_file, trackNumber, sampleDescriptionIndex, ac4_config);
+    // Fuzz gf_isom_apple_set_tag
+    if (Size >= sizeof(GF_ISOiTunesTag)) {
+        GF_ISOiTunesTag tag;
+        memcpy(&tag, Data, sizeof(GF_ISOiTunesTag));
+        const u8 *data = Data + sizeof(GF_ISOiTunesTag);
+        u32 data_len = (Size > sizeof(GF_ISOiTunesTag)) ? (Size - sizeof(GF_ISOiTunesTag)) : 0;
+        u64 int_val = 0;
+        u32 int_val2 = 0;
+        gf_isom_apple_set_tag(isom_file, tag, data, data_len, int_val, int_val2);
+    }
 
-    // Fuzz gf_isom_add_track_to_root_od
-    gf_isom_add_track_to_root_od(iso_file, trackNumber);
+    // Fuzz gf_isom_apple_get_tag
+    if (Size >= sizeof(GF_ISOiTunesTag)) {
+        GF_ISOiTunesTag tag;
+        memcpy(&tag, Data, sizeof(GF_ISOiTunesTag));
+        const u8 *data;
+        u32 data_len;
+        gf_isom_apple_get_tag(isom_file, tag, &data, &data_len);
+    }
 
-    // Fuzz gf_isom_remove_edits
-    gf_isom_remove_edits(iso_file, trackNumber);
+    // Fuzz gf_isom_apple_enum_tag
+    if (Size >= sizeof(u32)) {
+        u32 idx;
+        memcpy(&idx, Data, sizeof(u32));
+        GF_ISOiTunesTag out_tag;
+        const u8 *data;
+        u32 data_len;
+        u64 out_int_val;
+        u32 out_int_val2;
+        u32 out_flags;
+        gf_isom_apple_enum_tag(isom_file, idx, &out_tag, &data, &data_len, &out_int_val, &out_int_val2, &out_flags);
+    }
 
-    // Fuzz gf_isom_set_root_od_id
-    gf_isom_set_root_od_id(iso_file, OD_ID);
-
-    // Cleanup
-    free(ac4_config);
-
+    cleanup_iso_file(isom_file);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_91(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

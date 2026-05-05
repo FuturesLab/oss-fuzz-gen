@@ -1,84 +1,117 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+static void initialize_iso_file(GF_ISOFile **isom_file) {
+    *isom_file = NULL; // Set to NULL as we can't allocate an incomplete type
+}
+
+static void cleanup_iso_file(GF_ISOFile *isom_file) {
+    // No cleanup needed for incomplete type
 }
 
 int LLVMFuzzerTestOneInput_147(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 2) return 0;
+    if (Size < 1) return 0;
 
-    // Initialize variables
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    if (!isom_file) return 0;
+    GF_ISOFile *isom_file;
+    initialize_iso_file(&isom_file);
 
-    u32 trackNumber = *(u32 *)Data;
-    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
-    const char *outURL = NULL;
-    const char *outURN = NULL;
-    GF_Err err;
+    // Test gf_isom_set_media_language
+    if (Size >= 4) {
+        u32 trackNumber = Data[0];
+        char code[4];
+        memcpy(code, &Data[1], 3);
+        code[3] = '\0';
+        gf_isom_set_media_language(isom_file, trackNumber, code);
+    }
 
-    // Invoke gf_isom_get_data_reference
-    err = gf_isom_get_data_reference(isom_file, trackNumber, sampleDescriptionIndex, &outURL, &outURN);
-    if (err != GF_OK) goto cleanup;
+    // Test gf_isom_get_copyright
+    if (Size >= 5) {
+        u32 index = Data[4];
+        const char *threeCharCodes = NULL;
+        const char *notice = NULL;
+        gf_isom_get_copyright(isom_file, index, &threeCharCodes, &notice);
+    }
 
-    // Prepare AVS3 config
-    GF_AVS3VConfig avs3_cfg;
-    memset(&avs3_cfg, 0, sizeof(GF_AVS3VConfig));
-    u32 outDescriptionIndex;
+    // Test gf_isom_new_mpha_description
+    if (Size >= 10) {
+        u32 trackNumber = Data[5];
+        u32 outDescriptionIndex;
+        u8 dsi[4];
+        memcpy(dsi, &Data[6], 4);
+        u32 dsi_size = 4;
+        u32 mha_subtype = Data[9];
+        gf_isom_new_mpha_description(isom_file, trackNumber, NULL, NULL, &outDescriptionIndex, dsi, dsi_size, mha_subtype);
+    }
 
-    // Invoke gf_isom_avs3v_config_new
-    err = gf_isom_avs3v_config_new(isom_file, trackNumber, &avs3_cfg, outURL, outURN, &outDescriptionIndex);
-    if (err != GF_OK) goto cleanup;
+    // Test gf_isom_set_handler_name
+    if (Size >= 11) {
+        u32 trackNumber = Data[10];
+        gf_isom_set_handler_name(isom_file, trackNumber, "handler_name");
+    }
 
-    // Prepare parameters for gf_isom_new_stxt_description
-    const char *mime = "text/plain";
-    const char *encoding = "UTF-8";
-    const char *config = "sample config";
+    // Test gf_isom_new_mj2k_description
+    if (Size >= 16) {
+        u32 trackNumber = Data[11];
+        u32 outDescriptionIndex;
+        u8 dsi[4];
+        memcpy(dsi, &Data[12], 4);
+        u32 dsi_len = 4;
+        gf_isom_new_mj2k_description(isom_file, trackNumber, NULL, NULL, &outDescriptionIndex, dsi, dsi_len);
+    }
 
-    // Invoke gf_isom_new_stxt_description
-    err = gf_isom_new_stxt_description(isom_file, trackNumber, 'stxt', mime, encoding, config, &outDescriptionIndex);
-    if (err != GF_OK) goto cleanup;
+    // Test gf_isom_new_mpeg4_description
+    if (Size >= 21) {
+        u32 trackNumber = Data[16];
+        GF_ESD esd;
+        memset(&esd, 0, sizeof(GF_ESD));
+        u32 outDescriptionIndex;
+        gf_isom_new_mpeg4_description(isom_file, trackNumber, &esd, NULL, NULL, &outDescriptionIndex);
+    }
 
-    // Prepare parameters for gf_isom_truehd_config_new
-    u32 format_info = 0;
-    u32 peak_data_rate = 0;
-
-    // Invoke gf_isom_truehd_config_new
-    err = gf_isom_truehd_config_new(isom_file, trackNumber, NULL, NULL, format_info, peak_data_rate, &outDescriptionIndex);
-    if (err != GF_OK) goto cleanup;
-
-    // Prepare AVC config
-    GF_AVCConfig avc_cfg;
-    memset(&avc_cfg, 0, sizeof(GF_AVCConfig));
-
-    // Invoke gf_isom_avc_config_new
-    err = gf_isom_avc_config_new(isom_file, trackNumber, &avc_cfg, NULL, NULL, &outDescriptionIndex);
-    if (err != GF_OK) goto cleanup;
-
-    // Prepare parameters for gf_isom_xml_subtitle_get_description
-    const char *xmlnamespace = NULL;
-    const char *xml_schema_loc = NULL;
-    const char *mimes = NULL;
-
-    // Invoke gf_isom_xml_subtitle_get_description
-    err = gf_isom_xml_subtitle_get_description(isom_file, trackNumber, sampleDescriptionIndex, &xmlnamespace, &xml_schema_loc, &mimes);
-    if (err != GF_OK) goto cleanup;
-
-cleanup:
-    // Cleanup
-    gf_isom_close(isom_file);
+    cleanup_iso_file(isom_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_147(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

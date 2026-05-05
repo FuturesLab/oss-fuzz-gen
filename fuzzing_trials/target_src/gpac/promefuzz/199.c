@@ -1,75 +1,136 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_get_fragment_defaults at isom_read.c:2974:8 in isomedia.h
-// gf_isom_change_track_fragment_defaults at movie_fragments.c:216:8 in isomedia.h
-// gf_isom_end_hint_sample at hint_track.c:365:8 in isomedia.h
-// gf_isom_fragment_add_sample at movie_fragments.c:2998:8 in isomedia.h
-// gf_isom_get_sample_padding_bits at isom_read.c:2664:8 in isomedia.h
-// gf_isom_rtp_packet_begin at hint_track.c:612:8 in isomedia.h
+// gf_isom_open_progressive_ex at isom_read.c:435:8 in isomedia.h
+// gf_isom_set_fragment_reference_time at movie_fragments.c:2552:8 in isomedia.h
+// gf_isom_refresh_size_info at stbl_write.c:2299:8 in isomedia.h
+// gf_isom_close_segment at movie_fragments.c:1743:8 in isomedia.h
+// gf_isom_get_media_time at isom_read.c:1342:8 in isomedia.h
+// gf_isom_get_omadrm_info at drm_sample.c:296:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "isomedia.h"
 
-// Dummy structure to simulate GF_ISOFile since we do not have its definition
-struct DummyISOFile {
-    char dummy_data[1024]; // Placeholder for actual data
-};
-
-static GF_ISOFile* create_dummy_iso_file() {
-    struct DummyISOFile *iso_file = malloc(sizeof(struct DummyISOFile));
-    if (iso_file) {
-        memset(iso_file, 0, sizeof(struct DummyISOFile));
-    }
-    return (GF_ISOFile*)iso_file;
-}
-
-static void destroy_dummy_iso_file(GF_ISOFile *iso_file) {
-    if (iso_file) {
-        free(iso_file);
+static void prepare_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_199(const uint8_t *Data, size_t Size) {
-    // Prepare the environment
-    GF_ISOFile *iso_file = create_dummy_iso_file();
-    if (!iso_file) return 0;
+    if (Size < sizeof(u64) * 2 + sizeof(Bool)) {
+        return 0;
+    }
 
-    u32 trackNumber = 1;
-    u32 defaultDuration = 0, defaultSize = 0, defaultDescriptionIndex = 0;
-    u32 defaultRandomAccess = 0;
-    u8 defaultPadding = 0;
-    u16 defaultDegradationPriority = 0;
+    prepare_dummy_file(Data, Size);
 
-    // Fuzz gf_isom_get_fragment_defaults
-    gf_isom_get_fragment_defaults(iso_file, trackNumber, &defaultDuration, &defaultSize,
-                                  &defaultDescriptionIndex, &defaultRandomAccess,
-                                  &defaultPadding, &defaultDegradationPriority);
+    const char *fileName = "./dummy_file";
+    u64 start_range = *(u64 *)Data;
+    u64 end_range = *(u64 *)(Data + sizeof(u64));
+    Bool enable_frag_templates = *(Bool *)(Data + sizeof(u64) * 2);
 
-    // Fuzz gf_isom_change_track_fragment_defaults
-    gf_isom_change_track_fragment_defaults(iso_file, trackNumber, defaultDescriptionIndex,
-                                           defaultDuration, defaultSize, defaultRandomAccess,
-                                           defaultPadding, defaultDegradationPriority, 0);
+    GF_ISOFile *isom_file = NULL;
+    u64 BytesMissing = 0;
+    u32 topBoxType = 0;
 
-    // Fuzz gf_isom_end_hint_sample
-    gf_isom_end_hint_sample(iso_file, trackNumber, 0);
+    gf_isom_open_progressive_ex(fileName, start_range, end_range, enable_frag_templates, &isom_file, &BytesMissing, &topBoxType);
 
-    // Fuzz gf_isom_fragment_add_sample
-    GF_ISOSample sample;
-    memset(&sample, 0, sizeof(GF_ISOSample));
-    gf_isom_fragment_add_sample(iso_file, trackNumber, &sample, defaultDescriptionIndex,
-                                defaultDuration, defaultPadding, defaultDegradationPriority, 0);
+    if (isom_file) {
+        GF_ISOTrackID reference_track_ID = 1;
+        u64 ntp = 0;
+        u64 timestamp = 0;
+        Bool at_mux = GF_FALSE;
 
-    // Fuzz gf_isom_get_sample_padding_bits
-    u8 NbBits = 0;
-    gf_isom_get_sample_padding_bits(iso_file, trackNumber, 1, &NbBits);
+        gf_isom_set_fragment_reference_time(isom_file, reference_track_ID, ntp, timestamp, at_mux);
 
-    // Fuzz gf_isom_rtp_packet_begin
-    gf_isom_rtp_packet_begin(iso_file, trackNumber, 0, 0, 0, 0, 0, 0, 0, 0);
+        u32 trackNumber = 1;
+        gf_isom_refresh_size_info(isom_file, trackNumber);
 
-    // Cleanup
-    destroy_dummy_iso_file(iso_file);
+        s32 subsegs_per_sidx = 0;
+        u64 ref_track_decode_time = 0;
+        s32 timestamp_shift = 0;
+        u64 ref_track_next_cts = 0;
+        Bool daisy_chain_sidx = GF_FALSE;
+        Bool use_ssix = GF_FALSE;
+        Bool last_segment = GF_FALSE;
+        Bool close_segment_handle = GF_FALSE;
+        u32 segment_marker_4cc = 0;
+        u64 index_start_range = 0;
+        u64 index_end_range = 0;
+        u64 out_seg_size = 0;
+
+        gf_isom_close_segment(isom_file, subsegs_per_sidx, reference_track_ID, ref_track_decode_time, timestamp_shift, ref_track_next_cts, daisy_chain_sidx, use_ssix, last_segment, close_segment_handle, segment_marker_4cc, &index_start_range, &index_end_range, &out_seg_size);
+
+        u32 movieTime = 0;
+        u64 mediaTime = 0;
+        gf_isom_get_media_time(isom_file, trackNumber, movieTime, &mediaTime);
+
+        u32 outOriginalFormat = 0;
+        u32 outSchemeType = 0;
+        u32 outSchemeVersion = 0;
+        const char *outContentID = NULL;
+        const char *outRightsIssuerURL = NULL;
+        const char *outTextualHeaders = NULL;
+        u32 outTextualHeadersLen = 0;
+        u64 outPlaintextLength = 0;
+        u32 outEncryptionType = 0;
+        Bool outSelectiveEncryption = GF_FALSE;
+        u32 outIVLength = 0;
+        u32 outKeyIndicationLength = 0;
+
+        gf_isom_get_omadrm_info(isom_file, trackNumber, 1, &outOriginalFormat, &outSchemeType, &outSchemeVersion, &outContentID, &outRightsIssuerURL, &outTextualHeaders, &outTextualHeadersLen, &outPlaintextLength, &outEncryptionType, &outSelectiveEncryption, &outIVLength, &outKeyIndicationLength);
+
+        // Clean up operations
+        // Assuming there's a function to close/free the isom_file
+        // gf_isom_close(isom_file);
+    }
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_199(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

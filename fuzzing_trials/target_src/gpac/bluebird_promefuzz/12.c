@@ -1,56 +1,118 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
+static GF_ISOFile* initialize_iso_file(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+    if (!file) {
+        return NULL;
     }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    return iso_file;
 }
 
 int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    if (Size < 1) {
+        return 0;
+    }
 
-    if (!isom_file) return 0;
+    GF_ISOFile *iso_file = initialize_iso_file(Data, Size);
+    if (!iso_file) {
+        return 0;
+    }
 
-    // Prepare dummy variables for function calls
-    const char *outURL = NULL;
-    const char *outURN = NULL;
-    const char *sdp = NULL;
-    u32 sdp_length = 0;
-    u32 outDescriptionIndex = 0;
-    u32 outOriginalFormat = 0;
-    u32 outSchemeType = 0;
-    u32 outSchemeVersion = 0;
-    const char *outMetadata = NULL;
+    Bool root_meta = Data[0] % 2;
+    u32 track_num = (Size > 1) ? Data[1] : 0;
+    u32 item_num = (Size > 2) ? Data[2] : 1;
+    u32 from_id = (Size > 3) ? Data[3] : 1;
+    u32 to_id = (Size > 4) ? Data[4] : 1;
+    u32 type = (Size > 5) ? Data[5] : 0;
+    u32 ref_idx = (Size > 6) ? Data[6] : 1;
 
-    // Write dummy file if needed
-    write_dummy_file(Data, Size);
+    u32 result;
 
-    // Call gf_isom_get_data_reference
-    gf_isom_get_data_reference(isom_file, 1, 1, &outURL, &outURN);
+    result = gf_isom_has_meta_xml(iso_file, root_meta, track_num);
+    result = gf_isom_get_meta_item_flags(iso_file, root_meta, track_num, item_num);
+    result = gf_isom_meta_get_item_ref_count(iso_file, root_meta, track_num, from_id, type);
+    result = gf_isom_meta_item_has_ref(iso_file, root_meta, track_num, to_id, type);
 
-    // Call gf_isom_sdp_get
-    gf_isom_sdp_get(isom_file, &sdp, &sdp_length);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_meta_item_has_ref to gf_isom_get_pssh_info
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!iso_file) {
+    	return 0;
+    }
+    GF_Err ret_gf_isom_sdp_clean_mnwdi = gf_isom_sdp_clean(iso_file);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!iso_file) {
+    	return 0;
+    }
+    u32 ret_gf_isom_guess_specification_bfler = gf_isom_guess_specification(iso_file);
+    u8 ret_gf_isom_get_mode_mouji = gf_isom_get_mode(NULL);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!iso_file) {
+    	return 0;
+    }
+    u32 ret_gf_isom_get_timescale_chdoa = gf_isom_get_timescale(iso_file);
+    u32 ret_gf_isom_get_num_supported_boxes_cxnbs = gf_isom_get_num_supported_boxes();
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!iso_file) {
+    	return 0;
+    }
+    GF_Err ret_gf_isom_get_pssh_info_jbjrd = gf_isom_get_pssh_info(iso_file, ret_gf_isom_guess_specification_bfler, &ret_gf_isom_get_mode_mouji, &result, &ret_gf_isom_get_timescale_chdoa, NULL, NULL, &ret_gf_isom_get_num_supported_boxes_cxnbs);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    result = gf_isom_meta_get_item_ref_id(iso_file, root_meta, track_num, from_id, type, ref_idx);
+    result = gf_isom_get_meta_type(iso_file, root_meta, track_num);
 
-    // Call gf_isom_set_generic_protection
-    gf_isom_set_generic_protection(isom_file, 1, 1, 0, 1, NULL, NULL);
-
-    // Call gf_isom_set_adobe_protection
-    gf_isom_set_adobe_protection(isom_file, 1, 1, 0, 1, 0, NULL, 0);
-
-    // Call gf_isom_clone_sample_description
-    gf_isom_clone_sample_description(isom_file, 1, isom_file, 1, 1, NULL, NULL, &outDescriptionIndex);
-
-    // Call gf_isom_get_adobe_protection_info
-    gf_isom_get_adobe_protection_info(isom_file, 1, 1, &outOriginalFormat, &outSchemeType, &outSchemeVersion, &outMetadata);
-
-    // Clean up
-    gf_isom_close(isom_file);
+    gf_isom_close(iso_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_12(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,63 +1,105 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_get_meta_type at meta.c:43:5 in isomedia.h
-// gf_isom_has_meta_xml at meta.c:52:5 in isomedia.h
-// gf_isom_get_meta_item_count at meta.c:123:5 in isomedia.h
-// gf_isom_get_meta_primary_item_id at meta.c:600:5 in isomedia.h
-// gf_isom_meta_get_item_ref_id at meta.c:2226:5 in isomedia.h
-// gf_isom_meta_get_item_ref_count at meta.c:2185:5 in isomedia.h
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_remove_track at isom_write.c:2942:8 in isomedia.h
+// gf_isom_evte_config_new at sample_descs.c:1846:8 in isomedia.h
+// gf_isom_set_visual_info at isom_write.c:1769:8 in isomedia.h
+// gf_isom_truehd_config_get at sample_descs.c:416:8 in isomedia.h
+// gf_isom_set_brand_info at isom_write.c:3520:8 in isomedia.h
+// gf_isom_purge_track_reference at isom_write.c:4999:8 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
-#include <stdbool.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include "isomedia.h"
 
-static GF_ISOFile* initialize_iso_file() {
-    // Allocate a dummy ISO file structure
-    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    return iso_file;
-}
+#define DUMMY_FILE_PATH "./dummy_file"
 
-static void cleanup_iso_file(GF_ISOFile *iso_file) {
-    if (iso_file) {
-        gf_isom_close(iso_file);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen(DUMMY_FILE_PATH, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_36(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(u32) * 3) return 0;
 
-    GF_ISOFile *iso_file = initialize_iso_file();
-    if (!iso_file) return 0;
+    write_dummy_file(Data, Size);
 
-    // Extract parameters from Data
-    Bool root_meta = Data[0] % 2; // Randomly choose true/false
-    u32 track_num = (Size > 1) ? Data[1] : 0; // Use second byte for track number if available
+    GF_ISOFile *isom_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_EDIT, NULL);
+    if (!isom_file) return 0;
 
-    // Test gf_isom_get_meta_type
-    u32 meta_type = gf_isom_get_meta_type(iso_file, root_meta, track_num);
-    
-    // Test gf_isom_has_meta_xml
-    u32 has_meta_xml = gf_isom_has_meta_xml(iso_file, root_meta, track_num);
+    u32 trackNumber = *(u32 *)Data;
+    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
+    u32 anotherValue = *(u32 *)(Data + sizeof(u32) * 2);
 
-    // Test gf_isom_get_meta_item_count
-    u32 meta_item_count = gf_isom_get_meta_item_count(iso_file, root_meta, track_num);
+    // Fuzz gf_isom_remove_track
+    gf_isom_remove_track(isom_file, trackNumber);
 
-    // Test gf_isom_get_meta_primary_item_id
-    u32 primary_item_id = gf_isom_get_meta_primary_item_id(iso_file, root_meta, track_num);
+    // Fuzz gf_isom_evte_config_new
+    u32 outDescriptionIndex;
+    gf_isom_evte_config_new(isom_file, trackNumber, &outDescriptionIndex);
 
-    // Test gf_isom_meta_get_item_ref_id
-    u32 from_id = (Size > 2) ? Data[2] : 0;
-    u32 type = (Size > 3) ? Data[3] : 0;
-    u32 ref_idx = (Size > 4) ? Data[4] : 0;
-    u32 ref_id = gf_isom_meta_get_item_ref_id(iso_file, root_meta, track_num, from_id, type, ref_idx);
+    // Fuzz gf_isom_set_visual_info
+    gf_isom_set_visual_info(isom_file, trackNumber, sampleDescriptionIndex, anotherValue, anotherValue);
 
-    // Test gf_isom_meta_get_item_ref_count
-    u32 ref_count = gf_isom_meta_get_item_ref_count(iso_file, root_meta, track_num, from_id, type);
+    // Fuzz gf_isom_truehd_config_get
+    u32 format_info, peak_data_rate;
+    gf_isom_truehd_config_get(isom_file, trackNumber, sampleDescriptionIndex, &format_info, &peak_data_rate);
 
-    // Clean up
-    cleanup_iso_file(iso_file);
+    // Fuzz gf_isom_set_brand_info
+    gf_isom_set_brand_info(isom_file, anotherValue, anotherValue);
 
+    // Fuzz gf_isom_purge_track_reference
+    gf_isom_purge_track_reference(isom_file, trackNumber);
+
+    gf_isom_close(isom_file);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_36(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

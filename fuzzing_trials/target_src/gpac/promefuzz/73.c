@@ -1,10 +1,13 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_add_meta_item_sample_ref at meta.c:1806:8 in isomedia.h
-// gf_isom_iff_create_image_grid_item at iff.c:1929:8 in isomedia.h
-// gf_isom_iff_create_image_identity_item at iff.c:2107:8 in isomedia.h
-// gf_isom_get_meta_image_props at meta.c:735:8 in isomedia.h
-// gf_isom_add_meta_item_memory at meta.c:1800:8 in isomedia.h
-// gf_isom_iff_create_image_item_from_track at iff.c:2118:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_hevc_set_tile_config at avc_ext.c:2337:8 in isomedia.h
+// gf_isom_hevc_config_new at avc_ext.c:1889:8 in isomedia.h
+// gf_isom_lhvc_config_get at avc_ext.c:2771:16 in isomedia.h
+// gf_isom_lhvc_config_update at avc_ext.c:2343:8 in isomedia.h
+// gf_isom_hevc_config_update at avc_ext.c:2318:8 in isomedia.h
+// gf_isom_hevc_config_get at avc_ext.c:2485:16 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -12,58 +15,108 @@
 #include <stdio.h>
 #include "isomedia.h"
 
-static void prepare_dummy_file() {
+static GF_ISOFile *create_dummy_iso_file() {
+    // Open a dummy file to simulate the ISO file
     FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        // Write some dummy data to the file
-        const char *dummy_data = "dummy data for ISO file";
-        fwrite(dummy_data, 1, strlen(dummy_data), file);
-        fclose(file);
+    if (!file) return NULL;
+    fclose(file);
+
+    // Use the API to open the ISO file instead of manually allocating it
+    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    return iso_file;
+}
+
+static GF_HEVCConfig *initialize_hevc_config(const uint8_t *Data, size_t Size) {
+    GF_HEVCConfig *config = (GF_HEVCConfig *)malloc(sizeof(GF_HEVCConfig));
+    if (config) {
+        memset(config, 0, sizeof(GF_HEVCConfig));
+        // Initialize config with some data if needed
     }
+    return config;
 }
 
 int LLVMFuzzerTestOneInput_73(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(GF_ImageItemProperties) + sizeof(u32) * 4 + sizeof(Bool)) {
+    GF_ISOFile *iso_file = create_dummy_iso_file();
+    if (!iso_file) return 0;
+
+    GF_HEVCConfig *hevc_config = initialize_hevc_config(Data, Size);
+    if (!hevc_config) {
+        gf_isom_close(iso_file);
         return 0;
     }
 
-    prepare_dummy_file();
+    u32 trackNumber = 1;
+    u32 sampleDescriptionIndex = 1;
+    Bool is_base_track = GF_FALSE;
+    u32 outDescriptionIndex;
+    GF_ISOMLHEVCTrackType track_type = 0; // Assuming some default value
 
-    GF_ISOFile *isom_file = NULL;  // Assuming an appropriate method exists to initialize this
-    Bool root_meta = (Bool)(Data[0] % 2);
-    u32 track_num = *(u32 *)(Data + 1);
-    const char *item_name = "item_name";
-    u32 item_id = 0;
-    u32 item_type = 'abcd';
-    const char *mime_type = "image/jpeg";
-    const char *content_encoding = "identity";
-    GF_ImageItemProperties *image_props = (GF_ImageItemProperties *)(Data + 5);
-    GF_ISOTrackID tk_id = *(GF_ISOTrackID *)(Data + 5 + sizeof(GF_ImageItemProperties));
-    u32 sample_num = *(u32 *)(Data + 5 + sizeof(GF_ImageItemProperties) + sizeof(GF_ISOTrackID));
+    // Fuzz gf_isom_hevc_set_tile_config
+    gf_isom_hevc_set_tile_config(iso_file, trackNumber, sampleDescriptionIndex, hevc_config, is_base_track);
 
-    // Fuzz gf_isom_add_meta_item_sample_ref
-    gf_isom_add_meta_item_sample_ref(isom_file, root_meta, track_num, item_name, &item_id, item_type, mime_type, content_encoding, image_props, tk_id, sample_num);
+    // Fuzz gf_isom_hevc_config_new
+    gf_isom_hevc_config_new(iso_file, trackNumber, hevc_config, NULL, NULL, &outDescriptionIndex);
 
-    // Fuzz gf_isom_iff_create_image_grid_item
-    gf_isom_iff_create_image_grid_item(isom_file, root_meta, track_num, item_name, item_id, image_props);
+    // Fuzz gf_isom_lhvc_config_get
+    GF_HEVCConfig *lhvc_config = gf_isom_lhvc_config_get(iso_file, trackNumber, sampleDescriptionIndex);
+    if (lhvc_config) {
+        free(lhvc_config);
+    }
 
-    // Fuzz gf_isom_iff_create_image_identity_item
-    gf_isom_iff_create_image_identity_item(isom_file, root_meta, track_num, item_name, item_id, image_props);
+    // Fuzz gf_isom_lhvc_config_update
+    gf_isom_lhvc_config_update(iso_file, trackNumber, sampleDescriptionIndex, hevc_config, track_type);
 
-    // Fuzz gf_isom_get_meta_image_props
-    GF_ImageItemProperties out_image_props;
-    GF_List *unmapped_props = NULL;
-    gf_isom_get_meta_image_props(isom_file, root_meta, track_num, item_id, &out_image_props, unmapped_props);
+    // Fuzz gf_isom_hevc_config_update
+    gf_isom_hevc_config_update(iso_file, trackNumber, sampleDescriptionIndex, hevc_config);
 
-    // Fuzz gf_isom_add_meta_item_memory
-    char *data = "sample data";
-    u32 data_len = strlen(data);
-    GF_List *item_extent_refs = NULL;
-    gf_isom_add_meta_item_memory(isom_file, root_meta, track_num, item_name, &item_id, item_type, mime_type, content_encoding, image_props, data, data_len, item_extent_refs);
+    // Fuzz gf_isom_hevc_config_get
+    GF_HEVCConfig *hevc_config_get = gf_isom_hevc_config_get(iso_file, trackNumber, sampleDescriptionIndex);
+    if (hevc_config_get) {
+        free(hevc_config_get);
+    }
 
-    // Fuzz gf_isom_iff_create_image_item_from_track
-    u32 media_track = *(u32 *)(Data + 5 + sizeof(GF_ImageItemProperties) + sizeof(GF_ISOTrackID) + sizeof(u32));
-    gf_isom_iff_create_image_item_from_track(isom_file, root_meta, track_num, media_track, item_name, item_id, image_props, item_extent_refs);
+    free(hevc_config);
+    gf_isom_close(iso_file);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_73(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

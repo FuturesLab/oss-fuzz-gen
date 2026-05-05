@@ -1,92 +1,106 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
+#include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-#define DUMMY_FILE_PATH "./dummy_file"
-
-static GF_ISOFile* initialize_iso_file() {
-    // Create a dummy file for the purpose of fuzzing
-    FILE *dummy_file = fopen(DUMMY_FILE_PATH, "wb");
-    if (!dummy_file) return NULL;
-    fclose(dummy_file);
-
-    // Assuming there is a function to open a GPAC ISO file
-    GF_ISOFile *file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_WRITE, NULL);
-    return file;
+static GF_ISOFile* create_dummy_isofile() {
+    // Placeholder for actual file creation logic
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ_DUMP, NULL);
+    if (!isom_file) {
+        // Handle file creation if necessary
+    }
+    return isom_file;
 }
 
-static void cleanup_iso_file(GF_ISOFile *file) {
-    if (file) {
-        gf_isom_close(file);
+static void free_dummy_isofile(GF_ISOFile *isom_file) {
+    if (isom_file) {
+        gf_isom_close(isom_file);
     }
 }
 
 int LLVMFuzzerTestOneInput_68(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 10) return 0;
-
-    GF_ISOFile *isom_file = initialize_iso_file();
-    if (!isom_file) return 0;
-
-    u32 trackNumber = *(u32 *)Data;
-    u32 sampleDescriptionIndex = *(u32 *)(Data + 4);
-    u32 scheme_type = *(u32 *)(Data + 8);
-    u32 scheme_version = *(u32 *)(Data + 12);
-    u32 default_IsEncrypted = *(u32 *)(Data + 16);
-    u32 default_crypt_byte_block = *(u32 *)(Data + 20);
-    u32 default_skip_byte_block = *(u32 *)(Data + 24);
-    u32 key_info_size = *(u32 *)(Data + 28);
-
-    // Ensure key_info_size does not exceed the remaining buffer size
-    if (Size < 32 + key_info_size) {
-        cleanup_iso_file(isom_file);
+    if (Size < sizeof(u32) * 3 + sizeof(s32) * 2 + sizeof(u8)) {
         return 0;
     }
 
-    u8 *key_info = (u8 *)(Data + 32);
+    GF_ISOFile *isom_file = create_dummy_isofile();
+    if (!isom_file) return 0;
 
-    gf_isom_set_cenc_protection(isom_file, trackNumber, sampleDescriptionIndex, scheme_type,
-                                scheme_version, default_IsEncrypted, default_crypt_byte_block,
-                                default_skip_byte_block, key_info, key_info_size);
+    u32 trackNumber = *((u32*)Data);
+    s32 HintTrackVersion = *((s32*)(Data + 4));
+    s32 LastCompatibleVersion = *((s32*)(Data + 8));
+    u8 Rely = *(Data + 12);
+    u32 HintDescriptionIndex = 0;
 
-    if (Size >= 43) {
-        u32 SourceTrackID = *(u32 *)(Data + 32);
-        u16 DataLength = *(u16 *)(Data + 36);
-        u32 offsetInDescription = *(u32 *)(Data + 38);
-        u8 AtBegin = *(u8 *)(Data + 42);
+    gf_isom_new_hint_description(isom_file, trackNumber, HintTrackVersion, LastCompatibleVersion, Rely, &HintDescriptionIndex);
 
-        gf_isom_hint_sample_description_data(isom_file, trackNumber, SourceTrackID, sampleDescriptionIndex,
-                                             DataLength, offsetInDescription, AtBegin);
+    if (Size >= 16 + sizeof(u32)) {
+        u32 TimeScale = *((u32*)(Data + 16));
+        gf_isom_rtp_set_timescale(isom_file, trackNumber, HintDescriptionIndex, TimeScale);
     }
 
-    const u32 *brands = gf_isom_get_brands(isom_file);
-
-    if (Size >= 55) {
-        u32 average_bitrate = *(u32 *)(Data + 43);
-        u32 max_bitrate = *(u32 *)(Data + 47);
-        u32 decode_buffer_size = *(u32 *)(Data + 51);
-
-        gf_isom_update_bitrate(isom_file, trackNumber, sampleDescriptionIndex, average_bitrate, max_bitrate, decode_buffer_size);
+    if (Size >= 20 + sizeof(s32) * 9) {
+        s32 matrix[9];
+        memcpy(matrix, Data + 20, sizeof(s32) * 9);
+        gf_isom_set_track_matrix(isom_file, trackNumber, matrix);
     }
 
-    u8 *output = NULL;
-    u32 output_size = 0;
-
-    gf_isom_get_stsd_template(isom_file, trackNumber, sampleDescriptionIndex, &output, &output_size);
-    if (output) {
-        free(output);
+    if (Size >= 56 + sizeof(s32)) {
+        s32 offset_shift = *((s32*)(Data + 56));
+        gf_isom_shift_cts_offset(isom_file, trackNumber, offset_shift);
     }
 
-    u8 *out_dsi = NULL;
-    u32 out_size = 0;
-
-    gf_isom_get_jp2_config(isom_file, trackNumber, sampleDescriptionIndex, &out_dsi, &out_size);
-    if (out_dsi) {
-        free(out_dsi);
+    if (Size >= 60 + sizeof(u32)) {
+        u32 ctts_shift = *((u32*)(Data + 60));
+        gf_isom_set_ctts_v1(isom_file, trackNumber, ctts_shift);
     }
 
-    cleanup_iso_file(isom_file);
+    if (Size >= 64 + sizeof(s32)) {
+        s32 timeOffset = *((s32*)(Data + 64));
+        gf_isom_rtp_packet_set_offset(isom_file, trackNumber, timeOffset);
+    }
+
+    free_dummy_isofile(isom_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_68(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,105 +1,86 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        return NULL;
+#define DUMMY_FILE_PATH "./dummy_file"
+
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen(DUMMY_FILE_PATH, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    return iso_file;
 }
 
 int LLVMFuzzerTestOneInput_155(const uint8_t *Data, size_t Size) {
-    if (Size < 4) {
-        return 0;
-    }
+    if (Size < sizeof(u32) * 3 + sizeof(Bool)) return 0;
 
-    GF_ISOFile *iso_file = create_dummy_iso_file(Data, Size);
-    if (!iso_file) {
-        return 0;
-    }
+    write_dummy_file(Data, Size);
 
-    u32 trackNumber = Data[0];
-    s64 mediaOffset = 0;
-    u32 moof_index = Data[1];
-    GF_ISOTrackID trackID = Data[2];
-    u32 MediaType = Data[3];
-    u32 TimeScale = 1000;
+    GF_ISOFile *isom_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_READ, NULL);
+    if (!isom_file) return 0;
 
-    // Fuzz gf_isom_get_edit_list_type
-    Bool isComplex = gf_isom_get_edit_list_type(iso_file, trackNumber, &mediaOffset);
+    u32 trackNumber = *((u32 *)Data);
+    u32 sampleDescriptionIndex = *((u32 *)(Data + sizeof(u32)));
+    u32 sampleNumber = *((u32 *)(Data + sizeof(u32) * 2));
+    Bool keep_xps = *((Bool *)(Data + sizeof(u32) * 3));
+    Bool is_rap = *((Bool *)(Data + sizeof(u32) * 3 + sizeof(Bool)));
 
-    // Fuzz gf_isom_get_track_count
-    u32 trackCount = gf_isom_get_track_count(iso_file);
+    gf_isom_hevc_set_inband_config(isom_file, trackNumber, sampleDescriptionIndex, keep_xps);
+    gf_isom_avc_set_inband_config(isom_file, trackNumber, sampleDescriptionIndex, keep_xps);
+    gf_isom_set_sample_av1_switch_frame_group(isom_file, trackNumber, sampleNumber, is_rap);
+    gf_isom_vvc_set_inband_config(isom_file, trackNumber, sampleDescriptionIndex, keep_xps);
+    gf_isom_set_image_sequence_coding_constraints(isom_file, trackNumber, sampleDescriptionIndex, keep_xps, is_rap, keep_xps, sampleNumber);
+    gf_isom_fragment_set_sample_av1_switch_frame_group(isom_file, trackNumber, sampleNumber, is_rap);
 
-    // Fuzz gf_isom_segment_get_track_fragment_count
+    gf_isom_close(isom_file);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_segment_get_track_fragment_count with gf_isom_get_sync_point_count
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_get_sync_point_count with gf_isom_get_media_type
-    u32 fragmentCount = gf_isom_get_media_type(iso_file, moof_index);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Fuzz gf_isom_get_media_type
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_get_media_type with gf_isom_get_track_kind_count
-    u32 mediaType = gf_isom_get_track_kind_count(iso_file, trackNumber);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Fuzz gf_isom_get_cts_to_dts_shift
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_get_track_kind_count to gf_isom_has_sync_points
-    u32 ret_gf_isom_get_next_alternate_group_id_tlvcl = gf_isom_get_next_alternate_group_id(iso_file);
-
-    u8 ret_gf_isom_has_sync_points_oxvus = gf_isom_has_sync_points(iso_file, ret_gf_isom_get_next_alternate_group_id_tlvcl);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_has_sync_points to gf_isom_new_mj2k_description
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_has_sync_points to gf_isom_clone_pssh
-    u32 ret_gf_isom_get_next_alternate_group_id_kgsyz = gf_isom_get_next_alternate_group_id(iso_file);
-    Bool ret_gf_isom_is_smooth_streaming_moov_crjkf = gf_isom_is_smooth_streaming_moov(iso_file);
-
-    GF_Err ret_gf_isom_clone_pssh_ckgaj = gf_isom_clone_pssh(iso_file, iso_file, ret_gf_isom_is_smooth_streaming_moov_crjkf);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    GF_Err ret_gf_isom_update_duration_ghnxy = gf_isom_update_duration(iso_file);
-    u32 ret_gf_isom_guess_specification_vyaop = gf_isom_guess_specification(iso_file);
-    u32 ret_gf_isom_get_next_moof_number_bfygp = gf_isom_get_next_moof_number(iso_file);
-    u32 ret_gf_isom_get_pssh_count_adlhk = gf_isom_get_pssh_count(iso_file);
-
-    GF_Err ret_gf_isom_new_mj2k_description_dnows = gf_isom_new_mj2k_description(iso_file, ret_gf_isom_guess_specification_vyaop, NULL, (const char *)"r", &ret_gf_isom_get_next_moof_number_bfygp, &ret_gf_isom_has_sync_points_oxvus, ret_gf_isom_get_pssh_count_adlhk);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    s64 ctsToDtsShift = gf_isom_get_cts_to_dts_shift(iso_file, trackNumber);
-
-    // Fuzz gf_isom_new_track
-    u32 newTrackNumber = gf_isom_new_track(iso_file, trackID, MediaType, TimeScale);
-
-    gf_isom_close(iso_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_155(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

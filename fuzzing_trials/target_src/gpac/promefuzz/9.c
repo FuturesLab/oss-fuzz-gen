@@ -1,74 +1,103 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_new_xml_metadata_description at sample_descs.c:1188:8 in isomedia.h
-// gf_isom_new_stxt_description at sample_descs.c:1418:8 in isomedia.h
-// gf_isom_iamf_config_new at avc_ext.c:2083:8 in isomedia.h
-// gf_isom_new_xml_subtitle_description at sample_descs.c:1326:8 in isomedia.h
-// gf_isom_sdp_add_track_line at hint_track.c:740:8 in isomedia.h
-// gf_isom_truehd_config_new at sample_descs.c:436:8 in isomedia.h
+// gf_isom_guess_specification at isom_read.c:4276:5 in isomedia.h
+// gf_isom_has_track_reference at isom_read.c:1295:5 in isomedia.h
+// gf_isom_get_generic_sample_description at isom_read.c:3714:30 in isomedia.h
+// gf_isom_get_mpeg4_subtype at isom_read.c:1671:5 in isomedia.h
+// gf_isom_get_edits_count at isom_read.c:2547:5 in isomedia.h
+// gf_isom_enum_track_references at isom_read.c:1219:22 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
 #include "isomedia.h"
 
+#define DUMMY_ISO_FILE_SIZE 1024
+
 static GF_ISOFile* create_dummy_iso_file() {
-    // Since GF_ISOFile is an incomplete type, we cannot allocate it directly.
-    // Returning NULL for now as a placeholder.
-    return NULL;
+    // Allocate a dummy buffer to simulate the ISO file
+    GF_ISOFile *iso_file = (GF_ISOFile *)malloc(DUMMY_ISO_FILE_SIZE);
+    if (!iso_file) return NULL;
+    memset(iso_file, 0, DUMMY_ISO_FILE_SIZE);
+    return iso_file;
+}
+
+static void destroy_dummy_iso_file(GF_ISOFile *iso_file) {
+    if (iso_file) {
+        free(iso_file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32)) return 0;
+    if (Size < sizeof(u32) * 5) return 0;
 
     GF_ISOFile *iso_file = create_dummy_iso_file();
     if (!iso_file) return 0;
 
+    // Fuzz gf_isom_guess_specification
+    gf_isom_guess_specification(iso_file);
+
+    // Fuzz gf_isom_has_track_reference
     u32 trackNumber = *(u32 *)Data;
-    Data += sizeof(u32);
-    Size -= sizeof(u32);
+    u32 referenceType = *(u32 *)(Data + sizeof(u32));
+    GF_ISOTrackID refTrackID = *(GF_ISOTrackID *)(Data + 2 * sizeof(u32));
+    gf_isom_has_track_reference(iso_file, trackNumber, referenceType, refTrackID);
 
-    const char *xmlnamespace = (Size > 0) ? (const char *)Data : NULL;
-    const char *schema_loc = (Size > 1) ? (const char *)(Data + 1) : NULL;
-    const char *content_encoding = (Size > 2) ? (const char *)(Data + 2) : NULL;
-    u32 outDescriptionIndex = 0;
+    // Fuzz gf_isom_get_generic_sample_description
+    u32 sampleDescriptionIndex = *(u32 *)(Data + 3 * sizeof(u32));
+    gf_isom_get_generic_sample_description(iso_file, trackNumber, sampleDescriptionIndex);
 
-    gf_isom_new_xml_metadata_description(iso_file, trackNumber, xmlnamespace, schema_loc, content_encoding, &outDescriptionIndex);
+    // Fuzz gf_isom_get_mpeg4_subtype
+    gf_isom_get_mpeg4_subtype(iso_file, trackNumber, sampleDescriptionIndex);
 
-    const char *mime = (Size > 3) ? (const char *)(Data + 3) : NULL;
-    const char *encoding = (Size > 4) ? (const char *)(Data + 4) : NULL;
-    const char *config = (Size > 5) ? (const char *)(Data + 5) : NULL;
+    // Fuzz gf_isom_get_edits_count
+    gf_isom_get_edits_count(iso_file, trackNumber);
 
-    gf_isom_new_stxt_description(iso_file, trackNumber, trackNumber, mime, encoding, config, &outDescriptionIndex);
+    // Fuzz gf_isom_enum_track_references
+    u32 idx = *(u32 *)(Data + 4 * sizeof(u32));
+    u32 referenceTypeOut, referenceCountOut;
+    gf_isom_enum_track_references(iso_file, trackNumber, idx, &referenceTypeOut, &referenceCountOut);
 
-    GF_IAConfig *cfg = (GF_IAConfig *)malloc(sizeof(GF_IAConfig));
-    if (cfg) {
-        memset(cfg, 0, sizeof(GF_IAConfig));
-    }
-    const char *URLname = (Size > 6) ? (const char *)(Data + 6) : NULL;
-    const char *URNname = (Size > 7) ? (const char *)(Data + 7) : NULL;
-
-    gf_isom_iamf_config_new(iso_file, trackNumber, cfg, URLname, URNname, &outDescriptionIndex);
-
-    const char *auxiliary_mimes = (Size > 8) ? (const char *)(Data + 8) : NULL;
-
-    gf_isom_new_xml_subtitle_description(iso_file, trackNumber, xmlnamespace, schema_loc, auxiliary_mimes, &outDescriptionIndex);
-
-    const char *text = (Size > 9) ? (const char *)(Data + 9) : NULL;
-
-    gf_isom_sdp_add_track_line(iso_file, trackNumber, text);
-
-    char *URLname2 = (Size > 10) ? (char *)(Data + 10) : NULL;
-    char *URNname2 = (Size > 11) ? (char *)(Data + 11) : NULL;
-    u32 format_info = (Size > 12) ? *(u32 *)(Data + 12) : 0;
-    u32 peak_data_rate = (Size > 13) ? *(u32 *)(Data + 13) : 0;
-
-    gf_isom_truehd_config_new(iso_file, trackNumber, URLname2, URNname2, format_info, peak_data_rate, &outDescriptionIndex);
-
-    free(cfg);
+    destroy_dummy_iso_file(iso_file);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

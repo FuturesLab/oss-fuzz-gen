@@ -1,10 +1,12 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_ac4_config_new at sample_descs.c:775:8 in isomedia.h
-// gf_isom_ac4_config_get at sample_descs.c:363:15 in isomedia.h
-// gf_isom_get_audio_info at isom_read.c:3880:8 in isomedia.h
-// gf_isom_truehd_config_get at sample_descs.c:416:8 in isomedia.h
-// gf_isom_ac4_config_update at sample_descs.c:815:8 in isomedia.h
-// gf_isom_update_bitrate at sample_descs.c:1776:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_set_meta_xml at meta.c:698:8 in isomedia.h
+// gf_isom_extract_meta_item_mem at meta.c:500:8 in isomedia.h
+// gf_isom_get_meta_item_info at meta.c:131:8 in isomedia.h
+// gf_isom_extract_meta_xml at meta.c:68:8 in isomedia.h
+// gf_isom_remove_meta_item at meta.c:1879:8 in isomedia.h
+// gf_isom_extract_meta_item at meta.c:494:8 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -12,44 +14,102 @@
 #include <stdio.h>
 #include "isomedia.h"
 
-static void initialize_ac4_config(GF_AC4Config *cfg) {
-    // Initialize the GF_AC4Config structure with dummy values
-    memset(cfg, 0, sizeof(GF_AC4Config));
-    cfg->sample_rate = 48000; // Example value
-    cfg->channel_count = 2;   // Example value
+#define DUMMY_FILE "./dummy_file"
+
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen(DUMMY_FILE, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_134(const uint8_t *Data, size_t Size) {
-    GF_ISOFile *isom_file = NULL; // Assume the file is opened and assigned properly
-    GF_AC4Config ac4_cfg;
-    u32 trackNumber = 1; // Example track number
-    u32 sampleDescriptionIndex = 1; // Example sample description index
-    u32 outDescriptionIndex = 0;
-    const char *URLname = NULL;
-    const char *URNname = NULL;
-    u32 SampleRate = 0, Channels = 0, bitsPerSample = 0;
-    u32 format_info = 0, peak_data_rate = 0;
-    u32 average_bitrate = 0, max_bitrate = 0, decode_buffer_size = 0;
+    if (Size < sizeof(GF_ISOFile *)) return 0;
 
-    initialize_ac4_config(&ac4_cfg);
+    GF_ISOFile *isom_file = gf_isom_open(DUMMY_FILE, GF_ISOM_OPEN_READ, NULL);
+    if (!isom_file) return 0;
 
-    // Fuzz gf_isom_ac4_config_new
-    gf_isom_ac4_config_new(isom_file, trackNumber, &ac4_cfg, URLname, URNname, &outDescriptionIndex);
+    // Prepare parameters
+    Bool root_meta = GF_TRUE;
+    u32 track_num = 0;
+    u32 item_id = 1;
+    u8 *out_data = NULL;
+    u32 out_size = 0;
+    u32 out_alloc_size = 0;
+    const char *mime_type = NULL;
+    Bool use_annex_b = GF_FALSE;
+    Bool is_binary = GF_FALSE;
+    Bool keep_refs = GF_FALSE;
+    const char *keep_props = NULL;
 
-    // Fuzz gf_isom_ac4_config_get
-    gf_isom_ac4_config_get(isom_file, trackNumber, sampleDescriptionIndex);
+    // Write dummy file for file-based operations
+    write_dummy_file(Data, Size);
 
-    // Fuzz gf_isom_get_audio_info
-    gf_isom_get_audio_info(isom_file, trackNumber, sampleDescriptionIndex, &SampleRate, &Channels, &bitsPerSample);
+    // Call gf_isom_set_meta_xml
+    gf_isom_set_meta_xml(isom_file, root_meta, track_num, DUMMY_FILE, NULL, 0, is_binary);
 
-    // Fuzz gf_isom_truehd_config_get
-    gf_isom_truehd_config_get(isom_file, trackNumber, sampleDescriptionIndex, &format_info, &peak_data_rate);
+    // Call gf_isom_extract_meta_item_mem
+    gf_isom_extract_meta_item_mem(isom_file, root_meta, track_num, item_id, &out_data, &out_size, &out_alloc_size, &mime_type, use_annex_b);
 
-    // Fuzz gf_isom_ac4_config_update
-    gf_isom_ac4_config_update(isom_file, trackNumber, sampleDescriptionIndex, &ac4_cfg);
+    // Call gf_isom_get_meta_item_info
+    u32 itemID, type, protection_scheme, protection_scheme_version;
+    Bool is_self_reference;
+    const char *item_name, *item_mime_type, *item_encoding, *item_url, *item_urn;
+    gf_isom_get_meta_item_info(isom_file, root_meta, track_num, item_id, &itemID, &type, &protection_scheme, &protection_scheme_version, &is_self_reference, &item_name, &item_mime_type, &item_encoding, &item_url, &item_urn);
 
-    // Fuzz gf_isom_update_bitrate
-    gf_isom_update_bitrate(isom_file, trackNumber, sampleDescriptionIndex, average_bitrate, max_bitrate, decode_buffer_size);
+    // Call gf_isom_extract_meta_xml
+    gf_isom_extract_meta_xml(isom_file, root_meta, track_num, DUMMY_FILE, &is_binary);
+
+    // Call gf_isom_remove_meta_item
+    gf_isom_remove_meta_item(isom_file, root_meta, track_num, item_id, keep_refs, keep_props);
+
+    // Call gf_isom_extract_meta_item
+    gf_isom_extract_meta_item(isom_file, root_meta, track_num, item_id, DUMMY_FILE);
+
+    // Free allocated memory
+    free(out_data);
+    gf_isom_close(isom_file);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_134(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

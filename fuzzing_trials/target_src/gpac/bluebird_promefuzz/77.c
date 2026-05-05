@@ -1,67 +1,100 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_ISOFile* initialize_iso_file() {
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
-    return isom_file;
+static GF_ISOFile* create_dummy_iso_file() {
+    // Since GF_ISOFile is an incomplete type, we cannot allocate or initialize it directly
+    // We assume there is a function to create or open an ISO file in the actual library
+    // This is a placeholder for such a function
+    GF_ISOFile *file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    return file;
 }
 
-static void cleanup_iso_file(GF_ISOFile *isom_file) {
-    if (isom_file) {
-        gf_isom_close(isom_file);
+static void cleanup_iso_file(GF_ISOFile *file) {
+    if (file) {
+        gf_isom_close(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_77(const uint8_t *Data, size_t Size) {
-    if (Size < 49) { // Ensure there's enough data for all operations
+    GF_ISOFile *isom_file = create_dummy_iso_file();
+    if (!isom_file) return 0;
+
+    if (Size < sizeof(u32)) {
+        cleanup_iso_file(isom_file);
         return 0;
     }
 
-    GF_ISOFile *isom_file = initialize_iso_file();
-    if (!isom_file) return 0;
+    u32 trackNumber = *(u32 *)Data;
+    u32 UserDataType = trackNumber;
+    bin128 UUID;
+    memset(&UUID, 0, sizeof(bin128));
+    u8 *output = NULL;
+    u32 output_size = 0;
 
-    u32 trackNumber = *(u32*)Data;
-    u32 sampleNumber = *(u32*)(Data + 4);
-    u32 flags = *(u32*)(Data + 8);
-    u32 subSampleSize = *(u32*)(Data + 12);
-    u8 priority = *(u8*)(Data + 16);
-    u32 reserved = *(u32*)(Data + 17);
-    Bool discardable = *(Bool*)(Data + 21);
+    // Fuzz gf_isom_is_track_in_root_od
+    u8 result = gf_isom_is_track_in_root_od(isom_file, trackNumber);
 
-    gf_isom_add_subsample(isom_file, trackNumber, sampleNumber, flags, subSampleSize, priority, reserved, discardable);
+    // Fuzz gf_isom_get_user_data_count
+    u32 userDataCount = gf_isom_get_user_data_count(isom_file, trackNumber, UserDataType, UUID);
 
-    u32 track_group_id = *(u32*)(Data + 22);
-    u32 group_type = *(u32*)(Data + 26);
-    Bool do_add = *(Bool*)(Data + 30);
+    // Fuzz gf_isom_get_trex_template
+    GF_Err trexErr = gf_isom_get_trex_template(isom_file, trackNumber, &output, &output_size);
+    if (output) free(output);
 
-    gf_isom_set_track_group(isom_file, trackNumber, track_group_id, group_type, do_add);
+    // Fuzz gf_isom_is_track_enabled
+    u8 trackEnabled = gf_isom_is_track_enabled(isom_file, trackNumber);
 
-    Bool enableTrack = *(Bool*)(Data + 31);
+    // Fuzz gf_isom_fragment_set_sample_aux_info
+    u8 aux_data[16];
+    GF_Err auxErr = gf_isom_fragment_set_sample_aux_info(isom_file, trackNumber, 1, 1, 0, aux_data, sizeof(aux_data));
 
-    gf_isom_set_track_enabled(isom_file, trackNumber, enableTrack);
-
-    u32 trackRefGroup = *(u32*)(Data + 32);
-    Bool is_switch_group = *(Bool*)(Data + 36);
-    u32 switchGroupID = *(u32*)(Data + 37);
-    u32 criteriaList[1] = {*(u32*)(Data + 41)};
-    u32 criteriaListCount = 1;
-
-    gf_isom_set_track_switch_parameter(isom_file, trackNumber, trackRefGroup, is_switch_group, &switchGroupID, criteriaList, criteriaListCount);
-
-    Bool use_negative_offsets = *(Bool*)(Data + 45);
-
-    gf_isom_set_composition_offset_mode(isom_file, trackNumber, use_negative_offsets);
-
-    Bool is_rap;
-    GF_ISOSampleRollType roll_type;
-    s32 roll_distance;
-
-    gf_isom_get_sample_rap_roll_info(isom_file, trackNumber, sampleNumber, &is_rap, &roll_type, &roll_distance);
+    // Fuzz gf_isom_has_sync_points
+    u8 syncPoints = gf_isom_has_sync_points(isom_file, trackNumber);
 
     cleanup_iso_file(isom_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_77(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

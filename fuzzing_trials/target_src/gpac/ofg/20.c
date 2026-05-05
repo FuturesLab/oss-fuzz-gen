@@ -1,36 +1,79 @@
-#include <gpac/isomedia.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <gpac/setup.h>
-
-// Function prototype for the function-under-test
-// Correct the function prototype to match the declaration in gpac/isomedia.h
-GF_Err gf_isom_remove_meta_xml(GF_ISOFile *isom_file, Bool root_meta, u32 track_num);
+#include <stdlib.h>
+#include <string.h>  // Include string.h for memcpy
+#include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to extract necessary parameters
-    if (size < sizeof(Bool) + sizeof(u32)) {
+    // Initialize variables
+    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    u32 trackNumber = 1;  // Assuming track number starts from 1
+    u32 sampleNumber = 1; // Assuming sample number starts from 1
+    GF_ISOSample *sample = gf_isom_sample_new();
+    u64 data_offset = 0;
+
+    // Check if movie and sample are initialized properly
+    if (!movie || !sample) {
+        if (movie) gf_isom_close(movie);
+        if (sample) gf_isom_sample_del(&sample);
         return 0;
     }
 
-    // Initialize the GF_ISOFile structure
-    // Provide a valid temporary directory path as the third argument
-    GF_ISOFile *file = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, "/tmp"); // Open a new GF_ISOFile
-    if (!file) {
+    // Populate sample with some data from the input
+    sample->dataLength = size < 1024 ? size : 1024; // Limit the data length
+    sample->data = (char*)malloc(sample->dataLength);
+    if (sample->data) {
+        memcpy(sample->data, data, sample->dataLength);
+    } else {
+        gf_isom_close(movie);
+        gf_isom_sample_del(&sample);
         return 0;
     }
 
-    // Extract the Bool root_meta from the input data
-    Bool root_meta = (Bool)data[0];
-
-    // Extract the u32 track_num from the input data
-    u32 track_num = *(u32 *)(data + 1);
-
-    // Call the function-under-test
-    gf_isom_remove_meta_xml(file, root_meta, track_num);
+    // Call the function under test
+    gf_isom_update_sample_reference(movie, trackNumber, sampleNumber, sample, data_offset);
 
     // Clean up
-    gf_isom_close(file);
+    gf_isom_close(movie);
+    gf_isom_sample_del(&sample);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

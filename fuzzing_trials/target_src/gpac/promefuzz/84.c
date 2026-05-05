@@ -1,73 +1,127 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open_progressive at isom_read.c:503:8 in isomedia.h
-// gf_isom_dump at box_dump.c:121:8 in isomedia.h
-// gf_isom_set_single_moof_mode at isom_read.c:3144:6 in isomedia.h
-// gf_isom_get_root_sidx_offsets at isom_read.c:6083:6 in isomedia.h
-// gf_isom_close_segment at movie_fragments.c:1743:8 in isomedia.h
-// gf_isom_open_progressive_ex at isom_read.c:435:8 in isomedia.h
+// gf_isom_text_add_blink at tx3g.c:399:8 in isomedia.h
+// gf_isom_text_add_highlight at tx3g.c:306:8 in isomedia.h
+// gf_isom_text_add_hyperlink at tx3g.c:370:8 in isomedia.h
+// gf_isom_text_set_karaoke_segment at tx3g.c:345:8 in isomedia.h
+// gf_isom_text_reset_styles at tx3g.c:612:8 in isomedia.h
+// gf_isom_text_reset at tx3g.c:636:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+// Define the structure since it's incomplete in the header
+struct _3gpp_text_sample {
+    char *text;
+    u32 len;
+    void *styles; // Placeholder for GF_TextStyleBox
+    void *highlight_color; // Placeholder for GF_TextHighlightColorBox
+    void *scroll_delay; // Placeholder for GF_TextScrollDelayBox
+    void *box; // Placeholder for GF_TextBoxBox
+    void *wrap; // Placeholder for GF_TextWrapBox
+    Bool is_forced;
+    GF_List *others;
+    void *cur_karaoke; // Placeholder for GF_TextKaraokeBox
+};
+
+static GF_TextSample* create_text_sample() {
+    // Allocate memory for GF_TextSample
+    GF_TextSample *sample = (GF_TextSample*)malloc(sizeof(GF_TextSample));
+    if (sample) {
+        sample->text = NULL;
+        sample->len = 0;
+        sample->styles = NULL;
+        sample->highlight_color = NULL;
+        sample->scroll_delay = NULL;
+        sample->box = NULL;
+        sample->wrap = NULL;
+        sample->is_forced = 0;
+        sample->others = NULL;
+        sample->cur_karaoke = NULL;
+    }
+    return sample;
+}
+
+static void free_text_sample(GF_TextSample *sample) {
+    if (sample) {
+        free(sample->text);
+        free(sample);
     }
 }
 
 int LLVMFuzzerTestOneInput_84(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 2) return 0;
 
-    // Write data to a dummy file
-    write_dummy_file(Data, Size);
+    GF_TextSample *sample = create_text_sample();
+    if (!sample) return 0;
 
-    // Variables for API function calls
-    GF_ISOFile *isom_file = NULL;
-    u64 BytesMissing = 0;
-    u64 start_range = 0;
-    u64 end_range = Size;
-    Bool enable_frag_templates = GF_FALSE;
-    u32 topBoxType = 0;
-    FILE *trace = fopen("./dummy_trace", "w");
+    u16 start_char = Data[0];
+    u16 end_char = Data[1];
 
-    // Fuzz gf_isom_open_progressive
-    gf_isom_open_progressive("./dummy_file", start_range, end_range, enable_frag_templates, &isom_file, &BytesMissing);
+    // Fuzz gf_isom_text_add_blink
+    gf_isom_text_add_blink(sample, start_char, end_char);
 
-    // Fuzz gf_isom_dump
-    if (isom_file && trace) {
-        gf_isom_dump(isom_file, trace, GF_FALSE, GF_FALSE);
-        fclose(trace);
+    // Fuzz gf_isom_text_add_highlight
+    gf_isom_text_add_highlight(sample, start_char, end_char);
+
+    // Fuzz gf_isom_text_add_hyperlink
+    char *url = "http://example.com";
+    char *altString = "tooltip";
+    gf_isom_text_add_hyperlink(sample, url, altString, start_char, end_char);
+
+    // Fuzz gf_isom_text_set_karaoke_segment
+    if (Size >= 6) {
+        u32 end_time = *(u32*)(Data + 2);
+        gf_isom_text_set_karaoke_segment(sample, end_time, start_char, end_char);
     }
 
-    // Fuzz gf_isom_set_single_moof_mode
-    if (isom_file) {
-        gf_isom_set_single_moof_mode(isom_file, GF_TRUE);
-    }
+    // Fuzz gf_isom_text_reset_styles
+    gf_isom_text_reset_styles(sample);
 
-    // Fuzz gf_isom_get_root_sidx_offsets
-    u64 start_offset = 0, end_offset = 0;
-    gf_isom_get_root_sidx_offsets(isom_file, &start_offset, &end_offset);
+    // Fuzz gf_isom_text_reset
+    gf_isom_text_reset(sample);
 
-    // Fuzz gf_isom_close_segment
-    u64 index_start_range = 0, index_end_range = 0, out_seg_size = 0;
-    gf_isom_close_segment(isom_file, -1, 0, 0, 0, 0, GF_FALSE, GF_FALSE, GF_FALSE, GF_FALSE, 0, &index_start_range, &index_end_range, &out_seg_size);
-
-    // Fuzz gf_isom_open_progressive_ex
-    gf_isom_open_progressive_ex("./dummy_file", start_range, end_range, enable_frag_templates, &isom_file, &BytesMissing, &topBoxType);
-
-    // Cleanup
-    if (isom_file) {
-        // Assuming there's a function to close or free the ISOFile
-        // gf_isom_close(isom_file);
-    }
-
+    free_text_sample(sample);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_84(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

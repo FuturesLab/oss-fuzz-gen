@@ -1,94 +1,100 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "unistd.h"  // Include for close() and unlink()
-#include <fcntl.h>   // Include for mkstemp()
+#include <unistd.h>
+#include <fcntl.h>
 #include "/src/gpac/include/gpac/isomedia.h"
-#include "/src/gpac/include/gpac/constants.h"
 
 int LLVMFuzzerTestOneInput_91(const uint8_t *data, size_t size) {
     GF_ISOFile *file = NULL;
     Bool root_meta = GF_FALSE;
-    u32 track_num = 1; // Initialize with a non-zero value
+    u32 track_num = 1;
 
-    // Create a temporary file to simulate an ISO file
+    // Ensure the input data is not empty
+    if (size == 0) {
+        return 0;
+    }
+
+    // Create a temporary file to store the input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write data to the temporary file
+    // Write the input data to the temporary file
     if (write(fd, data, size) != size) {
         close(fd);
-        unlink(tmpl);
         return 0;
     }
+
+    // Close the file descriptor
     close(fd);
 
-    // Open the ISO file using the temporary file path
+    // Open the ISO file using the temporary file
     file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
     if (file == NULL) {
-        unlink(tmpl);
+        // Clean up the temporary file if opening fails
+        remove(tmpl);
         return 0;
     }
 
-    // Fuzz the function-under-test
+    // Call the function-under-test
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_open to gf_isom_sample_get_subsample
-    u32 ret_gf_isom_segment_get_fragment_count_mgrvt = gf_isom_segment_get_fragment_count(NULL);
-    u32 ret_gf_isom_get_num_supported_boxes_dvuxl = gf_isom_get_num_supported_boxes();
-    u32 ret_gf_isom_get_num_supported_boxes_fzhzf = gf_isom_get_num_supported_boxes();
-    u32 ret_gf_isom_probe_file_akhux = gf_isom_probe_file((const char *)"r");
-    u32 ret_gf_isom_get_supported_box_type_taydb = gf_isom_get_supported_box_type(0);
-    Bool ret_gf_isom_is_single_av_lkoeq = gf_isom_is_single_av(file);
-    u8 eolnozag;
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_is_single_av to gf_isom_cenc_get_sample_aux_info
-    u32 ret_gf_isom_segment_get_fragment_count_ywnax = gf_isom_segment_get_fragment_count(NULL);
-    u32 ret_gf_isom_get_next_moof_number_wgxqn = gf_isom_get_next_moof_number(file);
-    u32 ret_gf_isom_guess_specification_itmxb = gf_isom_guess_specification(file);
-    u32 ret_gf_isom_get_timescale_wekqp = gf_isom_get_timescale(NULL);
-    u8 *tbykwfcy;
-    memset(&tbykwfcy, 0, sizeof(tbykwfcy));
-
-    GF_Err ret_gf_isom_cenc_get_sample_aux_info_zcudx = gf_isom_cenc_get_sample_aux_info(file, ret_gf_isom_segment_get_fragment_count_ywnax, ret_gf_isom_get_num_supported_boxes_fzhzf, ret_gf_isom_get_next_moof_number_wgxqn, &ret_gf_isom_guess_specification_itmxb, &tbykwfcy, &ret_gf_isom_get_timescale_wekqp);
-
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_open to gf_isom_update_edit_list_duration
+    u32 ret_gf_isom_get_next_alternate_group_id_rkhlr = gf_isom_get_next_alternate_group_id(NULL);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    GF_Err ret_gf_isom_update_edit_list_duration_lgfvd = gf_isom_update_edit_list_duration(file, ret_gf_isom_get_next_alternate_group_id_rkhlr);
     // End mutation: Producer.APPEND_MUTATOR
+    
+    gf_isom_get_meta_type(file, root_meta, track_num);
 
-    memset(&eolnozag, 0, sizeof(eolnozag));
-
-    GF_Err ret_gf_isom_sample_get_subsample_grmgu = gf_isom_sample_get_subsample(file, ret_gf_isom_segment_get_fragment_count_mgrvt, ret_gf_isom_get_num_supported_boxes_dvuxl, ret_gf_isom_get_num_supported_boxes_fzhzf, ret_gf_isom_probe_file_akhux, &ret_gf_isom_get_supported_box_type_taydb, &eolnozag, NULL, &ret_gf_isom_is_single_av_lkoeq);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_sample_get_subsample to gf_isom_meta_get_next_item_id
-    u32 ret_gf_isom_get_pssh_count_cifcg = gf_isom_get_pssh_count(file);
-    u32 ret_gf_isom_get_copyright_count_zilta = gf_isom_get_copyright_count(file);
-
-    GF_Err ret_gf_isom_meta_get_next_item_id_wbklm = gf_isom_meta_get_next_item_id(file, ret_gf_isom_is_single_av_lkoeq, ret_gf_isom_get_copyright_count_zilta, NULL);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    gf_isom_has_meta_xml(file, root_meta, track_num);
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_has_meta_xml to gf_isom_set_media_type
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_get_next_moof_number with gf_isom_get_copyright_count
-    u32 ret_gf_isom_get_next_moof_number_hnobj = gf_isom_get_copyright_count(file);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    u32 ret_gf_isom_guess_specification_cnshv = gf_isom_guess_specification(file);
-
-    GF_Err ret_gf_isom_set_media_type_btvuh = gf_isom_set_media_type(file, ret_gf_isom_get_next_moof_number_hnobj, ret_gf_isom_guess_specification_cnshv);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    // Close the ISO file and clean up
     gf_isom_close(file);
-    unlink(tmpl);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_91(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,59 +1,105 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>  // For memcpy
-#include "unistd.h"  // For close
+#include <unistd.h>
+#include <fcntl.h>
 #include "/src/gpac/include/gpac/isomedia.h"
-#include "/src/gpac/include/gpac/constants.h"
-#include "/src/gpac/include/gpac/tools.h"
 
 int LLVMFuzzerTestOneInput_126(const uint8_t *data, size_t size) {
-    GF_ISOFile *file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!file) {
+    GF_ISOFile *file = NULL;
+    Bool root_meta = GF_FALSE;
+    u32 track_num = 1;
+
+    // Ensure the input data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Ensure the size is sufficient to avoid out-of-bounds access
-    if (size < 1) {
-        gf_isom_close(file);
-        return 0;
-    }
-
-    // Create a temporary file for the XML
-    char tmpl[] = "/tmp/fuzz_xmlXXXXXX";
+    // Create a temporary file to store the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        gf_isom_close(file);
         return 0;
     }
+
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+
+    // Close the file descriptor
     close(fd);
 
-    // Write the data to the temporary file
-    FILE *xmlFile = fopen(tmpl, "wb");
-    if (!xmlFile) {
-        gf_isom_close(file);
-        return 0;
-    }
-    fwrite(data, 1, size, xmlFile);
-    fclose(xmlFile);
-
-    Bool root_meta = GF_TRUE;
-    u32 track_num = 1;
-    unsigned char *data_copy = (unsigned char *)malloc(size);
-    if (!data_copy) {
+    // Open the ISO file using the temporary file
+    file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
+    if (file == NULL) {
+        // Clean up the temporary file if opening fails
         remove(tmpl);
-        gf_isom_close(file);
         return 0;
     }
-    memcpy(data_copy, data, size);
-    u32 data_size = size;
-    Bool IsBinaryXML = GF_FALSE;
 
-    gf_isom_set_meta_xml(file, root_meta, track_num, tmpl, data_copy, data_size, IsBinaryXML);
+    // Call the function-under-test
+    gf_isom_get_meta_type(file, root_meta, track_num);
 
-    free(data_copy);
-    remove(tmpl);
+    // Close the ISO file and clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_get_meta_type to gf_isom_get_root_sidx_offsets
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    u64 ret_gf_isom_get_duration_vyrer = gf_isom_get_duration(file);
+    u64 ret_gf_isom_estimate_size_tfrbu = gf_isom_estimate_size(NULL);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    Bool ret_gf_isom_get_root_sidx_offsets_rwcpe = gf_isom_get_root_sidx_offsets(file, &ret_gf_isom_get_duration_vyrer, &ret_gf_isom_estimate_size_tfrbu);
+    // End mutation: Producer.APPEND_MUTATOR
+    
     gf_isom_close(file);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_126(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

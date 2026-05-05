@@ -1,54 +1,124 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_text_reset_styles at tx3g.c:612:8 in isomedia.h
-// gf_isom_text_set_highlight_color at tx3g.c:321:8 in isomedia.h
-// gf_isom_text_reset at tx3g.c:636:8 in isomedia.h
-// gf_isom_text_add_text at tx3g.c:259:8 in isomedia.h
-// gf_isom_text_add_karaoke at tx3g.c:335:8 in isomedia.h
-// gf_isom_text_set_scroll_delay at tx3g.c:358:8 in isomedia.h
+// gf_isom_open_progressive_ex at isom_read.c:435:8 in isomedia.h
+// gf_isom_open_segment at isom_read.c:3557:8 in isomedia.h
+// gf_isom_add_chapter at isom_write.c:3227:8 in isomedia.h
+// gf_isom_refresh_fragmented at isom_read.c:3088:8 in isomedia.h
+// gf_isom_get_chapter at isom_read.c:1551:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "isomedia.h"
 
-// Assuming the size of GF_TextSample is known or obtained from the library
-#define TEXT_SAMPLE_SIZE 128  // Placeholder size, should be replaced with actual size
+#define DUMMY_FILE "./dummy_file"
 
-static GF_TextSample* create_text_sample() {
-    GF_TextSample *sample = (GF_TextSample *) malloc(TEXT_SAMPLE_SIZE);
-    if (!sample) return NULL;
-    memset(sample, 0, TEXT_SAMPLE_SIZE);
-    return sample;
-}
-
-static void destroy_text_sample(GF_TextSample *sample) {
-    if (!sample) return;
-    // Assuming isomedia provides a function to properly clean up a GF_TextSample
-    free(sample);
+// Helper function to write data to a dummy file
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen(DUMMY_FILE, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_58(const uint8_t *Data, size_t Size) {
-    if (Size < 12) return 0; // Ensure enough data for u32 values and text
+    if (Size < sizeof(u64) * 2 + sizeof(Bool) + sizeof(u32)) {
+        return 0; // Not enough data to proceed
+    }
 
-    GF_TextSample *sample = create_text_sample();
-    if (!sample) return 0;
+    // Write the input data to a dummy file
+    write_dummy_file(Data, Size);
 
-    // Extract values from Data
-    u32 argb_color = *(u32 *)Data;
-    u32 scroll_delay = *(u32 *)(Data + 4);
-    u32 karaoke_start_time = *(u32 *)(Data + 8);
-    char *text_data = (char *)(Data + 12);
-    u32 text_len = Size > 12 ? Size - 12 : 0;
+    // Extract parameters for gf_isom_open_progressive_ex
+    u64 start_range = *(u64 *)Data;
+    u64 end_range = *(u64 *)(Data + sizeof(u64));
+    Bool enable_frag_templates = *(Bool *)(Data + 2 * sizeof(u64));
 
-    // Invoke API functions
-    gf_isom_text_reset_styles(sample);
-    gf_isom_text_set_highlight_color(sample, argb_color);
-    gf_isom_text_reset(sample);
-    gf_isom_text_add_text(sample, text_data, text_len);
-    gf_isom_text_add_karaoke(sample, karaoke_start_time);
-    gf_isom_text_set_scroll_delay(sample, scroll_delay);
+    GF_ISOFile *isom_file = NULL;
+    u64 BytesMissing = 0;
+    u32 topBoxType = 0;
 
-    // Clean up
-    destroy_text_sample(sample);
+    // Call gf_isom_open_progressive_ex
+    gf_isom_open_progressive_ex(DUMMY_FILE, start_range, end_range, enable_frag_templates, &isom_file, &BytesMissing, &topBoxType);
+
+    // If a valid ISO file was opened, test additional functions
+    if (isom_file) {
+        // Extract parameters for gf_isom_open_segment
+        const char *segmentFileName = DUMMY_FILE;
+        GF_ISOSegOpenMode flags = *(GF_ISOSegOpenMode *)(Data + 2 * sizeof(u64) + sizeof(Bool));
+
+        gf_isom_open_segment(isom_file, segmentFileName, start_range, end_range, flags);
+
+        // Extract parameters for gf_isom_add_chapter
+        u32 trackNumber = *(u32 *)(Data + 2 * sizeof(u64) + sizeof(Bool) + sizeof(GF_ISOSegOpenMode));
+        u64 timestamp = *(u64 *)(Data + 2 * sizeof(u64) + sizeof(Bool) + sizeof(GF_ISOSegOpenMode) + sizeof(u32));
+        char *chapterName = "Chapter 1";
+
+        gf_isom_add_chapter(isom_file, trackNumber, timestamp, chapterName);
+
+        // Extract parameters for gf_isom_refresh_fragmented
+        u64 MissingBytes = 0;
+        const char *new_location = NULL;
+
+        gf_isom_refresh_fragmented(isom_file, &MissingBytes, new_location);
+
+        // Extract parameters for gf_isom_get_chapter
+        u32 Index = *(u32 *)(Data + 2 * sizeof(u64) + sizeof(Bool) + sizeof(GF_ISOSegOpenMode) + sizeof(u32) + sizeof(u64));
+        u64 chapter_time = 0;
+        const char *name = NULL;
+
+        gf_isom_get_chapter(isom_file, trackNumber, Index, &chapter_time, &name);
+
+        // Clean up
+        // Assuming a function gf_isom_close exists for cleanup
+        // gf_isom_close(isom_file);
+    }
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_58(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

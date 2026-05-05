@@ -1,62 +1,130 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "unistd.h"
-#include <stdio.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
 int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    GF_ISOFile *movie = NULL;
-    GF_ISOOpenMode mode;
+    GF_ISOFile *file = NULL;
+    Bool root_meta = GF_FALSE;
+    u32 track_num = 1;
 
-    // Ensure the size is sufficient for processing
-    if (size < sizeof(GF_ISOOpenMode)) {
+    // Ensure the input data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize the mode from the input data
-    mode = *(GF_ISOOpenMode *)data;
-
-    // Create a temporary file to simulate an ISO file
+    // Create a temporary file to store the input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
+    // Write the input data to the temporary file
     if (write(fd, data, size) != size) {
         close(fd);
         return 0;
     }
+
+    // Close the file descriptor
     close(fd);
 
     // Open the ISO file using the temporary file
-    movie = gf_isom_open(tmpl, mode, NULL);
-    if (movie != NULL) {
-        // Call the function-under-test
-        gf_isom_can_access_movie(movie, mode);
-
-        // Clean up
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_can_access_movie to gf_isom_remove_user_data
-        u32 ret_gf_isom_probe_file_wdfbe = gf_isom_probe_file((const char *)"w");
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_segment_get_fragment_count with gf_isom_guess_specification
-        u32 ret_gf_isom_segment_get_fragment_count_gwtif = gf_isom_guess_specification(movie);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-        GF_Err ret_gf_isom_remove_user_data_pudoi = gf_isom_remove_user_data(movie, ret_gf_isom_probe_file_wdfbe, ret_gf_isom_segment_get_fragment_count_gwtif, NULL);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        gf_isom_close(movie);
+    file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
+    if (file == NULL) {
+        // Clean up the temporary file if opening fails
+        remove(tmpl);
+        return 0;
     }
 
-    // Remove the temporary file
+    // Call the function-under-test
+    gf_isom_get_meta_type(file, root_meta, track_num);
+
+    // Close the ISO file and clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_get_meta_type to gf_isom_get_chapter
+    u32 ret_gf_isom_get_copyright_count_uqfgg = gf_isom_get_copyright_count(NULL);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_get_copyright_count to gf_isom_opus_config_get
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    const u32 * ret_gf_isom_get_brands_ruyhk = gf_isom_get_brands(file);
+    if (ret_gf_isom_get_brands_ruyhk == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    u32 ret_gf_isom_get_next_alternate_group_id_iyhzv = gf_isom_get_next_alternate_group_id(file);
+    u32 ret_gf_isom_get_track_count_inxnj = gf_isom_get_track_count(NULL);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    GF_Err ret_gf_isom_opus_config_get_vfxgk = gf_isom_opus_config_get(file, ret_gf_isom_get_next_alternate_group_id_iyhzv, ret_gf_isom_get_copyright_count_uqfgg, NULL, &ret_gf_isom_get_track_count_inxnj);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    u32 ret_gf_isom_get_copyright_count_iqoda = gf_isom_get_copyright_count(NULL);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    u64 ret_gf_isom_estimate_size_mxavv = gf_isom_estimate_size(file);
+    const char *xwqrrcwx[1024] = {"piojl", NULL};
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    GF_Err ret_gf_isom_get_chapter_tguuu = gf_isom_get_chapter(file, ret_gf_isom_get_copyright_count_uqfgg, ret_gf_isom_get_copyright_count_iqoda, &ret_gf_isom_estimate_size_mxavv, xwqrrcwx);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    gf_isom_close(file);
     remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_39(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

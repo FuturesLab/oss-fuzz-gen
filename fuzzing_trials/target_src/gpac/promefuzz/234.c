@@ -1,69 +1,98 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_reset_fragment_info at isom_read.c:4976:6 in isomedia.h
-// gf_isom_has_keep_utc_times at isom_read.c:5550:6 in isomedia.h
-// gf_isom_has_sync_shadows at isom_read.c:1894:6 in isomedia.h
-// gf_isom_has_sample_dependency at isom_read.c:1904:6 in isomedia.h
-// gf_isom_is_smooth_streaming_moov at isom_read.c:5848:6 in isomedia.h
-// gf_isom_is_fragmented at movie_fragments.c:3523:6 in isomedia.h
+// gf_isom_last_error at isom_read.c:46:8 in isomedia.h
+// gf_isom_reset_alt_brands at isom_write.c:3682:8 in isomedia.h
+// gf_isom_freeze_order at isom_read.c:76:8 in isomedia.h
+// gf_isom_switch_source at isom_read.c:6717:8 in isomedia.h
+// gf_isom_make_interleave at isom_write.c:6051:8 in isomedia.h
+// gf_isom_enable_mfra at movie_fragments.c:3462:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "isomedia.h"
 
-// Define a dummy size for GF_ISOFile since its structure is not fully available
-#define DUMMY_GFI_ISOFILE_SIZE 1024
+// Assuming a reasonable size for the GF_ISOFile structure
+#define ISOFILE_STRUCT_SIZE 1024
 
-static GF_ISOFile* create_dummy_isofile() {
-    GF_ISOFile *isom_file = (GF_ISOFile*)malloc(DUMMY_GFI_ISOFILE_SIZE);
-    if (!isom_file) return NULL;
-    memset(isom_file, 0, DUMMY_GFI_ISOFILE_SIZE);
-    return isom_file;
+static GF_ISOFile* create_initialized_isofile() {
+    GF_ISOFile *file = (GF_ISOFile *)malloc(ISOFILE_STRUCT_SIZE);
+    if (!file) return NULL;
+    memset(file, 0, ISOFILE_STRUCT_SIZE);
+    return file;
 }
 
-static void destroy_dummy_isofile(GF_ISOFile *isom_file) {
-    if (isom_file) {
-        free(isom_file);
-    }
+static void free_initialized_isofile(GF_ISOFile *file) {
+    if (!file) return;
+    free(file);
 }
 
 int LLVMFuzzerTestOneInput_234(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    GF_ISOFile *isom_file = create_dummy_isofile();
-    if (!isom_file) return 0;
+    GF_ISOFile* isofile = create_initialized_isofile();
+    if (!isofile) return 0;
 
-    // Use the first byte as a boolean for keep_sample_count
-    Bool keep_sample_count = Data[0] % 2;
+    // Fuzz gf_isom_last_error
+    gf_isom_last_error(isofile);
 
-    // Call gf_isom_reset_fragment_info
-    gf_isom_reset_fragment_info(isom_file, keep_sample_count);
+    // Fuzz gf_isom_reset_alt_brands
+    gf_isom_reset_alt_brands(isofile);
 
-    // Call gf_isom_has_keep_utc_times
-    Bool has_utc = gf_isom_has_keep_utc_times(isom_file);
+    // Fuzz gf_isom_freeze_order
+    gf_isom_freeze_order(isofile);
 
-    // Use the second byte as a track number
-    u32 track_number = (Size > 1) ? Data[1] : 0;
+    // Fuzz gf_isom_switch_source
+    char url[256];
+    snprintf(url, sizeof(url), "gmem://%.*s", (int)Size, Data);
+    gf_isom_switch_source(isofile, url);
 
-    // Call gf_isom_has_sync_shadows
-    Bool has_sync_shadows = gf_isom_has_sync_shadows(isom_file, track_number);
+    // Fuzz gf_isom_make_interleave
+    Double interleave_time = (Double)(Data[0] % 10);
+    gf_isom_make_interleave(isofile, interleave_time);
 
-    // Call gf_isom_has_sample_dependency
-    Bool has_sample_dependency = gf_isom_has_sample_dependency(isom_file, track_number);
+    // Fuzz gf_isom_enable_mfra
+    gf_isom_enable_mfra(isofile);
 
-    // Call gf_isom_is_smooth_streaming_moov
-    Bool is_smooth_streaming = gf_isom_is_smooth_streaming_moov(isom_file);
-
-    // Call gf_isom_is_fragmented
-    Bool is_fragmented = gf_isom_is_fragmented(isom_file);
-
-    // Clean up
-    destroy_dummy_isofile(isom_file);
-
+    free_initialized_isofile(isofile);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_234(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

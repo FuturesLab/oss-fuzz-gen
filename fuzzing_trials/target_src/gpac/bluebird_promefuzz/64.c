@@ -1,95 +1,106 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_ISOFile* initialize_iso_file(const char *filename) {
-    // Open the file in read/write mode, assuming a function for this exists.
-    GF_ISOFile *isom_file = gf_isom_open(filename, GF_ISOM_OPEN_EDIT, NULL);
-    return isom_file;
+// Dummy implementation of GF_ISOFile creation
+static GF_ISOFile* create_dummy_iso_file() {
+    // This function should be implemented with the actual library calls
+    // to create or open a GF_ISOFile. Here, we just return NULL to avoid
+    // dereferencing incomplete types.
+    return NULL;
 }
 
+// Dummy implementation of GF_ISOFile cleanup
 static void cleanup_iso_file(GF_ISOFile *isom_file) {
-    if (isom_file) {
-        gf_isom_close(isom_file);
-    }
+    // This function should be implemented with the actual library calls
+    // to properly clean up a GF_ISOFile. Here, we do nothing.
 }
 
 int LLVMFuzzerTestOneInput_64(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 5) {
-        return 0;
+    if (Size < 1) return 0;
+
+    GF_ISOFile *isom_file = create_dummy_iso_file();
+
+    // Fuzzing gf_isom_force_64bit_chunk_offset
+    Bool set_on = Data[0] % 2;
+    gf_isom_force_64bit_chunk_offset(isom_file, set_on);
+
+    // Fuzzing gf_isom_reset_track_switch_parameter
+    if (Size >= 6) {
+        u32 trackNumber = *((u32 *)(Data + 1));
+        Bool reset_all_group = Data[5] % 2;
+        gf_isom_reset_track_switch_parameter(isom_file, trackNumber, reset_all_group);
     }
 
-    // Create a dummy file to simulate the ISO file
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (!dummy_file) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, dummy_file);
-    fclose(dummy_file);
-
-    GF_ISOFile *isom_file = initialize_iso_file("./dummy_file");
-    if (!isom_file) {
-        return 0;
+    // Fuzzing gf_isom_avc_set_inband_config
+    if (Size >= 10) {
+        u32 trackNumber = *((u32 *)(Data + 1));
+        u32 sampleDescriptionIndex = *((u32 *)(Data + 5));
+        Bool keep_xps = Data[9] % 2;
+        gf_isom_avc_set_inband_config(isom_file, trackNumber, sampleDescriptionIndex, keep_xps);
     }
 
-    u32 trackNumber = *(u32 *)Data;
-    u32 ref_type = *((u32 *)Data + 1);
-    u32 group_id = *((u32 *)Data + 2);
-    u32 max_chunk_size = *((u32 *)Data + 3);
-    u32 new_media_type = *((u32 *)Data + 4);
-
-    // Fuzz gf_isom_remove_track_from_root_od
-    gf_isom_remove_track_from_root_od(isom_file, trackNumber);
-
-    // Fuzz gf_isom_remove_track_reference
-    gf_isom_remove_track_reference(isom_file, trackNumber, ref_type);
-
-    // Fuzz gf_isom_set_track_interleaving_group
-    gf_isom_set_track_interleaving_group(isom_file, trackNumber, group_id);
-
-    // Fuzz gf_isom_set_alternate_group_id
-    gf_isom_set_alternate_group_id(isom_file, trackNumber, group_id);
-
-    // Fuzz gf_isom_hint_max_chunk_size
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_hint_max_chunk_size with gf_isom_set_last_sample_duration
-    gf_isom_set_last_sample_duration(isom_file, trackNumber, max_chunk_size);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Fuzz gf_isom_set_media_type
-    gf_isom_set_media_type(isom_file, trackNumber, new_media_type);
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_open to gf_isom_get_webvtt_config
-    u32 ret_gf_isom_get_next_alternate_group_id_gnnzg = gf_isom_get_next_alternate_group_id(NULL);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_get_next_alternate_group_id to gf_isom_track_cenc_add_sample_info
-    u32 ret_gf_isom_get_copyright_count_hqqef = gf_isom_get_copyright_count(isom_file);
-    u32 ret_gf_isom_get_track_count_wrntv = gf_isom_get_track_count(isom_file);
-    u32 ret_gf_isom_probe_file_lbwfj = gf_isom_probe_file((const char *)"w");
-    Bool ret_gf_isom_is_JPEG2000_giauh = gf_isom_is_JPEG2000(isom_file);
-    Bool ret_gf_isom_is_JPEG2000_atvsp = gf_isom_is_JPEG2000(NULL);
-    Bool ret_gf_isom_moov_first_guwey = gf_isom_moov_first(isom_file);
-    u8 icunzqyr;
-    memset(&icunzqyr, 0, sizeof(icunzqyr));
-
-    GF_Err ret_gf_isom_track_cenc_add_sample_info_cgzfd = gf_isom_track_cenc_add_sample_info(isom_file, ret_gf_isom_get_track_count_wrntv, ret_gf_isom_probe_file_lbwfj, &icunzqyr, ret_gf_isom_get_next_alternate_group_id_gnnzg, ret_gf_isom_is_JPEG2000_giauh, ret_gf_isom_is_JPEG2000_atvsp, ret_gf_isom_moov_first_guwey);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    u32 ret_gf_isom_get_num_supported_boxes_tucri = gf_isom_get_num_supported_boxes();
-
-    const char * ret_gf_isom_get_webvtt_config_jxeeo = gf_isom_get_webvtt_config(isom_file, ret_gf_isom_get_next_alternate_group_id_gnnzg, ret_gf_isom_get_num_supported_boxes_tucri);
-    if (ret_gf_isom_get_webvtt_config_jxeeo == NULL){
-    	return 0;
+    // Fuzzing gf_isom_release_segment
+    if (Size >= 11) {
+        Bool reset_tables = Data[10] % 2;
+        gf_isom_release_segment(isom_file, reset_tables);
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Fuzzing gf_isom_reset_tables
+    if (Size >= 12) {
+        Bool reset_sample_count = Data[11] % 2;
+        gf_isom_reset_tables(isom_file, reset_sample_count);
+    }
+
+    // Fuzzing gf_isom_text_set_streaming_mode
+    if (Size >= 13) {
+        Bool do_convert = Data[12] % 2;
+        gf_isom_text_set_streaming_mode(isom_file, do_convert);
+    }
 
     cleanup_iso_file(isom_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_64(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

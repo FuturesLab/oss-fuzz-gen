@@ -1,83 +1,82 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_ISOFile* initialize_iso_file(const char *filename) {
-    // Open the file in read/write mode, assuming a function for this exists.
-    GF_ISOFile *isom_file = gf_isom_open(filename, GF_ISOM_OPEN_EDIT, NULL);
-    return isom_file;
-}
-
-static void cleanup_iso_file(GF_ISOFile *isom_file) {
-    if (isom_file) {
-        gf_isom_close(isom_file);
+static void prepare_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_158(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 5) {
-        return 0;
-    }
+    if (Size < sizeof(GF_ISOTrackID)) return 0;
 
-    // Create a dummy file to simulate the ISO file
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (!dummy_file) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, dummy_file);
-    fclose(dummy_file);
+    GF_ISOFile *isom_file = NULL;
+    GF_ISOTrackID trackID = *((GF_ISOTrackID *)Data);
+    u64 ntp = 0, timestamp = 0, mediaTime = 0, ref_track_decode_time = 0, ref_track_next_cts = 0;
+    Bool at_mux = true, reset_info = true, daisy_chain_sidx = true, use_ssix = true, last_segment = true, close_segment_handle = true;
+    u32 segment_marker_4cc = 0, trackNumber = 1, movieTime = 0, moof_index = 1;
+    s32 subsegs_per_sidx = 1, timestamp_shift = 0;
+    u64 index_start_range = 0, index_end_range = 0, out_seg_size = 0;
+    u32 outOriginalFormat = 0, outSchemeType = 0, outSchemeVersion = 0, outTextualHeadersLen = 0, outEncryptionType = 0, outIVLength = 0, outKeyIndicationLength = 0;
+    const char *outContentID = NULL, *outRightsIssuerURL = NULL, *outTextualHeaders = NULL;
+    u64 outPlaintextLength = 0;
+    Bool outSelectiveEncryption = false;
 
-    GF_ISOFile *isom_file = initialize_iso_file("./dummy_file");
-    if (!isom_file) {
-        return 0;
-    }
+    prepare_dummy_file(Data, Size);
 
-    u32 trackNumber = *(u32 *)Data;
-    u32 ref_type = *((u32 *)Data + 1);
-    u32 group_id = *((u32 *)Data + 2);
-    u32 max_chunk_size = *((u32 *)Data + 3);
-    u32 new_media_type = *((u32 *)Data + 4);
+    gf_isom_set_fragment_reference_time(isom_file, trackID, ntp, timestamp, at_mux);
+    gf_isom_get_last_producer_time_box(isom_file, &trackID, &ntp, &timestamp, reset_info);
+    gf_isom_close_segment(isom_file, subsegs_per_sidx, trackID, ref_track_decode_time, timestamp_shift, ref_track_next_cts, daisy_chain_sidx, use_ssix, last_segment, close_segment_handle, segment_marker_4cc, &index_start_range, &index_end_range, &out_seg_size);
+    gf_isom_get_media_time(isom_file, trackNumber, movieTime, &mediaTime);
+    gf_isom_segment_get_fragment_size(isom_file, moof_index, NULL);
+    gf_isom_get_omadrm_info(isom_file, trackNumber, 1, &outOriginalFormat, &outSchemeType, &outSchemeVersion, &outContentID, &outRightsIssuerURL, &outTextualHeaders, &outTextualHeadersLen, &outPlaintextLength, &outEncryptionType, &outSelectiveEncryption, &outIVLength, &outKeyIndicationLength);
 
-    // Fuzz gf_isom_remove_track_from_root_od
-    gf_isom_remove_track_from_root_od(isom_file, trackNumber);
-
-    // Fuzz gf_isom_remove_track_reference
-    gf_isom_remove_track_reference(isom_file, trackNumber, ref_type);
-
-    // Fuzz gf_isom_set_track_interleaving_group
-    gf_isom_set_track_interleaving_group(isom_file, trackNumber, group_id);
-
-    // Fuzz gf_isom_set_alternate_group_id
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_set_alternate_group_id with gf_isom_remove_track_reference
-    gf_isom_remove_track_reference(isom_file, trackNumber, group_id);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Fuzz gf_isom_hint_max_chunk_size
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_remove_track_reference to gf_isom_add_user_data_boxes
-    u32 ret_gf_isom_get_copyright_count_yltaj = gf_isom_get_copyright_count(isom_file);
-    u8 ret_gf_isom_get_mode_raoey = gf_isom_get_mode(isom_file);
-    u32 ret_gf_isom_get_copyright_count_lwwdm = gf_isom_get_copyright_count(isom_file);
-
-    GF_Err ret_gf_isom_add_user_data_boxes_agohv = gf_isom_add_user_data_boxes(isom_file, ret_gf_isom_get_copyright_count_yltaj, &ret_gf_isom_get_mode_raoey, ret_gf_isom_get_copyright_count_lwwdm);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    gf_isom_hint_max_chunk_size(isom_file, trackNumber, max_chunk_size);
-
-    // Fuzz gf_isom_set_media_type
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_set_media_type with gf_isom_set_ctts_v1
-    gf_isom_set_ctts_v1(isom_file, trackNumber, new_media_type);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    cleanup_iso_file(isom_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_158(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

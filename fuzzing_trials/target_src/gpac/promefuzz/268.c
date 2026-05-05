@@ -1,83 +1,122 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_flush_fragments at movie_fragments.c:1468:8 in isomedia.h
-// gf_isom_fragment_set_sample_rap_group at isom_write.c:7720:8 in isomedia.h
-// gf_isom_reset_tables at isom_read.c:3407:8 in isomedia.h
-// gf_isom_clone_pssh at isom_write.c:8420:8 in isomedia.h
-// gf_isom_apply_box_patch at isom_write.c:8665:8 in isomedia.h
-// gf_isom_release_segment at isom_read.c:3459:8 in isomedia.h
+// gf_isom_set_storage_mode at isom_write.c:2636:8 in isomedia.h
+// gf_isom_update_duration at isom_write.c:8330:8 in isomedia.h
+// gf_isom_set_sample_group_in_traf at isom_write.c:8537:8 in isomedia.h
+// gf_isom_remove_root_od at isom_write.c:165:8 in isomedia.h
+// gf_isom_set_byte_offset at isom_read.c:5910:8 in isomedia.h
+// gf_isom_make_interleave_ex at isom_write.c:6032:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    // Assuming GF_ISOFile is a struct and has a constructor-like function
-    GF_ISOFile *file = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
-    return file;
+static GF_ISOFile* initialize_iso_file() {
+    // Since GF_ISOFile is an incomplete type, we cannot use sizeof directly.
+    // Allocation and initialization would typically be handled by specific library functions.
+    // Assuming such a function exists, e.g., gf_isom_open_file or similar.
+    GF_ISOFile *iso_file = NULL;
+    // Initialize iso_file using a hypothetical library function if available
+    return iso_file;
 }
 
-static void destroy_dummy_iso_file(GF_ISOFile *file) {
-    if (file) {
-        gf_isom_close(file);
+static void cleanup_iso_file(GF_ISOFile *iso_file) {
+    if (iso_file) {
+        // Free any allocated resources within iso_file if needed
+        // Assuming a hypothetical library function exists for cleanup
     }
 }
 
 int LLVMFuzzerTestOneInput_268(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(GF_ISOStorageMode) + sizeof(s64)) return 0;
 
-    GF_ISOFile *file = create_dummy_iso_file();
-    if (!file) return 0;
+    GF_ISOFile *iso_file = initialize_iso_file();
+    if (!iso_file) return 0;
 
-    // Fuzz gf_isom_flush_fragments
-    Bool last_segment = Data[0] % 2;
-    gf_isom_flush_fragments(file, last_segment);
-
-    // Fuzz gf_isom_fragment_set_sample_rap_group
-    if (Size >= 13) {
-        GF_ISOTrackID trackID = *(GF_ISOTrackID *)(Data + 1);
-        u32 sample_number_in_frag = *(u32 *)(Data + 5);
-        Bool is_rap = Data[9] % 2;
-        u32 num_leading_samples = *(u32 *)(Data + 10);
-        gf_isom_fragment_set_sample_rap_group(file, trackID, sample_number_in_frag, is_rap, num_leading_samples);
+    // Fuzz gf_isom_set_storage_mode
+    GF_ISOStorageMode storage_mode = *(GF_ISOStorageMode *)Data;
+    GF_Err err = gf_isom_set_storage_mode(iso_file, storage_mode);
+    if (err != GF_OK) {
+        // Handle error if necessary
     }
 
-    // Fuzz gf_isom_reset_tables
-    if (Size >= 14) {
-        Bool reset_sample_count = Data[13] % 2;
-        gf_isom_reset_tables(file, reset_sample_count);
-    }
-
-    // Fuzz gf_isom_clone_pssh
-    if (Size >= 15) {
-        GF_ISOFile *src_file = create_dummy_iso_file();
-        Bool in_moof = Data[14] % 2;
-        gf_isom_clone_pssh(file, src_file, in_moof);
-        destroy_dummy_iso_file(src_file);
-    }
-
-    // Fuzz gf_isom_apply_box_patch
-    if (Size >= 16) {
-        GF_ISOTrackID trackID = *(GF_ISOTrackID *)(Data + 15);
-        const char *box_patch_filename = "./dummy_file";
-        FILE *dummy_file = fopen(box_patch_filename, "w");
-        if (dummy_file) {
-            fwrite(Data, 1, Size, dummy_file);
-            fclose(dummy_file);
+    // Fuzz gf_isom_make_interleave_ex
+    if (Size >= sizeof(GF_ISOStorageMode) + sizeof(GF_Fraction)) {
+        GF_Fraction interleave_time = *(GF_Fraction *)(Data + sizeof(GF_ISOStorageMode));
+        err = gf_isom_make_interleave_ex(iso_file, &interleave_time);
+        if (err != GF_OK) {
+            // Handle error if necessary
         }
-        Bool for_fragments = Data[15] % 2;
-        gf_isom_apply_box_patch(file, trackID, box_patch_filename, for_fragments);
     }
 
-    // Fuzz gf_isom_release_segment
-    if (Size >= 17) {
-        Bool reset_tables = Data[16] % 2;
-        gf_isom_release_segment(file, reset_tables);
+    // Fuzz gf_isom_set_byte_offset
+    if (Size >= sizeof(GF_ISOStorageMode) + sizeof(s64)) {
+        s64 byte_offset = *(s64 *)(Data + sizeof(GF_ISOStorageMode));
+        err = gf_isom_set_byte_offset(iso_file, byte_offset);
+        if (err != GF_OK) {
+            // Handle error if necessary
+        }
     }
 
-    destroy_dummy_iso_file(file);
+    // Fuzz gf_isom_remove_root_od
+    err = gf_isom_remove_root_od(iso_file);
+    if (err != GF_OK) {
+        // Handle error if necessary
+    }
+
+    // Fuzz gf_isom_update_duration
+    err = gf_isom_update_duration(iso_file);
+    if (err != GF_OK) {
+        // Handle error if necessary
+    }
+
+    // Fuzz gf_isom_set_sample_group_in_traf
+    err = gf_isom_set_sample_group_in_traf(iso_file);
+    if (err != GF_OK) {
+        // Handle error if necessary
+    }
+
+    cleanup_iso_file(iso_file);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_268(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

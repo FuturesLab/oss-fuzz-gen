@@ -1,59 +1,118 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_ISOFile* initialize_iso_file() {
-    // Since GF_ISOFile is an incomplete type, we cannot allocate it directly.
-    // Instead, we assume that there's a function to create or open an ISO file.
-    // For fuzzing purposes, we simulate this with a NULL pointer.
+#define DUMMY_FILE_PATH "./dummy_file"
+
+// Helper function to create a dummy ISO file
+static GF_ISOFile* create_dummy_iso_file() {
+    // Since the structure of GF_ISOFile is not available, we return NULL
     return NULL;
 }
 
-static void cleanup_iso_file(GF_ISOFile* iso_file) {
-    // Since we don't have a real ISO file, there's nothing to clean up.
-    // In a real scenario, you would close or free the ISO file here.
+// Helper function to clean up an ISO file
+static void cleanup_iso_file(GF_ISOFile *file) {
+    // Since the structure of GF_ISOFile is not available, do nothing
 }
 
 int LLVMFuzzerTestOneInput_104(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
+    
+    // Create a dummy ISO file
+    GF_ISOFile *isom_file = create_dummy_iso_file();
 
-    GF_ISOFile* iso_file = initialize_iso_file();
+    // Prepare parameters for the function calls
+    u32 trackNumber = Data[0];
+    const char *xmlnamespace = "http://example.com/namespace";
+    const char *schema_loc = NULL;
+    const char *content_encoding = NULL;
+    u32 outDescriptionIndex = 0;
 
-    // Prepare dummy data
-    char dummy_file_path[] = "./dummy_file";
-    FILE *dummy_file = fopen(dummy_file_path, "wb");
-    if (!dummy_file) {
-        cleanup_iso_file(iso_file);
-        return 0;
-    }
-    fwrite(Data, 1, Size, dummy_file);
-    fclose(dummy_file);
+    // Fuzz gf_isom_new_xml_metadata_description
+    gf_isom_new_xml_metadata_description(isom_file, trackNumber, xmlnamespace, schema_loc, content_encoding, &outDescriptionIndex);
 
-    // Fuzz gf_isom_set_meta_xml
-    gf_isom_set_meta_xml(iso_file, 1, 0, dummy_file_path, NULL, 0, 0);
-    gf_isom_set_meta_xml(iso_file, 0, 1, NULL, (unsigned char*)Data, Size, 1);
+    // Prepare parameters for gf_isom_new_xml_subtitle_description
+    const char *auxiliary_mimes = NULL;
 
-    // Fuzz gf_isom_iff_create_image_identity_item
-    GF_ImageItemProperties image_props;
-    gf_isom_iff_create_image_identity_item(iso_file, 1, 0, "item_name", 0, &image_props);
+    // Fuzz gf_isom_new_xml_subtitle_description
+    gf_isom_new_xml_subtitle_description(isom_file, trackNumber, xmlnamespace, schema_loc, auxiliary_mimes, &outDescriptionIndex);
 
-    // Fuzz gf_isom_extract_meta_xml
-    Bool is_binary;
-    gf_isom_extract_meta_xml(iso_file, 1, 0, dummy_file_path, &is_binary);
+    // Prepare parameters for gf_isom_get_payt_info
+    u32 index = 1;
+    u32 payID = 0;
 
-    // Fuzz gf_isom_add_meta_item2
-    u32 io_item_id = 0;
-    gf_isom_add_meta_item2(iso_file, 0, 1, 1, dummy_file_path, "item_name", &io_item_id, 0, "mime/type", NULL, NULL, NULL, &image_props);
+    // Fuzz gf_isom_get_payt_info
+    gf_isom_get_payt_info(isom_file, trackNumber, index, &payID);
 
-    // Fuzz gf_isom_add_meta_item_memory
-    gf_isom_add_meta_item_memory(iso_file, 0, 1, "item_name", &io_item_id, 0, "mime/type", NULL, &image_props, (char*)Data, Size, NULL);
+    // Prepare parameters for gf_isom_get_webvtt_config
+    u32 sampleDescriptionIndex = 0;
 
-    // Fuzz gf_isom_start_segment
-    gf_isom_start_segment(iso_file, "_gpac_isobmff_redirect", 1);
+    // Fuzz gf_isom_get_webvtt_config
+    gf_isom_get_webvtt_config(isom_file, trackNumber, sampleDescriptionIndex);
 
-    cleanup_iso_file(iso_file);
+    // Prepare parameters for gf_isom_get_track_kind
+    char *scheme = NULL;
+    char *value = NULL;
+
+    // Fuzz gf_isom_get_track_kind
+    gf_isom_get_track_kind(isom_file, trackNumber, index, &scheme, &value);
+    free(scheme);
+    free(value);
+
+    // Prepare parameters for gf_isom_truehd_config_new
+    char *URLname = NULL;
+    char *URNname = NULL;
+    u32 format_info = 0;
+    u32 peak_data_rate = 0;
+
+    // Fuzz gf_isom_truehd_config_new
+    gf_isom_truehd_config_new(isom_file, trackNumber, URLname, URNname, format_info, peak_data_rate, &outDescriptionIndex);
+
+    // Cleanup
+    cleanup_iso_file(isom_file);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_104(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

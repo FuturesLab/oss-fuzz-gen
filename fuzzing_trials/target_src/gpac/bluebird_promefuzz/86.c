@@ -1,98 +1,100 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_ISOFile* initialize_iso_file() {
+static GF_ISOFile* create_dummy_iso_file() {
     // Since GF_ISOFile is an incomplete type, we cannot allocate it directly.
-    // Assume the library provides a function to create or open an ISO file.
-    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
-    return iso_file;
+    // We assume there is a function in the library to create an ISO file.
+    return gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
 }
 
-static GF_ISOSample* initialize_iso_sample() {
-    GF_ISOSample *sample = (GF_ISOSample*)malloc(sizeof(GF_ISOSample));
-    if (!sample) return NULL;
-    // Initialize sample with dummy data or zeroed memory
-    memset(sample, 0, sizeof(GF_ISOSample));
-    return sample;
-}
-
-static void cleanup_iso_file(GF_ISOFile *iso_file) {
-    if (iso_file) {
-        gf_isom_close(iso_file);
-    }
-}
-
-static void cleanup_iso_sample(GF_ISOSample *sample) {
-    if (sample) {
-        free(sample);
+static void destroy_dummy_iso_file(GF_ISOFile *file) {
+    if (file) {
+        gf_isom_close(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_86(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 2 + sizeof(u64) * 2) return 0;
+    if (Size < sizeof(u32) * 5) return 0;
 
-    GF_ISOFile *iso_file = initialize_iso_file();
-    if (!iso_file) return 0;
+    GF_ISOFile *isom_file = create_dummy_iso_file();
+    if (!isom_file) return 0;
 
     u32 trackNumber = *(u32*)(Data);
-    u64 create_time = *(u64*)(Data + sizeof(u32));
-    u64 modif_time = *(u64*)(Data + sizeof(u32) + sizeof(u64));
+    u32 sampleDescriptionIndex = *(u32*)(Data + sizeof(u32));
+    u32 compress_mode = *(u32*)(Data + 2 * sizeof(u32));
+    u32 compress_flags = *(u32*)(Data + 3 * sizeof(u32));
+    u32 sampleNumber = *(u32*)(Data + 4 * sizeof(u32));
 
-    gf_isom_set_track_creation_time(iso_file, trackNumber, create_time, modif_time);
+    // Test gf_isom_enable_compression
+    gf_isom_enable_compression(isom_file, compress_mode, compress_flags);
 
-    if (Size < sizeof(u32) * 3 + sizeof(u64) * 3) {
-        cleanup_iso_file(iso_file);
-        return 0;
+    // Test gf_isom_get_audio_info
+    u32 SampleRate, Channels, bitsPerSample;
+    gf_isom_get_audio_info(isom_file, trackNumber, sampleDescriptionIndex, &SampleRate, &Channels, &bitsPerSample);
+
+    // Test gf_isom_ac3_config_update
+    GF_AC3Config ac3_config;
+    memset(&ac3_config, 0, sizeof(GF_AC3Config));
+    gf_isom_ac3_config_update(isom_file, trackNumber, sampleDescriptionIndex, &ac3_config);
+
+    // Test gf_isom_ac3_config_get
+    GF_AC3Config *ac3_config_get = gf_isom_ac3_config_get(isom_file, trackNumber, sampleDescriptionIndex);
+    if (ac3_config_get) {
+        free(ac3_config_get);
     }
 
-    GF_ISOSample *sample = initialize_iso_sample();
-    if (!sample) {
-        cleanup_iso_file(iso_file);
-        return 0;
-    }
+    // Test gf_isom_ac3_config_new
+    u32 outDescriptionIndex;
+    gf_isom_ac3_config_new(isom_file, trackNumber, &ac3_config, NULL, NULL, &outDescriptionIndex);
 
-    u32 sampleDescriptionIndex = *(u32*)(Data + sizeof(u32) + sizeof(u64) * 2);
-    u64 dataOffset = *(u64*)(Data + sizeof(u32) * 2 + sizeof(u64) * 2);
+    // Test gf_isom_set_sample_flags
+    gf_isom_set_sample_flags(isom_file, trackNumber, sampleNumber, 1, 1, 1, 1);
 
-    gf_isom_add_sample_reference(iso_file, trackNumber, sampleDescriptionIndex, sample, dataOffset);
+    destroy_dummy_iso_file(isom_file);
 
-    if (Size < sizeof(u32) * 4 + sizeof(u64) * 4) {
-        cleanup_iso_sample(sample);
-        cleanup_iso_file(iso_file);
-        return 0;
-    }
-
-    u64 movieTime = *(u64*)(Data + sizeof(u32) * 3 + sizeof(u64) * 3);
-    u32 *sampleDescriptionIndexPtr = NULL;
-    GF_ISOSearchMode searchMode = *(GF_ISOSearchMode*)(Data + sizeof(u32) * 3 + sizeof(u64) * 4);
-    GF_ISOSample *retrievedSample = NULL;
-    u32 *sample_number = NULL;
-    u64 *data_offset = NULL;
-
-    gf_isom_get_sample_for_movie_time(iso_file, trackNumber, movieTime, sampleDescriptionIndexPtr, searchMode, &retrievedSample, sample_number, data_offset);
-
-    u32 movieTime32 = *(u32*)(Data + sizeof(u32) * 3 + sizeof(u64) * 3);
-    u64 mediaTime = 0;
-
-    gf_isom_get_media_time(iso_file, trackNumber, movieTime32, &mediaTime);
-
-    u32 sampleNumber = *(u32*)(Data + sizeof(u32) * 4 + sizeof(u64) * 4);
-
-    gf_isom_update_sample_reference(iso_file, trackNumber, sampleNumber, sample, dataOffset);
-
-    u64 desiredTime = *(u64*)(Data + sizeof(u32) * 4 + sizeof(u64) * 4);
-
-    gf_isom_get_sample_for_media_time(iso_file, trackNumber, desiredTime, sampleDescriptionIndexPtr, searchMode, &retrievedSample, sample_number, data_offset);
-
-    cleanup_iso_sample(sample);
-    cleanup_iso_file(iso_file);
-    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_86(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

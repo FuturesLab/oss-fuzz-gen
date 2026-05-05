@@ -1,65 +1,71 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
+// The function signature is updated to remove the C++ linkage specification
 int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
-    if (size < sizeof(GF_ISOTrackID) + sizeof(u32) * 2 + sizeof(Bool) + 1) {
-        return 0; // Ensure there's enough data for all parameters
-    }
-
     GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
     if (!movie) {
-        return 0; // Fail gracefully if the movie cannot be opened
+        return 0;
     }
 
-    GF_ISOTrackID trakID = *(GF_ISOTrackID *)data;
-    data += sizeof(GF_ISOTrackID);
+    // Ensure size is large enough to extract meaningful values
+    if (size < 12) {
+        gf_isom_close(movie);
+        return 0;
+    }
 
-    u32 MediaType = *(u32 *)data;
-    data += sizeof(u32);
+    // Extract values from data
+    u32 trackNumber = *((u32*)(data));
+    u32 dur_num = *((u32*)(data + 4));
+    u32 dur_den = *((u32*)(data + 8));
 
-    u32 TimeScale = *(u32 *)data;
-    data += sizeof(u32);
+    // Call the function-under-test
+    gf_isom_set_last_sample_duration_ex(movie, trackNumber, dur_num, dur_den);
 
-    Bool udta_only = *(Bool *)data;
-    data += sizeof(Bool);
-
-    u32 tk_box_size = size - (sizeof(GF_ISOTrackID) + sizeof(u32) * 2 + sizeof(Bool));
-    u8 *tk_box = (u8 *)data;
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_open to gf_isom_get_pssh_info
-    u32 ret_gf_isom_text_sample_size_wozlt = gf_isom_text_sample_size(NULL);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_text_sample_size to gf_isom_ac3_config_new
-    GF_AC3Config ojolpjmm;
-    memset(&ojolpjmm, 0, sizeof(ojolpjmm));
-
-    GF_Err ret_gf_isom_ac3_config_new_qtpto = gf_isom_ac3_config_new(NULL, ret_gf_isom_text_sample_size_wozlt, &ojolpjmm, NULL, (const char *)data, &ret_gf_isom_text_sample_size_wozlt);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    u8 ret_gf_isom_get_mode_oxmot = gf_isom_get_mode(movie);
-    const char cqlmezwh[1024] = "cwlxv";
-    u32 ret_gf_isom_probe_file_bfwxu = gf_isom_probe_file(cqlmezwh);
-    u32 ret_gf_isom_get_next_moof_number_pcfww = gf_isom_get_next_moof_number(movie);
-    u32 cdpungjm;
-    memset(&cdpungjm, 0, sizeof(cdpungjm));
-    const bin128 *arrzsypm;
-    memset(&arrzsypm, 0, sizeof(arrzsypm));
-
-    GF_Err ret_gf_isom_get_pssh_info_cnsde = gf_isom_get_pssh_info(movie, ret_gf_isom_text_sample_size_wozlt, &ret_gf_isom_get_mode_oxmot, &cdpungjm, &ret_gf_isom_probe_file_bfwxu, &arrzsypm, NULL, &ret_gf_isom_get_next_moof_number_pcfww);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    gf_isom_new_track_from_template(movie, trakID, MediaType, TimeScale, tk_box, tk_box_size, udta_only);
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_close with gf_isom_reset_alt_brands
-    gf_isom_reset_alt_brands(movie);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Clean up
+    gf_isom_close(movie);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_40(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

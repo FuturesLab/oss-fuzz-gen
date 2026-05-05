@@ -1,48 +1,103 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static void initialize_ac4_config(GF_AC4Config *cfg) {
-    // Initialize the GF_AC4Config structure with dummy values
-    memset(cfg, 0, sizeof(GF_AC4Config));
-    cfg->sample_rate = 48000; // Example value
-    cfg->channel_count = 2;   // Example value
+static GF_ISOFile* initialize_iso_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) {
+        return NULL;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_open to gf_isom_sdp_get
+    u32 ret_gf_isom_get_num_supported_boxes_ivukv = gf_isom_get_num_supported_boxes();
+    const char *oiektvyy[1024] = {"zqpsd", NULL};
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!iso_file) {
+    	return 0;
+    }
+    GF_Err ret_gf_isom_sdp_get_zbreb = gf_isom_sdp_get(iso_file, oiektvyy, &ret_gf_isom_get_num_supported_boxes_ivukv);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    return iso_file;
 }
 
 int LLVMFuzzerTestOneInput_124(const uint8_t *Data, size_t Size) {
-    GF_ISOFile *isom_file = NULL; // Assume the file is opened and assigned properly
-    GF_AC4Config ac4_cfg;
-    u32 trackNumber = 1; // Example track number
-    u32 sampleDescriptionIndex = 1; // Example sample description index
-    u32 outDescriptionIndex = 0;
-    const char *URLname = NULL;
-    const char *URNname = NULL;
-    u32 SampleRate = 0, Channels = 0, bitsPerSample = 0;
-    u32 format_info = 0, peak_data_rate = 0;
-    u32 average_bitrate = 0, max_bitrate = 0, decode_buffer_size = 0;
+    if (Size < 1) {
+        return 0;
+    }
 
-    initialize_ac4_config(&ac4_cfg);
+    GF_ISOFile *iso_file = initialize_iso_file(Data, Size);
+    if (!iso_file) {
+        return 0;
+    }
 
-    // Fuzz gf_isom_ac4_config_new
-    gf_isom_ac4_config_new(isom_file, trackNumber, &ac4_cfg, URLname, URNname, &outDescriptionIndex);
+    Bool root_meta = Data[0] % 2;
+    u32 track_num = (Size > 1) ? Data[1] : 0;
+    u32 item_num = (Size > 2) ? Data[2] : 1;
+    u32 from_id = (Size > 3) ? Data[3] : 1;
+    u32 to_id = (Size > 4) ? Data[4] : 1;
+    u32 type = (Size > 5) ? Data[5] : 0;
+    u32 ref_idx = (Size > 6) ? Data[6] : 1;
 
-    // Fuzz gf_isom_ac4_config_get
-    gf_isom_ac4_config_get(isom_file, trackNumber, sampleDescriptionIndex);
+    u32 result;
 
-    // Fuzz gf_isom_get_audio_info
-    gf_isom_get_audio_info(isom_file, trackNumber, sampleDescriptionIndex, &SampleRate, &Channels, &bitsPerSample);
+    result = gf_isom_has_meta_xml(iso_file, root_meta, track_num);
+    result = gf_isom_get_meta_item_flags(iso_file, root_meta, track_num, item_num);
+    result = gf_isom_meta_get_item_ref_count(iso_file, root_meta, track_num, from_id, type);
+    result = gf_isom_meta_item_has_ref(iso_file, root_meta, track_num, to_id, type);
+    result = gf_isom_meta_get_item_ref_id(iso_file, root_meta, track_num, from_id, type, ref_idx);
+    result = gf_isom_get_meta_type(iso_file, root_meta, track_num);
 
-    // Fuzz gf_isom_truehd_config_get
-    gf_isom_truehd_config_get(isom_file, trackNumber, sampleDescriptionIndex, &format_info, &peak_data_rate);
-
-    // Fuzz gf_isom_ac4_config_update
-    gf_isom_ac4_config_update(isom_file, trackNumber, sampleDescriptionIndex, &ac4_cfg);
-
-    // Fuzz gf_isom_update_bitrate
-    gf_isom_update_bitrate(isom_file, trackNumber, sampleDescriptionIndex, average_bitrate, max_bitrate, decode_buffer_size);
-
+    gf_isom_close(iso_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_124(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

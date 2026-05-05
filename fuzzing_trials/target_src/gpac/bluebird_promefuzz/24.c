@@ -1,87 +1,86 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
 static GF_ISOFile* create_dummy_iso_file() {
-    // GF_ISOFile is an incomplete type, so we cannot allocate it directly.
-    // Assume we have a function to create or mock a GF_ISOFile.
-    return gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-}
-
-static void free_iso_file(GF_ISOFile *file) {
-    if (file) {
-        gf_isom_close(file);
-    }
-}
-
-static void fuzz_gf_isom_get_raw_user_data(GF_ISOFile *file) {
-    u8 *output = NULL;
-    u32 output_size = 0;
-    GF_Err err = gf_isom_get_raw_user_data(file, &output, &output_size);
-    if (err == GF_OK && output) {
-        free(output);
-    }
-}
-
-static void fuzz_gf_isom_fragment_append_data(GF_ISOFile *file, const uint8_t *Data, size_t Size) {
-    if (Size < 4) return; // Ensure there's enough data for TrackID and PaddingBits
-    GF_ISOTrackID TrackID = *(GF_ISOTrackID *)Data;
-    u8 PaddingBits = Data[Size - 1];
-    gf_isom_fragment_append_data(file, TrackID, (u8 *)Data, (u32)Size, PaddingBits);
-}
-
-static void fuzz_gf_isom_get_trex_template(GF_ISOFile *file, const uint8_t *Data, size_t Size) {
-    if (Size < 4) return; // Ensure there's enough data for trackNumber
-    u32 trackNumber = *(u32 *)Data;
-    u8 *output = NULL;
-    u32 output_size = 0;
-    GF_Err err = gf_isom_get_trex_template(file, trackNumber, &output, &output_size);
-    if (err == GF_OK && output) {
-        free(output);
-    }
-}
-
-static void fuzz_gf_isom_add_uuid(GF_ISOFile *file, const uint8_t *Data, size_t Size) {
-    if (Size < 16) return; // Ensure there's enough data for UUID
-    u32 trackNumber = *(u32 *)Data;
-    bin128 UUID;
-    memcpy(UUID, Data + 4, 16);
-    const u8 *data = (Size > 20) ? Data + 20 : NULL;
-    u32 size = (Size > 20) ? (u32)(Size - 20) : 0;
-    gf_isom_add_uuid(file, trackNumber, UUID, data, size);
-}
-
-static void fuzz_gf_isom_set_track_stsd_templates(GF_ISOFile *file, const uint8_t *Data, size_t Size) {
-    if (Size < 4) return; // Ensure there's enough data for trackNumber
-    u32 trackNumber = *(u32 *)Data;
-    u8 *stsd_data = (u8 *)(Data + 4);
-    u32 stsd_data_size = (u32)(Size - 4);
-    gf_isom_set_track_stsd_templates(file, trackNumber, stsd_data, stsd_data_size);
-}
-
-static void fuzz_gf_isom_update_sample_description_from_template(GF_ISOFile *file, const uint8_t *Data, size_t Size) {
-    if (Size < 8) return; // Ensure there's enough data for trackNumber and sampleDescriptionIndex
-    u32 trackNumber = *(u32 *)Data;
-    u32 sampleDescriptionIndex = *(u32 *)(Data + 4);
-    u8 *data = (u8 *)(Data + 8);
-    u32 size = (u32)(Size - 8);
-    gf_isom_update_sample_description_from_template(file, trackNumber, sampleDescriptionIndex, data, size);
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    return isom_file;
 }
 
 int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
-    GF_ISOFile *file = create_dummy_iso_file();
-    if (!file) return 0;
+    GF_ISOFile *isom_file = create_dummy_iso_file();
 
-    fuzz_gf_isom_get_raw_user_data(file);
-    fuzz_gf_isom_fragment_append_data(file, Data, Size);
-    fuzz_gf_isom_get_trex_template(file, Data, Size);
-    fuzz_gf_isom_add_uuid(file, Data, Size);
-    fuzz_gf_isom_set_track_stsd_templates(file, Data, Size);
-    fuzz_gf_isom_update_sample_description_from_template(file, Data, Size);
+    if (!isom_file) return 0;
 
-    free_iso_file(file);
+    // Prepare variables for gf_isom_get_audio_info
+    u32 SampleRate = 0, Channels = 0, BitsPerSample = 0;
+    u32 trackNumber = Size > 0 ? Data[0] : 1;
+    u32 sampleDescriptionIndex = Size > 1 ? Data[1] : 1;
+    gf_isom_get_audio_info(isom_file, trackNumber, sampleDescriptionIndex, &SampleRate, &Channels, &BitsPerSample);
+
+    // Prepare variables for gf_isom_get_brand_info
+    u32 brand = 0, minorVersion = 0, AlternateBrandsCount = 0;
+    gf_isom_get_brand_info(isom_file, &brand, &minorVersion, &AlternateBrandsCount);
+
+    // Prepare variables for gf_isom_set_nalu_extract_mode
+    GF_ISONaluExtractMode nalu_extract_mode = (GF_ISONaluExtractMode)(Size > 2 ? Data[2] : 0);
+    gf_isom_set_nalu_extract_mode(isom_file, trackNumber, nalu_extract_mode);
+
+    // Invoke gf_isom_get_nalu_extract_mode
+    gf_isom_get_nalu_extract_mode(isom_file, trackNumber);
+
+    // Prepare variables for gf_isom_set_track_reference
+    u32 referenceType = Size > 3 ? Data[3] : 0;
+    GF_ISOTrackID ReferencedTrackID = Size > 4 ? Data[4] : 0;
+    gf_isom_set_track_reference(isom_file, trackNumber, referenceType, ReferencedTrackID);
+
+    // Prepare variables for gf_isom_get_tmcd_config
+    u32 tmcd_flags = 0, tmcd_fps_num = 0, tmcd_fps_den = 0, tmcd_fpt = 0;
+    gf_isom_get_tmcd_config(isom_file, trackNumber, sampleDescriptionIndex, &tmcd_flags, &tmcd_fps_num, &tmcd_fps_den, &tmcd_fpt);
+
+    gf_isom_close(isom_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_24(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

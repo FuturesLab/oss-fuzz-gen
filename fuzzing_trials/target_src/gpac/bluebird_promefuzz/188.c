@@ -1,71 +1,106 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_ISOFile* create_dummy_isofile() {
-    // Allocate a dummy buffer for GF_ISOFile since its size is unknown
-    GF_ISOFile *file = (GF_ISOFile *)malloc(1024); // Assuming 1024 bytes is enough for fuzzing
-    if (!file) return NULL;
-    memset(file, 0, 1024);
-    return file;
-}
-
-static void destroy_dummy_isofile(GF_ISOFile *file) {
-    if (file) {
-        free(file);
+static GF_ISOFile* initialize_iso_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) {
+        return NULL;
     }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    return iso_file;
 }
 
 int LLVMFuzzerTestOneInput_188(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32)) {
+    if (Size < 1) {
         return 0;
     }
 
-    GF_ISOFile *isom_file = create_dummy_isofile();
-    if (!isom_file) {
+    GF_ISOFile *iso_file = initialize_iso_file(Data, Size);
+    if (!iso_file) {
         return 0;
     }
 
-    // Extract a u32 value from the input data
-    u32 moof_number = *((u32 *)Data);
-    Data += sizeof(u32);
-    Size -= sizeof(u32);
+    Bool root_meta = Data[0] % 2;
+    u32 track_num = (Size > 1) ? Data[1] : 0;
+    u32 item_num = (Size > 2) ? Data[2] : 1;
+    u32 from_id = (Size > 3) ? Data[3] : 1;
+    u32 to_id = (Size > 4) ? Data[4] : 1;
+    u32 type = (Size > 5) ? Data[5] : 0;
+    u32 ref_idx = (Size > 6) ? Data[6] : 1;
 
-    // Fuzz gf_isom_set_next_moof_number
-    gf_isom_set_next_moof_number(isom_file, moof_number);
+    u32 result;
 
-    // Fuzz gf_isom_guess_specification
-    u32 spec = gf_isom_guess_specification(isom_file);
+    result = gf_isom_has_meta_xml(iso_file, root_meta, track_num);
+    result = gf_isom_get_meta_item_flags(iso_file, root_meta, track_num, item_num);
+    result = gf_isom_meta_get_item_ref_count(iso_file, root_meta, track_num, from_id, type);
 
-    // Fuzz gf_isom_get_track_count
-    u32 track_count = gf_isom_get_track_count(isom_file);
-
-    // If there's enough data left, extract another u32 for moof_index
-    if (Size >= sizeof(u32)) {
-        u32 moof_index = *((u32 *)Data);
-        Data += sizeof(u32);
-        Size -= sizeof(u32);
-
-        // Fuzz gf_isom_segment_get_track_fragment_count
-        u32 fragment_count = gf_isom_segment_get_track_fragment_count(isom_file, moof_index);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_meta_get_item_ref_count to gf_isom_get_media_language
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!iso_file) {
+    	return 0;
     }
-
-    // If there's enough data left, extract another u32 for trackNumber
-    if (Size >= sizeof(u32)) {
-        u32 trackNumber = *((u32 *)Data);
-        Data += sizeof(u32);
-        Size -= sizeof(u32);
-
-        // Fuzz gf_isom_get_track_kind_count
-        u32 kind_count = gf_isom_get_track_kind_count(isom_file, trackNumber);
-
-        // Fuzz gf_isom_get_sample_description_count
-        u32 sample_desc_count = gf_isom_get_sample_description_count(isom_file, trackNumber);
+    u32 ret_gf_isom_get_next_moof_number_fgsay = gf_isom_get_next_moof_number(iso_file);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!iso_file) {
+    	return 0;
     }
+    GF_Err ret_gf_isom_get_media_language_thcxq = gf_isom_get_media_language(iso_file, result, NULL);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    result = gf_isom_meta_item_has_ref(iso_file, root_meta, track_num, to_id, type);
+    result = gf_isom_meta_get_item_ref_id(iso_file, root_meta, track_num, from_id, type, ref_idx);
+    result = gf_isom_get_meta_type(iso_file, root_meta, track_num);
 
-    destroy_dummy_isofile(isom_file);
+    gf_isom_close(iso_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_188(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

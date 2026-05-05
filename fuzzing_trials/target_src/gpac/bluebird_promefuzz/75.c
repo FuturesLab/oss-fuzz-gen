@@ -1,61 +1,94 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-#define DUMMY_FILE_PATH "./dummy_file"
+static GF_ISOFile* initialize_iso_file(const uint8_t *Data, size_t Size) {
+    // The GF_ISOFile type is opaque, so we cannot directly allocate or manipulate it.
+    // Assume there's a function to create or open an ISO file for fuzzing purposes.
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    if (!isom_file) return NULL;
 
-// Function to create a dummy ISO file
-static GF_ISOFile* create_dummy_iso_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen(DUMMY_FILE_PATH, "wb");
-    if (!file) return NULL;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    // Assume we have a way to write initial data to the file if needed
+    FILE *dummy_file = fopen("./dummy_file", "wb");
+    if (dummy_file) {
+        fwrite(Data, 1, Size, dummy_file);
+        fclose(dummy_file);
+    }
 
-    // Open the ISO file using the gpac library function
-    GF_ISOFile *isoFile = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_READ, NULL);
-    return isoFile;
+    return isom_file;
 }
 
-// Function to clean up the ISO file
-static void cleanup_iso_file(GF_ISOFile *isoFile) {
-    if (isoFile) {
-        gf_isom_close(isoFile);
+static void cleanup_iso_file(GF_ISOFile *isom_file) {
+    if (isom_file) {
+        gf_isom_close(isom_file);
+        remove("./dummy_file");
     }
 }
 
-// Fuzzing entry point
 int LLVMFuzzerTestOneInput_75(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 5) return 0; // Ensure we have enough data to read
 
-    GF_ISOFile *isoFile = create_dummy_iso_file(Data, Size);
-    if (!isoFile) return 0;
+    GF_ISOFile *isom_file = initialize_iso_file(Data, Size);
+    if (!isom_file) return 0;
 
-    Bool root_meta = Data[0] % 2 == 0;
-    u32 track_num = Size > 1 ? Data[1] : 0;
-    u32 item_num = Size > 2 ? Data[2] : 1;
-    u32 item_ID = Size > 3 ? Data[3] : 1;
-    u32 type = Size > 4 ? Data[4] : 1;
-    u32 ref_idx = Size > 5 ? Data[5] : 1;
+    u32 trackNumber = Data[0];
+    u32 maxChunkDur = Data[1];
+    u32 new_timescale = Data[2];
+    u32 new_tsinc = Data[3];
+    u32 force_rescale_type = Data[4 % Size];
+    u32 dur_min, dur_avg, dur_max, size_min, size_avg, size_max;
 
-    // Invoke the API functions with diverse inputs
-    u32 meta_type = gf_isom_get_meta_type(isoFile, root_meta, track_num);
-    u32 item_flags = gf_isom_get_meta_item_flags(isoFile, root_meta, track_num, item_num);
-    u32 item_index = gf_isom_get_meta_item_by_id(isoFile, root_meta, track_num, item_ID);
-    u32 ref_id = gf_isom_meta_get_item_ref_id(isoFile, root_meta, track_num, item_ID, type, ref_idx);
-    u32 has_ref = gf_isom_meta_item_has_ref(isoFile, root_meta, track_num, item_ID, type);
-    u32 ref_count = gf_isom_meta_get_item_ref_count(isoFile, root_meta, track_num, item_ID, type);
+    // Invoke target functions
+    gf_isom_hint_max_chunk_duration(isom_file, trackNumber, maxChunkDur);
+    gf_isom_set_media_timescale(isom_file, trackNumber, new_timescale, new_tsinc, force_rescale_type);
+    gf_isom_add_track_to_root_od(isom_file, trackNumber);
+    gf_isom_rewrite_track_dependencies(isom_file, trackNumber);
+    gf_isom_get_chunks_infos(isom_file, trackNumber, &dur_min, &dur_avg, &dur_max, &size_min, &size_avg, &size_max);
+    gf_isom_purge_track_reference(isom_file, trackNumber);
 
-    // Use the return values to avoid compiler optimizations
-    (void)meta_type;
-    (void)item_flags;
-    (void)item_index;
-    (void)ref_id;
-    (void)has_ref;
-    (void)ref_count;
-
-    cleanup_iso_file(isoFile);
+    cleanup_iso_file(isom_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_75(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

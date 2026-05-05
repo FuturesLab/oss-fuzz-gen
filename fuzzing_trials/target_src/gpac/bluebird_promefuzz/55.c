@@ -1,67 +1,93 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    // Return a NULL pointer for GF_ISOFile as we cannot allocate it directly
-    return NULL;
-}
-
-static GF_AC3Config* create_dummy_ac3_config() {
-    // Create a dummy AC3 config
-    GF_AC3Config *config = (GF_AC3Config*)malloc(sizeof(GF_AC3Config));
-    if (config) {
-        memset(config, 0, sizeof(GF_AC3Config));
-    }
-    return config;
+static GF_ISOFile* load_iso_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return NULL;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    return iso_file;
 }
 
 int LLVMFuzzerTestOneInput_55(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0; // Ensure there's enough data for track number
+    if (Size < 4) return 0; // Ensure there's enough data
 
-    GF_ISOFile *iso_file = create_dummy_iso_file();
-    GF_ISOFile *orig_file = create_dummy_iso_file();
-    GF_AC3Config *ac3_config = create_dummy_ac3_config();
+    GF_ISOFile *iso_file = load_iso_file(Data, Size);
+    if (!iso_file) return 0;
 
-    u32 trackNumber = *(u32*)Data;
-    const char *nameUTF8 = (const char*)(Data + 4);
-    const char *URLname = (Size > 8) ? (const char*)(Data + 8) : NULL;
-    const char *URNname = (Size > 12) ? (const char*)(Data + 12) : NULL;
+    u32 trackNumber = Data[0];
+    u32 sampleDescriptionIndex = Data[1];
+    u32 sampleNumber = Data[2];
+    u32 flags = Data[3];
 
-    u32 outDescriptionIndex;
-    char *scheme = NULL;
-    char *value = NULL;
+    // Fuzz gf_isom_get_max_sample_size
+    u32 max_sample_size = gf_isom_get_max_sample_size(iso_file, trackNumber);
 
-    // Fuzz gf_isom_set_handler_name
-    gf_isom_set_handler_name(iso_file, trackNumber, nameUTF8);
+    // Fuzz gf_isom_get_track_flags
+    u32 track_flags = gf_isom_get_track_flags(iso_file, trackNumber);
 
-    // Fuzz gf_isom_ac3_config_new
-    gf_isom_ac3_config_new(iso_file, trackNumber, ac3_config, URLname, URNname, &outDescriptionIndex);
+    // Fuzz gf_isom_get_track_count
+    u32 track_count = gf_isom_get_track_count(iso_file);
 
-    // Fuzz gf_isom_clone_sample_description
-    gf_isom_clone_sample_description(iso_file, trackNumber, orig_file, trackNumber, outDescriptionIndex, URLname, URNname, &outDescriptionIndex);
+    // Fuzz gf_isom_is_media_encrypted
+    u32 is_encrypted = gf_isom_is_media_encrypted(iso_file, trackNumber, sampleDescriptionIndex);
 
-    // Fuzz gf_isom_get_track_kind
-    gf_isom_get_track_kind(iso_file, trackNumber, 1, &scheme, &value);
+    // Fuzz gf_isom_get_avg_sample_size
+    u32 avg_sample_size = gf_isom_get_avg_sample_size(iso_file, trackNumber);
 
-    // Fuzz gf_isom_sdp_add_track_line
-    gf_isom_sdp_add_track_line(iso_file, trackNumber, nameUTF8);
-
-    // Fuzz gf_isom_get_handler_name
-    const char *outName = NULL;
-    gf_isom_get_handler_name(iso_file, trackNumber, &outName);
+    // Fuzz gf_isom_sample_has_subsamples
+    u32 subsample_count = gf_isom_sample_has_subsamples(iso_file, trackNumber, sampleNumber, flags);
 
     // Clean up
-    if (scheme) free(scheme);
-    if (value) free(value);
-    free(ac3_config);
+    gf_isom_close(iso_file);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_55(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

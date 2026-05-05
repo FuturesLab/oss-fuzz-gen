@@ -1,42 +1,141 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include "/src/gpac/include/gpac/isomedia.h" // Assuming this is the correct header file for the function
+#include <unistd.h>
+#include <fcntl.h>
+#include "/src/gpac/include/gpac/isomedia.h"
 
+GF_Err serduhpp(void *usr_data, u8 *block, u32 block_size, u64 block_offset, Bool is_insert){
+	return NULL;
+}
 int LLVMFuzzerTestOneInput_146(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to extract all parameters
-    if (size < sizeof(uint32_t) * 9 + sizeof(int32_t) * 2) {
+    GF_ISOFile *file = NULL;
+    Bool root_meta = GF_FALSE;
+    u32 track_num = 1;
+
+    // Ensure the input data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize a new GF_ISOFile object
-    // Provide a non-null file name and a temporary directory for the function
-    const char *fileName = "temp_file.mp4";
-    const char *tmp_dir = "/tmp";
-    GF_ISOFile *movie = gf_isom_open(fileName, GF_ISOM_OPEN_WRITE, tmp_dir);
-
-    if (!movie) {
-        return 0; // If allocation fails, exit gracefully
+    // Create a temporary file to store the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
     }
 
-    // Initialize variables for function parameters using the input data
-    uint32_t trackNumber = *(uint32_t *)(data);
-    uint32_t StreamDescriptionIndex = *(uint32_t *)(data + sizeof(uint32_t));
-    uint32_t cleanApertureWidthN = *(uint32_t *)(data + sizeof(uint32_t) * 2);
-    uint32_t cleanApertureWidthD = *(uint32_t *)(data + sizeof(uint32_t) * 3);
-    uint32_t cleanApertureHeightN = *(uint32_t *)(data + sizeof(uint32_t) * 4);
-    uint32_t cleanApertureHeightD = *(uint32_t *)(data + sizeof(uint32_t) * 5);
-    int32_t horizOffN = *(int32_t *)(data + sizeof(uint32_t) * 6);
-    uint32_t horizOffD = *(uint32_t *)(data + sizeof(uint32_t) * 6 + sizeof(int32_t));
-    int32_t vertOffN = *(int32_t *)(data + sizeof(uint32_t) * 7 + sizeof(int32_t));
-    uint32_t vertOffD = *(uint32_t *)(data + sizeof(uint32_t) * 7 + sizeof(int32_t) * 2);
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+
+    // Close the file descriptor
+    close(fd);
+
+    // Open the ISO file using the temporary file
+    file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
+    if (file == NULL) {
+        // Clean up the temporary file if opening fails
+        remove(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    gf_isom_set_clean_aperture(movie, trackNumber, StreamDescriptionIndex, cleanApertureWidthN, cleanApertureWidthD, cleanApertureHeightN, cleanApertureHeightD, horizOffN, horizOffD, vertOffN, vertOffD);
+    gf_isom_get_meta_type(file, root_meta, track_num);
 
-    // Close the GF_ISOFile to free resources
-    gf_isom_close(movie);
+    // Close the ISO file and clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_get_meta_type to gf_isom_is_self_contained
+    u32 ret_gf_isom_probe_file_gbnuc = gf_isom_probe_file((const char *)"w");
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    u32 ret_gf_isom_guess_specification_thcsk = gf_isom_guess_specification(file);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    Bool ret_gf_isom_is_self_contained_hhrzy = gf_isom_is_self_contained(file, ret_gf_isom_probe_file_gbnuc, ret_gf_isom_guess_specification_thcsk);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_is_self_contained to gf_isom_find_od_id_for_track
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_is_self_contained to gf_isom_set_write_callback
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    Bool ret_gf_isom_has_movie_slwwc = gf_isom_has_movie(file);
+    u32 ret_gf_isom_text_sample_size_skgfc = gf_isom_text_sample_size(NULL);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    GF_Err ret_gf_isom_set_write_callback_yzyni = gf_isom_set_write_callback(file, NULL, serduhpp, NULL, (void *)file, ret_gf_isom_text_sample_size_skgfc);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    u32 ret_gf_isom_get_track_count_itbku = gf_isom_get_track_count(file);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!file) {
+    	return 0;
+    }
+    u32 ret_gf_isom_find_od_id_for_track_telwq = gf_isom_find_od_id_for_track(file, ret_gf_isom_get_track_count_itbku);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    gf_isom_close(file);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_146(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,93 +1,111 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-// Assuming the structure of GF_TextSample is known and defined here
-struct _3gpp_text_sample {
-    char *text;
-    u32 len;
-    void *styles; // Placeholder for GF_TextStyleBox
-    void *highlight_color; // Placeholder for GF_TextHighlightColorBox
-    void *scroll_delay; // Placeholder for GF_TextScrollDelayBox
-    void *box; // Placeholder for GF_TextBoxBox
-    void *wrap; // Placeholder for GF_TextWrapBox
-    Bool is_forced;
-    GF_List *others;
-    void *cur_karaoke; // Placeholder for GF_TextKaraokeBox
-};
-
-static GF_TextSample* create_text_sample(const uint8_t *Data, size_t Size) {
-    GF_TextSample *sample = (GF_TextSample *)malloc(sizeof(GF_TextSample));
-    if (!sample) return NULL;
-
-    sample->text = (char *)malloc(Size + 1);
-    if (!sample->text) {
-        free(sample);
-        return NULL;
-    }
-    memcpy(sample->text, Data, Size);
-    sample->text[Size] = '\0';
-    sample->len = (u32)Size;
-    sample->styles = NULL;
-    sample->highlight_color = NULL;
-    sample->scroll_delay = NULL;
-    sample->box = NULL;
-    sample->wrap = NULL;
-    sample->is_forced = 0;
-    sample->others = NULL;
-    sample->cur_karaoke = NULL;
-
-    return sample;
-}
-
-static GF_StyleRecord* create_style_record(const uint8_t *Data, size_t Size) {
-    GF_StyleRecord *record = (GF_StyleRecord *)malloc(sizeof(GF_StyleRecord));
-    if (!record) return NULL;
-    // Initialize record with fuzz data or default values
-    return record;
+static GF_ISOFile* open_dummy_iso_file() {
+    // Open a dummy ISO file
+    GF_ISOFile *isoFile = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    return isoFile;
 }
 
 int LLVMFuzzerTestOneInput_37(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    GF_ISOFile *isoFile = open_dummy_iso_file();
+    if (!isoFile) return 0;
 
-    GF_TextSample *sample = create_text_sample(Data, Size);
-    if (!sample) return 0;
+    u32 trackNumber = 1;
+    u32 sampleDescriptionIndex = 1;
+    u32 flags = 0;
+    u32 pcm_size = 0;
+    GF_Err err;
 
-    gf_isom_text_reset_styles(sample);
-
-    if (Size >= 8) {
-        s16 top = (s16)Data[0];
-        s16 left = (s16)Data[1];
-        s16 bottom = (s16)Data[2];
-        s16 right = (s16)Data[3];
-        gf_isom_text_set_box(sample, top, left, bottom, right);
+    // Fuzz gf_isom_get_pcm_config
+    err = gf_isom_get_pcm_config(isoFile, trackNumber, sampleDescriptionIndex, &flags, &pcm_size);
+    if (err != GF_OK) {
+        // Handle error
     }
 
-    if (Size >= 9) {
-        u8 wrap_flags = Data[4] % 2; // Only 0 or 1 are valid
-        gf_isom_text_set_wrap(sample, wrap_flags);
+    // Fuzz gf_isom_get_audio_layout
+    GF_AudioChannelLayout layout;
+    err = gf_isom_get_audio_layout(isoFile, trackNumber, sampleDescriptionIndex, &layout);
+    if (err != GF_OK) {
+        // Handle error
     }
 
-    if (Size >= 10) {
-        Bool is_forced = (Bool)(Data[5] % 2);
-        gf_isom_text_set_forced(sample, is_forced);
+    // Fuzz gf_isom_set_root_od_id
+    u32 OD_ID = 1234; // Example OD ID
+    err = gf_isom_set_root_od_id(isoFile, OD_ID);
+    if (err != GF_OK) {
+        // Handle error
     }
 
-    gf_isom_text_reset(sample);
-
-    if (Size >= 11) {
-        GF_StyleRecord *style_record = create_style_record(Data + 6, Size - 6);
-        if (style_record) {
-            gf_isom_text_add_style(sample, style_record);
-            free(style_record);
-        }
+    // Fuzz gf_isom_set_media_subtype
+    u32 new_type = 0x61766331; // 'avc1' in hex
+    err = gf_isom_set_media_subtype(isoFile, trackNumber, sampleDescriptionIndex, new_type);
+    if (err != GF_OK) {
+        // Handle error
     }
 
-    free(sample->text);
-    free(sample);
+    // Fuzz gf_isom_get_original_format_type
+    u32 originalFormat;
+    err = gf_isom_get_original_format_type(isoFile, trackNumber, sampleDescriptionIndex, &originalFormat);
+    if (err != GF_OK) {
+        // Handle error
+    }
 
+    // Fuzz gf_isom_set_audio_layout
+    err = gf_isom_set_audio_layout(isoFile, trackNumber, sampleDescriptionIndex, &layout);
+    if (err != GF_OK) {
+        // Handle error
+    }
+
+    // Clean up
+    gf_isom_close(isoFile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_37(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

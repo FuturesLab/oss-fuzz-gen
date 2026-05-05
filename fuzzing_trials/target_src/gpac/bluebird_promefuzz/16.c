@@ -1,68 +1,97 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-}
+// Dummy file path
+#define DUMMY_FILE_PATH "./dummy_file"
 
+// Fuzzing entry point
 int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u64) * 2 + sizeof(Bool)) {
+    if (Size < 1) return 0;
+
+    // Prepare a dummy GF_ISOFile object
+    GF_ISOFile *isom_file = NULL; // Assuming GF_ISOFile can be NULL for testing
+
+    // Prepare a dummy GF_ISMASample object
+    GF_ISMASample *sample = gf_isom_ismacryp_new_sample();
+    if (!sample) {
         return 0;
     }
 
-    write_dummy_file(Data, Size);
+    // Test gf_isom_ismacryp_delete_sample
+    sample->dataLength = 0; // Set dataLength to 0 to retain buffer
+    gf_isom_ismacryp_delete_sample(sample);
 
-    GF_ISOFile *isom_file = NULL;
-    u64 missingBytes = 0;
-    u64 creationTime = 0, modificationTime = 0;
-    u64 currentTopBoxOffset = 0;
-    u64 topBoxStart = 0;
-    u64 startRange = *(u64 *)Data;
-    u64 endRange = *((u64 *)Data + 1);
-    Bool enableFragTemplates = *((Bool *)(Data + sizeof(u64) * 2));
-    GF_Err err;
+    // Test gf_isom_set_ismacryp_protection
+    char scheme_uri[] = "scheme_uri";
+    char kms_URI[] = "kms_URI";
+    gf_isom_set_ismacryp_protection(isom_file, 1, 1, 'iAEC', 1, scheme_uri, kms_URI, GF_TRUE, 16, 16);
 
-    // Test gf_isom_open_progressive
-    err = gf_isom_open_progressive("./dummy_file", startRange, endRange, enableFragTemplates, &isom_file, &missingBytes);
-    if (err != GF_OK || !isom_file) {
-        return 0;
+    // Test gf_isom_is_ismacryp_media
+    gf_isom_is_ismacryp_media(isom_file, 1, 1);
+
+    // Test gf_isom_get_ismacryp_sample
+    GF_ISOSample *iso_sample = (GF_ISOSample *) malloc(sizeof(GF_ISOSample));
+    if (iso_sample) {
+        gf_isom_get_ismacryp_sample(isom_file, 1, iso_sample, 1);
+        free(iso_sample);
     }
 
-    // Test gf_isom_refresh_fragmented
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of gf_isom_refresh_fragmented
-    err = gf_isom_refresh_fragmented(isom_file, &missingBytes, (const char *)"w");
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Test gf_isom_get_current_top_box_offset
-    err = gf_isom_get_current_top_box_offset(isom_file, &currentTopBoxOffset);
-
-    // Test gf_isom_get_creation_time
-    err = gf_isom_get_creation_time(isom_file, &creationTime, &modificationTime);
-
-    // Test gf_isom_reset_data_offset
-    err = gf_isom_reset_data_offset(isom_file, &topBoxStart);
-
-    // Test gf_isom_open_segment
-    err = gf_isom_open_segment(isom_file, "./dummy_file", startRange, endRange, 0);
-
-    // Cleanup
-    if (isom_file) {
-        gf_isom_close(isom_file);
+    // Write data to a dummy file for gf_isom_ismacryp_sample_from_data
+    FILE *dummy_file = fopen(DUMMY_FILE_PATH, "wb");
+    if (dummy_file) {
+        fwrite(Data, 1, Size, dummy_file);
+        fclose(dummy_file);
     }
+
+    // Test gf_isom_ismacryp_sample_from_data using the dummy file data
+    GF_ISMASample *new_sample = gf_isom_ismacryp_sample_from_data((u8 *)Data, (u32)Size, GF_TRUE, 16, 16);
+    if (new_sample) {
+        gf_isom_ismacryp_delete_sample(new_sample);
+    }
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

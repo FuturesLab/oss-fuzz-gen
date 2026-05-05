@@ -1,50 +1,87 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static void prepare_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static GF_ISOFile* create_dummy_iso_file() {
+    // Allocate memory for GF_ISOFile using a known size or specific function if available
+    GF_ISOFile* isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    return isom_file;
+}
+
+static void destroy_dummy_iso_file(GF_ISOFile* isom_file) {
+    if (isom_file) {
+        gf_isom_close(isom_file);
     }
 }
 
 int LLVMFuzzerTestOneInput_115(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 20) return 0; // Ensure there's enough data for all parameters
 
-    // Prepare a dummy file
-    prepare_dummy_file(Data, Size);
+    GF_ISOFile* iso_file = create_dummy_iso_file();
+    if (!iso_file) return 0;
 
-    // Initialize dummy variables for function calls
-    GF_ISOFile *isom_file = NULL; // Assuming a proper initialization function exists
-    u32 trackNumber = Data[0];
-    const char *xmlnamespace = "http://example.com/namespace";
-    const char *schema_loc = "http://example.com/schema";
-    const char *content_encoding = "UTF-8";
-    u32 outDescriptionIndex = 0;
-    GF_HEVCConfig *cfg = NULL; // Assuming a proper initialization function exists
-    const char *URLname = "http://example.com/resource";
-    const char *URNname = "urn:example:resource";
-    const char *schemeURI = "http://example.com/scheme";
-    const char *value = "kind_value";
-    const char *sdp_text = "v=0\\r\\no=- 0 0 IN IP4 127.0.0.1\\r\\ns=No Name\\r\\nt=0 0\\r\\nm=audio 49170 RTP/AVP 0\\r\\nc=IN IP4 127.0.0.1\\r\\na=rtpmap:0 PCMU/8000\\r\\n";
-    const char *outName = NULL;
-    GF_DIMSDescription *dims_desc = NULL; // Assuming a proper initialization function exists
+    // Extract parameters from input data
+    Bool root_meta = Data[0] % 2; // Convert to Bool (0 or 1)
+    u32 track_num = *((u32*)(Data + 1));
+    u32 to_id = *((u32*)(Data + 5));
+    u32 type = *((u32*)(Data + 9));
+    u32 item_ID = *((u32*)(Data + 13));
 
-    // Call the target functions with the initialized variables
-    gf_isom_new_xml_metadata_description(isom_file, trackNumber, xmlnamespace, schema_loc, content_encoding, &outDescriptionIndex);
-    gf_isom_hevc_config_new(isom_file, trackNumber, cfg, URLname, URNname, &outDescriptionIndex);
-    gf_isom_add_track_kind(isom_file, trackNumber, schemeURI, value);
-    gf_isom_sdp_add_track_line(isom_file, trackNumber, sdp_text);
-    gf_isom_get_handler_name(isom_file, trackNumber, &outName);
-    gf_isom_new_dims_description(isom_file, trackNumber, dims_desc, URLname, URNname, &outDescriptionIndex);
+    // Call each function with extracted parameters
+    u32 ref_count = gf_isom_meta_item_has_ref(iso_file, root_meta, track_num, to_id, type);
+    u32 item_count = gf_isom_get_meta_item_count(iso_file, root_meta, track_num);
+    u32 item_index = gf_isom_get_meta_item_by_id(iso_file, root_meta, track_num, item_ID);
+    u32 primary_item_id = gf_isom_get_meta_primary_item_id(iso_file, root_meta, track_num);
+    u32 ref_id = gf_isom_meta_get_item_ref_id(iso_file, root_meta, track_num, to_id, type, 1);
+    u32 ref_item_count = gf_isom_meta_get_item_ref_count(iso_file, root_meta, track_num, to_id, type);
 
+    // Print the results (for debug purposes, can be removed in production)
+    printf("Ref Count: %u, Item Count: %u, Item Index: %u, Primary Item ID: %u, Ref ID: %u, Ref Item Count: %u\n",
+           ref_count, item_count, item_index, primary_item_id, ref_id, ref_item_count);
+
+    destroy_dummy_iso_file(iso_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_115(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

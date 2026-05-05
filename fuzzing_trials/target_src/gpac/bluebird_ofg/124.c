@@ -1,51 +1,85 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
-#include "unistd.h"
 #include "/src/gpac/include/gpac/isomedia.h"
 
 int LLVMFuzzerTestOneInput_124(const uint8_t *data, size_t size) {
-    // Initialize variables
-    GF_ISOFile *file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!file) {
-        return 0;
-    }
-
-    Bool root_meta = 1;
-    u32 track_num = 1;
-    Bool self_reference = 0;
-
-    // Create a temporary file to use as resource_path
-    char resource_path[] = "/tmp/resourceXXXXXX";
-    int fd = mkstemp(resource_path);
+    // Create a temporary file to store the input data
+    char tmp_filename[] = "/tmp/fuzz_input_XXXXXX";
+    int fd = mkstemp(tmp_filename);
     if (fd == -1) {
-        gf_isom_close(file);
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    write(fd, data, size);
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        remove(tmp_filename);
+        return 0;
+    }
     close(fd);
 
-    char item_name[] = "item_name";
-    u32 io_item_id = 0;
-    u32 item_type = 0;
+    // Open the file using the gpac library
+    GF_ISOFile *file = gf_isom_open(tmp_filename, GF_ISOM_OPEN_READ, NULL);
+    if (file == NULL) {
+        remove(tmp_filename);
+        return 0;
+    }
 
-    char mime_type[] = "video/mp4";
-    char content_encoding[] = "identity";
-    char URL[] = "http://example.com";
-    char URN[] = "urn:example";
+    // Try different values for root_meta and track_num
+    Bool root_meta_options[] = {GF_FALSE, GF_TRUE};
+    u32 track_num_options[] = {0, 1, 2, 3, 4};
 
-    GF_ImageItemProperties image_props;
-    memset(&image_props, 0, sizeof(GF_ImageItemProperties));
+    for (size_t i = 0; i < sizeof(root_meta_options) / sizeof(root_meta_options[0]); i++) {
+        for (size_t j = 0; j < sizeof(track_num_options) / sizeof(track_num_options[0]); j++) {
+            gf_isom_get_meta_item_count(file, root_meta_options[i], track_num_options[j]);
+        }
+    }
 
-    // Call the function-under-test
-    gf_isom_add_meta_item2(file, root_meta, track_num, self_reference, resource_path, item_name, &io_item_id, item_type,
-                           mime_type, content_encoding, URL, URN, &image_props);
-
-    // Clean up
     gf_isom_close(file);
-    unlink(resource_path);
 
+    // Clean up the temporary file
+    remove(tmp_filename);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_124(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,84 +1,82 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "unistd.h"  // Include for close() and unlink()
-#include <fcntl.h>   // Include for mkstemp()
+#include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
-#include "/src/gpac/include/gpac/constants.h"
 
 int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    GF_ISOFile *file = NULL;
-    Bool root_meta = GF_FALSE;
-    u32 track_num = 1; // Initialize with a non-zero value
-
-    // Create a temporary file to simulate an ISO file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Initialize the GF_ISOFile structure
+    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (!movie) {
         return 0;
     }
 
-    // Write data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-    close(fd);
-
-    // Open the ISO file using the temporary file path
-    file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
-    if (file == NULL) {
-        unlink(tmpl);
+    // Ensure the size is sufficient for the fuzzing process
+    if (size < sizeof(uint32_t) * 2 + sizeof(GF_Descriptor)) {
+        gf_isom_close(movie);
         return 0;
     }
 
-    // Fuzz the function-under-test
-    gf_isom_has_meta_xml(file, root_meta, track_num);
+    // Extract trackNumber and StreamDescriptionIndex from data
+    uint32_t trackNumber = *((uint32_t *)data);
+    uint32_t StreamDescriptionIndex = *((uint32_t *)(data + sizeof(uint32_t)));
+
+    // Initialize the GF_Descriptor structure
+    GF_Descriptor *theDesc = (GF_Descriptor *)malloc(sizeof(GF_Descriptor));
+    if (!theDesc) {
+        gf_isom_close(movie);
+        return 0;
+    }
+
+    // Simulate realistic initialization of GF_Descriptor
+    memset(theDesc, 0, sizeof(GF_Descriptor));
+    theDesc->tag = data[2 * sizeof(uint32_t)]; // Example initialization
+
+    // Call the function under test
+    gf_isom_add_desc_to_description(movie, trackNumber, StreamDescriptionIndex, theDesc);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_has_meta_xml to gf_isom_set_media_type
-    u32 ret_gf_isom_get_next_moof_number_hnobj = gf_isom_get_next_moof_number(file);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_get_next_moof_number to gf_isom_set_visual_bit_depth
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_get_next_moof_number to gf_isom_set_sample_flags
-    GF_Err ret_gf_isom_set_sample_group_in_traf_tyyqq = gf_isom_set_sample_group_in_traf(file);
-    u32 ret_gf_isom_segment_get_fragment_count_oqnlj = gf_isom_segment_get_fragment_count(file);
-    u32 ret_gf_isom_get_next_alternate_group_id_cayhy = gf_isom_get_next_alternate_group_id(NULL);
-    u32 ret_gf_isom_get_track_count_mlopn = gf_isom_get_track_count(file);
-
-    GF_Err ret_gf_isom_set_sample_flags_qnkvo = gf_isom_set_sample_flags(file, ret_gf_isom_get_next_moof_number_hnobj, ret_gf_isom_segment_get_fragment_count_oqnlj, ret_gf_isom_get_next_moof_number_hnobj, ret_gf_isom_get_next_alternate_group_id_cayhy, ret_gf_isom_get_track_count_mlopn, 0);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    u32 ret_gf_isom_get_track_count_bxupc = gf_isom_get_track_count(file);
-    u32 ret_gf_isom_get_next_alternate_group_id_vqwgy = gf_isom_get_next_alternate_group_id(file);
-
-    GF_Err ret_gf_isom_set_visual_bit_depth_pfrux = gf_isom_set_visual_bit_depth(file, ret_gf_isom_get_next_moof_number_hnobj, ret_gf_isom_get_next_alternate_group_id_vqwgy, 0);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    u32 ret_gf_isom_guess_specification_cnshv = gf_isom_guess_specification(file);
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_guess_specification to gf_isom_estimate_size
-
-    u64 ret_gf_isom_estimate_size_zmomf = gf_isom_estimate_size(file);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    GF_Err ret_gf_isom_set_media_type_btvuh = gf_isom_set_media_type(file, ret_gf_isom_get_next_moof_number_hnobj, ret_gf_isom_guess_specification_cnshv);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_close with gf_isom_reset_alt_brands
-    gf_isom_reset_alt_brands(file);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    unlink(tmpl);
+    free(theDesc);
+    gf_isom_close(movie);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_42(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,80 +1,90 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_Descriptor* create_descriptor(const uint8_t *Data, size_t Size) {
-    GF_Descriptor* descriptor = (GF_Descriptor*)malloc(sizeof(GF_Descriptor));
-    if (!descriptor) {
-        return NULL;
-    }
-    memset(descriptor, 0, sizeof(GF_Descriptor));
-    descriptor->tag = Data[0]; // Assuming the first byte is a tag.
-    return descriptor;
+static GF_ISOFile* create_dummy_iso_file() {
+    return NULL; // As we cannot allocate an incomplete type, return NULL for testing
+}
+
+static void free_dummy_iso_file(GF_ISOFile* iso_file) {
+    // No operation needed since we don't allocate
 }
 
 int LLVMFuzzerTestOneInput_137(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size < sizeof(GF_Fraction) + sizeof(u64)) return 0;
 
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (!dummy_file) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, dummy_file);
-    fclose(dummy_file);
+    GF_ISOFile* iso_file1 = create_dummy_iso_file();
+    GF_ISOFile* iso_file2 = create_dummy_iso_file();
 
-    GF_ISOFile* iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    if (!iso_file) {
-        return 0;
-    }
+    GF_Fraction fraction;
+    memcpy(&fraction, Data, sizeof(GF_Fraction));
+    u64 bytes_removed = *(u64*)(Data + sizeof(GF_Fraction));
 
-    GF_Descriptor* descriptor = create_descriptor(Data, Size);
-    if (!descriptor) {
-        gf_isom_delete(iso_file);
-        return 0;
-    }
+    // Test gf_isom_last_error
+    GF_Err err = gf_isom_last_error(iso_file1);
 
-    u32 trackNumber = 1;
-    u32 sampleDescriptionIndex = 0;
+    // Test gf_isom_make_interleave_ex
+    err = gf_isom_make_interleave_ex(iso_file1, &fraction);
 
-    // Fuzz gf_isom_add_desc_to_description
-    gf_isom_add_desc_to_description(iso_file, trackNumber, sampleDescriptionIndex, descriptor);
+    // Test gf_isom_clone_pl_indications
+    err = gf_isom_clone_pl_indications(iso_file1, iso_file2);
 
-    // Fuzz gf_isom_add_desc_to_root_od
-    gf_isom_add_desc_to_root_od(iso_file, descriptor);
+    // Test gf_isom_remove_root_od
+    err = gf_isom_remove_root_od(iso_file1);
 
-    // Fuzz gf_isom_reset_alt_brands
-    gf_isom_reset_alt_brands(iso_file);
+    // Test gf_isom_set_removed_bytes
+    err = gf_isom_set_removed_bytes(iso_file1, bytes_removed);
 
-    // Fuzz gf_isom_enable_mfra
-    gf_isom_enable_mfra(iso_file);
+    // Test gf_isom_get_sidx_duration
+    u64 sidx_dur;
+    u32 sidx_timescale;
+    err = gf_isom_get_sidx_duration(iso_file1, &sidx_dur, &sidx_timescale);
 
-    // Fuzz gf_isom_get_root_od
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_enable_mfra to gf_isom_add_sample_aux_info
-    u32 ret_gf_isom_get_track_count_fioeb = gf_isom_get_track_count(NULL);
-    const char uicgibbe[1024] = "tckip";
-    u32 ret_gf_isom_probe_file_bmqdj = gf_isom_probe_file(uicgibbe);
-    u32 ret_gf_isom_get_timescale_mijpl = gf_isom_get_timescale(NULL);
-    u32 ret_gf_isom_text_sample_size_shkrb = gf_isom_text_sample_size(NULL);
-    u32 ret_gf_isom_get_next_moof_number_xzkux = gf_isom_get_next_moof_number(iso_file);
-
-    GF_Err ret_gf_isom_add_sample_aux_info_itxbq = gf_isom_add_sample_aux_info(iso_file, ret_gf_isom_get_track_count_fioeb, ret_gf_isom_probe_file_bmqdj, ret_gf_isom_get_timescale_mijpl, ret_gf_isom_text_sample_size_shkrb, NULL, ret_gf_isom_get_next_moof_number_xzkux);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    GF_Descriptor* root_od = gf_isom_get_root_od(iso_file);
-    if (root_od) {
-        free(root_od);
-    }
-
-    // Clean up
-    gf_isom_delete(iso_file);
-    free(descriptor);
+    free_dummy_iso_file(iso_file1);
+    free_dummy_iso_file(iso_file2);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_137(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

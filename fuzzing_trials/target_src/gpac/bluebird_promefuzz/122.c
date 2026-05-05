@@ -1,8 +1,15 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
+
+// Define a mock structure for GF_ISOFile since its size is unknown
+struct Mock_ISOFile {
+    char dummy[1024]; // Arbitrary size to simulate the structure
+};
 
 static void write_dummy_file(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
@@ -13,29 +20,88 @@ static void write_dummy_file(const uint8_t *Data, size_t Size) {
 }
 
 int LLVMFuzzerTestOneInput_122(const uint8_t *Data, size_t Size) {
-    if (Size < 16) return 0; // Ensure there's enough data for basic operations
+    if (Size < sizeof(u32)) return 0; // Ensure enough data for trackNumber
 
-    // Prepare dummy pointers for ISO files
-    GF_ISOFile *isom_file1 = NULL;
-    GF_ISOFile *isom_file2 = NULL;
+    // Use the mock structure to allocate memory
+    struct Mock_ISOFile *isom_file = (struct Mock_ISOFile *)calloc(1, sizeof(struct Mock_ISOFile));
+    if (!isom_file) return 0;
 
-    // Extract parameters from input data
-    u32 trackNumber = Data[0];
-    u32 sampleDescriptionIndex = Data[1];
-    u32 pack_num_samples = Data[2];
-    u32 sampleNum = Data[3];
-    GF_ISOFragmentBoundaryInfo frag_info;
+    u32 trackNumber = 1;
+    u32 matrix[9] = {0};
+    u32 width = 1920, height = 1080;
+    s32 translation_x = 0, translation_y = 0;
+    s16 layer = 0;
+    u32 new_timescale = 90000, new_tsinc = 0, force_rescale_type = 0;
+    u32 sampleDescriptionIndex = 1;
+    u32 cleanApertureWidthN = 1920, cleanApertureWidthD = 1;
+    u32 cleanApertureHeightN = 1080, cleanApertureHeightD = 1;
+    s32 horizOffN = 0, vertOffN = 0;
+    u32 horizOffD = 1, vertOffD = 1;
 
-    // Use the input data to simulate different scenarios
-    Bool result1 = gf_isom_is_cenc_media(isom_file1, trackNumber, sampleDescriptionIndex);
-    Bool result2 = gf_isom_is_self_contained(isom_file1, trackNumber, sampleDescriptionIndex);
-    Bool result3 = gf_isom_is_same_sample_description(isom_file1, trackNumber, sampleDescriptionIndex, isom_file2, trackNumber, sampleDescriptionIndex);
-    Bool result4 = gf_isom_enable_raw_pack(isom_file1, trackNumber, pack_num_samples);
-    Bool result5 = gf_isom_sample_is_fragment_start(isom_file1, trackNumber, sampleNum, &frag_info);
-    Bool result6 = gf_isom_is_omadrm_media(isom_file1, trackNumber, sampleDescriptionIndex);
-
-    // Write the dummy file if needed
+    // Write data to a dummy file
     write_dummy_file(Data, Size);
 
+    // Cast the mock structure to GF_ISOFile pointer
+    GF_ISOFile *gf_isom_file = (GF_ISOFile *)isom_file;
+
+    // Fuzz gf_isom_get_track_matrix
+    gf_isom_get_track_matrix(gf_isom_file, trackNumber, matrix);
+
+    // Fuzz gf_isom_set_track_layout_info
+    gf_isom_set_track_layout_info(gf_isom_file, trackNumber, width, height, translation_x, translation_y, layer);
+
+    // Fuzz gf_isom_set_media_timescale
+    gf_isom_set_media_timescale(gf_isom_file, trackNumber, new_timescale, new_tsinc, force_rescale_type);
+
+    // Fuzz gf_isom_get_track_layout_info
+    gf_isom_get_track_layout_info(gf_isom_file, trackNumber, &width, &height, &translation_x, &translation_y, &layer);
+
+    // Fuzz gf_isom_set_track_matrix
+    gf_isom_set_track_matrix(gf_isom_file, trackNumber, (s32 *)matrix);
+
+    // Fuzz gf_isom_set_clean_aperture
+    gf_isom_set_clean_aperture(gf_isom_file, trackNumber, sampleDescriptionIndex, cleanApertureWidthN, cleanApertureWidthD,
+                               cleanApertureHeightN, cleanApertureHeightD, horizOffN, horizOffD, vertOffN, vertOffD);
+
+    free(isom_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_122(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

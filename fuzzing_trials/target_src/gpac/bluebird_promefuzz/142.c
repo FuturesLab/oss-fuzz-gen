@@ -1,92 +1,122 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_ISOFile* open_iso_file() {
-    GF_ISOFile *file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    return file;
+#define DUMMY_FILE_PATH "./dummy_file"
+
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen(DUMMY_FILE_PATH, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_142(const uint8_t *Data, size_t Size) {
-    // Write fuzz data to a dummy file
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (dummy_file) {
-        fwrite(Data, 1, Size, dummy_file);
-        fclose(dummy_file);
-    }
-
-    GF_ISOFile *file = open_iso_file();
-    if (!file) {
+    if (Size < sizeof(u32) * 3) {
         return 0;
     }
 
-    // Fuzz gf_isom_freeze_order
-    gf_isom_freeze_order(file);
+    write_dummy_file(Data, Size);
 
-    // Fuzz gf_isom_set_byte_offset with a random offset
-    if (Size >= sizeof(s64)) {
-        s64 byte_offset = *(s64 *)Data;
-        gf_isom_set_byte_offset(file, byte_offset);
+    GF_ISOFile *isom_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_EDIT, NULL);
+    if (!isom_file) {
+        return 0;
     }
 
-    // Fuzz gf_isom_enable_mfra
+    u32 trackNumber = *(u32 *)Data;
+    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
+    u32 anotherValue = *(u32 *)(Data + sizeof(u32) * 2);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_freeze_order to gf_isom_get_copyright
-    u32 ret_gf_isom_guess_specification_niyzo = gf_isom_guess_specification(file);
-    const char *krpapuza[1024] = {"bcgid", NULL};
+    // Fuzz gf_isom_remove_track
+    gf_isom_remove_track(isom_file, trackNumber);
 
+    // Fuzz gf_isom_evte_config_new
+    u32 outDescriptionIndex;
+    gf_isom_evte_config_new(isom_file, trackNumber, &outDescriptionIndex);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_guess_specification to gf_isom_new_track_from_template
-    u32 ret_gf_isom_get_track_count_gvslr = gf_isom_get_track_count(file);
+    // Fuzz gf_isom_set_visual_info
+    gf_isom_set_visual_info(isom_file, trackNumber, sampleDescriptionIndex, anotherValue, anotherValue);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_get_track_count to gf_isom_mvc_config_new
-    gf_isom_disable_inplace_rewrite(file);
-    u32 ret_gf_isom_get_next_alternate_group_id_gxhme = gf_isom_get_next_alternate_group_id(file);
-    GF_AVCConfig yittcmyw;
-    memset(&yittcmyw, 0, sizeof(yittcmyw));
-    const char hdsiyvjb[1024] = "imhyt";
+    // Fuzz gf_isom_truehd_config_get
+    u32 format_info, peak_data_rate;
+    gf_isom_truehd_config_get(isom_file, trackNumber, sampleDescriptionIndex, &format_info, &peak_data_rate);
 
+    // Fuzz gf_isom_set_brand_info
+    gf_isom_set_brand_info(isom_file, anotherValue, anotherValue);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_mvc_config_new with gf_isom_avc_config_new
-    GF_Err ret_gf_isom_mvc_config_new_cllda = gf_isom_avc_config_new(file, ret_gf_isom_get_track_count_gvslr, &yittcmyw, (const char *)"r", hdsiyvjb, &ret_gf_isom_get_next_alternate_group_id_gxhme);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Fuzz gf_isom_purge_track_reference
 
-
-
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_set_brand_info to gf_isom_set_edit_with_rate
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!isom_file) {
+    	return 0;
+    }
+    u32 ret_gf_isom_get_next_alternate_group_id_blaeb = gf_isom_get_next_alternate_group_id(isom_file);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!isom_file) {
+    	return 0;
+    }
+    u64 ret_gf_isom_get_unused_box_bytes_ttksd = gf_isom_get_unused_box_bytes(isom_file);
+    u64 ret_gf_isom_get_unused_box_bytes_mneye = gf_isom_get_unused_box_bytes(NULL);
+    u64 ret_gf_isom_estimate_size_pioch = gf_isom_estimate_size(NULL);
+    u32 ret_gf_isom_get_num_supported_boxes_exaki = gf_isom_get_num_supported_boxes();
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!isom_file) {
+    	return 0;
+    }
+    GF_Err ret_gf_isom_set_edit_with_rate_jbuum = gf_isom_set_edit_with_rate(isom_file, ret_gf_isom_get_next_alternate_group_id_blaeb, ret_gf_isom_get_unused_box_bytes_ttksd, ret_gf_isom_get_unused_box_bytes_mneye, ret_gf_isom_estimate_size_pioch, ret_gf_isom_get_num_supported_boxes_exaki);
     // End mutation: Producer.APPEND_MUTATOR
+    
+    gf_isom_purge_track_reference(isom_file, trackNumber);
 
-    u32 ret_gf_isom_get_next_alternate_group_id_umsqu = gf_isom_get_next_alternate_group_id(file);
-    u32 ret_gf_isom_get_next_alternate_group_id_fxtvq = gf_isom_get_next_alternate_group_id(file);
-    u8 ret_gf_isom_get_mode_twvap = gf_isom_get_mode(NULL);
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_get_next_alternate_group_id with gf_isom_guess_specification
-    u32 ret_gf_isom_get_next_alternate_group_id_zgiwj = gf_isom_guess_specification(file);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    Bool ret_gf_isom_has_keep_utc_times_uuhwq = gf_isom_has_keep_utc_times(file);
-
-    u32 ret_gf_isom_new_track_from_template_oegpc = gf_isom_new_track_from_template(file, ret_gf_isom_guess_specification_niyzo, ret_gf_isom_get_next_alternate_group_id_umsqu, ret_gf_isom_get_next_alternate_group_id_fxtvq, &ret_gf_isom_get_mode_twvap, ret_gf_isom_get_next_alternate_group_id_zgiwj, ret_gf_isom_has_keep_utc_times_uuhwq);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    GF_Err ret_gf_isom_get_copyright_clsfj = gf_isom_get_copyright(file, ret_gf_isom_guess_specification_niyzo, (const char **)"w", krpapuza);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    gf_isom_enable_mfra(file);
-
-    // Fuzz gf_isom_last_error
-    gf_isom_last_error(file);
-
-    // Fuzz gf_isom_set_sample_group_in_traf
-    gf_isom_set_sample_group_in_traf(file);
-
-    // Fuzz gf_isom_remove_root_od
-    gf_isom_remove_root_od(file);
-
-    gf_isom_close(file);
+    gf_isom_close(isom_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_142(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

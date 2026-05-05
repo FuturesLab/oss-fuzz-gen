@@ -1,86 +1,87 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "unistd.h"  // Include for close() and unlink()
-#include <fcntl.h>   // Include for mkstemp()
 #include "/src/gpac/include/gpac/isomedia.h"
-#include "/src/gpac/include/gpac/constants.h"
+#include <string.h>
+#include <stdio.h> // Include stdio.h for file operations
 
 int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    GF_ISOFile *file = NULL;
-    Bool root_meta = GF_FALSE;
-    u32 track_num = 1; // Initialize with a non-zero value
-
-    // Create a temporary file to simulate an ISO file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure that the size is large enough to extract values
+    if (size < sizeof(uint32_t) * 2 + 1) {
         return 0;
     }
 
-    // Write data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-    close(fd);
-
-    // Open the ISO file using the temporary file path
-    file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
-    if (file == NULL) {
-        unlink(tmpl);
+    // Create a temporary file to work with
+    const char *temp_filename = "dummy.mp4";
+    FILE *temp_file = fopen(temp_filename, "wb");
+    if (!temp_file) {
         return 0;
     }
 
-    // Fuzz the function-under-test
+    // Write the input data to the temporary file to ensure it is not empty
+    if (fwrite(data, 1, size, temp_file) != size) {
+        fclose(temp_file);
+        remove(temp_filename);
+        return 0;
+    }
+    fclose(temp_file);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_open to gf_isom_sample_get_subsample
-    u32 ret_gf_isom_segment_get_fragment_count_mgrvt = gf_isom_segment_get_fragment_count(NULL);
-    u32 ret_gf_isom_get_num_supported_boxes_dvuxl = gf_isom_get_num_supported_boxes();
+    GF_ISOFile *file = gf_isom_open(temp_filename, GF_ISOM_OPEN_READ_EDIT, NULL); // Use GF_ISOM_OPEN_READ_EDIT
+    if (!file) {
+        remove(temp_filename);
+        return 0;
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_get_num_supported_boxes to gf_isom_get_sample_sync
-    u32 ret_gf_isom_get_copyright_count_lbusa = gf_isom_get_copyright_count(file);
-    u32 ret_gf_isom_get_copyright_count_ttikx = gf_isom_get_copyright_count(NULL);
+    // Extract values from the input data
+    Bool root_meta = (Bool)(data[0] % 2); // Use the first byte to determine root_meta
+    u32 track_num = *(const u32 *)(data + 1); // Use the next 4 bytes for track_num
+    u32 item_id = *(const u32 *)(data + 5); // Use the next 4 bytes for item_id
 
-    Bool ret_gf_isom_get_sample_sync_avjkr = gf_isom_get_sample_sync(file, ret_gf_isom_get_copyright_count_ttikx, ret_gf_isom_get_num_supported_boxes_dvuxl);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    u32 ret_gf_isom_get_num_supported_boxes_fzhzf = gf_isom_get_num_supported_boxes();
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of gf_isom_probe_file
-    u32 ret_gf_isom_probe_file_akhux = gf_isom_probe_file((const char *)data);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    u32 ret_gf_isom_get_supported_box_type_taydb = gf_isom_get_supported_box_type(0);
-    Bool ret_gf_isom_is_single_av_lkoeq = gf_isom_is_single_av(file);
-    u8 eolnozag;
-    memset(&eolnozag, 0, sizeof(eolnozag));
-
-    GF_Err ret_gf_isom_sample_get_subsample_grmgu = gf_isom_sample_get_subsample(file, ret_gf_isom_segment_get_fragment_count_mgrvt, ret_gf_isom_get_num_supported_boxes_dvuxl, ret_gf_isom_get_num_supported_boxes_fzhzf, ret_gf_isom_probe_file_akhux, &ret_gf_isom_get_supported_box_type_taydb, &eolnozag, NULL, &ret_gf_isom_is_single_av_lkoeq);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    gf_isom_has_meta_xml(file, root_meta, track_num);
+    // Call the function-under-test
+    gf_isom_set_meta_primary_item(file, root_meta, track_num, item_id);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_has_meta_xml to gf_isom_set_media_type
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_get_next_moof_number with gf_isom_get_copyright_count
-    u32 ret_gf_isom_get_next_moof_number_hnobj = gf_isom_get_copyright_count(file);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    u32 ret_gf_isom_guess_specification_cnshv = gf_isom_guess_specification(file);
-
-    GF_Err ret_gf_isom_set_media_type_btvuh = gf_isom_set_media_type(file, ret_gf_isom_get_next_moof_number_hnobj, ret_gf_isom_guess_specification_cnshv);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
     gf_isom_close(file);
-    unlink(tmpl);
+    remove(temp_filename);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
