@@ -27,6 +27,7 @@ if [ "$SANITIZER" = "address" ]; then
   export CXXFLAGS="$CXXFLAGS -O0"
 fi
 
+cd /src/curl_fuzzer
 ./ossfuzz.sh
 
 $CXX $CXXFLAGS -std=c++17 /src/synthesized_driver/*.c* -I$SRC/curl/include -I$SRC/curl/include/curl \
