@@ -15,6 +15,8 @@ import sys
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Set, Tuple
 
+BENCHMARK_NAME = ""
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Process and compare LCOV branch coverage (.lcov_total) reports.")
     parser.add_argument("-r", "--results-dir", type=Path, required=True)
@@ -43,6 +45,9 @@ def parse_branch_cov_output(lcov_path: Path) -> Set[str]:
 
             # Guard: don't try to inspect current_file if not yet set
             if current_file and "src/synthesized_driver/" in current_file:
+                continue
+
+            if current_file and not BENCHMARK_NAME in current_file:
                 continue
 
             if line.startswith("BRDA:"):
@@ -289,11 +294,14 @@ def compare_pre_post_for_all_tools(pre_all: Dict[str, Dict[int, Set[str]]],
         print(f"  newly_covered (post - pre) = {aggregate['newly_covered']}")
 
 def main() -> None:
+    global BENCHMARK_NAME
     args = parse_args()
     results_dir: Path = args.results_dir
     if not results_dir.exists():
         print(f"ERROR: results dir {results_dir} does not exist", file=sys.stderr)
         sys.exit(2)
+    BENCHMARK_NAME = results_dir.name.split("results-")[-1]
+    
 
     all_dirs = list(results_dir.iterdir())
     bluebird_ofg_dirs = [p for p in all_dirs if "bluebird_ofg" in p.name]
