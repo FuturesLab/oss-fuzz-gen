@@ -1,14 +1,13 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
-// tjInitCompress at turbojpeg.c:1157:20 in turbojpeg.h
-// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
-// tjCompress2 at turbojpeg.c:1204:15 in turbojpeg.h
+// tj3Init at turbojpeg.c:538:20 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
+// tj3Transform at turbojpeg.c:2870:15 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
 // tjFree at turbojpeg.c:896:16 in turbojpeg.h
-// tjPlaneWidth at turbojpeg.c:1083:15 in turbojpeg.h
-// tjPlaneHeight at turbojpeg.c:1117:15 in turbojpeg.h
-// tjCompressFromYUVPlanes at turbojpeg.c:1394:15 in turbojpeg.h
-// tjFree at turbojpeg.c:896:16 in turbojpeg.h
-// tjGetErrorCode at turbojpeg.c:652:15 in turbojpeg.h
-// tj3GetErrorCode at turbojpeg.c:643:15 in turbojpeg.h
+// tj3SetICCProfile at turbojpeg.c:1164:15 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
+// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -19,91 +18,114 @@
 #include <cstdint>
 #include <cstddef>
 #include <turbojpeg.h>
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <cstdio>
+#include <iostream>
 
-static tjhandle createHandle() {
-    return tjInitCompress();
-}
-
-static void destroyHandle(tjhandle handle) {
-    if (handle) {
-        tjDestroy(handle);
-    }
-}
-
-static void fuzzTjCompress2(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 6) return; // Not enough data
-
-    int width = Data[0] % 256 + 1;
-    int height = Data[1] % 256 + 1;
-    int pixelFormat = Data[2] % TJ_NUMPF;
-    int jpegSubsamp = Data[3] % TJ_NUMSAMP;
-    int jpegQual = Data[4] % 101;
-    int flags = Data[5] % 2 ? TJFLAG_NOREALLOC : 0;
-
-    const unsigned char *srcBuf = Data + 6;
-    if (Size < 6 + (size_t)width * height * tjPixelSize[pixelFormat]) return;
-
-    unsigned char *jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
-
-    tjCompress2(handle, srcBuf, width, 0, height, pixelFormat, &jpegBuf, &jpegSize, jpegSubsamp, jpegQual, flags);
-
-    if (jpegBuf) {
-        tjFree(jpegBuf);
-    }
-}
-
-static void fuzzTjCompressFromYUVPlanes(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 5) return; // Not enough data
-
-    int width = Data[0] % 256 + 1;
-    int height = Data[1] % 256 + 1;
-    int subsamp = Data[2] % TJ_NUMSAMP;
-    int jpegQual = Data[3] % 101;
-    int flags = Data[4] % 2 ? TJFLAG_NOREALLOC : 0;
-
-    int numPlanes = tjMCUHeight[subsamp] == 16 ? 3 : 1;
-    std::vector<const unsigned char *> srcPlanes(3, nullptr);
-    std::vector<int> strides(3, 0);
-
-    size_t offset = 5;
-    for (int i = 0; i < numPlanes; i++) {
-        int pw = tjPlaneWidth(i, width, subsamp);
-        int ph = tjPlaneHeight(i, height, subsamp);
-        int planeSize = pw * ph;
-        if (Size < offset + planeSize) return;
-        srcPlanes[i] = Data + offset;
-        strides[i] = pw;
-        offset += planeSize;
-    }
-
-    unsigned char *jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
-
-    tjCompressFromYUVPlanes(handle, srcPlanes.data(), width, strides.data(), height, subsamp, &jpegBuf, &jpegSize, jpegQual, flags);
-
-    if (jpegBuf) {
-        tjFree(jpegBuf);
+static void writeDummyFile(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_35(const uint8_t *Data, size_t Size) {
-    tjhandle handle = createHandle();
+    if (Size < 1) return 0;
+
+    // Initialize a TurboJPEG instance
+    int initType = Data[0] % 3; // Randomly choose an initType
+    tjhandle handle = tj3Init(initType);
     if (!handle) {
+        std::cerr << "Error initializing TurboJPEG: " << tj3GetErrorStr(NULL) << std::endl;
         return 0;
     }
 
-    fuzzTjCompress2(handle, Data, Size);
-    fuzzTjCompressFromYUVPlanes(handle, Data, Size);
+    // Write data to a dummy file
+    writeDummyFile(Data, Size);
 
-    int errorCode = tjGetErrorCode(handle);
-    errorCode = tj3GetErrorCode(handle);
+    // Attempt to retrieve an error string
+    char *errorStr = tj3GetErrorStr(handle);
+    if (errorStr) {
+        std::cout << "Error String: " << errorStr << std::endl;
+    }
 
-    destroyHandle(handle);
+    // Prepare buffer for transformation
+    unsigned char *jpegBuf = (unsigned char *)Data;
+    size_t jpegSize = Size;
+    int n = 1;
+    unsigned char *dstBufs[1] = {nullptr};
+    size_t dstSizes[1] = {0};
+
+    tjtransform transforms[1];
+    memset(&transforms, 0, sizeof(transforms));
+
+    // Perform transformation
+    int transformResult = tj3Transform(handle, jpegBuf, jpegSize, n, dstBufs, dstSizes, transforms);
+    if (transformResult == -1) {
+        std::cerr << "Error transforming JPEG: " << tj3GetErrorStr(handle) << std::endl;
+    }
+
+    // Free allocated buffers
+    for (int i = 0; i < n; i++) {
+        if (dstBufs[i]) {
+            tjFree(dstBufs[i]);
+        }
+    }
+
+    // Set ICC Profile
+    unsigned char iccBuf[128] = {0}; // Dummy ICC buffer
+    size_t iccSize = sizeof(iccBuf);
+    int iccResult = tj3SetICCProfile(handle, iccBuf, iccSize);
+    if (iccResult == -1) {
+        std::cerr << "Error setting ICC Profile: " << tj3GetErrorStr(handle) << std::endl;
+    }
+
+    // Cleanup
+    if (handle) {
+        tj3Destroy(handle);
+    }
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_35(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

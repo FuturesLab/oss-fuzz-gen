@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -13,79 +15,90 @@
 #include <cstdio>
 #include <cstring>
 
-static void handleDecompressToYUVPlanes(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
-        return;
+extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return 0;
+
+    // Set up a TurboJPEG instance
+    tjhandle handle = tj3Init(TJINIT_TRANSFORM);
+    if (!handle) {
+        fprintf(stderr, "Failed to initialize TurboJPEG instance\n");
+        return 0;
     }
-    
-    unsigned char *dstPlanes[3] = {nullptr, nullptr, nullptr};
-    int strides[3] = {0, 0, 0};
-    int width = 100, height = 100, flags = 0;
-    
-    // Allocate memory for YUV planes
-    for (int i = 0; i < 3; i++) {
-        dstPlanes[i] = static_cast<unsigned char*>(malloc(width * height));
-        if (!dstPlanes[i]) {
-                return;
+
+    // Prepare transformation structures
+    tjtransform transform;
+    memset(&transform, 0, sizeof(tjtransform));
+
+    // Create dummy destination buffers
+    unsigned char *dstBufs[1] = {nullptr};
+    size_t dstSizes[1] = {0};
+
+    // Attempt to transform the input data
+    int transformResult = tj3Transform(handle, Data, Size, 1, dstBufs, dstSizes, &transform);
+
+    // Check for errors
+    if (transformResult != 0) {
+        char *errorStr = tj3GetErrorStr(handle);
+        if (errorStr) {
+            fprintf(stderr, "Transform Error: %s\n", errorStr);
         }
     }
 
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 6 of tjDecompressToYUVPlanes
-    tjDecompressToYUVPlanes(handle, Data, Size, dstPlanes, width, strides, TJ_ALPHAFIRST, flags);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Free allocated memory
-    for (int i = 0; i < 3; i++) {
-        free(dstPlanes[i]);
-    }
-}
-
-static void handleSetScalingFactor(tjhandle handle) {
-    int numScalingFactors = 0;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tjGetScalingFactors
-    int bxwajlsc = 1;
-    tjscalingfactor *scalingFactors = tjGetScalingFactors(&bxwajlsc);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (scalingFactors && numScalingFactors > 0) {
-        tj3SetScalingFactor(handle, scalingFactors[0]);
-    }
-}
-
-static void handleSetCroppingRegion(tjhandle handle) {
-    tjregion croppingRegion = {0, 0, 50, 50};
-    tj3SetCroppingRegion(handle, croppingRegion);
-}
-
-static void handleDecompression(tjhandle handle, const uint8_t *Data, size_t Size) {
-    handleSetScalingFactor(handle);
-    handleSetCroppingRegion(handle);
-    handleDecompressToYUVPlanes(handle, Data, Size);
-}
-
-extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
-        return 0;
+    // Clean up any allocated destination buffers
+    if (dstBufs[0]) {
+        tj3Free(dstBufs[0]);
     }
 
-    int initType = TJINIT_DECOMPRESS;
-    tjhandle handle = tj3Init(initType);
-    if (!handle) {
-        return 0;
+    // Set an ICC profile
+    unsigned char iccProfile[] = {0x00, 0x01, 0x02}; // Dummy ICC profile data
+    if (tj3SetICCProfile(handle, iccProfile, sizeof(iccProfile)) != 0) {
+        char *errorStr = tj3GetErrorStr(handle);
+        if (errorStr) {
+            fprintf(stderr, "ICC Profile Error: %s\n", errorStr);
+        }
     }
 
-    handleDecompression(handle, Data, Size);
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjDestroy with tjGetErrorCode
-    tjGetErrorCode(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
+    // Clean up the TurboJPEG instance
+    tj3Destroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_34(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

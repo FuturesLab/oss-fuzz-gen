@@ -1,15 +1,16 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
-// tjLoadImage at turbojpeg.c:3107:26 in turbojpeg.h
-// tjSaveImage at turbojpeg.c:3128:15 in turbojpeg.h
-// tjFree at turbojpeg.c:896:16 in turbojpeg.h
+// tjInitDecompress at turbojpeg.c:1808:20 in turbojpeg.h
+// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
 // tjInitCompress at turbojpeg.c:1157:20 in turbojpeg.h
-// tj3SaveImage16 at turbojpeg-mp.c:487:15 in turbojpeg.h
-// tjBufSize at turbojpeg.c:933:25 in turbojpeg.h
-// tjBufSize at turbojpeg.c:933:25 in turbojpeg.h
-// tjCompress at turbojpeg.c:1235:15 in turbojpeg.h
+// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
 // tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
-// tjAlloc at turbojpeg.c:883:26 in turbojpeg.h
+// tjCompress at turbojpeg.c:1235:15 in turbojpeg.h
+// tj3EncodeYUVPlanes8 at turbojpeg.c:1508:15 in turbojpeg.h
+// tj3GetErrorCode at turbojpeg.c:643:15 in turbojpeg.h
+// tjCompressFromYUVPlanes at turbojpeg.c:1394:15 in turbojpeg.h
 // tjFree at turbojpeg.c:896:16 in turbojpeg.h
+// tjDecodeYUVPlanes at turbojpeg.c:2652:15 in turbojpeg.h
+// tjGetErrorCode at turbojpeg.c:652:15 in turbojpeg.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -25,67 +26,123 @@
 #include <cstring>
 #include <cstdio>
 
-static void writeDummyFile(const char *filename, const uint8_t *data, size_t size) {
-    FILE *file = fopen(filename, "wb");
-    if (file) {
-        fwrite(data, 1, size, file);
-        fclose(file);
+static tjhandle createDecompressor() {
+    tjhandle handle = tjInitDecompress();
+    if (!handle) {
+        fprintf(stderr, "Failed to create decompressor: %s\n", tjGetErrorStr());
+    }
+    return handle;
+}
+
+static tjhandle createCompressor() {
+    tjhandle handle = tjInitCompress();
+    if (!handle) {
+        fprintf(stderr, "Failed to create compressor: %s\n", tjGetErrorStr());
+    }
+    return handle;
+}
+
+static void destroyHandle(tjhandle handle) {
+    if (handle) {
+        tjDestroy(handle);
     }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_45(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Dummy filename
-    const char *filename = "./dummy_file";
-
-    // Write input data to a dummy file for tjLoadImage
-    writeDummyFile(filename, Data, Size);
-
-    // Variables for tjLoadImage
-    int width, height, pixelFormat;
-
-    // Fuzz tjLoadImage
-    unsigned char *imageBuffer = tjLoadImage(filename, &width, 1, &height, &pixelFormat, 0);
-    if (imageBuffer) {
-        // Fuzz tjSaveImage with the loaded image
-        tjSaveImage(filename, imageBuffer, width, width * tjPixelSize[pixelFormat], height, pixelFormat, 0);
-
-        // Free the allocated image buffer
-        tjFree(imageBuffer);
+    // Initialize TurboJPEG handles
+    tjhandle compressor = createCompressor();
+    tjhandle decompressor = createDecompressor();
+    if (!compressor || !decompressor) {
+        destroyHandle(compressor);
+        destroyHandle(decompressor);
+        return 0;
     }
 
-    // Create a TurboJPEG handle for tj3SaveImage16 and tjCompress
-    tjhandle handle = tjInitCompress();
-    if (handle) {
-        // Allocate a dummy buffer for tj3SaveImage16
-        unsigned short *buffer16 = (unsigned short *)malloc(width * height * sizeof(unsigned short));
-        if (buffer16) {
-            // Fuzz tj3SaveImage16
-            tj3SaveImage16(handle, filename, buffer16, width, width, height, pixelFormat);
-            free(buffer16);
-        }
+    // Simulate a basic setup for tjCompress
+    int width = 256, height = 256, pixelSize = 3;
+    unsigned long compressedSize = 0;
+    unsigned char *compressedBuf = nullptr;
+    unsigned char *srcBuf = (unsigned char *)malloc(width * height * pixelSize);
+    if (!srcBuf) {
+        destroyHandle(compressor);
+        destroyHandle(decompressor);
+        return 0;
+    }
+    memcpy(srcBuf, Data, Size < width * height * pixelSize ? Size : width * height * pixelSize);
 
-        // Allocate a buffer for tjCompress
-        unsigned char *compressedBuffer = (unsigned char *)malloc(tjBufSize(width, height, TJSAMP_444));
-        if (compressedBuffer) {
-            unsigned long compressedSize = tjBufSize(width, height, TJSAMP_444);
-            // Fuzz tjCompress
-            tjCompress(handle, imageBuffer, width, width * tjPixelSize[pixelFormat], height, tjPixelSize[pixelFormat],
-                       compressedBuffer, &compressedSize, TJSAMP_444, 75, 0);
-            free(compressedBuffer);
-        }
+    // Fuzz tjCompress
+    tjCompress(compressor, srcBuf, width, 0, height, pixelSize, compressedBuf, &compressedSize, TJSAMP_444, 100, TJFLAG_FASTDCT);
 
-        // Clean up the TurboJPEG handle
-        tjDestroy(handle);
+    // Fuzz tj3EncodeYUVPlanes8
+    unsigned char *dstPlanes[3] = {nullptr, nullptr, nullptr};
+    int strides[3] = {width, width / 2, width / 2};
+    tj3EncodeYUVPlanes8(compressor, srcBuf, width, 0, height, TJPF_RGB, dstPlanes, strides);
+
+    // Fuzz tj3GetErrorCode
+    int errorCode = tj3GetErrorCode(compressor);
+
+    // Fuzz tjCompressFromYUVPlanes
+    const unsigned char *srcPlanes[3] = {srcBuf, srcBuf + width * height, srcBuf + width * height * 2};
+    tjCompressFromYUVPlanes(compressor, srcPlanes, width, strides, height, TJSAMP_444, &compressedBuf, &compressedSize, 100, TJFLAG_FASTDCT);
+
+    // Free the compressed buffer after use
+    tjFree(compressedBuf);
+
+    // Fuzz tjDecodeYUVPlanes
+    unsigned char *dstBuf = (unsigned char *)malloc(width * height * pixelSize);
+    if (dstBuf) {
+        tjDecodeYUVPlanes(decompressor, srcPlanes, strides, TJSAMP_444, dstBuf, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT);
+        free(dstBuf);
     }
 
-    // Fuzz tjAlloc
-    unsigned char *allocBuffer = tjAlloc(Size);
-    if (allocBuffer) {
-        // Do something with allocBuffer if needed
-        tjFree(allocBuffer);
-    }
+    // Fuzz tjGetErrorCode
+    errorCode = tjGetErrorCode(decompressor);
 
+    // Clean up
+    free(srcBuf);
+    destroyHandle(compressor);
+    destroyHandle(decompressor);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_45(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

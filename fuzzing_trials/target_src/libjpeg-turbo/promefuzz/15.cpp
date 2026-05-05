@@ -1,19 +1,12 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
-// tj3Init at turbojpeg.c:538:20 in turbojpeg.h
-// tj3YUVBufSize at turbojpeg.c:971:18 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
-// tj3Alloc at turbojpeg.c:877:17 in turbojpeg.h
-// tj3Alloc at turbojpeg.c:877:17 in turbojpeg.h
-// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
-// tj3DecompressToYUV8 at turbojpeg.c:2341:15 in turbojpeg.h
-// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
-// tj3DecodeYUV8 at turbojpeg.c:2678:15 in turbojpeg.h
-// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
-// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
+// tjInitDecompress at turbojpeg.c:1808:20 in turbojpeg.h
+// tj3DecompressToYUVPlanes8 at turbojpeg.c:2125:15 in turbojpeg.h
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
+// tjInitCompress at turbojpeg.c:1157:20 in turbojpeg.h
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
+// tjBufSize at turbojpeg.c:933:25 in turbojpeg.h
+// tjCompress at turbojpeg.c:1235:15 in turbojpeg.h
+// tjDestroy at turbojpeg.c:601:15 in turbojpeg.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -27,55 +20,112 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <cstdio>
+#include <iostream>
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;  // Not enough data to process
+    if (Size < 100) return 0; // Ensure there's enough data
 
-    int width = 64;  // Example width
-    int height = 64; // Example height
-    int subsamp = TJSAMP_420; // Example subsampling
-    int pixelFormat = TJPF_RGB; // Example pixel format
-    int align = 4; // Example alignment
-
-    // Create TurboJPEG decompressor instance
-    tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
+    // Initialize TurboJPEG handle for decompression
+    tjhandle handle = tjInitDecompress();
     if (!handle) return 0;
 
-    // Calculate YUV buffer size
-    size_t yuvBufSize = tj3YUVBufSize(width, align, height, subsamp);
-    if (yuvBufSize == 0) {
-        tj3Destroy(handle);
+    // Prepare parameters for tj3DecompressToYUVPlanes8
+    unsigned char *jpegBuf = const_cast<unsigned char*>(Data);
+    size_t jpegSize = Size;
+    unsigned char *dstPlanes[3] = { nullptr, nullptr, nullptr };
+    int strides[3] = { 0, 0, 0 };
+
+    // Allocate memory for YUV planes (assuming worst-case sizes for simplicity)
+    int width = 128, height = 128; // Example dimensions
+    for (int i = 0; i < 3; i++) {
+        dstPlanes[i] = (unsigned char *)malloc(width * height);
+        if (!dstPlanes[i]) goto cleanup;
+    }
+
+    // Call the target function
+    tj3DecompressToYUVPlanes8(handle, jpegBuf, jpegSize, dstPlanes, strides);
+
+cleanup:
+    // Free allocated memory
+    for (int i = 0; i < 3; i++) {
+        if (dstPlanes[i]) free(dstPlanes[i]);
+    }
+    // Destroy the TurboJPEG handle
+    tjDestroy(handle);
+
+    // Initialize TurboJPEG handle for compression
+    handle = tjInitCompress();
+    if (!handle) return 0;
+
+    // Prepare parameters for tjCompress
+    unsigned char *srcBuf = const_cast<unsigned char*>(Data);
+
+    // Calculate pitch and check if buffer is large enough
+    int pixelSize = 3; // Assuming RGB format
+    int pitch = width * pixelSize;
+    if (Size < static_cast<size_t>(width * height * pixelSize)) {
+        tjDestroy(handle);
         return 0;
     }
 
-    // Allocate buffers
-    unsigned char *yuvBuf = (unsigned char *)tj3Alloc(yuvBufSize);
-    unsigned char *dstBuf = (unsigned char *)tj3Alloc(width * height * tjPixelSize[pixelFormat]);
+    unsigned char *dstBuf = nullptr;
+    unsigned long compressedSize = 0;
+    int jpegSubsamp = TJSAMP_420; // Example subsampling
+    int jpegQual = 75; // Example quality
+    int flags = 0;
 
-    if (!yuvBuf || !dstBuf) {
-        tj3Free(yuvBuf);
-        tj3Free(dstBuf);
-        tj3Destroy(handle);
-        return 0;
-    }
+    // Estimate the buffer size for the compressed image
+    unsigned long dstBufSize = tjBufSize(width, height, jpegSubsamp);
+    dstBuf = (unsigned char *)malloc(dstBufSize);
 
-    // Decompress to YUV
-    if (tj3DecompressToYUV8(handle, Data, Size, yuvBuf, align) == -1) {
-        tj3GetErrorStr(handle);
-    }
+    // Call the target function
+    tjCompress(handle, srcBuf, width, pitch, height, pixelSize, dstBuf, &compressedSize, jpegSubsamp, jpegQual, flags);
 
-    // Decode YUV to RGB
-    if (tj3DecodeYUV8(handle, yuvBuf, align, dstBuf, width, width * tjPixelSize[pixelFormat], height, pixelFormat) == -1) {
-        tj3GetErrorStr(handle);
-    }
+    // Free the output buffer if it was allocated
+    if (dstBuf) free(dstBuf);
 
-    // Free allocated buffers
-    tj3Free(yuvBuf);
-    tj3Free(dstBuf);
-
-    // Destroy TurboJPEG instance
-    tj3Destroy(handle);
+    // Destroy the TurboJPEG handle
+    tjDestroy(handle);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -8,92 +10,120 @@
 #include <cstdint>
 #include <cstddef>
 #include "../src/turbojpeg.h"
-
-static tjhandle createDecompressor() {
-    tjhandle handle = tjInitDecompress();
-    if (!handle) {
-        fprintf(stderr, "Failed to create TurboJPEG decompressor: %s\n", tjGetErrorStr());
-        exit(1);
-    }
-    return handle;
-}
-
-static void destroyDecompressor(tjhandle handle) {
-    if (tjDestroy(handle) != 0) {
-        fprintf(stderr, "Failed to destroy TurboJPEG decompressor: %s\n", tjGetErrorStr());
-    }
-}
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include <fstream>
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    if (Size < 10) return 0; // Ensure there's enough data to read basic parameters
-
-    // Create a TurboJPEG decompressor handle
-    tjhandle handle = createDecompressor();
-
-    // Extract parameters from input data
-    int align = 1 << (Data[0] % 4); // Alignment: 1, 2, 4, 8
-    int width = (Data[1] % 256) + 1;
-    int height = (Data[2] % 256) + 1;
-    int pixelFormat = Data[3] % TJ_NUMPF;
-    int subsamp = Data[4] % TJ_NUMSAMP;
-    int pitch = width * tjPixelSize[pixelFormat];
-
-    // Prepare buffers
-    size_t yuvBufSize = tj3YUVBufSize(width, align, height, subsamp);
-    if (Size < yuvBufSize + 10) {
-        destroyDecompressor(handle);
+    if (Size < 1) {
         return 0;
     }
 
-    const unsigned char *srcBuf = Data + 5;
-    unsigned char *dstBuf = (unsigned char *)malloc(pitch * height);
-    if (!dstBuf) {
-        destroyDecompressor(handle);
+    // 1. Test TJBUFSIZE
+    if (Size >= 8) {
+        int width = static_cast<int>(Data[0]) | (static_cast<int>(Data[1]) << 8);
+        int height = static_cast<int>(Data[2]) | (static_cast<int>(Data[3]) << 8);
+        if (width > 0 && height > 0) {
+            unsigned long bufSize = TJBUFSIZE(width, height);
+            std::cout << "Buffer size for (" << width << ", " << height << "): " << bufSize << std::endl;
+        }
+    }
+
+    // 2. Test tjDecompressHeader3
+    tjhandle handle = tjInitDecompress();
+    if (!handle) {
         return 0;
     }
 
-    // Call tj3DecodeYUV8
-    if (tj3DecodeYUV8(handle, srcBuf, align, dstBuf, width, pitch, height, pixelFormat) == -1) {
-        fprintf(stderr, "tj3DecodeYUV8 error: %s\n", tj3GetErrorStr(handle));
+    int width, height, jpegSubsamp, jpegColorspace;
+    if (tjDecompressHeader3(handle, Data, Size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
+        std::cout << "Decompress Header: " << width << "x" << height << ", subsamp: " << jpegSubsamp
+                  << ", colorspace: " << jpegColorspace << std::endl;
     }
 
-    // Prepare parameters for tjDecodeYUVPlanes
-    int planeSizes[3] = {
-        tj3YUVPlaneWidth(0, width, subsamp) * height,
-        tj3YUVPlaneWidth(1, width, subsamp) * (height / 2),
-        tj3YUVPlaneWidth(2, width, subsamp) * (height / 2)
-    };
-
-    if (Size < planeSizes[0] + planeSizes[1] + planeSizes[2] + 5) {
+    // 3. Test tjDecompress2
+    unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]);
+    if (dstBuf) {
+        if (tjDecompress2(handle, Data, Size, dstBuf, width, 0, height, TJPF_RGB, 0) == 0) {
+            std::cout << "Decompressed image to buffer" << std::endl;
+        }
         free(dstBuf);
-        destroyDecompressor(handle);
-        return 0;
     }
 
-    const unsigned char *srcPlanes[3] = {srcBuf, srcBuf + planeSizes[0], srcBuf + planeSizes[0] + planeSizes[1]};
-    int strides[3] = {tj3YUVPlaneWidth(0, width, subsamp), tj3YUVPlaneWidth(1, width, subsamp), tj3YUVPlaneWidth(2, width, subsamp)};
-
-    if (tjDecodeYUVPlanes(handle, srcPlanes, strides, subsamp, dstBuf, width, pitch, height, pixelFormat, 0) == -1) {
-        fprintf(stderr, "tjDecodeYUVPlanes error: %s\n", tj3GetErrorStr(handle));
+    // 4. Test tjCompress2
+    unsigned char *jpegBuf = nullptr;
+    unsigned long jpegSize = 0;
+    if (tjCompress2(handle, Data, width, 0, height, TJPF_RGB, &jpegBuf, &jpegSize, TJSAMP_444, 75, 0) == 0) {
+        std::cout << "Compressed image size: " << jpegSize << std::endl;
+        tjFree(jpegBuf);
     }
 
-    // Prepare parameters for tjEncodeYUV
-    if (tjEncodeYUV(handle, dstBuf, width, pitch, height, tjPixelSize[pixelFormat], dstBuf, subsamp, 0) == -1) {
-        fprintf(stderr, "tjEncodeYUV error: %s\n", tj3GetErrorStr(handle));
+    // 5. Test tjCompressFromYUVPlanes
+    const unsigned char *srcPlanes[3] = {Data, Data + width * height, Data + 2 * width * height};
+    int strides[3] = {width, width / 2, width / 2};
+    jpegBuf = nullptr;
+    jpegSize = 0;
+    if (tjCompressFromYUVPlanes(handle, srcPlanes, width, strides, height, TJSAMP_420, &jpegBuf, &jpegSize, 75, 0) == 0) {
+        std::cout << "Compressed YUV planes to JPEG size: " << jpegSize << std::endl;
+        tjFree(jpegBuf);
     }
 
-    // Prepare parameters for tjDecodeYUV
-    if (tjDecodeYUV(handle, srcBuf, align, subsamp, dstBuf, width, pitch, height, pixelFormat, 0) == -1) {
-        fprintf(stderr, "tjDecodeYUV error: %s\n", tj3GetErrorStr(handle));
+    // 6. Test tj3JPEGBufSize
+    if (Size >= 12) {
+        int subsamp = static_cast<int>(Data[4]);
+        size_t maxBufSize = tj3JPEGBufSize(width, height, subsamp);
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3JPEGBufSize to TJBUFSIZEYUV
+        unsigned long ret_TJBUFSIZEYUV_xxhuv = TJBUFSIZEYUV((int )maxBufSize, (int )maxBufSize, (int )jpegSize);
+        if (ret_TJBUFSIZEYUV_xxhuv < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        std::cout << "Max JPEG buffer size for (" << width << ", " << height << "): " << maxBufSize << std::endl;
     }
 
-    // Prepare parameters for tjEncodeYUV2
-    if (tjEncodeYUV2(handle, dstBuf, width, pitch, height, pixelFormat, dstBuf, subsamp, 0) == -1) {
-        fprintf(stderr, "tjEncodeYUV2 error: %s\n", tj3GetErrorStr(handle));
-    }
-
-    // Cleanup
-    free(dstBuf);
-    destroyDecompressor(handle);
+    tjDestroy(handle);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

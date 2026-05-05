@@ -18,71 +18,78 @@
 #include <cstddef>
 #include <turbojpeg.h>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <cstdio>
 
-static void fuzz_tj3Init(int initType) {
+static void fuzz_tj3Init(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int)) return;
+    int initType = *reinterpret_cast<const int*>(Data);
     tjhandle handle = tj3Init(initType);
-    if (handle) {
+    if (handle != nullptr) {
         tj3Destroy(handle);
     }
 }
 
-static void fuzz_tj3SetCroppingRegion(tjhandle handle, tjregion croppingRegion) {
+static void fuzz_tj3SetCroppingRegion(tjhandle handle, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(tjregion)) return;
+    tjregion croppingRegion;
+    memcpy(&croppingRegion, Data, sizeof(tjregion));
     tj3SetCroppingRegion(handle, croppingRegion);
 }
 
 static void fuzz_tj3GetScalingFactors() {
     int numScalingFactors = 0;
     tjscalingfactor *scalingFactors = tj3GetScalingFactors(&numScalingFactors);
-    if (scalingFactors) {
-        // Normally, you'd do something with the scaling factors here
+    if (scalingFactors != nullptr) {
+        // Normally, you would use the scaling factors here.
     }
 }
 
-static void fuzz_tj3SetScalingFactor(tjhandle handle, tjscalingfactor scalingFactor) {
+static void fuzz_tj3SetScalingFactor(tjhandle handle, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(tjscalingfactor)) return;
+    tjscalingfactor scalingFactor;
+    memcpy(&scalingFactor, Data, sizeof(tjscalingfactor));
     tj3SetScalingFactor(handle, scalingFactor);
 }
 
-static void fuzz_tjDecompressToYUVPlanes(tjhandle handle, const uint8_t *jpegBuf, unsigned long jpegSize) {
-    int width = 0, height = 0;
-    unsigned char *dstPlanes[3] = {nullptr, nullptr, nullptr};
-    int strides[3] = {0, 0, 0};
-    tjDecompressToYUVPlanes(handle, jpegBuf, jpegSize, dstPlanes, width, strides, height, 0);
+static void fuzz_tjDecompressToYUVPlanes(tjhandle handle, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(unsigned long) + sizeof(int) * 3) return;
+    unsigned long jpegSize = *reinterpret_cast<const unsigned long*>(Data);
+    Data += sizeof(unsigned long);
+    Size -= sizeof(unsigned long);
+
+    const unsigned char *jpegBuf = Data;
+    if (jpegSize > Size) return;
+
+    int width = 0, height = 0, flags = 0;
+    unsigned char *dstPlanes[3] = { nullptr, nullptr, nullptr };
+    int strides[3] = { 0, 0, 0 };
+
+    tjDecompressToYUVPlanes(handle, jpegBuf, jpegSize, dstPlanes, width, strides, height, flags);
 }
 
-extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return 0;
+extern "C" int LLVMFuzzerTestOneInput_33(const uint8_t *Data, size_t Size) {
+    // Fuzz tj3Init
+    fuzz_tj3Init(Data, Size);
 
-    int initType;
-    memcpy(&initType, Data, sizeof(int));
-
-    tjhandle handle = tj3Init(initType);
+    // Initialize a TurboJPEG handle for decompression
+    tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
     if (!handle) return 0;
 
     // Fuzz tj3SetCroppingRegion
-    if (Size >= sizeof(int) + sizeof(tjregion)) {
-        tjregion region;
-        memcpy(&region, Data + sizeof(int), sizeof(tjregion));
-        fuzz_tj3SetCroppingRegion(handle, region);
-    }
+    fuzz_tj3SetCroppingRegion(handle, Data, Size);
 
     // Fuzz tj3GetScalingFactors
     fuzz_tj3GetScalingFactors();
 
     // Fuzz tj3SetScalingFactor
-    if (Size >= sizeof(int) + sizeof(tjscalingfactor)) {
-        tjscalingfactor scalingFactor;
-        memcpy(&scalingFactor, Data + sizeof(int), sizeof(tjscalingfactor));
-        fuzz_tj3SetScalingFactor(handle, scalingFactor);
-    }
+    fuzz_tj3SetScalingFactor(handle, Data, Size);
 
     // Fuzz tjDecompressToYUVPlanes
-    if (Size > sizeof(int)) {
-        fuzz_tjDecompressToYUVPlanes(handle, Data + sizeof(int), Size - sizeof(int));
-    }
+    fuzz_tjDecompressToYUVPlanes(handle, Data, Size);
 
+    // Clean up
     tj3Destroy(handle);
     return 0;
 }
@@ -118,7 +125,7 @@ extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
         if(fread(data, (size_t)size, 1, f) != 1)
             exit(0);
 
-        LLVMFuzzerTestOneInput_34(data + 1, (size_t)(size - 1));
+        LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
 
         free(data);
         fclose(f);

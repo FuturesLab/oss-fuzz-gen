@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -13,98 +15,91 @@
 #include <cstring>
 #include <iostream>
 
-static void fuzz_tjCompressFromYUV(const uint8_t* Data, size_t Size) {
-    if (Size < 10) return;
+extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return 0;
 
-    tjhandle handle = tjInitCompress();
-    if (!handle) return;
+    tjhandle handle = tjInitDecompress();
+    if (!handle) return 0;
 
-    int width = Data[0] + 1;
-    int height = Data[1] + 1;
-    int align = 1 << (Data[2] % 3);
-    int subsamp = Data[3] % TJSAMP_UNKNOWN;
-    int jpegQual = Data[4] % 101;
-    int flags = Data[5] % 2;
+    int width = 0, height = 0, jpegSubsamp = 0;
 
-    unsigned char* jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
+    // Fuzz tjDecompressHeader2
+    tjDecompressHeader2(handle, const_cast<unsigned char*>(Data), Size, &width, &height, &jpegSubsamp);
 
-    size_t yuvSize = tjBufSizeYUV2(width, align, height, subsamp);
-    if (yuvSize == (unsigned long)-1 || yuvSize > Size - 6) {
-        tjDestroy(handle);
-        return;
+    // Allocate buffers for tjCompress and tjDecompress2
+    unsigned char* srcBuf = (unsigned char*)malloc(width * height * 3);
+    unsigned char* dstBuf = (unsigned char*)malloc(width * height * 3);
+    unsigned long compressedSize = 0;
+
+    if (srcBuf && dstBuf) {
+        // Fuzz tjCompress
+        tjCompress(handle, srcBuf, width, 0, height, 3, dstBuf, &compressedSize, jpegSubsamp, 75, 0);
+
+        // Fuzz tjDecompress2
+        tjDecompress2(handle, Data, Size, dstBuf, width, 0, height, TJPF_RGB, 0);
     }
 
-    const unsigned char* srcBuf = Data + 6;
+    // Fuzz tjTransform
+    tjtransform transform;
+    memset(&transform, 0, sizeof(transform));
+    unsigned char* dstBufs[1] = { nullptr };
+    unsigned long dstSizes[1] = { 0 };
+    tjTransform(handle, Data, Size, 1, dstBufs, dstSizes, &transform, 0);
 
-    tjCompressFromYUV(handle, srcBuf, width, align, height, subsamp, &jpegBuf, &jpegSize, jpegQual, flags);
+    // Fuzz tjDecompressToYUV2
+    unsigned char* yuvBuf = (unsigned char*)malloc(width * height * 3 / 2); // YUV buffer size
+    if (yuvBuf) {
+        tjDecompressToYUV2(handle, Data, Size, yuvBuf, width, 4, height, 0);
+        free(yuvBuf);
+    }
 
-    tjFree(jpegBuf);
+    // Fuzz tj3GetErrorCode
+    tj3GetErrorCode(handle);
+
+    // Cleanup
+    if (srcBuf) free(srcBuf);
+    if (dstBuf) free(dstBuf);
+    if (dstBufs[0]) tjFree(dstBufs[0]);
     tjDestroy(handle);
-}
-
-static void fuzz_tjBufSize(const uint8_t* Data, size_t Size) {
-    if (Size < 3) return;
-
-    int width = Data[0] + 1;
-    int height = Data[1] + 1;
-    int subsamp = Data[2] % TJSAMP_UNKNOWN;
-
-    tjBufSize(width, height, subsamp);
-}
-
-static void fuzz_tjBufSizeYUV2(const uint8_t* Data, size_t Size) {
-    if (Size < 4) return;
-
-    int width = Data[0] + 1;
-    int align = 1 << (Data[1] % 3);
-    int height = Data[2] + 1;
-    int subsamp = Data[3] % TJSAMP_UNKNOWN;
-
-    tjBufSizeYUV2(width, align, height, subsamp);
-}
-
-static void fuzz_tj3YUVPlaneSize(const uint8_t* Data, size_t Size) {
-    if (Size < 5) return;
-
-    int componentID = Data[0] % 3;
-    int width = Data[1] + 1;
-    int stride = Data[2] + 1;
-    int height = Data[3] + 1;
-    int subsamp = Data[4] % TJSAMP_UNKNOWN;
-
-    tj3YUVPlaneSize(componentID, width, stride, height, subsamp);
-}
-
-static void fuzz_tjPlaneSizeYUV(const uint8_t* Data, size_t Size) {
-    if (Size < 5) return;
-
-    int componentID = Data[0] % 3;
-    int width = Data[1] + 1;
-    int stride = Data[2] + 1;
-    int height = Data[3] + 1;
-    int subsamp = Data[4] % TJSAMP_UNKNOWN;
-
-    tjPlaneSizeYUV(componentID, width, stride, height, subsamp);
-}
-
-static void fuzz_TJBUFSIZEYUV(const uint8_t* Data, size_t Size) {
-    if (Size < 3) return;
-
-    int width = Data[0] + 1;
-    int height = Data[1] + 1;
-    int jpegSubsamp = Data[2] % TJSAMP_UNKNOWN;
-
-    TJBUFSIZEYUV(width, height, jpegSubsamp);
-}
-
-extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t* Data, size_t Size) {
-    fuzz_tjCompressFromYUV(Data, Size);
-    fuzz_tjBufSize(Data, Size);
-    fuzz_tjBufSizeYUV2(Data, Size);
-    fuzz_tj3YUVPlaneSize(Data, Size);
-    fuzz_tjPlaneSizeYUV(Data, Size);
-    fuzz_TJBUFSIZEYUV(Data, Size);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_30(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

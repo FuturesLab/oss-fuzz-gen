@@ -1,11 +1,13 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
-// tjSaveImage at turbojpeg.c:3128:15 in turbojpeg.h
-// tjGetErrorStr at turbojpeg.c:636:17 in turbojpeg.h
-// tj3LoadImage16 at turbojpeg-mp.c:434:21 in turbojpeg.h
-// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
+// tj3Init at turbojpeg.c:538:20 in turbojpeg.h
+// tj3Alloc at turbojpeg.c:877:17 in turbojpeg.h
+// tj3SetICCProfile at turbojpeg.c:1164:15 in turbojpeg.h
+// tj3Compress16 at turbojpeg-mp.c:71:15 in turbojpeg.h
 // tj3Free at turbojpeg.c:890:16 in turbojpeg.h
-// tjLoadImage at turbojpeg.c:3107:26 in turbojpeg.h
-// tjGetErrorStr2 at turbojpeg.c:630:17 in turbojpeg.h
+// tj3Decompress16 at turbojpeg-mp.c:148:15 in turbojpeg.h
+// tj3Set at turbojpeg.c:671:15 in turbojpeg.h
+// tj3Free at turbojpeg.c:890:16 in turbojpeg.h
+// tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,100 +17,108 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <turbojpeg.h>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-
-static void fuzz_tjSaveImage(const uint8_t *Data, size_t Size) {
-    if (Size < 10) return; // Ensure minimum size for meaningful data
-
-    const char *filename = "./dummy_file";
-    int width = Data[0] + 1; // Avoid zero width
-    int pitch = Data[1] + 1; // Avoid zero pitch
-    int height = Data[2] + 1; // Avoid zero height
-    int pixelFormat = Data[3] % TJ_NUMPF;
-    int flags = Data[4];
-
-    // Correct buffer size calculation
-    size_t bufferSize = static_cast<size_t>(pitch) * height * tjPixelSize[pixelFormat];
-    if (bufferSize > Size - 5) return; // Ensure buffer size does not exceed input size
-
-    unsigned char *buffer = new unsigned char[bufferSize];
-    memcpy(buffer, Data + 5, bufferSize);
-
-    FILE *file = fopen(filename, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-
-    int result = tjSaveImage(filename, buffer, width, pitch, height, pixelFormat, flags);
-
-    if (result == -1) {
-        const char *errStr = tjGetErrorStr();
-        if (errStr) {
-            printf("tjSaveImage Error: %s\n", errStr);
-        }
-    }
-
-    delete[] buffer;
-}
-
-static void fuzz_tj3LoadImage16(const uint8_t *Data, size_t Size) {
-    if (Size < 10) return; // Ensure minimum size for meaningful data
-
-    const char *filename = "./dummy_file";
-    int width = 0, height = 0, pixelFormat = TJPF_RGB;
-    int align = 1 << (Data[0] % 3); // Align to 1, 2, or 4
-    tjhandle handle = nullptr;
-
-    FILE *file = fopen(filename, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-
-    unsigned short *image = tj3LoadImage16(handle, filename, &width, align, &height, &pixelFormat);
-    if (!image) {
-        const char *errStr = tj3GetErrorStr(handle);
-        if (errStr) {
-            printf("tj3LoadImage16 Error: %s\n", errStr);
-        }
-    } else {
-        tj3Free(image);
-    }
-}
-
-static void fuzz_tjLoadImage(const uint8_t *Data, size_t Size) {
-    if (Size < 10) return; // Ensure minimum size for meaningful data
-
-    const char *filename = "./dummy_file";
-    int width = 0, height = 0, pixelFormat = TJPF_RGB;
-    int align = 1 << (Data[0] % 3); // Align to 1, 2, or 4
-    int flags = Data[1];
-
-    FILE *file = fopen(filename, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-
-    unsigned char *image = tjLoadImage(filename, &width, align, &height, &pixelFormat, flags);
-    if (!image) {
-        const char *errStr = tjGetErrorStr2(nullptr);
-        if (errStr) {
-            printf("tjLoadImage Error: %s\n", errStr);
-        }
-    } else {
-        free(image);
-    }
-}
+#include <cstdio>
+#include "turbojpeg.h"
 
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *Data, size_t Size) {
-    fuzz_tjSaveImage(Data, Size);
-    fuzz_tj3LoadImage16(Data, Size);
-    fuzz_tjLoadImage(Data, Size);
+    if (Size < 1) return 0;
+
+    // Fuzz tj3Init
+    int initType = Data[0] % 3;  // Assuming 0, 1, 2 are valid initTypes
+    tjhandle handle = tj3Init(initType);
+
+    if (handle) {
+        // Fuzz tj3Alloc
+        size_t allocSize = Size;
+        void *buffer = tj3Alloc(allocSize);
+
+        if (buffer) {
+            // Fuzz tj3SetICCProfile
+            unsigned char *iccBuf = (unsigned char *)Data;
+            size_t iccSize = Size;
+            tj3SetICCProfile(handle, iccBuf, iccSize);
+
+            // Prepare dummy buffer for tj3Compress16
+            size_t srcBufSize = Size / sizeof(unsigned short);
+            unsigned short *srcBuf = (unsigned short *)malloc(srcBufSize * sizeof(unsigned short));
+            if (srcBuf) {
+                memcpy(srcBuf, Data, srcBufSize * sizeof(unsigned short));
+                int width = srcBufSize % 100 + 1;  // Random width
+                int height = srcBufSize % 100 + 1; // Random height
+                int pixelFormat = TJPF_RGB;  // Assuming RGB format
+                unsigned char *jpegBuf = nullptr;
+                size_t jpegSize = 0;
+
+                tj3Compress16(handle, srcBuf, width, 0, height, pixelFormat, &jpegBuf, &jpegSize);
+
+                free(srcBuf);
+                tj3Free(jpegBuf);
+            }
+
+            // Fuzz tj3Decompress16
+            size_t dstBufSize = Size / sizeof(unsigned short);
+            unsigned short *dstBuf = (unsigned short *)malloc(dstBufSize * sizeof(unsigned short));
+            if (dstBuf) {
+                int pitch = 0;
+                int pixelFormat = TJPF_RGB;  // Assuming RGB format for decompression
+                tj3Decompress16(handle, (unsigned char *)Data, Size, dstBuf, pitch, pixelFormat);
+                free(dstBuf);
+            }
+
+            // Fuzz tj3Set
+            int param = Data[0] % 10;  // Assuming 10 different parameters
+            int value = Data[0] % 100; // Random value for the parameter
+            tj3Set(handle, param, value);
+
+            tj3Free(buffer);
+        }
+
+        // Clean up
+        tj3Destroy(handle);
+    }
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_8(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

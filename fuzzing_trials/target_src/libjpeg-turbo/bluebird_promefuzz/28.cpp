@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -11,95 +13,144 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
-#include <fstream>
 
 static void writeDummyFile(const uint8_t *Data, size_t Size) {
-    std::ofstream ofs("./dummy_file", std::ios::binary);
-    ofs.write(reinterpret_cast<const char*>(Data), Size);
-    ofs.close();
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_28(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 1) {
+        return 0;
+    } // Not enough data to proceed
 
-    // Fuzz TJBUFSIZE
-    int width = Data[0];
-    int height = (Size > 1) ? Data[1] : 1;
-    try {
-        unsigned long bufSize = TJBUFSIZE(width, height);
-    } catch (...) {
-        // Handle exceptions if necessary
+    // Step 1: Prepare environment
+    tjhandle handle = tj3Init(TJINIT_TRANSFORM);
+    if (!handle) {
+        return 0;
     }
 
-    // Fuzz tjDecompressToYUVPlanes
-    if (Size >= 4) {
-        tjhandle handle = tjInitDecompress();
-        unsigned char *jpegBuf = const_cast<unsigned char*>(Data);
-        unsigned long jpegSize = Size;
-        int outWidth = Data[2];
-        int outHeight = Data[3];
-        unsigned char *dstPlanes[3] = { nullptr, nullptr, nullptr };
-        int strides[3] = { 0, 0, 0 };
-        int flags = 0;
+    // Allocate a buffer
 
-        if (handle) {
-            tjDecompressToYUVPlanes(handle, jpegBuf, jpegSize, dstPlanes, outWidth, strides, outHeight, flags);
-            tjDestroy(handle);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Init to tjCompress
+    unsigned char* ret_tjAlloc_rpulx = tjAlloc(TJFLAG_FORCESSE2);
+    if (ret_tjAlloc_rpulx == NULL){
+    	return 0;
+    }
+    unsigned char* ret_tjAlloc_ksnjb = tjAlloc(TJFLAG_PROGRESSIVE);
+    if (ret_tjAlloc_ksnjb == NULL){
+    	return 0;
+    }
+    unsigned long bexgyffd = -1;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_tjAlloc_rpulx) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_tjAlloc_ksnjb) {
+    	return 0;
+    }
+    int ret_tjCompress_cpyvf = tjCompress(handle, ret_tjAlloc_rpulx, TJ_ALPHAFIRST, 1, TJFLAG_ACCURATEDCT, TJFLAG_FORCESSE3, ret_tjAlloc_ksnjb, &bexgyffd, TJXOPT_TRIM, TJ_BGR, Size);
+    if (ret_tjCompress_cpyvf < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    void *buffer = tj3Alloc(Size);
+    if (!buffer) {
+        tj3Destroy(handle);
+        return 0;
+    }
+
+    // Step 2: Invoke tj3Free
+    tj3Free(buffer);
+
+    // Step 3: Determine buffer size
+    tjtransform transform;
+    memset(&transform, 0, sizeof(tjtransform));
+    size_t bufSize = tj3TransformBufSize(handle, &transform);
+
+    // Step 4: Allocate destination buffer
+    unsigned char *dstBuf = static_cast<unsigned char*>(tj3Alloc(bufSize));
+    if (!dstBuf) {
+        tj3Destroy(handle);
+        return 0;
+    }
+
+    // Step 5: Perform transformation
+    unsigned char *dstBufs[1] = { dstBuf };
+    size_t dstSizes[1] = { bufSize };
+    int result = tj3Transform(handle, Data, Size, 1, dstBufs, dstSizes, &transform);
+
+    // Step 6: Get error string if needed
+    if (result < 0) {
+        char *errorStr = tj3GetErrorStr(handle);
+        if (errorStr) {
+            // Handle error string if necessary
         }
     }
 
-    // Fuzz tj3YUVPlaneHeight
-    int componentID = Data[0] % 3;
-    int subsamp = (Size > 1) ? Data[1] % 4 : 0;
-    try {
-        int planeHeight = tj3YUVPlaneHeight(componentID, height, subsamp);
-    } catch (...) {
-        // Handle exceptions if necessary
-    }
+    // Step 7: Set a parameter
+    tj3Set(handle, TJPARAM_NOREALLOC, 1);
 
-    // Fuzz tjDecompressHeader2
-    if (Size >= 3) {
-        tjhandle handle = tjInitDecompress();
-        unsigned char *jpegBuf = const_cast<unsigned char*>(Data);
-        unsigned long jpegSize = Size;
-        int width = 0, height = 0, jpegSubsamp = 0;
+    // Step 8: Perform another transformation
+    result = tj3Transform(handle, Data, Size, 1, dstBufs, dstSizes, &transform);
 
-        if (handle) {
-            tjDecompressHeader2(handle, jpegBuf, jpegSize, &width, &height, &jpegSubsamp);
-            tjDestroy(handle);
+    // Step 9: Get error string if needed
+    if (result < 0) {
+        char *errorStr = tj3GetErrorStr(handle);
+        if (errorStr) {
+            // Handle error string if necessary
         }
     }
 
-    // Fuzz tjCompress
-    if (Size >= 6) {
-        tjhandle handle = tjInitCompress();
-        unsigned char *srcBuf = const_cast<unsigned char*>(Data);
-        int width = Data[0];
-        int pitch = width * 3;
-        int height = Data[1];
-        int pixelSize = 3;
-        unsigned char *dstBuf = nullptr;
-        unsigned long compressedSize = 0;
-        int jpegSubsamp = Data[2] % 4;
-        int jpegQual = Data[3] % 101;
-        int flags = 0;
+    // Step 10: Free the buffer once
+    tj3Free(dstBuf);
 
-        if (handle) {
-            tjCompress(handle, srcBuf, width, pitch, height, pixelSize, dstBuf, &compressedSize, jpegSubsamp, jpegQual, flags);
-            tjDestroy(handle);
-        }
-    }
-
-    // Fuzz tjBufSizeYUV
-    if (Size >= 3) {
-        int subsamp = Data[2] % 4;
-        try {
-            unsigned long yuvBufSize = tjBufSizeYUV(width, height, subsamp);
-        } catch (...) {
-            // Handle exceptions if necessary
-        }
-    }
+    // Step 11: Destroy the handle
+    tj3Destroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_28(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

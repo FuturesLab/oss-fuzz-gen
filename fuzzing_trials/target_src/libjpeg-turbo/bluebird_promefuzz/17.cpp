@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -11,152 +13,132 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 
-static void fuzz_tj3DecodeYUV8(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 8) return;
-
-    int width = Data[0] + 1;
-    int height = Data[1] + 1;
-    int align = 1 << (Data[2] % 4); // 1, 2, 4, 8
-    int pixelFormat = Data[3] % TJ_NUMPF;
-
-    size_t yuvSize = tj3YUVBufSize(width, align, height, TJSAMP_444);
-    if (Size < yuvSize + 8) return;
-
-    const unsigned char *srcBuf = Data + 4;
-    unsigned char *dstBuf = new unsigned char[width * height * tjPixelSize[pixelFormat]];
-
-    int pitch = width * tjPixelSize[pixelFormat];
-    int result = tj3DecodeYUV8(handle, srcBuf, align, dstBuf, width, pitch, height, pixelFormat);
-    if (result != 0) {
-        const char *errStr = tjGetErrorStr();
-        std::cerr << "tj3DecodeYUV8 error: " << errStr << std::endl;
+static void writeDummyFile(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-
-    delete[] dstBuf;
-}
-
-static void fuzz_tj3EncodeYUVPlanes8(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 8) return;
-
-    int width = Data[0] + 1;
-    int height = Data[1] + 1;
-    int pixelFormat = Data[2] % TJ_NUMPF;
-
-    size_t rgbSize = width * height * tjPixelSize[pixelFormat];
-    if (Size < rgbSize + 8) return;
-
-    const unsigned char *srcBuf = Data + 4;
-    unsigned char *dstPlanes[3];
-    int strides[3];
-
-    for (int i = 0; i < 3; i++) {
-        strides[i] = width;
-        dstPlanes[i] = new unsigned char[width * height];
-    }
-
-    int result = tj3EncodeYUVPlanes8(handle, srcBuf, width, width * tjPixelSize[pixelFormat], height, pixelFormat, dstPlanes, strides);
-    if (result != 0) {
-        const char *errStr = tjGetErrorStr();
-        std::cerr << "tj3EncodeYUVPlanes8 error: " << errStr << std::endl;
-    }
-
-    for (int i = 0; i < 3; i++) {
-        delete[] dstPlanes[i];
-    }
-}
-
-static void fuzz_tj3EncodeYUV8(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 8) return;
-
-    int width = Data[0] + 1;
-    int height = Data[1] + 1;
-    int align = 1 << (Data[2] % 4); // 1, 2, 4, 8
-    int pixelFormat = Data[3] % TJ_NUMPF;
-
-    size_t rgbSize = width * height * tjPixelSize[pixelFormat];
-    if (Size < rgbSize + 8) return;
-
-    const unsigned char *srcBuf = Data + 4;
-    size_t yuvSize = tj3YUVBufSize(width, align, height, TJSAMP_444);
-    unsigned char *dstBuf = new unsigned char[yuvSize];
-
-    int result = tj3EncodeYUV8(handle, srcBuf, width, width * tjPixelSize[pixelFormat], height, pixelFormat, dstBuf, align);
-    if (result != 0) {
-        const char *errStr = tjGetErrorStr();
-        std::cerr << "tj3EncodeYUV8 error: " << errStr << std::endl;
-    }
-
-    delete[] dstBuf;
-}
-
-static void fuzz_tjInitTransform() {
-    tjhandle handle = tjInitTransform();
-    if (handle == nullptr) {
-        const char *errStr = tjGetErrorStr();
-        std::cerr << "tjInitTransform error: " << errStr << std::endl;
-    } else {
-        tjDestroy(handle);
-    }
-}
-
-static void fuzz_tj3Get(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 4) return;
-
-    int param = Data[0]; // Assuming a valid parameter range
-    int value = tj3Get(handle, param);
-    if (value == -1) {
-        const char *errStr = tjGetErrorStr();
-        std::cerr << "tj3Get error: " << errStr << std::endl;
-    }
-}
-
-static void fuzz_tj3DecodeYUVPlanes8(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 8) return;
-
-    int width = Data[0] + 1;
-    int height = Data[1] + 1;
-    int pixelFormat = Data[2] % TJ_NUMPF;
-
-    const unsigned char *srcPlanes[3];
-    int strides[3];
-    size_t planeSize = width * height;
-
-    if (Size < planeSize * 3 + 8) return;
-
-    srcPlanes[0] = Data + 4;
-    srcPlanes[1] = Data + 4 + planeSize;
-    srcPlanes[2] = Data + 4 + planeSize * 2;
-
-    for (int i = 0; i < 3; i++) {
-        strides[i] = width;
-    }
-
-    unsigned char *dstBuf = new unsigned char[width * height * tjPixelSize[pixelFormat]];
-
-    int pitch = width * tjPixelSize[pixelFormat];
-    int result = tj3DecodeYUVPlanes8(handle, srcPlanes, strides, dstBuf, width, pitch, height, pixelFormat);
-    if (result != 0) {
-        const char *errStr = tjGetErrorStr();
-        std::cerr << "tj3DecodeYUVPlanes8 error: " << errStr << std::endl;
-    }
-
-    delete[] dstBuf;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
-    tjhandle handle = tjInitTransform();
-    if (handle == nullptr) return 0;
+    if (Size < 1) {
+        return 0;
+    } // Not enough data to proceed
 
-    fuzz_tj3DecodeYUV8(handle, Data, Size);
-    fuzz_tj3EncodeYUVPlanes8(handle, Data, Size);
-    fuzz_tj3EncodeYUV8(handle, Data, Size);
-    fuzz_tj3Get(handle, Data, Size);
-    fuzz_tj3DecodeYUVPlanes8(handle, Data, Size);
+    // Step 1: Prepare environment
+    tjhandle handle = tj3Init(TJINIT_TRANSFORM);
+    if (!handle) {
+        return 0;
+    }
 
-    tjDestroy(handle);
-    fuzz_tjInitTransform();
+    // Allocate a buffer
+    void *buffer = tj3Alloc(Size);
+    if (!buffer) {
+        tj3Destroy(handle);
+        return 0;
+    }
+
+    // Step 2: Invoke tj3Free
+    tj3Free(buffer);
+
+    // Step 3: Determine buffer size
+    tjtransform transform;
+    memset(&transform, 0, sizeof(tjtransform));
+    size_t bufSize = tj3TransformBufSize(handle, &transform);
+
+    // Step 4: Allocate destination buffer
+    unsigned char *dstBuf = static_cast<unsigned char*>(tj3Alloc(bufSize));
+    if (!dstBuf) {
+        tj3Destroy(handle);
+        return 0;
+    }
+
+    // Step 5: Perform transformation
+    unsigned char *dstBufs[1] = { dstBuf };
+    size_t dstSizes[1] = { bufSize };
+    int result = tj3Transform(handle, Data, Size, 1, dstBufs, dstSizes, &transform);
+
+    // Step 6: Get error string if needed
+    if (result < 0) {
+        char *errorStr = tj3GetErrorStr(handle);
+        if (errorStr) {
+            // Handle error string if necessary
+        }
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3GetErrorStr to tj3Decompress12
+        tjhandle ret_tj3Init_rpihj = tj3Init(TJFLAG_BOTTOMUP);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errorStr) {
+        	return 0;
+        }
+        int ret_tj3Decompress12_ndwgg = tj3Decompress12(ret_tj3Init_rpihj, (const unsigned char *)errorStr, *dstSizes, NULL, (int )bufSize, (int )bufSize);
+        if (ret_tj3Decompress12_ndwgg < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Step 7: Set a parameter
+    tj3Set(handle, TJPARAM_NOREALLOC, 1);
+
+    // Step 8: Perform another transformation
+    result = tj3Transform(handle, Data, Size, 1, dstBufs, dstSizes, &transform);
+
+    // Step 9: Get error string if needed
+    if (result < 0) {
+        char *errorStr = tj3GetErrorStr(handle);
+        if (errorStr) {
+            // Handle error string if necessary
+        }
+    }
+
+    // Step 10: Free the buffer once
+    tj3Free(dstBuf);
+
+    // Step 11: Destroy the handle
+    tj3Destroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

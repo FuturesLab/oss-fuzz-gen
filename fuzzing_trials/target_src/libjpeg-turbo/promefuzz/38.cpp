@@ -1,10 +1,14 @@
 // This fuzz driver is generated for library libjpeg-turbo, aiming to fuzz the following functions:
 // tj3Init at turbojpeg.c:538:20 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
 // tj3SetCroppingRegion at turbojpeg.c:2006:15 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
 // tj3GetScalingFactors at turbojpeg.c:1959:28 in turbojpeg.h
 // tj3SetScalingFactor at turbojpeg.c:1981:15 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
 // tjGetScalingFactors at turbojpeg.c:1974:28 in turbojpeg.h
 // tjDecompressToYUVPlanes at turbojpeg.c:2291:15 in turbojpeg.h
+// tj3GetErrorStr at turbojpeg.c:618:17 in turbojpeg.h
 // tj3Destroy at turbojpeg.c:580:16 in turbojpeg.h
 #include <iostream>
 #include <sstream>
@@ -18,61 +22,57 @@
 #include <turbojpeg.h>
 #include <cstdint>
 #include <cstdlib>
-#include <cstdio>
+#include <iostream>
 #include <cstring>
 
-extern "C" int LLVMFuzzerTestOneInput_37(const uint8_t *Data, size_t Size) {
+extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *Data, size_t Size) {
     if (Size < sizeof(int)) return 0;
 
-    int initType = *reinterpret_cast<const int*>(Data);
+    int initType = *(reinterpret_cast<const int*>(Data));
     Data += sizeof(int);
     Size -= sizeof(int);
 
-    // Initialize TurboJPEG instance
     tjhandle handle = tj3Init(initType);
     if (!handle) {
+        std::cerr << "Failed to initialize TurboJPEG: " << tj3GetErrorStr(handle) << std::endl;
         return 0;
     }
 
-    // Test tj3SetCroppingRegion
     if (Size >= sizeof(tjregion)) {
         tjregion croppingRegion;
-        memcpy(&croppingRegion, Data, sizeof(tjregion));
-        tj3SetCroppingRegion(handle, croppingRegion);
+        std::memcpy(&croppingRegion, Data, sizeof(tjregion));
+        if (tj3SetCroppingRegion(handle, croppingRegion) == -1) {
+            std::cerr << "Failed to set cropping region: " << tj3GetErrorStr(handle) << std::endl;
+        }
         Data += sizeof(tjregion);
         Size -= sizeof(tjregion);
     }
 
-    // Test tj3GetScalingFactors
     int numScalingFactors = 0;
     tjscalingfactor *scalingFactors = tj3GetScalingFactors(&numScalingFactors);
-
-    // Test tj3SetScalingFactor
     if (scalingFactors && numScalingFactors > 0) {
-        tj3SetScalingFactor(handle, scalingFactors[0]);
+        tjscalingfactor scalingFactor = scalingFactors[0]; // Use the first scaling factor as an example
+        if (tj3SetScalingFactor(handle, scalingFactor) == -1) {
+            std::cerr << "Failed to set scaling factor: " << tj3GetErrorStr(handle) << std::endl;
+        }
     }
 
-    // Test tjGetScalingFactors
     int numScalingFactorsLegacy = 0;
     tjscalingfactor *scalingFactorsLegacy = tjGetScalingFactors(&numScalingFactorsLegacy);
 
-    // Prepare dummy JPEG data for tjDecompressToYUVPlanes
-    if (Size > 0) {
-        unsigned long jpegSize = static_cast<unsigned long>(Size);
-        unsigned char *jpegBuf = const_cast<unsigned char*>(Data);
+    if (Size >= sizeof(unsigned long) && numScalingFactors > 0) {
+        unsigned long jpegSize = *(reinterpret_cast<const unsigned long*>(Data));
+        Data += sizeof(unsigned long);
+        Size -= sizeof(unsigned long);
 
-        int width = 100, height = 100;
-        unsigned char *dstPlanes[3];
-        int strides[3] = { width, width / 2, width / 2 };
+        if (Size >= jpegSize) {
+            unsigned char *dstPlanes[3] = {nullptr, nullptr, nullptr};
+            int strides[3] = {0, 0, 0};
+            int width = 0, height = 0, flags = 0;
 
-        for (int i = 0; i < 3; i++) {
-            dstPlanes[i] = static_cast<unsigned char*>(malloc(width * height));
-        }
-
-        tjDecompressToYUVPlanes(handle, jpegBuf, jpegSize, dstPlanes, width, strides, height, 0);
-
-        for (int i = 0; i < 3; i++) {
-            free(dstPlanes[i]);
+            if (tjDecompressToYUVPlanes(handle, Data, jpegSize, dstPlanes, width, strides, height, flags) == -1) {
+                std::cerr << "Failed to decompress to YUV planes: " << tj3GetErrorStr(handle) << std::endl;
+            }
         }
     }
 
@@ -111,7 +111,7 @@ extern "C" int LLVMFuzzerTestOneInput_37(const uint8_t *Data, size_t Size) {
         if(fread(data, (size_t)size, 1, f) != 1)
             exit(0);
 
-        LLVMFuzzerTestOneInput_37(data + 1, (size_t)(size - 1));
+        LLVMFuzzerTestOneInput_38(data + 1, (size_t)(size - 1));
 
         free(data);
         fclose(f);

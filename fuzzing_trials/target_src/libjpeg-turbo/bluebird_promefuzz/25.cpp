@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -8,101 +10,109 @@
 #include <cstdint>
 #include <cstddef>
 #include "../src/turbojpeg.h"
+#include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 
-static tjscalingfactor getRandomScalingFactor() {
-    tjscalingfactor factor;
-    factor.num = rand() % 8 + 1;  // Random factor between 1/8 and 8/8
-    factor.denom = 8;
-    return factor;
-}
-
-static tjregion getRandomCroppingRegion() {
-    tjregion region;
-    region.x = rand() % 100;  // Random x starting point
-    region.y = rand() % 100;  // Random y starting point
-    region.w = rand() % 100;  // Random width
-    region.h = rand() % 100;  // Random height
-    return region;
-}
-
 extern "C" int LLVMFuzzerTestOneInput_25(const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
+    // Step 1: Prepare environment
     tjhandle handle = tjInitDecompress();
-    if (!handle) {
+    if (!handle) return 0;
+
+    const int width = 128;  // Arbitrary width
+    const int height = 128; // Arbitrary height
+    const int subsamp = TJSAMP_444;
+    const int align = 4;    // Row alignment
+
+    // Calculate buffer size
+    size_t yuvBufSize = tj3YUVBufSize(width, align, height, subsamp);
+    if (yuvBufSize == 0) {
+        tj3Destroy(handle);
         return 0;
     }
 
-    tjscalingfactor scalingFactor = getRandomScalingFactor();
-    if (tj3SetScalingFactor(handle, scalingFactor) == -1) {
-        std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+    // Allocate buffers
+    unsigned char *yuvBuf = static_cast<unsigned char *>(tj3Alloc(yuvBufSize));
+    if (!yuvBuf) {
+        tj3Destroy(handle);
+        return 0;
+    }
+    unsigned char *jpegBuf = static_cast<unsigned char *>(tj3Alloc(Size));
+    if (!jpegBuf) {
+        tj3Free(yuvBuf);
+        tj3Destroy(handle);
+        return 0;
+    }
+    memcpy(jpegBuf, Data, Size);
+
+    // Step 2: Invoke target functions
+    int result = tj3DecompressToYUV8(handle, jpegBuf, Size, yuvBuf, align);
+    if (result != 0) {
+        tj3GetErrorStr(handle);
     }
 
-    tjregion croppingRegion1 = getRandomCroppingRegion();
-    if (tj3SetCroppingRegion(handle, croppingRegion1) == -1) {
-        std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+    unsigned char *decodedBuf = static_cast<unsigned char *>(tj3Alloc(width * height * 3));
+    if (!decodedBuf) {
+        tj3Free(jpegBuf);
+        tj3Free(yuvBuf);
+        tj3Destroy(handle);
+        return 0;
     }
 
-    tjregion croppingRegion2 = getRandomCroppingRegion();
-    if (tj3SetCroppingRegion(handle, croppingRegion2) == -1) {
-        std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
+    result = tj3DecodeYUV8(handle, yuvBuf, align, decodedBuf, width, width * 3, height, TJPF_RGB);
+    if (result != 0) {
+        tj3GetErrorStr(handle);
     }
 
-    size_t allocSize = 1024;  // Arbitrary size for allocation
-    void *buffer = tj3Alloc(allocSize);
-    if (!buffer) {
-        std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
-    }
-
-    std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
-    std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
-
-    unsigned short *dstBuf = static_cast<unsigned short*>(tj3Alloc(allocSize));
-    if (!dstBuf) {
-        std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
-    } else {
-        if (tj3Decompress16(handle, Data, Size, dstBuf, 0, TJPF_RGB) == -1) {
-            std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
-        }
-    }
-
-    std::cerr << "Error: " << tj3GetErrorStr(handle) << std::endl;
-
-    tj3Free(buffer);
-    tj3Free(dstBuf);
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Free to tj3SaveImage12
-    tjhandle ret_tjInitCompress_tlwlo = tjInitCompress();
-    int ret_tj3GetErrorCode_daczb = tj3GetErrorCode(0);
-    if (ret_tj3GetErrorCode_daczb < 0){
-    	return 0;
-    }
-    int bwxvbanz = 64;
-    tjscalingfactor* ret_tjGetScalingFactors_coths = tjGetScalingFactors(&bwxvbanz);
-    if (ret_tjGetScalingFactors_coths == NULL){
-    	return 0;
-    }
-    int ywszqani = 1;
-    tjscalingfactor* ret_tj3GetScalingFactors_mgcij = tj3GetScalingFactors(&ywszqani);
-    if (ret_tj3GetScalingFactors_mgcij == NULL){
-    	return 0;
-    }
-
-    int ret_tj3SaveImage12_djmbz = tj3SaveImage12(ret_tjInitCompress_tlwlo, (const char *)buffer, NULL, TJXOPT_PROGRESSIVE, ret_tj3GetErrorCode_daczb, bwxvbanz, ywszqani);
-    if (ret_tj3SaveImage12_djmbz < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    // Step 3: Cleanup
+    tj3Free(decodedBuf);
+    tj3Free(jpegBuf);
+    tj3Free(yuvBuf);
     tj3Destroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_25(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

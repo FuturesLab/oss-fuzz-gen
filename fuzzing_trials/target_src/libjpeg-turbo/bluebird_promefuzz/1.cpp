@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -12,132 +14,204 @@
 #include <cstdlib>
 #include <cstring>
 #include <cstdio>
-#include <setjmp.h>
-
-static tjhandle createDecompressor() {
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjInitDecompress with tjInitTransform
-    return tjInitTransform();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-}
-
-static tjhandle createCompressor() {
-    return tjInitCompress();
-}
-
-static void destroyHandle(tjhandle handle) {
-    if (handle) {
-        tjDestroy(handle);
-    }
-}
+#include <iostream>
+#include <vector>
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
     if (Size < 1) {
         return 0;
-    }
+    }  // Ensure there is some data to process
 
-    // Initialize a TurboJPEG decompressor handle
-    tjhandle decompressor = createDecompressor();
-    if (!decompressor) {
+    // Create a TurboJPEG instance handle
+    tjhandle handle = tjInitCompress();
+    if (!handle) {
         return 0;
     }
 
-    // Initialize a TurboJPEG compressor handle
-    tjhandle compressor = createCompressor();
-    if (!compressor) {
-        destroyHandle(decompressor);
-        return 0;
-    }
+    // Allocate buffers for source and destination
+    int width = 256;  // Example width
+    int height = 256; // Example height
+    int pixelSize = 3; // Assuming RGB format
+    unsigned long compressedSize = tjBufSize(width, height, TJSAMP_444);
+    std::vector<unsigned char> srcBuf(width * height * pixelSize);
+    std::vector<unsigned char> dstBuf(compressedSize);
 
-    // Prepare buffers and variables for tjTransform
-    unsigned char *dstBufs[1] = {nullptr};
-    unsigned long dstSizes[1] = {0};
-    tjtransform transforms[1] = {0};
-    int n = 1;
+    // Copy data into the source buffer
+    size_t copySize = std::min(Size, srcBuf.size());
+    std::memcpy(srcBuf.data(), Data, copySize);
+
+    // Define parameters for compression
+    int pitch = width * pixelSize;
+    int jpegSubsamp = TJSAMP_444;
+    int jpegQual = 75;
     int flags = 0;
 
-    // Fuzz tjTransform
-    tjTransform(decompressor, Data, Size, n, dstBufs, dstSizes, transforms, flags);
+    // Call tjCompress
+    int result = tjCompress(handle, srcBuf.data(), width, pitch, height, pixelSize,
+                            dstBuf.data(), &compressedSize, jpegSubsamp, jpegQual, flags);
 
-    // Clean up buffers
-    for (int i = 0; i < n; i++) {
-        if (dstBufs[i]) {
-            tjFree(dstBufs[i]);
-        }
+    // Check the result of the compression
+    if (result == 0) {
+        std::cout << "Compression successful, size: " << compressedSize << std::endl;
+    } else {
+        std::cerr << "Compression failed: " << tjGetErrorStr() << std::endl;
     }
 
-    // Fuzz tj3GetErrorCode
+    // Clean up
+    tjDestroy(handle);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tj3GetErrorCode with tjGetErrorCode
-    tjGetErrorCode(decompressor);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Prepare variables for tjDecompressHeader2
-    int width = 0, height = 0, jpegSubsamp = 0;
-
-    // Fuzz tjDecompressHeader2
-    tjDecompressHeader2(decompressor, const_cast<unsigned char *>(Data), Size, &width, &height, &jpegSubsamp);
-
-    // Prepare variables for tjCompress
-    unsigned char *srcBuf = (unsigned char *)malloc(width * height * 3);
-    unsigned char *compressedBuf = nullptr;
-    unsigned long compressedSize = 0;
-    int pixelSize = 3;
-    int jpegQual = 75;
-
-    // Fuzz tjCompress
-    if (srcBuf) {
-        memset(srcBuf, 0, width * height * pixelSize);
-        tjCompress(compressor, srcBuf, width, width * pixelSize, height, pixelSize, compressedBuf, &compressedSize, jpegSubsamp, jpegQual, flags);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjCompress to tj3YUVPlaneSize
-        int aauzihlt = 64;
-        tjscalingfactor* ret_tj3GetScalingFactors_cejmy = tj3GetScalingFactors(&aauzihlt);
-        if (ret_tj3GetScalingFactors_cejmy == NULL){
-        	return 0;
-        }
-
-        size_t ret_tj3YUVPlaneSize_ooemi = tj3YUVPlaneSize(aauzihlt, TJXOPT_TRIM, (int )compressedSize, (int )compressedSize, TJ_NUMERR);
-        if (ret_tj3YUVPlaneSize_ooemi < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        tjFree(compressedBuf);
-        free(srcBuf);
+    // Now, let's fuzz tjDecompressToYUV
+    handle = tjInitDecompress();
+    if (!handle) {
+        return 0;
     }
 
-    // Prepare variables for tjDecompressToYUV2
-    unsigned char *yuvBuf = (unsigned char *)malloc(width * height * 3 / 2);
+    std::vector<unsigned char> yuvBuf(width * height * pixelSize);
 
-    // Fuzz tjDecompressToYUV2
-    if (yuvBuf) {
+    // Call tjDecompressToYUV
+    result = tjDecompressToYUV(handle, dstBuf.data(), compressedSize, yuvBuf.data(), flags);
 
-        // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of tjDecompressToYUV2
-        tjDecompressToYUV2(decompressor, (const unsigned char *)"r", Size, yuvBuf, width, 4, height, flags);
-        // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        free(yuvBuf);
+    // Check the result of the decompression
+    if (result == 0) {
+        std::cout << "Decompression to YUV successful" << std::endl;
+    } else {
+        std::cerr << "Decompression to YUV failed: " << tjGetErrorStr() << std::endl;
     }
 
-    // Prepare variables for tjDecompress2
-    unsigned char *decompressedBuf = (unsigned char *)malloc(width * height * pixelSize);
+    // Clean up
+    tjDestroy(handle);
 
-    // Fuzz tjDecompress2
-    if (decompressedBuf) {
-        tjDecompress2(decompressor, Data, Size, decompressedBuf, width, width * pixelSize, height, TJPF_RGB, flags);
-        free(decompressedBuf);
+    // Fuzz tjEncodeYUVPlanes
+    handle = tjInitCompress();
+    if (!handle) {
+        return 0;
     }
 
-    // Clean up handles
-    destroyHandle(decompressor);
-    destroyHandle(compressor);
+    unsigned char *yuvPlanes[3] = { yuvBuf.data(), yuvBuf.data() + (width * height), yuvBuf.data() + (width * height * 2) };
+    int strides[3] = { width, width / 2, width / 2 };
+
+    result = tjEncodeYUVPlanes(handle, srcBuf.data(), width, pitch, height, TJPF_RGB,
+                               yuvPlanes, strides, TJSAMP_444, flags);
+
+    if (result == 0) {
+        std::cout << "Encoding to YUV planes successful" << std::endl;
+    } else {
+        std::cerr << "Encoding to YUV planes failed: " << tjGetErrorStr() << std::endl;
+    }
+
+    // Clean up
+    tjDestroy(handle);
+
+    // Fuzz tjCompressFromYUV
+    handle = tjInitCompress();
+    if (!handle) {
+        return 0;
+    }
+
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from tjInitCompress to tj3SetICCProfile using the plateau pool
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!yuvPlanes) {
+    	return 0;
+    }
+    int ret_tj3SetICCProfile_vrxzz = tj3SetICCProfile(handle, *yuvPlanes, (size_t )compressedSize);
+    if (ret_tj3SetICCProfile_vrxzz < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    unsigned char *jpegBuf = nullptr;
+    unsigned long jpegSize = 0;
+
+    result = tjCompressFromYUV(handle, yuvBuf.data(), width, 1, height, TJSAMP_444,
+                               &jpegBuf, &jpegSize, jpegQual, flags);
+
+    if (result == 0) {
+        std::cout << "Compression from YUV successful, size: " << jpegSize << std::endl;
+    } else {
+        std::cerr << "Compression from YUV failed: " << tjGetErrorStr() << std::endl;
+    }
+
+    // Clean up
+    tjFree(jpegBuf);
+    tjDestroy(handle);
+
+    // Fuzz tjDecompress
+    handle = tjInitDecompress();
+    if (!handle) {
+        return 0;
+    }
+
+    std::vector<unsigned char> decompressedBuf(width * height * pixelSize);
+
+    result = tjDecompress(handle, dstBuf.data(), compressedSize, decompressedBuf.data(),
+                          width, pitch, height, pixelSize, flags);
+
+    if (result == 0) {
+        std::cout << "Decompression successful" << std::endl;
+    } else {
+        std::cerr << "Decompression failed: " << tjGetErrorStr() << std::endl;
+    }
+
+    // Clean up
+    tjDestroy(handle);
+
+    // Fuzz tjDecompressToYUVPlanes
+    handle = tjInitDecompress();
+    if (!handle) {
+        return 0;
+    }
+
+    result = tjDecompressToYUVPlanes(handle, dstBuf.data(), compressedSize, yuvPlanes,
+                                     width, strides, height, flags);
+
+    if (result == 0) {
+        std::cout << "Decompression to YUV planes successful" << std::endl;
+    } else {
+        std::cerr << "Decompression to YUV planes failed: " << tjGetErrorStr() << std::endl;
+    }
+
+    // Clean up
+    tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

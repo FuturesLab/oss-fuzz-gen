@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -9,104 +11,118 @@
 #include <cstddef>
 #include "../src/turbojpeg.h"
 #include <cstdint>
-#include <cstdlib>
-#include <cstdio>
 #include <cstring>
-
-static void handleDecompressToYUVPlanes(tjhandle handle, const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
-        return;
-    }
-    
-    unsigned char *dstPlanes[3] = {nullptr, nullptr, nullptr};
-    int strides[3] = {0, 0, 0};
-    int width = 100, height = 100, flags = 0;
-    
-    // Allocate memory for YUV planes
-    for (int i = 0; i < 3; i++) {
-        dstPlanes[i] = static_cast<unsigned char*>(malloc(width * height));
-        if (!dstPlanes[i]) {
-                return;
-        }
-    }
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 5 of tjDecompressToYUVPlanes
-    tjDecompressToYUVPlanes(handle, Data, Size, dstPlanes, width, NULL, height, flags);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Free allocated memory
-    for (int i = 0; i < 3; i++) {
-        free(dstPlanes[i]);
-    }
-}
-
-static void handleSetScalingFactor(tjhandle handle) {
-    int numScalingFactors = 0;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tjGetScalingFactors
-    int xknjiski = 1;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tjGetScalingFactors
-    int nrjtklmd = -1;
-    tjscalingfactor *scalingFactors = tjGetScalingFactors(&nrjtklmd);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (scalingFactors && numScalingFactors > 0) {
-        tj3SetScalingFactor(handle, scalingFactors[0]);
-    }
-}
-
-static void handleSetCroppingRegion(tjhandle handle) {
-    tjregion croppingRegion = {0, 0, 50, 50};
-    tj3SetCroppingRegion(handle, croppingRegion);
-}
-
-static void handleDecompression(tjhandle handle, const uint8_t *Data, size_t Size) {
-    handleSetScalingFactor(handle);
-    handleSetCroppingRegion(handle);
-    handleDecompressToYUVPlanes(handle, Data, Size);
-}
+#include <cstdlib>
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
+    if (Size < 1) {
         return 0;
     }
 
-    int initType = TJINIT_DECOMPRESS;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tj3Init
-    tjhandle handle = tj3Init(TJXOPT_PERFECT);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Initialize TurboJPEG handle for compression
+    tjhandle handle = tj3Init(TJINIT_COMPRESS);
     if (!handle) {
         return 0;
     }
 
-    handleDecompression(handle, Data, Size);
+    // Set various parameters
+    tj3Set(handle, TJPARAM_SUBSAMP, TJSAMP_420);
+    tj3Set(handle, TJPARAM_QUALITY, 75);
+    tj3Set(handle, TJPARAM_NOREALLOC, 1);
+    tj3Set(handle, TJPARAM_FASTUPSAMPLE, 1);
+    tj3Set(handle, TJPARAM_FASTDCT, 1);
+    tj3Set(handle, TJPARAM_PROGRESSIVE, 1);
 
+    // Define image parameters
+    int width = 256;
+    int height = 256;
+    int align = 4;
+    int pixelFormat = TJPF_RGB;
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjDestroy with tj3GetErrorCode
+    // Calculate buffer sizes
+    size_t yuvSize = tj3YUVBufSize(width, align, height, TJSAMP_420);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of tj3JPEGBufSize
+    size_t jpegSize = tj3JPEGBufSize(width, TJ_NUMERR, TJSAMP_420);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tj3GetErrorCode with tjGetErrorCode
+    // Allocate buffers
+    unsigned char *yuvBuf = static_cast<unsigned char*>(tj3Alloc(yuvSize));
+    unsigned char *jpegBuf = static_cast<unsigned char*>(tj3Alloc(jpegSize));
+    if (!yuvBuf || !jpegBuf) {
+        tj3Destroy(handle);
+        return 0;
+    }
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function tjGetErrorCode with tjDestroy
-    tjDestroy(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Check if input data is sufficient for an RGB image
+    size_t requiredDataSize = width * height * tjPixelSize[pixelFormat];
+    if (Size < requiredDataSize) {
+        tj3Free(yuvBuf);
+        tj3Free(jpegBuf);
+        tj3Destroy(handle);
+        return 0;
+    }
 
+    // Encode YUV
+    if (tj3EncodeYUV8(handle, Data, width, width * tjPixelSize[pixelFormat], height, pixelFormat, yuvBuf, align) == -1) {
+        tj3Free(yuvBuf);
+        tj3Free(jpegBuf);
+        tj3Destroy(handle);
+        return 0;
+    }
 
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Compress from YUV
+    unsigned char *jpegBufPtr = jpegBuf;
+    size_t jpegBufSize = jpegSize;
+    if (tj3CompressFromYUV8(handle, yuvBuf, width, align, height, &jpegBufPtr, &jpegBufSize) == -1) {
+        tj3Free(yuvBuf);
+        tj3Free(jpegBuf);
+        tj3Destroy(handle);
+        return 0;
+    }
 
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
+    // Free resources
+    tj3Free(yuvBuf);
+    tj3Free(jpegBuf);
+    tj3Destroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
