@@ -1,41 +1,89 @@
 #include <cstdint>
-#include <cstdio>
-#include <cstring>
+#include <cstdlib>
+#include <cstring> // Include for memcpy
 
 extern "C" {
-    // Assuming the function is defined in a TIFF library, include necessary headers
     #include <tiffio.h>
 }
 
-// Define a dummy handler function to pass as the third parameter
-void dummyHandler() {
-    // This function intentionally left blank
+// Define the required function prototypes for the TIFFClientOpen function
+extern "C" {
+    typedef tsize_t (*TIFFReadWriteProc)(thandle_t, tdata_t, tsize_t);
+    typedef toff_t (*TIFFSeekProc)(thandle_t, toff_t, int);
+    typedef int (*TIFFCloseProc)(thandle_t);
+    typedef toff_t (*TIFFSizeProc)(thandle_t);
+    typedef int (*TIFFMapFileProc)(thandle_t, tdata_t*, toff_t*);
+    typedef void (*TIFFUnmapFileProc)(thandle_t, tdata_t, toff_t);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_108(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for creating meaningful strings
-    if (size < 2) {
+    // Ensure that the data size is sufficient for some meaningful operation
+    if (size < 4) { // Adjusted to a small constant since we can't use sizeof(TIFF)
         return 0;
     }
 
-    // Split the data into two parts for the two string parameters
-    size_t halfSize = size / 2;
-    char *name = new char[halfSize + 1];
-    char *message = new char[size - halfSize + 1];
+    // Open a memory buffer as a TIFF file
+    TIFF* tiff = TIFFClientOpen("mem", "r", (thandle_t)data,
+                                [](thandle_t fd, tdata_t buf, tsize_t size) -> tsize_t { return size; },
+                                [](thandle_t fd, tdata_t buf, tsize_t size) -> tsize_t { return 0; },
+                                [](thandle_t fd, toff_t off, int whence) -> toff_t { return 0; },
+                                [](thandle_t fd) -> int { return 0; },
+                                [](thandle_t fd) -> toff_t { return 0; },
+                                [](thandle_t fd, tdata_t* pbase, toff_t* psize) -> int { return 0; },
+                                [](thandle_t fd, tdata_t base, toff_t size) -> void { });
 
-    // Copy data into the strings and null-terminate them
-    std::memcpy(name, data, halfSize);
-    name[halfSize] = '\0';
+    if (tiff == nullptr) {
+        return 0;
+    }
 
-    std::memcpy(message, data + halfSize, size - halfSize);
-    message[size - halfSize] = '\0';
+    // Initialize width and height for tile size
+    uint32_t width = 0;
+    uint32_t height = 0;
 
     // Call the function-under-test
-    TIFFError(name, message, (void*)dummyHandler);
+    TIFFDefaultTileSize(tiff, &width, &height);
 
-    // Clean up
-    delete[] name;
-    delete[] message;
+    // Close the TIFF structure
+    TIFFClose(tiff);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_108(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,20 +1,13 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// _TIFFmemset at tif_unix.c:353:6 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
-// _TIFFcalloc at tif_unix.c:341:7 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// _TIFFmemcpy at tif_unix.c:355:6 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// _TIFFrealloc at tif_unix.c:351:7 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFFieldWithName at tif_dirinfo.c:941:18 in tiffio.h
+// TIFFFieldName at tif_dirinfo.c:954:13 in tiffio.h
+// TIFFFieldWithTag at tif_dirinfo.c:930:18 in tiffio.h
+// TIFFFieldName at tif_dirinfo.c:954:13 in tiffio.h
+// TIFFFindField at tif_dirinfo.c:878:18 in tiffio.h
+// TIFFFieldName at tif_dirinfo.c:954:13 in tiffio.h
+// TIFFFileName at tif_open.c:803:13 in tiffio.h
+// TIFFFreeDirectory at tif_dir.c:1629:6 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -25,72 +18,104 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include "tiffio.h"
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_55(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Ensure there's at least one byte for meaningful operations
+    if (Size < 1) return 0;
 
-    // Testing _TIFFmalloc and _TIFFmemset
-    tmsize_t alloc_size = static_cast<tmsize_t>(Data[0]);
-    void *memory = _TIFFmalloc(alloc_size);
-    if (memory) {
-        _TIFFmemset(memory, 0, alloc_size);
-        _TIFFfree(memory);
+    // Create a dummy TIFF structure
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) {
+        return 0;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    // Open the file for reading
+    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    if (!tif) return 0;
+
+    // Fuzzing TIFFFieldWithName
+    const char *fieldName = reinterpret_cast<const char*>(Data);
+    const TIFFField *field = TIFFFieldWithName(tif, fieldName);
+    if (field) {
+        // Fuzzing TIFFFieldName
+        const char *retrievedName = TIFFFieldName(field);
+        (void)retrievedName;  // Use the retrievedName to avoid unused variable warning
     }
 
-    // Testing _TIFFcalloc
-    tmsize_t nmemb = static_cast<tmsize_t>(Data[0]);
-    tmsize_t siz = alloc_size;
-    void *calloc_memory = _TIFFcalloc(nmemb, siz);
-    if (calloc_memory) {
-        _TIFFfree(calloc_memory);
-    }
-
-    // Testing _TIFFmemcpy
-    if (Size >= 2) {
-        tmsize_t copy_size = static_cast<tmsize_t>(Data[1]);
-        void *src = _TIFFmalloc(copy_size);
-        void *dst = _TIFFmalloc(copy_size);
-        if (src && dst) {
-            _TIFFmemcpy(dst, src, copy_size);
-        }
-        _TIFFfree(src);
-        _TIFFfree(dst);
-    }
-
-    // Testing _TIFFrealloc
-    if (Size >= 3) {
-        tmsize_t realloc_size = static_cast<tmsize_t>(Data[2]);
-        void *realloc_memory = _TIFFmalloc(alloc_size);
-        if (realloc_memory) {
-            void *new_memory = _TIFFrealloc(realloc_memory, realloc_size);
-            if (new_memory) {
-                _TIFFfree(new_memory);
-            } else {
-                // Only free if realloc failed and did not return a new pointer
-                // realloc_memory is not freed here because realloc already took care of it
-            }
-        }
-    }
-
-    // Testing TIFFWriteScanline
+    // Fuzzing TIFFFieldWithTag
     if (Size >= 4) {
-        TIFF *tif = TIFFOpen("./dummy_file", "w");
-        if (tif) {
-            void *buf = _TIFFmalloc(alloc_size);
-            if (buf) {
-                uint32_t row = static_cast<uint32_t>(Data[3]);
-                uint16_t sample = 0; // Use a default sample value
-                TIFFWriteScanline(tif, buf, row, sample);
-                _TIFFfree(buf);
-            }
-            TIFFClose(tif);
+        uint32_t tag = *reinterpret_cast<const uint32_t*>(Data);
+        field = TIFFFieldWithTag(tif, tag);
+        if (field) {
+            // Fuzzing TIFFFieldName
+            const char *retrievedName = TIFFFieldName(field);
+            (void)retrievedName;  // Use the retrievedName to avoid unused variable warning
         }
     }
+
+    // Fuzzing TIFFFindField
+    if (Size >= 8) {
+        uint32_t tag = *reinterpret_cast<const uint32_t*>(Data);
+        TIFFDataType dataType = static_cast<TIFFDataType>(Data[4]);
+        field = TIFFFindField(tif, tag, dataType);
+        if (field) {
+            // Fuzzing TIFFFieldName
+            const char *retrievedName = TIFFFieldName(field);
+            (void)retrievedName;  // Use the retrievedName to avoid unused variable warning
+        }
+    }
+
+    // Fuzzing TIFFFileName
+    const char *fileName = TIFFFileName(tif);
+    (void)fileName;  // Use the fileName to avoid unused variable warning
+
+    // Clean up resources associated with the TIFF directory
+    TIFFFreeDirectory(tif);
+
+    // Clean up
+    TIFFClose(tif);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_55(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

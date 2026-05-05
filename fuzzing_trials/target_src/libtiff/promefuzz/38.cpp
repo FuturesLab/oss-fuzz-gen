@@ -1,15 +1,8 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFSetErrorHandlerExt at tif_error.c:39:21 in tiffio.h
-// TIFFSetWarningHandlerExt at tif_warning.c:39:21 in tiffio.h
-// TIFFIsBigTIFF at tif_open.c:912:5 in tiffio.h
-// TIFFScanlineSize at tif_strip.c:343:10 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
-// TIFFReadCustomDirectory at tif_dirread.c:5372:5 in tiffio.h
-// TIFFSetErrorHandlerExt at tif_error.c:39:21 in tiffio.h
-// TIFFSetWarningHandlerExt at tif_warning.c:39:21 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
+// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
+// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
+// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
+// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -21,58 +14,87 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
-#include <cstring>
+#include <cstdlib>
 #include <tiffio.h>
 
-// Define a dummy TIFFFieldArray structure to avoid incomplete type error
-struct DummyTIFFFieldArray {
-    uint32_t allocated_size;
-    TIFFField *fields;
-};
-
 extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 4) return 0; // Ensure there is enough data for uint32_t
 
-    // Write data to a dummy file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    // Prepare a buffer for float array
+    float xyz[3] = {0.0f, 0.0f, 0.0f};
 
-    // Open the TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
-    if (!tif) return 0;
+    // Extract a uint32_t from the input data
+    uint32_t input32 = *reinterpret_cast<const uint32_t*>(Data);
 
-    // Set custom error and warning handlers
-    TIFFErrorHandlerExt prevErrorHandler = TIFFSetErrorHandlerExt(NULL);
-    TIFFErrorHandlerExt prevWarningHandler = TIFFSetWarningHandlerExt(NULL);
+    // Test LogLuv32toXYZ
+    LogLuv32toXYZ(input32, xyz);
 
-    // Check if the TIFF is a BigTIFF
-    int isBigTIFF = TIFFIsBigTIFF(tif);
+    // Test TIFFSwabLong
+    uint32_t swabInput = input32;
+    TIFFSwabLong(&swabInput);
 
-    // Prepare buffer for TIFFReadScanline
-    tmsize_t scanlineSize = TIFFScanlineSize(tif);
-    void *buf = _TIFFmalloc(scanlineSize);
-    if (buf) {
-        // Attempt to read a scanline
-        TIFFReadScanline(tif, buf, 0, 0);
-        _TIFFfree(buf);
+    // Test LogLuv24toXYZ
+    LogLuv24toXYZ(input32, xyz);
+
+    // Prepare a float array for TIFFSwabArrayOfFloat
+    size_t numFloats = Size / sizeof(float);
+    float *floatArray = static_cast<float*>(malloc(numFloats * sizeof(float)));
+    if (floatArray) {
+        for (size_t i = 0; i < numFloats; ++i) {
+            floatArray[i] = static_cast<float>(Data[i % Size]);
+        }
+        TIFFSwabArrayOfFloat(floatArray, static_cast<tmsize_t>(numFloats));
+        free(floatArray);
     }
 
-    // Prepare dummy TIFFFieldArray for TIFFReadCustomDirectory
-    DummyTIFFFieldArray infoarray;
-    memset(&infoarray, 0, sizeof(infoarray));
+    // Prepare a float array for LogLuv24fromXYZ and LogLuv32fromXYZ
+    float xyzInput[3] = {static_cast<float>(Data[0]), static_cast<float>(Data[1]), static_cast<float>(Data[2])};
 
-    // Attempt to read a custom directory
-    toff_t dummyOffset = 0;
-    TIFFReadCustomDirectory(tif, dummyOffset, reinterpret_cast<TIFFFieldArray*>(&infoarray));
+    // Test LogLuv24fromXYZ
+    uint32_t luv24 = LogLuv24fromXYZ(xyzInput, 1);
 
-    // Restore previous handlers
-    TIFFSetErrorHandlerExt(prevErrorHandler);
-    TIFFSetWarningHandlerExt(prevWarningHandler);
-
-    // Close the TIFF file
-    TIFFClose(tif);
+    // Test LogLuv32fromXYZ
+    uint32_t luv32 = LogLuv32fromXYZ(xyzInput, 1);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_38(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

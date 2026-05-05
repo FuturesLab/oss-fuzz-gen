@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -7,88 +9,106 @@
 #include <cstdio>
 #include "cstdint"
 #include <cstddef>
-#include "tiffio.h"
 #include "cstdint"
 #include <cstdio>
 #include "cstdlib"
-#include "cstring"
+#include "tiffio.h"
+
+// Define a minimal structure to match the expected TIFFField layout
+struct MyTIFFField {
+    uint32_t field_tag;
+    short field_readcount;
+    TIFFDataType field_type;
+    unsigned short field_bit;
+    unsigned char field_oktochange;
+    const char *field_name;
+    TIFFFieldArray *field_subfields;
+};
+
+static MyTIFFField* createTIFFField(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(MyTIFFField)) {
+        return nullptr;
+    }
+
+    MyTIFFField *field = (MyTIFFField *)malloc(sizeof(MyTIFFField));
+    if (!field) {
+        return nullptr;
+    }
+
+    // Initialize the MyTIFFField with data from fuzzing input
+    field->field_tag = *(uint32_t *)(Data);
+    field->field_readcount = *(short *)(Data + 4);
+    field->field_type = (TIFFDataType)*(Data + 6);
+    field->field_bit = *(unsigned short *)(Data + 7);
+    field->field_oktochange = *(unsigned char *)(Data + 9);
+    field->field_name = "dummy_field";
+    field->field_subfields = nullptr;
+
+    return field;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    MyTIFFField *field = createTIFFField(Data, Size);
+    if (!field) {
         return 0;
     }
 
-    // Write the input data to a dummy file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    // Cast to TIFFField for API compatibility
+    TIFFField *tiffField = reinterpret_cast<TIFFField *>(field);
 
-    // Open the TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
-    if (!tif) {
-        return 0;
-    }
+    // Call the target API functions with the created TIFFField
+    int passCount = TIFFFieldPassCount(tiffField);
+    int writeCount = TIFFFieldWriteCount(tiffField);
+    int readCount = TIFFFieldReadCount(tiffField);
+    int setGetCountSize = TIFFFieldSetGetCountSize(tiffField);
+    int isAnonymous = TIFFFieldIsAnonymous(tiffField);
+    int setGetSize = TIFFFieldSetGetSize(tiffField);
 
-    // 1. Check if the TIFF is tiled
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFIsTiled with TIFFRewriteDirectory
-    int isTiled = TIFFRewriteDirectory(tif);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // 2. Allocate memory using _TIFFmalloc
-    tmsize_t size1 = 1024; // Example size
-    tmsize_t size2 = 2048; // Example size
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFIsTiled to TIFFCurrentRow
-
-    uint32_t ret_TIFFCurrentRow_lkzmn = TIFFCurrentRow(tif);
-    if (ret_TIFFCurrentRow_lkzmn < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    void *mem1 = _TIFFmalloc(size1);
-    void *mem2 = _TIFFmalloc(size2);
-
-    // 3. Initialize a TIFFRGBAImage
-    TIFFRGBAImage img;
-    char emsg[1024];
-    if (!TIFFRGBAImageBegin(&img, tif, 0, emsg)) {
-        TIFFClose(tif);
-        _TIFFfree(mem1);
-        _TIFFfree(mem2);
-        return 0;
-    }
-
-    // 4. Allocate raster buffer
-    uint32_t width = 100;  // Example width
-    uint32_t height = 100; // Example height
-    uint32_t *raster = (uint32_t *)_TIFFmalloc(width * height * sizeof(uint32_t));
-    if (!raster) {
-        TIFFRGBAImageEnd(&img);
-        TIFFClose(tif);
-        _TIFFfree(mem1);
-        _TIFFfree(mem2);
-        return 0;
-    }
-
-    // 5. Get the RGBA image data
-    TIFFRGBAImageGet(&img, raster, width, height);
-
-    // 6. End the RGBA image processing
-    TIFFRGBAImageEnd(&img);
+    // Use the returned values to avoid any compiler optimizations
+    volatile int dummy = passCount + writeCount + readCount +
+                         setGetCountSize + isAnonymous + setGetSize;
 
     // Clean up
-    TIFFClose(tif);
-    _TIFFfree(raster);
-    _TIFFfree(mem1);
-    _TIFFfree(mem2);
+    free(field);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_31(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

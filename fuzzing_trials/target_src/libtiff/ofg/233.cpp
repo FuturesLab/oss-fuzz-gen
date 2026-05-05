@@ -1,29 +1,77 @@
 #include <cstdint>
-#include <cstddef>
-#include <tiffio.h>
+#include <cstring>  // Include for memcpy
 
 extern "C" {
-    void TIFFSwabLong8(uint64_t *);
+    #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_233(const uint8_t *data, size_t size) {
-    if (size < sizeof(uint64_t)) {
-        return 0; // Ensure there is enough data to form a uint64_t
+    // Ensure there is enough data to create a TIFFFieldInfo object
+    if (size < sizeof(TIFFFieldInfo)) {
+        return 0;
     }
 
-    uint64_t value;
-    // Copy the first 8 bytes of data into value, assuming little-endian architecture
-    value = static_cast<uint64_t>(data[0]) |
-            (static_cast<uint64_t>(data[1]) << 8) |
-            (static_cast<uint64_t>(data[2]) << 16) |
-            (static_cast<uint64_t>(data[3]) << 24) |
-            (static_cast<uint64_t>(data[4]) << 32) |
-            (static_cast<uint64_t>(data[5]) << 40) |
-            (static_cast<uint64_t>(data[6]) << 48) |
-            (static_cast<uint64_t>(data[7]) << 56);
+    // Create a TIFF object
+    TIFF *tiff = TIFFOpen("dummy.tiff", "w");
+    if (tiff == nullptr) {
+        return 0;
+    }
+
+    // Create a TIFFFieldInfo object from the input data
+    TIFFFieldInfo fieldInfo;
+    memcpy(&fieldInfo, data, sizeof(TIFFFieldInfo));
+
+    // Ensure the field name is null-terminated
+    char fieldName[32];
+    size_t nameLen = sizeof(fieldName) - 1 < size - sizeof(TIFFFieldInfo) ? sizeof(fieldName) - 1 : size - sizeof(TIFFFieldInfo);
+    memcpy(fieldName, data + sizeof(TIFFFieldInfo), nameLen);
+    fieldName[nameLen] = '\0';
+    fieldInfo.field_name = fieldName;
 
     // Call the function-under-test
-    TIFFSwabLong8(&value);
+    TIFFMergeFieldInfo(tiff, &fieldInfo, 1);
+
+    // Clean up
+    TIFFClose(tiff);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_233(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

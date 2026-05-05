@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -8,13 +10,14 @@
 #include "cstdint"
 #include <cstddef>
 #include "tiffio.h"
+#include <cstdarg>
 
-static int CustomErrorHandler(TIFF* tif, void* user_data, const char* module, const char* fmt, va_list ap) {
+static int CustomErrorHandler(TIFF*, void*, const char* module, const char* fmt, va_list ap) {
     vfprintf(stderr, fmt, ap);
     return 0;
 }
 
-static int CustomWarningHandler(TIFF* tif, void* user_data, const char* module, const char* fmt, va_list ap) {
+static int CustomWarningHandler(TIFF*, void*, const char* module, const char* fmt, va_list ap) {
     vfprintf(stderr, fmt, ap);
     return 0;
 }
@@ -24,15 +27,15 @@ extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    // Prepare a dummy file for TIFFOpenExt
-    FILE* file = fopen("./dummy_file", "wb");
+    FILE *file = fopen("./dummy_file", "wb");
     if (!file) {
         return 0;
     }
+
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    TIFFOpenOptions* opts = TIFFOpenOptionsAlloc();
+    TIFFOpenOptions *opts = TIFFOpenOptionsAlloc();
     if (!opts) {
         return 0;
     }
@@ -40,19 +43,57 @@ extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
     TIFFOpenOptionsSetErrorHandlerExtR(opts, CustomErrorHandler, nullptr);
     TIFFOpenOptionsSetWarningHandlerExtR(opts, CustomWarningHandler, nullptr);
 
-    TIFF* tiff = TIFFOpenExt("./dummy_file", "r", opts);
+    const char nuwlmrts[1024] = "qfnba";
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of TIFFOpenExt
+    TIFF *tif = TIFFOpenExt(nuwlmrts, "r", opts);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (tif) {
+        TIFFWarningExtR(tif, "module", "This is a test warning.");
+        TIFFErrorExtR(tif, "module", "This is a test error.");
+
+        TIFFClose(tif);
+    }
+
     TIFFOpenOptionsFree(opts);
 
-    if (tiff) {
-        TIFFErrorExtR(tiff, "FuzzModule", "Error occurred during fuzzing");
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFWarningExtR with TIFFErrorExtR
-        TIFFErrorExtR(tiff, "FuzzModule", "Warning occurred during fuzzing");
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        TIFFClose(tiff);
-        tiff = nullptr;
-    }
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_27(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

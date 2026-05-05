@@ -1,58 +1,82 @@
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <unistd.h> // Include for 'close'
-
-extern "C" {
-    #include <tiffio.h>
-}
+#include <tiffio.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 extern "C" int LLVMFuzzerTestOneInput_201(const uint8_t *data, size_t size) {
-    // Create a temporary file to hold the TIFF image
-    char tmpl[] = "/tmp/fuzz_tiff_XXXXXX";
+    // Create a temporary file to write the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        return 0;
+        return 0; // Failed to create temporary file
     }
-    FILE *file = fdopen(fd, "wb+");
-    if (!file) {
+
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
-        return 0;
+        unlink(tmpl);
+        return 0; // Failed to write data
     }
 
-    // Initialize TIFF structure
-    TIFF *tiff = TIFFOpen(tmpl, "w");
-    if (!tiff) {
-        fclose(file);
-        return 0;
+    // Rewind the file descriptor to the beginning
+    if (lseek(fd, 0, SEEK_SET) == -1) {
+        close(fd);
+        unlink(tmpl);
+        return 0; // Failed to rewind file
     }
 
-    // Set some basic TIFF fields
-    TIFFSetField(tiff, TIFFTAG_IMAGEWIDTH, 1); // width of the image
-    TIFFSetField(tiff, TIFFTAG_IMAGELENGTH, 1); // height of the image
-    TIFFSetField(tiff, TIFFTAG_SAMPLESPERPIXEL, 1); // samples per pixel
-    TIFFSetField(tiff, TIFFTAG_BITSPERSAMPLE, 8); // bits per sample
-    TIFFSetField(tiff, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT); // orientation
-    TIFFSetField(tiff, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG); // planar configuration
-    TIFFSetField(tiff, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK); // photometric interpretation
-
-    // Ensure data size is sufficient for a scanline
-    if (size < 1) {
+    // Open the TIFF file using TIFFFdOpen
+    TIFF *tiff = TIFFFdOpen(fd, tmpl, "r");
+    if (tiff != NULL) {
+        // Successfully opened the TIFF file, perform operations
+        // Close the TIFF file
         TIFFClose(tiff);
-        fclose(file);
-        return 0;
     }
-
-    // Write the scanline
-    uint32_t row = 0;
-    uint16_t sample = 0;
-    TIFFWriteScanline(tiff, (void *)data, row, sample);
 
     // Clean up
-    TIFFClose(tiff);
-    fclose(file);
-    remove(tmpl);
+    close(fd);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_201(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

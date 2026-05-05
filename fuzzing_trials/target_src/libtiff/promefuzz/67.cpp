@@ -1,9 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
+// TIFFVGetFieldDefaulted at tif_aux.c:217:5 in tiffio.h
+// TIFFVSetField at tif_dir.c:1211:5 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFGetFieldDefaulted at tif_aux.c:382:5 in tiffio.h
+// TIFFVGetField at tif_dir.c:1609:5 in tiffio.h
+// TIFFFindField at tif_dirinfo.c:878:18 in tiffio.h
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFWriteCustomDirectory at tif_dirwrite.c:303:5 in tiffio.h
-// TIFFCreateEXIFDirectory at tif_dir.c:1742:5 in tiffio.h
-// TIFFCreateGPSDirectory at tif_dir.c:1752:5 in tiffio.h
-// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -14,40 +16,109 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <tiffio.h>
+#include <cstdarg>
 #include <cstdint>
 #include <cstdio>
-#include <cstring>
+#include <cstdlib>
+#include <tiffio.h>
 
-static TIFF *createDummyTIFF(const char *filename) {
-    FILE *file = fopen(filename, "wb");
-    if (!file) return nullptr;
-    fclose(file);
-    return TIFFOpen(filename, "r+");
+static void FuzzTIFFVGetFieldDefaulted(TIFF *tif, uint32_t tag) {
+    // Dummy va_list to pass to the function
+    va_list ap;
+    TIFFVGetFieldDefaulted(tif, tag, ap);
+}
+
+static void FuzzTIFFVSetField(TIFF *tif, uint32_t tag) {
+    // Dummy va_list to pass to the function
+    va_list ap;
+    TIFFVSetField(tif, tag, ap);
+}
+
+static void FuzzTIFFGetField(TIFF *tif, uint32_t tag) {
+    TIFFGetField(tif, tag, nullptr);
+}
+
+static void FuzzTIFFGetFieldDefaulted(TIFF *tif, uint32_t tag) {
+    TIFFGetFieldDefaulted(tif, tag, nullptr);
+}
+
+static void FuzzTIFFVGetField(TIFF *tif, uint32_t tag) {
+    // Dummy va_list to pass to the function
+    va_list ap;
+    TIFFVGetField(tif, tag, ap);
+}
+
+static void FuzzTIFFFindField(TIFF *tif, uint32_t tag) {
+    TIFFFindField(tif, tag, TIFF_NOTYPE);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_67(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint64_t)) return 0;
+    if (Size < sizeof(uint32_t)) {
+        return 0;
+    }
 
-    const char *filename = "./dummy_file";
-    TIFF *tif = createDummyTIFF(filename);
-    if (!tif) return 0;
+    // Create a dummy TIFF file
+    FILE *file = fopen("./dummy_file", "wb+");
+    if (!file) {
+        return 0;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    uint64_t dirOffset = 0;
+    TIFF *tif = TIFFOpen("./dummy_file", "r+");
+    if (!tif) {
+        return 0;
+    }
 
-    // Attempt to write a custom directory
-    TIFFWriteCustomDirectory(tif, &dirOffset);
+    uint32_t tag = *reinterpret_cast<const uint32_t *>(Data);
 
-    // Attempt to create an EXIF directory
-    TIFFCreateEXIFDirectory(tif);
+    FuzzTIFFVGetFieldDefaulted(tif, tag);
+    FuzzTIFFVSetField(tif, tag);
+    FuzzTIFFGetField(tif, tag);
+    FuzzTIFFGetFieldDefaulted(tif, tag);
+    FuzzTIFFVGetField(tif, tag);
+    FuzzTIFFFindField(tif, tag);
 
-    // Attempt to create a GPS directory
-    TIFFCreateGPSDirectory(tif);
-
-    // Attempt to write the current directory
-    TIFFWriteDirectory(tif);
-
-    // Cleanup
     TIFFClose(tif);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_67(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

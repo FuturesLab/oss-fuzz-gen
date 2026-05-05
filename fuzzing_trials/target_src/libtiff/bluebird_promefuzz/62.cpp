@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -7,75 +9,109 @@
 #include <cstdio>
 #include "cstdint"
 #include <cstddef>
-#include <iostream>
-#include <fstream>
-#include "tiffio.h"
-#include <cmath>
+#include "cstdint"
+#include <cstdio>
+#include "cstdlib"
 #include "cstring"
-
-static TIFF* createDummyTIFF() {
-    TIFF* tif = TIFFOpen("./dummy_file", "w");
-    if (tif) {
-        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 1);
-        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 1);
-        TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1);
-        TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
-        TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
-        TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
-        TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
-        char buf[1] = {0};
-        TIFFWriteEncodedStrip(tif, 0, buf, 1);
-        TIFFClose(tif);
-    }
-    return TIFFOpen("./dummy_file", "r");
-}
+#include "tiffio.h"
 
 extern "C" int LLVMFuzzerTestOneInput_62(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(double) + sizeof(int)) {
-        return 0;
-    }
+    if (Size < sizeof(double)) return 0;
 
-    TIFF* tif = createDummyTIFF();
-    if (tif) {
-        int msb2lsb = TIFFIsMSB2LSB(tif);
-        (void)msb2lsb; // Use the result to avoid unused variable warning
-        TIFFClose(tif);
-    }
+    // Fuzzing TIFFSwabDouble
+    double value;
+    memcpy(&value, Data, sizeof(double));
+    TIFFSwabDouble(&value);
 
-    double y = 0;
-    int param = 0;
-    std::memcpy(&y, Data, sizeof(double));
-    std::memcpy(&param, Data + sizeof(double), sizeof(int));
-
-    if (y > 0) {
-        int logL10FromY = LogL10fromY(y, param);
-        (void)logL10FromY; // Use the result to avoid unused variable warning
-    }
-
-    double logL16ToY = LogL16toY(param);
-    (void)logL16ToY; // Use the result to avoid unused variable warning
-
-    if (Size > sizeof(double) + sizeof(int) + 1) {
-        void* buffer = nullptr;
-        tmsize_t bufferSize = static_cast<tmsize_t>(Data[sizeof(double) + sizeof(int)]);
-        if (bufferSize > 0) {
-            buffer = malloc(bufferSize);
+    // Fuzzing TIFFSwabArrayOfDouble
+    size_t numDoubles = Size / sizeof(double);
+    if (numDoubles > 0) {
+        double *array = static_cast<double *>(malloc(numDoubles * sizeof(double)));
+        if (array) {
+            memcpy(array, Data, numDoubles * sizeof(double));
+            TIFFSwabArrayOfDouble(array, numDoubles);
+            free(array);
         }
-        TIFF* tif = createDummyTIFF();
-        if (tif) {
-            TIFFReadBufferSetup(tif, buffer, bufferSize);
-            TIFFClose(tif);
+    }
+
+    // Fuzzing uv_encode
+    if (Size >= 2 * sizeof(double) + sizeof(int)) {
+        double lat, lon;
+        int precision;
+        memcpy(&lat, Data, sizeof(double));
+        memcpy(&lon, Data + sizeof(double), sizeof(double));
+        memcpy(&precision, Data + 2 * sizeof(double), sizeof(int));
+        uv_encode(lat, lon, precision);
+    }
+
+    // Fuzzing uv_decode
+    if (numDoubles > 0) {
+        double *input = static_cast<double *>(malloc(numDoubles * sizeof(double)));
+        double *u_output = static_cast<double *>(malloc(numDoubles * sizeof(double)));
+        double *v_output = static_cast<double *>(malloc(numDoubles * sizeof(double)));
+        if (input && u_output && v_output) {
+            memcpy(input, Data, numDoubles * sizeof(double));
+            uv_decode(input, u_output, numDoubles);
+            uv_decode(input, v_output, numDoubles);
         }
-        free(buffer);
+        free(input);
+        free(u_output);
+        free(v_output);
     }
 
-    if (y > 0) {
-        int logL16FromY = LogL16fromY(y, param);
-        (void)logL16FromY; // Use the result to avoid unused variable warning
-    }
+    // Writing data to a dummy file for TIFF functions
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
 
-    double logL10ToY = LogL10toY(param);
-    (void)logL10ToY; // Use the result to avoid unused variable warning
+        // Fuzzing TIFFIsByteSwapped and TIFFIsBigEndian
+        TIFF *tiff = TIFFOpen("./dummy_file", "r");
+        if (tiff) {
+            TIFFIsByteSwapped(tiff);
+            TIFFIsBigEndian(tiff);
+            TIFFClose(tiff);
+        }
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_62(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

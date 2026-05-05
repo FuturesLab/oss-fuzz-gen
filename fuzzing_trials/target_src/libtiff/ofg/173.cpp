@@ -1,17 +1,15 @@
 #include <cstdint>
-#include <cstdlib>
 #include <cstdio>
-#include <unistd.h>
-#include <tiffio.h>
+#include <cstdlib>
+#include <unistd.h>  // Include for close() and unlink()
+
+extern "C" {
+    #include <tiffio.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_173(const uint8_t *data, size_t size) {
-    TIFF *tiff = nullptr;
-    uint32_t strip = 0;
-    void *buf = nullptr;
-    tmsize_t bufsize = 0;
-
-    // Create a temporary TIFF file to work with
-    char tmpl[] = "/tmp/fuzzfileXXXXXX.tiff";
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
@@ -24,29 +22,79 @@ extern "C" int LLVMFuzzerTestOneInput_173(const uint8_t *data, size_t size) {
     fwrite(data, 1, size, file);
     fclose(file);
 
-    // Open the TIFF file
-    tiff = TIFFOpen(tmpl, "r");
+    // Open the temporary file with libtiff
+    TIFF *tiff = TIFFOpen(tmpl, "r");
     if (!tiff) {
-        remove(tmpl);
+        unlink(tmpl);  // Use unlink() instead of remove() for consistency with close()
         return 0;
     }
 
-    // Allocate a buffer to read the strip data
-    bufsize = TIFFStripSize(tiff);
-    buf = malloc(bufsize);
-    if (!buf) {
+    // Allocate a buffer for the tile data
+    tmsize_t tileSize = TIFFTileSize(tiff);
+    if (tileSize <= 0) {
         TIFFClose(tiff);
-        remove(tmpl);
+        unlink(tmpl);
         return 0;
     }
+    void *tileBuffer = malloc(tileSize);
+    if (!tileBuffer) {
+        TIFFClose(tiff);
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Prepare parameters for the TIFFReadTile function
+    uint32_t x = 0;
+    uint32_t y = 0;
+    uint32_t z = 0;
+    uint16_t sample = 0;
 
     // Call the function-under-test
-    TIFFReadRawStrip(tiff, strip, buf, bufsize);
+    TIFFReadTile(tiff, tileBuffer, x, y, z, sample);
 
     // Clean up
-    free(buf);
+    free(tileBuffer);
     TIFFClose(tiff);
-    remove(tmpl);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_173(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,8 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
-// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
-// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
-// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFGetWriteProc at tif_open.c:922:19 in tiffio.h
+// TIFFGetUnmapFileProc at tif_open.c:947:19 in tiffio.h
+// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
+// TIFFGetReadProc at tif_open.c:917:19 in tiffio.h
+// TIFFGetSeekProc at tif_open.c:927:14 in tiffio.h
+// TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -12,45 +16,90 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_117(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t)) return 0;
+    if (Size < 1) return 0;
 
-    // Prepare a uint32_t input for LogLuv functions and TIFFSwabLong
-    uint32_t logluvInput;
-    memcpy(&logluvInput, Data, sizeof(uint32_t));
+    // Write the input data to a dummy file
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return 0;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    // Prepare a float array for XYZ color space
-    float xyz[3] = {0.0f, 0.0f, 0.0f};
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    if (!tif) return 0;
 
-    // Fuzzing LogLuv24toXYZ
-    LogLuv24toXYZ(logluvInput, xyz);
+    // Fuzzing target API functions
 
-    // Fuzzing LogLuv32toXYZ
-    LogLuv32toXYZ(logluvInput, xyz);
+    // 1. TIFFGetWriteProc
+    TIFFReadWriteProc writeProc = TIFFGetWriteProc(tif);
 
-    // Fuzzing LogLuv32fromXYZ
-    uint32_t logluv32Result = LogLuv32fromXYZ(xyz, 3);
+    // 2. TIFFGetUnmapFileProc
+    TIFFUnmapFileProc unmapProc = TIFFGetUnmapFileProc(tif);
 
-    // Fuzzing TIFFSwabLong
-    TIFFSwabLong(&logluvInput);
+    // 3. TIFFReadDirectory
+    int readDirResult = TIFFReadDirectory(tif);
 
-    // Prepare a float array for TIFFSwabArrayOfFloat
-    float floatArray[4] = {0.0f, 0.0f, 0.0f, 0.0f};
-    if (Size >= sizeof(floatArray)) {
-        memcpy(floatArray, Data, sizeof(floatArray));
+    // 4. TIFFGetReadProc
+    TIFFReadWriteProc readProc = TIFFGetReadProc(tif);
+
+    // 5. TIFFGetSeekProc
+    TIFFSeekProc seekProc = TIFFGetSeekProc(tif);
+
+    // 6. TIFFSetSubDirectory
+    if (Size >= sizeof(uint64_t)) {
+        uint64_t offset;
+        memcpy(&offset, Data, sizeof(uint64_t));
+        int setSubDirResult = TIFFSetSubDirectory(tif, offset);
     }
 
-    // Fuzzing TIFFSwabArrayOfFloat
-    TIFFSwabArrayOfFloat(floatArray, 4);
-
-    // Fuzzing LogLuv24fromXYZ
-    uint32_t logluv24Result = LogLuv24fromXYZ(xyz, 3);
-
+    // Clean up
+    TIFFClose(tif);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_117(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

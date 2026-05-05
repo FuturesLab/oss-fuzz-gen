@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -8,98 +10,106 @@
 #include "cstdint"
 #include <cstddef>
 #include "tiffio.h"
-#include "cstdint"
-#include <cstdio>
-#include "cstdlib"
-#include "cstring"
 
 extern "C" int LLVMFuzzerTestOneInput_49(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Create a dummy TIFF file
-    FILE *dummyFile = fopen("./dummy_file", "wb");
-    if (!dummyFile) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, dummyFile);
-    fclose(dummyFile);
-
-    // Open the TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    // Prepare a dummy TIFF structure
+    TIFF *tif = TIFFOpen("./dummy_file", "w");
     if (!tif) {
         return 0;
     }
 
-    // Variables for function calls
-    uint32_t strile = 0;
-    tmsize_t insize = static_cast<tmsize_t>(Size);
-    tmsize_t outsize = static_cast<tmsize_t>(Size);
-    void *inbuf = malloc(insize);
-    void *outbuf = malloc(outsize);
-    if (!inbuf || !outbuf) {
-        TIFFClose(tif);
-        free(inbuf);
-        free(outbuf);
-        return 0;
-    }
-    memcpy(inbuf, Data, insize);
-
-    int pbErr = 0;
-    
-    // TIFFReadFromUserBuffer
-    TIFFReadFromUserBuffer(tif, strile, inbuf, insize, outbuf, outsize);
-
-    // TIFFClose
-    TIFFClose(tif);
-    tif = nullptr;
-
-    // Reopen the TIFF file
-    tif = TIFFOpen("./dummy_file", "r");
-    if (!tif) {
-        free(inbuf);
-        free(outbuf);
-        return 0;
+    // Write dummy data to the file to simulate a TIFF image
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 
-    // TIFFReadEncodedStrip
+    // Use the data to create a field name
+    char fieldName[256];
+    size_t fieldNameLength = (Size < 255) ? Size : 255;
+    memcpy(fieldName, Data, fieldNameLength);
+    fieldName[fieldNameLength] = '\0';
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFReadEncodedStrip with TIFFWriteRawTile
-    TIFFWriteRawTile(tif, strile, outbuf, outsize);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // TIFFClose
-    TIFFClose(tif);
-    tif = nullptr;
-
-    // Reopen the TIFF file
-    tif = TIFFOpen("./dummy_file", "r");
-    if (!tif) {
-        free(inbuf);
-        free(outbuf);
-        return 0;
+    // Use the data to create a tag
+    uint32_t tag = 0;
+    if (Size >= 4) {
+        tag = *(reinterpret_cast<const uint32_t *>(Data));
     }
 
-    // TIFFGetStrileOffsetWithErr
+    // Call TIFFFieldWithName
+    const TIFFField *fieldWithName = TIFFFieldWithName(tif, fieldName);
+    if (fieldWithName) {
+        // Call TIFFFieldDataType
+        TIFFDataType dataType = TIFFFieldDataType(fieldWithName);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of TIFFGetStrileOffsetWithErr
-    TIFFGetStrileOffsetWithErr(tif, TIFF_VARIABLE, &pbErr);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        // Call TIFFFieldTag
+        uint32_t fieldTag = TIFFFieldTag(fieldWithName);
+    }
 
+    // Call TIFFFieldWithTag
+    const TIFFField *fieldWithTag = TIFFFieldWithTag(tif, tag);
+    if (fieldWithTag) {
+        // Call TIFFFieldDataType
+        TIFFDataType dataType = TIFFFieldDataType(fieldWithTag);
 
+        // Call TIFFFieldTag
+        uint32_t fieldTag = TIFFFieldTag(fieldWithTag);
+    }
 
-    // TIFFGetStrileByteCountWithErr
-    TIFFGetStrileByteCountWithErr(tif, strile, &pbErr);
+    // Prepare a variable to hold the result for TIFFGetField
+    uint16_t compression = 0;
 
-    // TIFFClose
-    TIFFClose(tif);
+    // Call TIFFGetField
+    int status = TIFFGetField(tif, tag, &compression);
+
+    // Call TIFFFindField
+    const TIFFField *foundField = TIFFFindField(tif, tag, TIFF_NOTYPE);
 
     // Cleanup
-    free(inbuf);
-    free(outbuf);
+    TIFFClose(tif);
+    remove("./dummy_file");
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_49(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

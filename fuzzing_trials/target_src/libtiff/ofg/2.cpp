@@ -1,55 +1,35 @@
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <unistd.h>
-#include <tiffio.h>
-#include <cstdarg>
-
-extern "C" {
-    // The correct function signature from tiffio.h
-    int TIFFVGetFieldDefaulted(TIFF *tif, uint32_t tag, va_list ap);
-}
+#include <unistd.h> // Include for close and write
 
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    if (size < sizeof(uint32_t)) {
-        return 0; // Not enough data to extract a uint32_t tag
-    }
-
-    // Create a temporary file to store the input data
+    // Create a temporary file to write the input data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        return 0; // Failed to create a temporary file
+        return 0;
     }
 
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
         close(fd);
-        return 0; // Failed to open a file stream
+        return 0;
     }
+    close(fd);
 
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the TIFF file
+    // Open the TIFF file using the temporary file path
     TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (!tiff) {
+    if (tiff == nullptr) {
+        // Clean up the temporary file
         remove(tmpl);
-        return 0; // Failed to open TIFF
+        return 0;
     }
 
-    // Extract a uint32_t tag from the data
-    uint32_t tag;
-    memcpy(&tag, data, sizeof(uint32_t));
-
-    // Initialize a va_list
-    va_list ap;
-    int value = 0; // Example value to pass to the va_list
-
-    // Instead of using va_start and va_end, directly call the function
-    // Note: This assumes the tag expects an integer as a parameter
-    TIFFVGetFieldDefaulted(tiff, tag, ap);
+    // Call the function-under-test
+    uint32_t numStrips = TIFFNumberOfStrips(tiff);
 
     // Clean up
     TIFFClose(tiff);
@@ -57,3 +37,42 @@ extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -10,72 +12,148 @@
 #include "tiffio.h"
 #include "cstdint"
 #include <cstdio>
+#include "cstdlib"
 #include "cstring"
 
-static void customWarningHandler(const char* module, const char* fmt, va_list ap) {
-    // Custom warning handler logic (could be logging, etc.)
-    vfprintf(stderr, fmt, ap);
+static TIFF* initializeTIFF(const char* filename, const char* mode) {
+    TIFF* tif = TIFFOpen(filename, mode);
+    if (!tif) {
+        fprintf(stderr, "Could not open TIFF file: %s\n", filename);
+    }
+    return tif;
 }
 
-static void customErrorHandler(const char* module, const char* fmt, va_list ap) {
-    // Custom error handler logic (could be logging, etc.)
-    vfprintf(stderr, fmt, ap);
+static void cleanupTIFF(TIFF* tif) {
+    if (tif) {
+        TIFFClose(tif);
+    }
 }
 
-extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
+extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t* Data, size_t Size) {
     if (Size < 1) {
         return 0;
-    } // Not enough data
+    }
 
-    // Setup dummy file
-    const char* dummyFileName = "./dummy_file";
-    FILE* file = fopen(dummyFileName, "wb");
+    // Write Data to a dummy file for TIFF operations
+    FILE* file = fopen("./dummy_file", "wb");
     if (!file) {
         return 0;
     }
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    // Open TIFF file
-    TIFF* tif = TIFFOpen(dummyFileName, "r+");
+    // Initialize TIFF for reading and writing
+    TIFF* tif = initializeTIFF("./dummy_file", "r+");
     if (!tif) {
         return 0;
     }
 
-    // Set custom warning and error handlers
+    // Fuzz TIFFDeferStrileArrayWriting
+    int deferResult = TIFFDeferStrileArrayWriting(tif);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFOpen to TIFFGetFieldDefaulted
+    // Fuzz TIFFSetMode
+    int newMode = Data[0] % 3; // Example mode, assuming 3 possible modes
+    int oldMode = TIFFSetMode(tif, newMode);
 
-    int ret_TIFFGetFieldDefaulted_kbvcc = TIFFGetFieldDefaulted(tif, UVSCALE);
-    if (ret_TIFFGetFieldDefaulted_kbvcc < 0){
+    // Fuzz TIFFIsUpSampled
+    int isUpSampled = TIFFIsUpSampled(tif);
+
+    // Fuzz TIFFFlushData
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFIsUpSampled to TIFFWriteTile
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tif) {
     	return 0;
     }
-
+    int ret_TIFFFileno_yfyca = TIFFFileno(tif);
+    if (ret_TIFFFileno_yfyca < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tif) {
+    	return 0;
+    }
+    uint64_t ret_TIFFTileRowSize64_ykrtw = TIFFTileRowSize64(tif);
+    if (ret_TIFFTileRowSize64_ykrtw < 0){
+    	return 0;
+    }
+    double ret_LogL16toY_lzhrt = LogL16toY(FIELD_CUSTOM);
+    if (ret_LogL16toY_lzhrt < 0){
+    	return 0;
+    }
+    double ret_LogL16toY_gfldp = LogL16toY(FIELD_CUSTOM);
+    if (ret_LogL16toY_gfldp < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tif) {
+    	return 0;
+    }
+    uint64_t ret_TIFFCurrentDirOffset_xnree = TIFFCurrentDirOffset(tif);
+    if (ret_TIFFCurrentDirOffset_xnree < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tif) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tif) {
+    	return 0;
+    }
+    tmsize_t ret_TIFFWriteTile_prsmq = TIFFWriteTile(tif, (void *)tif, (uint32_t )ret_TIFFTileRowSize64_ykrtw, (uint32_t )ret_LogL16toY_lzhrt, (uint32_t )ret_LogL16toY_gfldp, (uint16_t )ret_TIFFCurrentDirOffset_xnree);
     // End mutation: Producer.APPEND_MUTATOR
+    
+    int flushResult = TIFFFlushData(tif);
 
-    TIFFErrorHandler prevWarningHandler = TIFFSetWarningHandler(customWarningHandler);
-    TIFFErrorHandler prevErrorHandler = TIFFSetErrorHandler(customErrorHandler);
+    // Fuzz TIFFGetMode
+    int currentMode = TIFFGetMode(tif);
 
-    // Attempt to flush data
-    TIFFFlushData(tif);
-
-    // Attempt to checkpoint directory
-    TIFFCheckpointDirectory(tif);
-
-    // Attempt to write directory
-    TIFFWriteDirectory(tif);
-
-    // Attempt to set directory
-    tdir_t dirNum = Data[0] % 256; // Use first byte as directory number
-    TIFFSetDirectory(tif, dirNum);
-
-    // Restore previous handlers
-    TIFFSetWarningHandler(prevWarningHandler);
-    TIFFSetErrorHandler(prevErrorHandler);
+    // Fuzz TIFFWriteDirectory
+    int writeDirResult = TIFFWriteDirectory(tif);
 
     // Cleanup
-    TIFFClose(tif);
-    remove(dummyFileName);
+    cleanupTIFF(tif);
 
+    // Return 0 indicating no crash
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

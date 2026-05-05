@@ -1,81 +1,131 @@
-#include "cstdint"
-#include "cstdlib"
-#include <cstdio>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <string.h>
+#include "tiffio.h"
+#include <cstddef>
+#include "cstdint"
+#include <cstdio>
+#include "cstdlib"
+#include <unistd.h>  // Include for close()
 
 extern "C" {
-    #include "tiffio.h"
+
+tsize_t dummyReadProc(thandle_t, tdata_t, tsize_t);
+tsize_t dummyWriteProc(thandle_t, tdata_t, tsize_t);
+toff_t dummySeekProc_33(thandle_t, toff_t, int);
+int dummyCloseProc_33(thandle_t);
+toff_t dummySizeProc_33(thandle_t);
+int dummyMapProc(thandle_t, tdata_t*, toff_t*);
+void dummyUnmapProc(thandle_t, tdata_t, toff_t);
+
+tsize_t dummyReadProc(thandle_t, tdata_t, tsize_t) {
+    return 0;
 }
 
-extern "C" int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate a TIFF file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
+tsize_t dummyWriteProc(thandle_t, tdata_t, tsize_t) {
+    return 0;
+}
+
+toff_t dummySeekProc_33(thandle_t, toff_t, int) {
+    return 0;
+}
+
+int dummyCloseProc_33(thandle_t) {
+    return 0;
+}
+
+toff_t dummySizeProc_33(thandle_t) {
+    return 0;
+}
+
+int dummyMapProc(thandle_t, tdata_t*, toff_t*) {
+    return 0;
+}
+
+void dummyUnmapProc(thandle_t, tdata_t, toff_t) {
+}
+
+int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
+    if (size < 2) {
+        return 0;
+    }
+
+    char filename[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(filename);
     if (fd == -1) {
         return 0;
     }
 
-    // Write the fuzzing data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
         close(fd);
         return 0;
     }
 
-    // Close the file descriptor as TIFFOpen will open it again
-    close(fd);
+    fwrite(data, 1, size, file);
+    fclose(file);
 
-    // Open the temporary file as a TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r+");
-    if (tiff == nullptr) {
-        return 0;
+    TIFFOpenOptions *options = TIFFOpenOptionsAlloc();
+    TIFF *tiff = TIFFClientOpenExt(
+        filename, 
+        "r", 
+        (thandle_t)nullptr, 
+        dummyReadProc, 
+        dummyWriteProc, 
+        dummySeekProc_33, 
+        dummyCloseProc_33, 
+        dummySizeProc_33, 
+        dummyMapProc, 
+        dummyUnmapProc, 
+        options
+    );
+
+    if (tiff) {
+        TIFFClose(tiff);
     }
 
-    // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFCreateGPSDirectory with TIFFReadDirectory
-    TIFFReadDirectory(tiff);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Close the TIFF file
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFReadDirectory to TIFFReadEncodedStrip
-    uint32_t sqxqpodk = size;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of TIFFSwabLong
-    uint32_t cxhultku = 1;
-    TIFFSwabLong(&cxhultku);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFReadEncodedStrip with TIFFReadRawTile
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFReadRawTile with TIFFWriteRawTile
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of TIFFWriteRawTile
-    tmsize_t ret_TIFFReadEncodedStrip_glmjt = TIFFWriteRawTile(tiff, 64, (void *)tiff, 0);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    TIFFClose(tiff);
-
-    // Remove the temporary file
-    remove(tmpl);
+    TIFFOpenOptionsFree(options);
+    remove(filename);
 
     return 0;
 }
+
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

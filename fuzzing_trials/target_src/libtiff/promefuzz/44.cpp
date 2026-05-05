@@ -1,12 +1,10 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFSetErrorHandlerExt at tif_error.c:39:21 in tiffio.h
-// TIFFSetWarningHandlerExt at tif_warning.c:39:21 in tiffio.h
-// TIFFErrorExt at tif_error.c:63:6 in tiffio.h
-// TIFFWarning at tif_warning.c:46:6 in tiffio.h
-// TIFFWarningExtR at tif_warning.c:80:6 in tiffio.h
-// TIFFError at tif_error.c:46:6 in tiffio.h
-// TIFFErrorExtR at tif_error.c:107:6 in tiffio.h
-// TIFFWarningExt at tif_warning.c:63:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFDeferStrileArrayWriting at tif_dirwrite.c:268:5 in tiffio.h
+// TIFFFlushData at tif_flush.c:146:5 in tiffio.h
+// LogL10toY at tif_luv.c:883:5 in tiffio.h
+// LogL16toY at tif_luv.c:801:5 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,66 +14,94 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdarg>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include "tiffio.h"
+#include <tiffio.h>
+#include <cmath>
 
-// Dummy error handler that matches the required signature
-static void DummyErrorHandler(void* user_data, const char* module, const char* fmt, va_list ap) {
-    vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\n");
+static TIFF* createDummyTIFF() {
+    TIFF* tiff = TIFFOpen("./dummy_file", "w");
+    return tiff;
 }
 
-// Dummy warning handler that matches the required signature
-static void DummyWarningHandler(void* user_data, const char* module, const char* fmt, va_list ap) {
-    vfprintf(stdout, fmt, ap);
-    fprintf(stdout, "\n");
+static void cleanupTIFF(TIFF* tiff) {
+    if (tiff) {
+        TIFFClose(tiff);
+    }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_44(const uint8_t *Data, size_t Size) {
-    // Prepare a dummy TIFF object pointer
-    TIFF* dummyTIFF = nullptr;
+    if (Size < sizeof(double) + sizeof(int)) {
+        return 0; // Not enough data to process
+    }
 
-    // Prepare a dummy file for the thandle_t
-    FILE* dummyFile = fopen("./dummy_file", "wb+");
-    if (!dummyFile) {
+    // Create a dummy TIFF file
+    TIFF* tiff = createDummyTIFF();
+    if (!tiff) {
         return 0;
     }
 
-    // Write the data to the dummy file
-    fwrite(Data, 1, Size, dummyFile);
-    fseek(dummyFile, 0, SEEK_SET);
+    // Fuzz TIFFDeferStrileArrayWriting
+    int result1 = TIFFDeferStrileArrayWriting(tiff);
 
-    // Cast FILE* to thandle_t
-    thandle_t dummyHandle = static_cast<thandle_t>(dummyFile);
+    // Fuzz LogL10fromY
+    double Y = *reinterpret_cast<const double*>(Data);
+    int intParam = *reinterpret_cast<const int*>(Data + sizeof(double));
+    int result2 = LogL10fromY(Y, intParam);
 
-    // Set the error and warning handlers
-    TIFFSetErrorHandlerExt(DummyErrorHandler);
-    TIFFSetWarningHandlerExt(DummyWarningHandler);
+    // Fuzz LogL16fromY
+    int result3 = LogL16fromY(Y, intParam);
 
-    // Fuzz TIFFErrorExt
-    TIFFErrorExt(dummyHandle, "FuzzModule", "Error occurred: %s", "dummy error");
+    // Fuzz TIFFFlushData
+    int result4 = TIFFFlushData(tiff);
 
-    // Fuzz TIFFWarning
-    TIFFWarning("FuzzModule", "Warning occurred: %d", 42);
+    // Fuzz LogL10toY
+    int logValue = *reinterpret_cast<const int*>(Data);
+    double result5 = LogL10toY(logValue);
 
-    // Fuzz TIFFWarningExtR
-    TIFFWarningExtR(dummyTIFF, "FuzzModule", "Extended warning: %f", 3.14);
+    // Fuzz LogL16toY
+    double result6 = LogL16toY(logValue);
 
-    // Fuzz TIFFError
-    TIFFError("FuzzModule", "Error message: %s", "another error");
-
-    // Fuzz TIFFErrorExtR
-    TIFFErrorExtR(dummyTIFF, "FuzzModule", "Extended error: %s", "yet another error");
-
-    // Fuzz TIFFWarningExt
-    TIFFWarningExt(dummyHandle, "FuzzModule", "Extended warning: %s", "a warning");
-
-    // Cleanup
-    fclose(dummyFile);
+    // Clean up
+    cleanupTIFF(tiff);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_44(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,39 +1,76 @@
+#include <tiffio.h>
 #include <cstdint>
-#include <cstddef>
 #include <cstdio>
-#include <cstring>
+#include <cstdlib>
+#include <unistd.h>  // Include for the 'close' function
 
-// Assuming the TIFFWarning function is defined in a C library
 extern "C" {
-    void TIFFWarning(const char *, const char *, const char *);
+    int LLVMFuzzerTestOneInput_218(const uint8_t *data, size_t size) {
+        // Create a temporary file to write the fuzz data
+        char tmpl[] = "/tmp/fuzzfileXXXXXX";
+        int fd = mkstemp(tmpl);
+        if (fd == -1) {
+            return 0;
+        }
+        
+        // Write the fuzz data to the temporary file
+        FILE *file = fdopen(fd, "wb");
+        if (!file) {
+            close(fd);
+            return 0;
+        }
+        fwrite(data, 1, size, file);
+        fclose(file);
+
+        // Open the TIFF file using the temporary file path
+        TIFF *tiff = TIFFOpen(tmpl, "r");
+        if (tiff) {
+            // Call the function under test
+            TIFFCleanup(tiff);
+        }
+
+        // Remove the temporary file
+        remove(tmpl);
+
+        return 0;
+    }
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-extern "C" int LLVMFuzzerTestOneInput_218(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient for two strings and a dummy void pointer
-    if (size < 3) return 0;
+    if(argc < 2)
+        exit(0);
 
-    // Split the data into two strings and a dummy pointer
-    size_t str1_len = size / 3;
-    size_t str2_len = size / 3;
-    size_t void_ptr_offset = 2 * (size / 3);
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
 
-    // Create null-terminated strings
-    char *str1 = new char[str1_len + 1];
-    char *str2 = new char[str2_len + 1];
-    std::memcpy(str1, data, str1_len);
-    std::memcpy(str2, data + str1_len, str2_len);
-    str1[str1_len] = '\0';
-    str2[str2_len] = '\0';
+    fseek(f, 0, SEEK_END);
 
-    // Dummy void pointer as a string
-    const char *dummy_ptr = reinterpret_cast<const char *>(data + void_ptr_offset);
+    size = ftell(f);
+    rewind(f);
 
-    // Call the function-under-test
-    TIFFWarning(str1, str2, dummy_ptr);
+    if(size < 1 + 1)
+        exit(0);
 
-    // Clean up
-    delete[] str1;
-    delete[] str2;
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
 
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_218(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

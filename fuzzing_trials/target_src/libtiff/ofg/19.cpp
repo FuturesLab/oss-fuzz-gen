@@ -1,48 +1,90 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <unistd.h>  // Include for 'close' and 'unlink'
 
 extern "C" {
     #include <tiffio.h>
-    #include <tiff.h>  // Include this header to get the definition of TIFFField
-
-    // Declare the TIFFFieldSetGetSize function
-    int TIFFFieldSetGetSize(const TIFFField *);
-
-    // Include the _TIFFField definition to resolve the incomplete type issue
-    struct _TIFFField {
-        uint32_t field_tag;
-        int16_t field_readcount;
-        int16_t field_writecount;
-        TIFFDataType field_type;
-        uint32_t field_bit;
-        uint32_t field_oktochange;
-        uint32_t field_passcount;
-        const char *field_name;
-        const struct _TIFFFieldArray *field_subfields;
-    };
 }
 
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    // Check if the size is sufficient to initialize the TIFFField structure
-    if (size < sizeof(TIFFField)) {
-        return 0; // Not enough data to proceed
+    // Create a temporary file to store the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (!tiff) {
+        unlink(tmpl);
+        return 0;
     }
 
-    // Initialize a TIFFField structure
-    TIFFField tiffField;
-    tiffField.field_tag = data[0]; // Example initialization using input data
-    tiffField.field_readcount = data[1]; // Example initialization using input data
-    tiffField.field_writecount = data[2]; // Example initialization using input data
-    tiffField.field_type = TIFF_SHORT; // Example initialization
-    tiffField.field_bit = data[3]; // Example initialization using input data
-    tiffField.field_oktochange = data[4] % 2; // Example initialization using input data
-    tiffField.field_passcount = data[5] % 2; // Example initialization using input data
-    tiffField.field_name = "example"; // Example initialization
-    tiffField.field_subfields = nullptr; // Example initialization
+    // Prepare parameters for TIFFReadRGBAStrip
+    uint32_t strip = 0;
+    uint32_t *raster = (uint32_t *)malloc(TIFFStripSize(tiff) * sizeof(uint32_t));
+    if (!raster) {
+        TIFFClose(tiff);
+        unlink(tmpl);
+        return 0;
+    }
 
-    // Call the function under test
-    int result = TIFFFieldSetGetSize(&tiffField);
+    // Call the function-under-test
+    TIFFReadRGBAStrip(tiff, strip, raster);
 
-    // Return 0 to indicate the fuzzer should continue
+    // Clean up
+    free(raster);
+    TIFFClose(tiff);
+    unlink(tmpl);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_19(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

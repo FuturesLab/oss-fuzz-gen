@@ -1,55 +1,70 @@
-#include <tiffio.h>
 #include <cstdint>
+#include <cstddef>
 #include <cstdio>
-#include <cstdlib>
-#include <unistd.h> // Include for close function
+#include <cstring>
 
 extern "C" {
-    #include <tiffio.h>
+    // Assume this is the function signature from the TIFF library
+    void TIFFError(const char *module, const char *fmt, void *ap);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_242(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Define and initialize the parameters for TIFFError
+    const char *module = "TestModule";
+    const char *fmt = "Error: %s";
+
+    // Ensure the size is sufficient to extract a string
+    if (size < 1) {
         return 0;
     }
 
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
+    // Create a buffer to hold the error message
+    char errorMessage[256];
+    size_t copySize = size < sizeof(errorMessage) ? size : sizeof(errorMessage) - 1;
+    memcpy(errorMessage, data, copySize);
+    errorMessage[copySize] = '\0'; // Null-terminate the string
 
-    // Write the fuzz data to the temporary file
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (!tiff) {
-        remove(tmpl);
-        return 0;
-    }
-
-    // Prepare parameters for TIFFReadRGBAImageOriented
-    uint32_t width = 1;
-    uint32_t height = 1;
-    uint32_t *raster = (uint32_t *)malloc(width * height * sizeof(uint32_t));
-    int orientation = ORIENTATION_TOPLEFT;
-    int stopOnError = 1;
-
-    if (raster) {
-        // Call the function-under-test
-        TIFFReadRGBAImageOriented(tiff, width, height, raster, orientation, stopOnError);
-
-        // Clean up
-        free(raster);
-    }
-
-    TIFFClose(tiff);
-    remove(tmpl);
+    // Call the TIFFError function
+    TIFFError(module, fmt, errorMessage);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_242(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

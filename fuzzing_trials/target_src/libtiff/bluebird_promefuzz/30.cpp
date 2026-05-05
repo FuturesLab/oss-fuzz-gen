@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -7,77 +9,104 @@
 #include <cstdio>
 #include "cstdint"
 #include <cstddef>
-#include <iostream>
-#include <fstream>
 #include "cstdint"
+#include <cstdio>
+#include "cstdlib"
 #include "cstring"
 #include "tiffio.h"
 
 extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(double)) {
+    if (Size < sizeof(float) * 3 + sizeof(uint32_t)) {
         return 0;
     }
 
-    // Prepare a double for TIFFSwabDouble
-    double singleDouble;
-    memcpy(&singleDouble, Data, sizeof(double));
-    TIFFSwabDouble(&singleDouble);
+    // Create a copy of the input data to avoid modifying the const input
+    std::vector<uint8_t> dataCopy(Data, Data + Size);
 
-    // Prepare an array of doubles for TIFFSwabArrayOfDouble
-    if (Size >= 2 * sizeof(double)) {
-        size_t numDoubles = Size / sizeof(double);
-        double *doubleArray = new double[numDoubles];
-        memcpy(doubleArray, Data, numDoubles * sizeof(double));
-        TIFFSwabArrayOfDouble(doubleArray, static_cast<tmsize_t>(numDoubles));
-        delete[] doubleArray;
+    // Prepare data for XYZtoRGB24
+    float xyz[3];
+    memcpy(xyz, dataCopy.data(), sizeof(float) * 3);
+    uint8_t rgb[3] = {0};
+
+    // Fuzz XYZtoRGB24
+    XYZtoRGB24(xyz, rgb);
+
+    // Prepare data for TIFFSwabFloat
+    float swabFloat;
+    memcpy(&swabFloat, dataCopy.data(), sizeof(float));
+
+    // Fuzz TIFFSwabFloat
+    TIFFSwabFloat(&swabFloat);
+
+    // Prepare data for LogLuv24toXYZ
+    uint32_t logLuv;
+    memcpy(&logLuv, dataCopy.data(), sizeof(uint32_t));
+    float logLuvXYZ[3] = {0};
+
+    // Fuzz LogLuv24toXYZ
+    LogLuv24toXYZ(logLuv, logLuvXYZ);
+
+    // Prepare data for TIFFSwabArrayOfFloat
+    tmsize_t n = (Size - sizeof(float) * 3) / sizeof(float);
+    float *swabArray = reinterpret_cast<float *>(dataCopy.data() + sizeof(float) * 3);
+
+    // Fuzz TIFFSwabArrayOfFloat
+    if (n > 0) {
+        TIFFSwabArrayOfFloat(swabArray, n);
     }
 
-    // Use uv_encode with two doubles and an int
-    if (Size >= 2 * sizeof(double) + sizeof(int)) {
-        double latitude, longitude;
-        int precision;
-        memcpy(&latitude, Data, sizeof(double));
-        memcpy(&longitude, Data + sizeof(double), sizeof(double));
-        memcpy(&precision, Data + 2 * sizeof(double), sizeof(int));
-        uv_encode(latitude, longitude, precision);
-    }
-    
-    // Use uv_decode with input and output arrays
-    if (Size >= 2 * sizeof(double) + sizeof(int)) {
-        int numDoubles = Size / sizeof(double);
-        double *inputArray = new double[numDoubles];
-        double *uArray = new double[numDoubles];
-        double *vArray = new double[numDoubles];
-        memcpy(inputArray, Data, numDoubles * sizeof(double));
-        uv_decode(inputArray, uArray, numDoubles);
-        delete[] inputArray;
-        delete[] uArray;
-        delete[] vArray;
-    }
+    // Prepare data for TIFFCIELabToXYZ and TIFFXYZToRGB
+    TIFFCIELabToRGB cielabToRGB;
+    uint32_t L = dataCopy[0];
+    int32_t a = dataCopy[1];
+    int32_t b = dataCopy[2];
+    float X, Y, Z;
+    uint32_t R, G, B;
 
-    // Prepare a dummy TIFF structure for TIFFIsByteSwapped and TIFFIsBigEndian
-    // Since we can't directly allocate a TIFF struct, we simulate with a dummy file
-    std::ofstream dummyFile("./dummy_file");
-    if (dummyFile.is_open()) {
-        dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-        dummyFile.close();
+    // Fuzz TIFFCIELabToXYZ
+    TIFFCIELabToXYZ(&cielabToRGB, L, a, b, &X, &Y, &Z);
 
-        TIFF* tiffStruct = TIFFOpen("./dummy_file", "r");
-        if (tiffStruct) {
-            TIFFIsByteSwapped(tiffStruct);
-            TIFFIsBigEndian(tiffStruct);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFOpen to TIFFRewriteDirectory
-
-        int ret_TIFFRewriteDirectory_ukcun = TIFFRewriteDirectory(tiffStruct);
-        if (ret_TIFFRewriteDirectory_ukcun < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-            TIFFClose(tiffStruct);
-        }    }
+    // Fuzz TIFFXYZToRGB
+    TIFFXYZToRGB(&cielabToRGB, X, Y, Z, &R, &G, &B);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_30(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

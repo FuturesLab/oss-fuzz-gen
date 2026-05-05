@@ -1,51 +1,80 @@
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <tiffio.h>
-#include <unistd.h> // Include for close and write functions
-
 extern "C" {
-    // Include necessary C headers, source files, functions, and code here.
     #include <tiffio.h>
+    #include <fcntl.h>
+    #include <unistd.h>
+    #include <stdlib.h>  // Include for mkstemp
 }
 
 extern "C" int LLVMFuzzerTestOneInput_155(const uint8_t *data, size_t size) {
-    if (size < 4) {
-        return 0; // Not enough data to proceed
-    }
-
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
+    // Create a temporary file
+    char filename[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(filename);
     if (fd == -1) {
-        return 0; // Failed to create temp file
+        return 0; // Return if file creation fails
     }
 
-    // Write the fuzz data to the file
-    if (write(fd, data, size) != (ssize_t)size) {
+    // Write data to the temporary file
+    if (write(fd, data, size) != size) {
         close(fd);
-        return 0; // Failed to write data
+        unlink(filename);
+        return 0; // Return if writing fails
     }
+
+    // Close the file descriptor
     close(fd);
 
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff == NULL) {
-        remove(tmpl);
-        return 0; // Failed to open TIFF file
+    // Open the file with TIFF library
+    TIFF *tif = TIFFOpen(filename, "r");
+    if (tif == nullptr) {
+        unlink(filename);
+        return 0; // Return if TIFF structure is not initialized
     }
 
-    // Prepare parameters for TIFFGetField
-    uint32_t tag = *(uint32_t *)data; // Use the first 4 bytes as the tag
-    void *value = malloc(1024); // Allocate memory for the value
-
     // Call the function-under-test
-    TIFFGetField(tiff, tag, value);
+    int result = TIFFCreateDirectory(tif);
 
     // Clean up
-    free(value);
-    TIFFClose(tiff);
-    remove(tmpl);
+    TIFFClose(tif);
+    unlink(filename);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_155(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

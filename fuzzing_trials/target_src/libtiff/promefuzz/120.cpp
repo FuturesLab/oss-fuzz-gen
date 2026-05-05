@@ -1,12 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFClientOpen at tif_open.c:289:7 in tiffio.h
+// TIFFSwabDouble at tif_swab.c:201:6 in tiffio.h
+// TIFFSwabArrayOfDouble at tif_swab.c:222:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFIsByteSwapped at tif_open.c:889:5 in tiffio.h
+// TIFFIsBigEndian at tif_open.c:904:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFFieldWithName at tif_dirinfo.c:941:18 in tiffio.h
-// TIFFFieldDataType at tif_dirinfo.c:956:14 in tiffio.h
-// TIFFFieldWithTag at tif_dirinfo.c:930:18 in tiffio.h
-// TIFFFindField at tif_dirinfo.c:878:18 in tiffio.h
-// TIFFFieldTag at tif_dirinfo.c:952:10 in tiffio.h
+// uv_decode at tif_luv.c:997:5 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,91 +15,102 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <tiffio.h>
 
-static TIFF* createDummyTIFF() {
-    FILE* file = std::fopen("./dummy_file", "wb+");
-    if (!file) return nullptr;
-
-    TIFF* tiff = TIFFClientOpen("dummy", "w+", file,
-                                [](thandle_t fd, void* buf, tmsize_t size) -> tmsize_t {
-                                    return std::fwrite(buf, 1, size, static_cast<FILE*>(fd));
-                                },
-                                [](thandle_t fd, void* buf, tmsize_t size) -> tmsize_t {
-                                    return std::fread(buf, 1, size, static_cast<FILE*>(fd));
-                                },
-                                [](thandle_t fd, toff_t off, int whence) -> toff_t {
-                                    return std::fseek(static_cast<FILE*>(fd), off, whence);
-                                },
-                                [](thandle_t fd) -> int {
-                                    return std::fclose(static_cast<FILE*>(fd));
-                                },
-                                [](thandle_t fd) -> toff_t {
-                                    std::fseek(static_cast<FILE*>(fd), 0, SEEK_END);
-                                    return std::ftell(static_cast<FILE*>(fd));
-                                },
-                                nullptr, // Map function not provided
-                                nullptr  // Unmap function not provided
-                                );
-
-    if (!tiff) {
-        std::fclose(file);
+extern "C" int LLVMFuzzerTestOneInput_120(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(double)) {
+        return 0; // Not enough data to form a double
     }
-    return tiff;
-}
 
-static void cleanupTIFF(TIFF* tiff) {
+    // Test TIFFSwabDouble
+    double dbl;
+    memcpy(&dbl, Data, sizeof(double));
+    TIFFSwabDouble(&dbl);
+
+    // Test TIFFSwabArrayOfDouble
+    if (Size >= 2 * sizeof(double)) {
+        double dblArray[2];
+        memcpy(dblArray, Data, 2 * sizeof(double));
+        TIFFSwabArrayOfDouble(dblArray, 2);
+    }
+
+    // Create a dummy TIFF structure
+    TIFF *tiff = TIFFOpen("./dummy_file", "w");
     if (tiff) {
+        // Test TIFFIsByteSwapped
+        int isByteSwapped = TIFFIsByteSwapped(tiff);
+
+        // Test TIFFIsBigEndian
+        int isBigEndian = TIFFIsBigEndian(tiff);
+
         TIFFClose(tiff);
     }
-}
 
-extern "C" int LLVMFuzzerTestOneInput_120(const uint8_t* Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    TIFF* tiff = createDummyTIFF();
-    if (!tiff) return 0;
-
-    uint32_t tag = Data[0];
-    const char* fieldName = reinterpret_cast<const char*>(Data + 1);
-    TIFFDataType dataType = static_cast<TIFFDataType>(Data[0]);
-
-    // Fuzz TIFFGetField
-    int status = TIFFGetField(tiff, tag);
-    if (status) {
-        // Handle retrieved data if needed
+    // Test uv_encode
+    if (Size >= 2 * sizeof(double) + sizeof(int)) {
+        double lat, lon;
+        int precision;
+        memcpy(&lat, Data, sizeof(double));
+        memcpy(&lon, Data + sizeof(double), sizeof(double));
+        memcpy(&precision, Data + 2 * sizeof(double), sizeof(int));
+        int encoded = uv_encode(lat, lon, precision);
     }
 
-    // Fuzz TIFFFieldWithName
-    const TIFFField* fieldByName = TIFFFieldWithName(tiff, fieldName);
-    if (fieldByName) {
-        // Use fieldByName if needed
+    // Test uv_decode
+    if (Size >= sizeof(double) * 2 + sizeof(int)) {
+        double u, v;
+        int count;
+        memcpy(&count, Data + sizeof(double) * 2, sizeof(int));
+        if (count > 0) {
+            std::vector<double> inputData(count);
+            memcpy(inputData.data(), Data, sizeof(double) * count);
+            uv_decode(inputData.data(), &u, count);
+        }
     }
 
-    // Fuzz TIFFFieldDataType
-    if (fieldByName) {
-        TIFFDataType fieldType = TIFFFieldDataType(fieldByName);
-        // Use fieldType if needed
-    }
-
-    // Fuzz TIFFFieldWithTag
-    const TIFFField* fieldByTag = TIFFFieldWithTag(tiff, tag);
-    if (fieldByTag) {
-        // Use fieldByTag if needed
-    }
-
-    // Fuzz TIFFFindField
-    const TIFFField* foundField = TIFFFindField(tiff, tag, dataType);
-    if (foundField) {
-        // Use foundField if needed
-    }
-
-    // Fuzz TIFFFieldTag
-    if (fieldByTag) {
-        uint32_t fieldTag = TIFFFieldTag(fieldByTag);
-        // Use fieldTag if needed
-    }
-
-    cleanupTIFF(tiff);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_120(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

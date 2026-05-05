@@ -1,65 +1,101 @@
+#include <sys/stat.h>
+#include <string.h>
+#include "tiffio.h"
 #include "cstdint"
 #include "cstdlib"
 #include <cstdio>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
+#include <unistd.h>  // Include this for the 'close' function
 
 extern "C" {
-    #include "tiffio.h"
+    int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
+        if (size == 0) {
+            return 0;
+        }
+
+        // Create a temporary file to write the input data
+        char tmpl[] = "/tmp/fuzzfileXXXXXX";
+        int fd = mkstemp(tmpl);
+        if (fd == -1) {
+            return 0;
+        }
+
+        FILE *file = fdopen(fd, "wb");
+        if (file == nullptr) {
+            close(fd);
+            return 0;
+        }
+
+        fwrite(data, 1, size, file);
+        fclose(file);
+
+        // Open the TIFF file
+        TIFF *tiff = TIFFOpen(tmpl, "r");
+        if (tiff != nullptr) {
+            // Call the function-under-test
+            int tiled = TIFFIsTiled(tiff);
+
+            // Close the TIFF file
+
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFIsTiled to TIFFUnsetField
+            double ret_LogL16toY_kjeri = LogL16toY(64);
+            if (ret_LogL16toY_kjeri < 0){
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!tiff) {
+            	return 0;
+            }
+            int ret_TIFFUnsetField_dhswn = TIFFUnsetField(tiff, (uint32_t )ret_LogL16toY_kjeri);
+            if (ret_TIFFUnsetField_dhswn < 0){
+            	return 0;
+            }
+            // End mutation: Producer.APPEND_MUTATOR
+            
+            TIFFClose(tiff);
+        }
+
+        // Clean up the temporary file
+        remove(tmpl);
+
+        return 0;
+    }
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-extern "C" int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate a TIFF file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
+    if(argc < 2)
+        exit(0);
 
-    // Write the fuzzing data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        return 0;
-    }
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
 
-    // Close the file descriptor as TIFFOpen will open it again
-    close(fd);
+    fseek(f, 0, SEEK_END);
 
-    // Open the temporary file as a TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r+");
-    if (tiff == nullptr) {
-        return 0;
-    }
+    size = ftell(f);
+    rewind(f);
 
-    // Call the function-under-test
+    if(size < 1 + 1)
+        exit(0);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFCreateGPSDirectory with TIFFReadDirectory
-    TIFFReadDirectory(tiff);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
 
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
 
+    LLVMFuzzerTestOneInput_45(data + 1, (size_t)(size - 1));
 
-    // Close the TIFF file
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFReadDirectory to TIFFReadEncodedStrip
-    uint32_t sqxqpodk = 64;
-    TIFFSwabLong(&sqxqpodk);
-    uint64_t ret_TIFFCurrentDirOffset_dclul = TIFFCurrentDirOffset(tiff);
-    if (ret_TIFFCurrentDirOffset_dclul < 0){
-    	return 0;
-    }
-    tmsize_t ret_TIFFTileRowSize_qeuce = TIFFTileRowSize(tiff);
-
-    tmsize_t ret_TIFFReadEncodedStrip_xslhe = TIFFReadEncodedStrip(tiff, sqxqpodk, (void *)tiff, ret_TIFFTileRowSize_qeuce);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    TIFFClose(tiff);
-
-    // Remove the temporary file
-    remove(tmpl);
-
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

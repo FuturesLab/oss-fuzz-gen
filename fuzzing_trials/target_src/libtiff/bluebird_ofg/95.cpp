@@ -1,80 +1,93 @@
-#include "tiffio.h"
+#include <sys/stat.h>
+#include <string.h>
 #include "cstdint"
-#include "cstdlib"
-#include <cstdio>
-#include <unistd.h> // Include for close function
-
-extern "C" {
-    #include "tiffio.h" // Ensure TIFF library functions are wrapped in extern "C"
-}
+#include "tiffio.h"
 
 extern "C" int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
-    if (size < 4) {
-        return 0; // Not enough data to proceed
-    }
-
-    // Create a temporary file to store the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // Could not create temporary file
-    }
-
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
+    // Ensure there is enough data to extract a uint32_t value
+    if (size < sizeof(uint32_t)) {
         return 0;
     }
 
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (!tiff) {
-        remove(tmpl);
+    // Create a TIFF structure
+    TIFF *tiff = TIFFOpen("/tmp/fuzzfileXXXXXX", "w");
+    if (tiff == nullptr) {
         return 0;
     }
 
-    // Initialize parameters for TIFFReadRGBAImage
-    uint32_t width = 1;
-    uint32_t height = 1;
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFOpen to TIFFWriteCheck
-
-    int ret_TIFFWriteCheck_rsjcf = TIFFWriteCheck(tiff, TIFF_VARIABLE2, NULL);
-    if (ret_TIFFWriteCheck_rsjcf < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    uint32_t *raster = (uint32_t *)malloc(width * height * sizeof(uint32_t));
-    if (!raster) {
-        TIFFClose(tiff);
-        remove(tmpl);
-        return 0;
-    }
-    int stopOnError = 1; // Non-zero to stop on error
+    // Extract a uint32_t value from the input data
+    uint32_t field_tag = *reinterpret_cast<const uint32_t*>(data);
 
     // Call the function-under-test
-    TIFFReadRGBAImage(tiff, width, height, raster, stopOnError);
+    TIFFUnsetField(tiff, field_tag);
 
-    // Clean up
+    // Close the TIFF structure
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFReadRGBAImage to TIFFRGBAImageOK
-    char kbeneayh[1024] = "ggdad";
-
-    int ret_TIFFRGBAImageOK_isuzm = TIFFRGBAImageOK(tiff, kbeneayh);
-    if (ret_TIFFRGBAImageOK_isuzm < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFUnsetField to _TIFFmemcmp
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tiff) {
     	return 0;
     }
-
+    TIFFReadWriteProc ret_TIFFGetReadProc_tnyvm = TIFFGetReadProc(tiff);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tiff) {
+    	return 0;
+    }
+    tmsize_t ret_TIFFTileRowSize_ozysw = TIFFTileRowSize(tiff);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tiff) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tiff) {
+    	return 0;
+    }
+    int ret__TIFFmemcmp_uvujm = _TIFFmemcmp((const void *)tiff, (const void *)tiff, ret_TIFFTileRowSize_ozysw);
+    if (ret__TIFFmemcmp_uvujm < 0){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
-
-    free(raster);
+    
     TIFFClose(tiff);
-    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_95(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

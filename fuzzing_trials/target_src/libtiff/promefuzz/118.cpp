@@ -1,10 +1,8 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFFlushData at tif_flush.c:146:5 in tiffio.h
-// TIFFForceStrileArrayWriting at tif_flush.c:76:5 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// LogL16toY at tif_luv.c:801:5 in tiffio.h
-// LogL10toY at tif_luv.c:883:5 in tiffio.h
+// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
+// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
+// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
+// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,58 +12,76 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <tiffio.h>
 #include <cstdint>
-#include <cstdio>
-#include <cmath>
 #include <cstdlib>
+#include <cstring>
+#include <iostream>
+#include "tiffio.h"
 
 extern "C" int LLVMFuzzerTestOneInput_118(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(double) + sizeof(int)) return 0;
+    if (Size < 4) return 0; // Ensure there's enough data for a uint32_t
 
-    // Prepare data for LogL10fromY
-    double Y = *reinterpret_cast<const double*>(Data);
-    int param = *reinterpret_cast<const int*>(Data + sizeof(double));
+    uint32_t logLuv32;
+    memcpy(&logLuv32, Data, sizeof(uint32_t));
 
-    // Fuzz LogL10fromY
-    if (Y > 0) {
-        int logL10Result = LogL10fromY(Y, param);
-        (void)logL10Result; // Suppress unused variable warning
-    }
+    float xyz[3] = {0.0f, 0.0f, 0.0f};
+    LogLuv32toXYZ(logLuv32, xyz);
 
-    // Prepare TIFF object for TIFFFlushData and TIFFForceStrileArrayWriting
-    TIFF *tif = TIFFOpen("./dummy_file", "w+");
-    if (tif) {
-        // Fuzz TIFFFlushData
-        int flushResult = TIFFFlushData(tif);
-        (void)flushResult; // Suppress unused variable warning
+    uint32_t swabLong = logLuv32;
+    TIFFSwabLong(&swabLong);
 
-        // Fuzz TIFFForceStrileArrayWriting
-        int forceStrileResult = TIFFForceStrileArrayWriting(tif);
-        (void)forceStrileResult; // Suppress unused variable warning
+    if (Size >= 8) {
+        uint32_t logLuv24;
+        memcpy(&logLuv24, Data + 4, sizeof(uint32_t));
 
-        TIFFClose(tif);
-    }
+        LogLuv24toXYZ(logLuv24, xyz);
 
-    // Prepare data for LogL16toY
-    if (Size >= sizeof(int)) {
-        int logL16 = *reinterpret_cast<const int*>(Data);
-        double logL16toYResult = LogL16toY(logL16);
-        (void)logL16toYResult; // Suppress unused variable warning
-    }
+        float floatArray[3] = {xyz[0], xyz[1], xyz[2]};
+        TIFFSwabArrayOfFloat(floatArray, 3);
 
-    // Prepare data for LogL16fromY
-    if (Size >= sizeof(double) + sizeof(int)) {
-        int logL16fromYResult = LogL16fromY(Y, param);
-        (void)logL16fromYResult; // Suppress unused variable warning
-    }
-
-    // Prepare data for LogL10toY
-    if (Size >= sizeof(int)) {
-        int logL10 = *reinterpret_cast<const int*>(Data);
-        double logL10toYResult = LogL10toY(logL10);
-        (void)logL10toYResult; // Suppress unused variable warning
+        uint32_t logLuv24FromXYZ = LogLuv24fromXYZ(floatArray, 3);
+        uint32_t logLuv32FromXYZ = LogLuv32fromXYZ(floatArray, 3);
     }
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_118(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,63 +1,64 @@
-#include <tiffio.h>
-#include <cstdint>
-#include <cstdlib>
-#include <cstdio>
-#include <unistd.h>
-
 extern "C" {
     #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
-    // Initialize TIFFRGBAImage structure
-    TIFFRGBAImage img;
-    char emsg[1024];
-
-    // Create a temporary TIFF file from input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) return 0;
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (!tiff) {
-        remove(tmpl);
-        return 0;
-    }
-
-    // Initialize the TIFFRGBAImage
-    if (!TIFFRGBAImageBegin(&img, tiff, 0, emsg)) {
-        TIFFClose(tiff);
-        remove(tmpl);
-        return 0;
-    }
-
-    // Allocate memory for raster
-    uint32_t width = img.width;
-    uint32_t height = img.height;
-    uint32_t *raster = (uint32_t *)_TIFFmalloc(width * height * sizeof(uint32_t));
-    if (!raster) {
-        TIFFRGBAImageEnd(&img);
-        TIFFClose(tiff);
-        remove(tmpl);
-        return 0;
-    }
-
     // Call the function-under-test
-    TIFFRGBAImageGet(&img, raster, width, height);
+    TIFFCodec *codecs = TIFFGetConfiguredCODECs();
 
-    // Clean up
-    _TIFFfree(raster);
-    TIFFRGBAImageEnd(&img);
-    TIFFClose(tiff);
-    remove(tmpl);
+    // Since TIFFCodec does not have a 'next' member, we need to handle the codecs differently.
+    // Assuming the codecs are stored in an array terminated by a codec with a NULL name.
+    if (codecs != NULL) {
+        for (TIFFCodec *codec = codecs; codec->name != NULL; codec++) {
+            // Example operations on the codec
+            if (codec->name != NULL) {
+                // Print codec name and scheme
+                printf("Codec Name: %s, Scheme: %d\n", codec->name, codec->scheme);
+            }
+        }
+
+        // Free the codec list if necessary
+        _TIFFfree(codecs);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_50(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

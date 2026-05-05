@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -7,94 +9,127 @@
 #include <cstdio>
 #include "cstdint"
 #include <cstddef>
+extern "C" {
 #include "tiffio.h"
+}
+
 #include "cstdint"
 #include <cstdio>
 #include "cstdlib"
 #include "cstring"
 
-extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+static TIFF* initializeTIFF(const char* filename, const char* mode) {
+    return TIFFOpen(filename, mode);
+}
 
-    // Create a dummy TIFF file
-    FILE *dummyFile = fopen("./dummy_file", "wb");
-    if (!dummyFile) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, dummyFile);
-    fclose(dummyFile);
-
-    // Open the TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
-    if (!tif) {
-        return 0;
-    }
-
-    // Variables for function calls
-    uint32_t strile = 0;
-    tmsize_t insize = static_cast<tmsize_t>(Size);
-    tmsize_t outsize = static_cast<tmsize_t>(Size);
-    void *inbuf = malloc(insize);
-    void *outbuf = malloc(outsize);
-    if (!inbuf || !outbuf) {
+static void cleanupTIFF(TIFF* tif) {
+    if (tif) {
         TIFFClose(tif);
-        free(inbuf);
-        free(outbuf);
-        return 0;
     }
-    memcpy(inbuf, Data, insize);
+}
 
-    int pbErr = 0;
-    
-    // TIFFReadFromUserBuffer
-    TIFFReadFromUserBuffer(tif, strile, inbuf, insize, outbuf, outsize);
+extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return 0;
 
-    // TIFFClose
-    TIFFClose(tif);
-    tif = nullptr;
+    // Prepare a dummy file
+    const char* dummyFilename = "./dummy_file";
+    FILE* file = fopen(dummyFilename, "wb");
+    if (!file) return 0;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    // Reopen the TIFF file
-    tif = TIFFOpen("./dummy_file", "r");
-    if (!tif) {
-        free(inbuf);
-        free(outbuf);
-        return 0;
-    }
+    // Initialize TIFF
+    TIFF* tif = initializeTIFF(dummyFilename, "r");
+    if (!tif) return 0;
 
-    // TIFFReadEncodedStrip
-    TIFFReadEncodedStrip(tif, strile, outbuf, outsize);
-
-    // TIFFClose
-    TIFFClose(tif);
-    tif = nullptr;
-
-    // Reopen the TIFF file
-    tif = TIFFOpen("./dummy_file", "r");
-    if (!tif) {
-        free(inbuf);
-        free(outbuf);
-        return 0;
+    // Buffer for TIFFReadEncodedStrip
+    uint32_t stripIndex = 0;
+    tmsize_t bufferSize = 1024; // Arbitrary buffer size
+    void* buffer = malloc(bufferSize);
+    if (buffer) {
+        TIFFReadEncodedStrip(tif, stripIndex, buffer, bufferSize);
+        free(buffer);
     }
 
-    // TIFFGetStrileOffsetWithErr
+    // _TIFFmemcpy usage
+    if (Size > 1) {
+        void* destBuffer = malloc(Size);
+        if (destBuffer) {
+            _TIFFmemcpy(destBuffer, Data, Size);
+            free(destBuffer);
+        }
+    }
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of TIFFGetStrileOffsetWithErr
-    TIFFGetStrileOffsetWithErr(tif, -1, &pbErr);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // TIFFWriteScanline
+    if (Size > 2) {
+        TIFF* tifWrite = initializeTIFF(dummyFilename, "w");
+        if (tifWrite) {
+            TIFFWriteScanline(tifWrite, const_cast<uint8_t*>(Data), 0, 0);
+            cleanupTIFF(tifWrite);
+        }
+    }
 
+    // TIFFGetBitRevTable
+    const unsigned char* bitRevTable = TIFFGetBitRevTable(1);
+    (void)bitRevTable; // Suppress unused variable warning
 
+    // TIFFReverseBits
+    if (Size > 3) {
+        uint8_t* cp = (uint8_t*)malloc(Size);
+        if (cp) {
+            memcpy(cp, Data, Size);
+            TIFFReverseBits(cp, Size);
+            free(cp);
+        }
+    }
 
-    // TIFFGetStrileByteCountWithErr
-    TIFFGetStrileByteCountWithErr(tif, strile, &pbErr);
-
-    // TIFFClose
-    TIFFClose(tif);
+    // TIFFReadGPSDirectory
+    if (Size > 4) {
+        toff_t diroff = 0;
+        TIFFReadGPSDirectory(tif, diroff);
+    }
 
     // Cleanup
-    free(inbuf);
-    free(outbuf);
+    cleanupTIFF(tif);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

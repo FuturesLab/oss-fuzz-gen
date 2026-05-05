@@ -1,13 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFSetWarningHandler at tif_warning.c:32:18 in tiffio.h
-// TIFFSetErrorHandler at tif_error.c:32:18 in tiffio.h
-// TIFFFlushData at tif_flush.c:146:5 in tiffio.h
-// TIFFCheckpointDirectory at tif_dirwrite.c:292:5 in tiffio.h
-// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
-// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
-// TIFFSetWarningHandler at tif_warning.c:32:18 in tiffio.h
-// TIFFSetErrorHandler at tif_error.c:32:18 in tiffio.h
+// TIFFSetFileno at tif_open.c:823:5 in tiffio.h
+// TIFFSetMode at tif_open.c:853:5 in tiffio.h
+// TIFFReadBufferSetup at tif_read.c:1385:5 in tiffio.h
+// TIFFFlush at tif_flush.c:30:5 in tiffio.h
+// TIFFFileno at tif_open.c:818:5 in tiffio.h
+// TIFFGetMode at tif_open.c:848:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -20,57 +18,96 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
-
-static void customWarningHandler(const char* module, const char* fmt, va_list ap) {
-    // Custom warning handler logic (could be logging, etc.)
-    vfprintf(stderr, fmt, ap);
-}
-
-static void customErrorHandler(const char* module, const char* fmt, va_list ap) {
-    // Custom error handler logic (could be logging, etc.)
-    vfprintf(stderr, fmt, ap);
-}
+#include <cerrno>
 
 extern "C" int LLVMFuzzerTestOneInput_114(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Not enough data
+    if (Size < sizeof(int) * 2) {
+        return 0; // Not enough data to proceed
+    }
 
-    // Setup dummy file
-    const char* dummyFileName = "./dummy_file";
-    FILE* file = fopen(dummyFileName, "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    // Create a dummy TIFF object
+    TIFF *tif = TIFFOpen("./dummy_file", "w+");
+    if (!tif) {
+        return 0; // Failed to open a TIFF file
+    }
 
-    // Open TIFF file
-    TIFF* tif = TIFFOpen(dummyFileName, "r+");
-    if (!tif) return 0;
+    // Prepare file descriptor and mode from input data
+    int new_fd = *(reinterpret_cast<const int*>(Data));
+    int new_mode = *(reinterpret_cast<const int*>(Data + sizeof(int)));
 
-    // Set custom warning and error handlers
-    TIFFErrorHandler prevWarningHandler = TIFFSetWarningHandler(customWarningHandler);
-    TIFFErrorHandler prevErrorHandler = TIFFSetErrorHandler(customErrorHandler);
+    // Use a buffer for TIFFReadBufferSetup
+    size_t buffer_size = Size - sizeof(int) * 2;
+    void *buffer = malloc(buffer_size);
+    if (buffer) {
+        memcpy(buffer, Data + sizeof(int) * 2, buffer_size);
+    }
 
-    // Attempt to flush data
-    TIFFFlushData(tif);
+    // Test TIFFSetFileno
+    int old_fd = TIFFSetFileno(tif, new_fd);
 
-    // Attempt to checkpoint directory
-    TIFFCheckpointDirectory(tif);
+    // Test TIFFSetMode
+    int old_mode = TIFFSetMode(tif, new_mode);
 
-    // Attempt to write directory
-    TIFFWriteDirectory(tif);
+    // Test TIFFReadBufferSetup
+    TIFFReadBufferSetup(tif, buffer, buffer_size);
 
-    // Attempt to set directory
-    tdir_t dirNum = Data[0] % 256; // Use first byte as directory number
-    TIFFSetDirectory(tif, dirNum);
+    // Test TIFFFlush
+    TIFFFlush(tif);
 
-    // Restore previous handlers
-    TIFFSetWarningHandler(prevWarningHandler);
-    TIFFSetErrorHandler(prevErrorHandler);
+    // Test TIFFFileno
+    int current_fd = TIFFFileno(tif);
 
-    // Cleanup
+    // Test TIFFGetMode
+    int current_mode = TIFFGetMode(tif);
+
+    // Clean up
+    if (buffer) {
+        free(buffer);
+    }
     TIFFClose(tif);
-    remove(dummyFileName);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_114(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

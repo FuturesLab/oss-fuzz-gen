@@ -1,11 +1,17 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFClientOpen at tif_open.c:289:7 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFFieldWithName at tif_dirinfo.c:941:18 in tiffio.h
-// TIFFFieldDataType at tif_dirinfo.c:956:14 in tiffio.h
-// TIFFFieldWithTag at tif_dirinfo.c:930:18 in tiffio.h
-// TIFFFindField at tif_dirinfo.c:878:18 in tiffio.h
-// TIFFFieldTag at tif_dirinfo.c:952:10 in tiffio.h
+// TIFFRGBAImageGet at tif_getimage.c:589:5 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFReadRGBAStripExt at tif_getimage.c:3393:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFReadRGBATile at tif_getimage.c:3462:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFReadRGBAStrip at tif_getimage.c:3387:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -17,82 +23,147 @@
 #include <cstdint>
 #include <cstddef>
 #include <tiffio.h>
-#include <cstdarg>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
-static tmsize_t readProc(thandle_t fd, void* buf, tmsize_t size) {
-    return fread(buf, 1, size, (FILE*)fd);
+static void fuzz_TIFFRGBAImageGet(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(TIFFRGBAImage) + sizeof(uint32_t) * 3) return;
+
+    TIFFRGBAImage img;
+    memcpy(&img, Data, sizeof(TIFFRGBAImage));
+    uint32_t *raster = (uint32_t *)(Data + sizeof(TIFFRGBAImage));
+    uint32_t width = *(uint32_t *)(Data + sizeof(TIFFRGBAImage) + sizeof(uint32_t));
+    uint32_t height = *(uint32_t *)(Data + sizeof(TIFFRGBAImage) + 2 * sizeof(uint32_t));
+
+    TIFFRGBAImageGet(&img, raster, width, height);
 }
 
-static tmsize_t writeProc(thandle_t fd, void* buf, tmsize_t size) {
-    return fwrite(buf, 1, size, (FILE*)fd);
+static void fuzz_TIFFReadRGBAStripExt(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(uint32_t) * 2 + sizeof(int)) return;
+
+    uint32_t row = *(uint32_t *)(Data);
+    uint32_t *raster = (uint32_t *)(Data + sizeof(uint32_t));
+    int stop_on_error = *(int *)(Data + sizeof(uint32_t) * 2);
+
+    TIFF *tiff = TIFFOpen("./dummy_file", "r");
+    if (tiff) {
+        TIFFReadRGBAStripExt(tiff, row, raster, stop_on_error);
+        TIFFClose(tiff);
+    }
 }
 
-static toff_t seekProc(thandle_t fd, toff_t off, int whence) {
-    return fseek((FILE*)fd, off, whence);
+static void fuzz_TIFFReadRGBATile(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(uint32_t) * 3) return;
+
+    uint32_t col = *(uint32_t *)(Data);
+    uint32_t row = *(uint32_t *)(Data + sizeof(uint32_t));
+    uint32_t *raster = (uint32_t *)(Data + 2 * sizeof(uint32_t));
+
+    TIFF *tiff = TIFFOpen("./dummy_file", "r");
+    if (tiff) {
+        TIFFReadRGBATile(tiff, col, row, raster);
+        TIFFClose(tiff);
+    }
 }
 
-static int closeProc(thandle_t fd) {
-    return fclose((FILE*)fd);
+static void fuzz_TIFFReadRGBAStrip(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(uint32_t) * 2) return;
+
+    uint32_t row = *(uint32_t *)(Data);
+    uint32_t *raster = (uint32_t *)(Data + sizeof(uint32_t));
+
+    TIFF *tiff = TIFFOpen("./dummy_file", "r");
+    if (tiff) {
+        TIFFReadRGBAStrip(tiff, row, raster);
+        TIFFClose(tiff);
+    }
 }
 
-static toff_t sizeProc(thandle_t fd) {
-    fseek((FILE*)fd, 0, SEEK_END);
-    return ftell((FILE*)fd);
+static void fuzz_TIFFReadRGBAImage(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(uint32_t) * 3 + sizeof(int)) return;
+
+    uint32_t width = *(uint32_t *)(Data);
+    uint32_t height = *(uint32_t *)(Data + sizeof(uint32_t));
+    uint32_t *raster = (uint32_t *)(Data + 2 * sizeof(uint32_t));
+    int stop_on_error = *(int *)(Data + 3 * sizeof(uint32_t));
+
+    TIFF *tiff = TIFFOpen("./dummy_file", "r");
+    if (tiff) {
+        TIFFReadRGBAImage(tiff, width, height, raster, stop_on_error);
+        TIFFClose(tiff);
+    }
 }
 
-static TIFF* initializeDummyTIFF() {
-    FILE* file = fopen("./dummy_file", "wb+");
-    if (!file) return nullptr;
+static void fuzz_TIFFReadRGBAImageOriented(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(uint32_t) * 3 + sizeof(int) * 2) return;
 
-    TIFF* tiff = TIFFClientOpen("dummy", "w", (thandle_t)file,
-                                readProc, writeProc,
-                                seekProc, closeProc, sizeProc,
-                                nullptr, nullptr);
+    uint32_t width = *(uint32_t *)(Data);
+    uint32_t height = *(uint32_t *)(Data + sizeof(uint32_t));
+    uint32_t *raster = (uint32_t *)(Data + 2 * sizeof(uint32_t));
+    int orientation = *(int *)(Data + 3 * sizeof(uint32_t));
+    int stop_on_error = *(int *)(Data + 3 * sizeof(uint32_t) + sizeof(int));
 
-    if (!tiff) {
+    TIFF *tiff = TIFFOpen("./dummy_file", "r");
+    if (tiff) {
+        TIFFReadRGBAImageOriented(tiff, width, height, raster, orientation, stop_on_error);
+        TIFFClose(tiff);
+    }
+}
+
+extern "C" int LLVMFuzzerTestOneInput_112(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
         fclose(file);
     }
-    return tiff;
-}
 
-extern "C" int LLVMFuzzerTestOneInput_112(const uint8_t* Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    TIFF* tiff = initializeDummyTIFF();
-    if (!tiff) return 0;
-
-    uint32_t tag = static_cast<uint32_t>(Data[0]);
-    TIFFDataType dataType = static_cast<TIFFDataType>(Data[0] % 7); // Random data type based on input
-
-    // Ensure the fieldName is null-terminated and within bounds
-    std::string fieldName(reinterpret_cast<const char*>(Data), Size);
-    fieldName.push_back('\0');
-
-    // Test TIFFGetField
-    int result = TIFFGetField(tiff, tag);
-    if (result) {
-        // Handle success case if needed
-    }
-
-    // Test TIFFFieldWithName
-    const TIFFField* fieldWithName = TIFFFieldWithName(tiff, fieldName.c_str());
-
-    // Test TIFFFieldDataType
-    if (fieldWithName) {
-        TIFFDataType fieldType = TIFFFieldDataType(fieldWithName);
-    }
-
-    // Test TIFFFieldWithTag
-    const TIFFField* fieldWithTag = TIFFFieldWithTag(tiff, tag);
-
-    // Test TIFFFindField
-    const TIFFField* foundField = TIFFFindField(tiff, tag, dataType);
-
-    // Test TIFFFieldTag
-    if (foundField) {
-        uint32_t fieldTag = TIFFFieldTag(foundField);
-    }
-
-    TIFFClose(tiff);
+    fuzz_TIFFRGBAImageGet(Data, Size);
+    fuzz_TIFFReadRGBAStripExt(Data, Size);
+    fuzz_TIFFReadRGBATile(Data, Size);
+    fuzz_TIFFReadRGBAStrip(Data, Size);
+    fuzz_TIFFReadRGBAImage(Data, Size);
+    fuzz_TIFFReadRGBAImageOriented(Data, Size);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_112(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

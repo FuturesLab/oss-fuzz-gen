@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -7,69 +9,134 @@
 #include <cstdio>
 #include "cstdint"
 #include <cstddef>
+#include "tiffio.h"
 #include "cstdint"
+#include <cstdio>
 #include "cstdlib"
 #include "cstring"
-#include <fstream>
-#include <iostream>
-#include "tiffio.h"
+
+static TIFF* createDummyTIFF(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) {
+        return nullptr;
+    }
+
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    TIFF *tif = TIFFOpen("./dummy_file", "r");
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFOpen to TIFFDefaultStripSize
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tif) {
+    	return 0;
+    }
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from TIFFOpen to TIFFReadDirectory using the plateau pool
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tif) {
+    	return 0;
+    }
+    int ret_TIFFReadDirectory_kgwwv = TIFFReadDirectory(tif);
+    if (ret_TIFFReadDirectory_kgwwv < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    uint64_t ret_TIFFTileRowSize64_qsfbn = TIFFTileRowSize64(tif);
+    if (ret_TIFFTileRowSize64_qsfbn < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tif) {
+    	return 0;
+    }
+    uint32_t ret_TIFFDefaultStripSize_oxixn = TIFFDefaultStripSize(tif, (uint32_t )ret_TIFFTileRowSize64_qsfbn);
+    if (ret_TIFFDefaultStripSize_oxixn < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    return tif;
+}
+
+static void cleanupTIFF(TIFF *tif) {
+    if (tif) {
+        TIFFClose(tif);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_20(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(double) && Size < sizeof(uint64_t) && Size < sizeof(uint32_t) && Size < sizeof(uint16_t)) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Prepare data for TIFFSwabArrayOfDouble
-    if (Size >= sizeof(double)) {
-        size_t numDoubles = Size / sizeof(double);
-        double *doubleArray = new double[numDoubles];
-        std::memcpy(doubleArray, Data, numDoubles * sizeof(double));
-        TIFFSwabArrayOfDouble(doubleArray, numDoubles);
-        delete[] doubleArray;
+    TIFF *tif = createDummyTIFF(Data, Size);
+    if (!tif) {
+        return 0;
     }
 
-    // Prepare data for TIFFSwabArrayOfLong8
-    if (Size >= sizeof(uint64_t)) {
-        size_t numLong8 = Size / sizeof(uint64_t);
-        uint64_t *long8Array = new uint64_t[numLong8];
-        std::memcpy(long8Array, Data, numLong8 * sizeof(uint64_t));
-        TIFFSwabArrayOfLong8(long8Array, numLong8);
-        delete[] long8Array;
-    }
+    // Fuzz TIFFRasterScanlineSize64
+    uint64_t rasterScanlineSize = TIFFRasterScanlineSize64(tif);
 
-    // Prepare data for TIFFSwabArrayOfTriples
-    if (Size >= 3) {
-        size_t numTriples = Size / 3;
-        uint8_t *triplesArray = new uint8_t[numTriples * 3];
-        std::memcpy(triplesArray, Data, numTriples * 3);
-        TIFFSwabArrayOfTriples(triplesArray, numTriples);
-        delete[] triplesArray;
-    }
+    // Fuzz TIFFGetStrileByteCount
+    uint32_t strileIndex = Data[0] % 10; // Simple modulo to get a valid index
+    uint64_t strileByteCount = TIFFGetStrileByteCount(tif, strileIndex);
 
-    // Prepare data for TIFFSwabArrayOfLong
-    if (Size >= sizeof(uint32_t)) {
-        size_t numLongs = Size / sizeof(uint32_t);
-        uint32_t *longArray = new uint32_t[numLongs];
-        std::memcpy(longArray, Data, numLongs * sizeof(uint32_t));
-        TIFFSwabArrayOfLong(longArray, numLongs);
-        delete[] longArray;
-    }
+    // Fuzz TIFFStripSize64
+    uint64_t stripSize = TIFFStripSize64(tif);
 
-    // Prepare data for TIFFSwabArrayOfShort
-    if (Size >= sizeof(uint16_t)) {
-        size_t numShorts = Size / sizeof(uint16_t);
-        uint16_t *shortArray = new uint16_t[numShorts];
-        std::memcpy(shortArray, Data, numShorts * sizeof(uint16_t));
-        TIFFSwabArrayOfShort(shortArray, numShorts);
-        delete[] shortArray;
-    }
+    // Fuzz TIFFTileSize64
+    uint64_t tileSize = TIFFTileSize64(tif);
 
-    // Prepare data for TIFFSwabLong8
-    if (Size >= sizeof(uint64_t)) {
-        uint64_t long8;
-        std::memcpy(&long8, Data, sizeof(uint64_t));
-        TIFFSwabLong8(&long8);
-    }
+    // Fuzz TIFFVStripSize64
+    uint32_t nrows = (Size > 1) ? Data[1] : 1;
+    uint64_t vStripSize = TIFFVStripSize64(tif, nrows);
+
+    // Fuzz TIFFScanlineSize64
+    uint64_t scanlineSize = TIFFScanlineSize64(tif);
+
+    // Cleanup
+    cleanupTIFF(tif);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_20(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

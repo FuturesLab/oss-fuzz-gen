@@ -1,23 +1,91 @@
-extern "C" {
-    #include <tiffio.h>
-    #include <tiff.h> // Include this to access the definition of TIFFField
-    #include "/src/libtiff/libtiff/tif_dir.h" // Correct path for tif_dir.h
-}
+#include <tiffio.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>  // Include this header for 'write' and 'close' functions
 
 extern "C" int LLVMFuzzerTestOneInput_96(const uint8_t *data, size_t size) {
-    // Ensure the size is large enough to create a TIFFField object
-    if (size < sizeof(TIFFField)) {
+    // Create a temporary file to store the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Create a TIFFField object from the input data
-    const TIFFField *field = reinterpret_cast<const TIFFField*>(data);
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0;
+    }
+
+    // Close the file descriptor so TIFFOpen can open it
+    close(fd);
+
+    // Open the temporary file as a TIFF
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (tiff == NULL) {
+        remove(tmpl);
+        return 0;
+    }
+
+    // Prepare parameters for TIFFReadRawStrip
+    uint32_t strip = 0; // Assuming the first strip for simplicity
+    tmsize_t bufsize = 1024; // Arbitrary buffer size
+    void *buf = malloc(bufsize);
+    if (buf == NULL) {
+        TIFFClose(tiff);
+        remove(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    TIFFDataType dataType = TIFFFieldDataType(field);
+    TIFFReadRawStrip(tiff, strip, buf, bufsize);
 
-    // Use the result in some way to prevent optimizations
-    (void)dataType;
+    // Clean up
+    free(buf);
+    TIFFClose(tiff);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_96(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

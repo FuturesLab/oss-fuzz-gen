@@ -1,28 +1,17 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
-#include "sstream"
-#include <string>
-#include <vector>
-#include "cstring"
-#include "cstdlib"
-#include <cstdio>
 #include "cstdint"
 #include <cstddef>
 #include "tiffio.h"
-#include <cstdarg>
-#include <fcntl.h>
-#include <unistd.h>
-
-static void customWarningHandler(const char* module, const char* fmt, va_list ap) {
-    // Custom warning handler logic (could be logging or ignoring)
-}
-
-static void customErrorHandler(const char* module, const char* fmt, va_list ap) {
-    // Custom error handler logic (could be logging or ignoring)
-}
 
 extern "C" int LLVMFuzzerTestOneInput_53(const uint8_t *Data, size_t Size) {
-    // Create a dummy file
-    FILE *file = fopen("./dummy_file", "wb+");
+    if (Size < 4) {
+        return 0;
+    } // Ensure there's enough data for a minimal operation
+
+    // Create a temporary file to simulate a TIFF file
+    FILE *file = fopen("./dummy_file", "wb");
     if (!file) {
         return 0;
     }
@@ -30,35 +19,126 @@ extern "C" int LLVMFuzzerTestOneInput_53(const uint8_t *Data, size_t Size) {
     fclose(file);
 
     // Open the TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "r+");
-    if (!tif) {
+    TIFF *tiff = TIFFOpen("./dummy_file", "r");
+    if (!tiff) {
         return 0;
     }
 
-    // Set custom warning and error handlers
-    TIFFErrorHandler prevWarningHandler = TIFFSetWarningHandler(customWarningHandler);
-    TIFFErrorHandler prevErrorHandler = TIFFSetErrorHandler(customErrorHandler);
+    // Step 1: Check if the TIFF image is tiled
+    int tiled = TIFFIsTiled(tiff);
 
-    // Invoke target functions
-    TIFFFlushData(tif);
+    // Step 2: Allocate memory using _TIFFmalloc
+    tmsize_t allocSize1 = 1024; // Arbitrary allocation size
+    void *memory1 = _TIFFmalloc(allocSize1);
+    if (!memory1) {
+        TIFFClose(tiff);
+        return 0; // Memory allocation failed
+    }
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFCheckpointDirectory with TIFFFlushData
+    tmsize_t allocSize2 = 2048; // Another arbitrary allocation size
+    void *memory2 = _TIFFmalloc(allocSize2);
+    if (!memory2) {
+        _TIFFfree(memory1);
+        TIFFClose(tiff);
+        return 0; // Memory allocation failed
+    }
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFFlushData with TIFFIsBigTIFF
-    TIFFIsBigTIFF(tif);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Step 3: Initialize a TIFFRGBAImage structure
+    TIFFRGBAImage img;
+    char emsg[1024];
+    if (!TIFFRGBAImageBegin(&img, tiff, 0, emsg)) {
+        _TIFFfree(memory1);
+        _TIFFfree(memory2);
+        TIFFClose(tiff);
+        return 0; // Initialization failed
+    }
 
+    // Step 4: Retrieve RGBA pixel data into a raster buffer
+    uint32_t width = 100; // Arbitrary width
+    uint32_t height = 100; // Arbitrary height
+    uint32_t *raster = static_cast<uint32_t *>(_TIFFmalloc(width * height * sizeof(uint32_t)));
+    if (!raster) {
+        TIFFRGBAImageEnd(&img);
+        _TIFFfree(memory1);
+        _TIFFfree(memory2);
+        TIFFClose(tiff);
+        return 0; // Memory allocation failed
+    }
 
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    if (!TIFFRGBAImageGet(&img, raster, width, height)) {
+        _TIFFfree(raster);
+        TIFFRGBAImageEnd(&img);
+        _TIFFfree(memory1);
+        _TIFFfree(memory2);
+        TIFFClose(tiff);
+        return 0; // Failed to get image data
+    }
 
+    // Step 5: Clean up
 
-    TIFFWriteDirectory(tif);
-    TIFFSetDirectory(tif, 0);
-
-    // Cleanup
-    TIFFClose(tif);
-    TIFFSetWarningHandler(prevWarningHandler);
-    TIFFSetErrorHandler(prevErrorHandler);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFRGBAImageGet to TIFFUnsetField
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tiff) {
+    	return 0;
+    }
+    int ret_TIFFFileno_yojnj = TIFFFileno(tiff);
+    if (ret_TIFFFileno_yojnj < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tiff) {
+    	return 0;
+    }
+    int ret_TIFFUnsetField_kjssh = TIFFUnsetField(tiff, *raster);
+    if (ret_TIFFUnsetField_kjssh < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    TIFFRGBAImageEnd(&img);
+    _TIFFfree(raster);
+    _TIFFfree(memory1);
+    _TIFFfree(memory2);
+    TIFFClose(tiff);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_53(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

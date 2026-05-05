@@ -16,50 +16,97 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+extern "C" {
 #include <tiffio.h>
+}
+
 #include <cstdint>
-#include <cstddef>
 #include <cstdio>
-#include <cstring>
+
+static void writeDummyFile(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size == 0) {
         return 0;
     }
 
-    TIFF *tif = nullptr;
-    TIFFOpenOptions *opts = TIFFOpenOptionsAlloc();
-    
-    if (opts) {
-        // Set a random max cumulative memory allocation limit
-        tmsize_t max_mem_alloc = static_cast<tmsize_t>(Data[0]);
-        TIFFOpenOptionsSetMaxCumulatedMemAlloc(opts, max_mem_alloc);
+    // Write dummy data to a file
+    writeDummyFile(Data, Size);
 
-        // Write data to a dummy file
-        FILE *file = fopen("./dummy_file", "wb");
-        if (file) {
-            fwrite(Data, 1, Size, file);
-            fclose(file);
-
-            // Attempt to open the TIFF file with the options
-            tif = TIFFOpenExt("./dummy_file", "r", opts);
-        }
-
-        TIFFOpenOptionsFree(opts);
+    // Allocate TIFFOpenOptions
+    TIFFOpenOptions *options = TIFFOpenOptionsAlloc();
+    if (!options) {
+        return 0;
     }
 
-    if (tif) {
-        // Set some fields using TIFFSetField
-        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 256);
-        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 256);
+    // Set max cumulative memory allocation
+    TIFFOpenOptionsSetMaxCumulatedMemAlloc(options, static_cast<tmsize_t>(Data[0]));
 
-        // Write the directory
-        TIFFWriteDirectory(tif);
+    // Open TIFF file with options
+    TIFF *tif = TIFFOpenExt("./dummy_file", "r", options);
+    TIFFOpenOptionsFree(options);
 
-        // Close the TIFF file
-        TIFFClose(tif);
-        tif = nullptr;
+    if (!tif) {
+        return 0;
     }
+
+    // First TIFFSetField
+    TIFFSetField(tif, static_cast<uint32_t>(Data[0]), Data[0]);
+
+    // Second TIFFSetField
+    TIFFSetField(tif, static_cast<uint32_t>(Data[0]), Data[0]);
+
+    // Write directory
+    TIFFWriteDirectory(tif);
+
+    // Close TIFF
+    TIFFClose(tif);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

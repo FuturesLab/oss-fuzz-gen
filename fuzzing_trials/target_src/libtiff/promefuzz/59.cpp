@@ -1,10 +1,8 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFFieldIsAnonymous at tif_dirinfo.c:964:5 in tiffio.h
-// TIFFFieldPassCount at tif_dirinfo.c:958:5 in tiffio.h
-// TIFFFieldSetGetCountSize at tif_dirinfo.c:812:5 in tiffio.h
-// TIFFFieldReadCount at tif_dirinfo.c:960:5 in tiffio.h
-// TIFFFieldWriteCount at tif_dirinfo.c:962:5 in tiffio.h
-// TIFFFieldSetGetSize at tif_dirinfo.c:728:5 in tiffio.h
+// XYZtoRGB24 at tif_luv.c:865:5 in tiffio.h
+// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
+// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
+// TIFFCIELabToXYZ at tif_color.c:43:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,55 +13,91 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
-#include "tiffio.h"
-
-// Define a mock structure for TIFFField since the actual structure is incomplete
-struct MockTIFFField {
-    uint32_t field_tag;
-    short field_readcount;
-    TIFFDataType field_type;
-    int set_get_field_type; // Use int as a placeholder for TIFFSetGetFieldType
-    unsigned short field_bit;
-    unsigned char field_oktochange;
-    const char *field_name;
-    TIFFFieldArray *field_subfields;
-};
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_59(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(MockTIFFField)) {
-        return 0; // Not enough data to form a valid MockTIFFField
+    if (Size < sizeof(float) * 3 + sizeof(uint32_t)) {
+        return 0; // Not enough data
     }
 
-    // Allocate memory for a MockTIFFField structure
-    MockTIFFField field;
-    std::memcpy(&field, Data, sizeof(MockTIFFField));
+    // Prepare XYZ data and RGB output buffer for XYZtoRGB24
+    float xyzData[3];
+    uint8_t rgbData[3];
+    memcpy(xyzData, Data, sizeof(float) * 3);
+    XYZtoRGB24(xyzData, rgbData);
 
-    // Fuzz TIFFFieldIsAnonymous
-    int isAnonymous = TIFFFieldIsAnonymous(reinterpret_cast<const TIFFField*>(&field));
-    std::cout << "TIFFFieldIsAnonymous: " << isAnonymous << std::endl;
+    // Prepare LogLuv data for LogLuv24toXYZ
+    uint32_t logLuvData;
+    memcpy(&logLuvData, Data + sizeof(float) * 3, sizeof(uint32_t));
+    float xyzOutput[3];
+    LogLuv24toXYZ(logLuvData, xyzOutput);
 
-    // Fuzz TIFFFieldPassCount
-    int passCount = TIFFFieldPassCount(reinterpret_cast<const TIFFField*>(&field));
-    std::cout << "TIFFFieldPassCount: " << passCount << std::endl;
+    // Prepare float array for TIFFSwabArrayOfFloat
+    tmsize_t numFloats = (Size - sizeof(float) * 3 - sizeof(uint32_t)) / sizeof(float);
+    if (numFloats > 0) {
+        // Allocate a new buffer to avoid overwriting const input
+        float *floatArray = new float[numFloats];
+        memcpy(floatArray, Data + sizeof(float) * 3 + sizeof(uint32_t), numFloats * sizeof(float));
+        TIFFSwabArrayOfFloat(floatArray, numFloats);
+        delete[] floatArray;
+    }
 
-    // Fuzz TIFFFieldSetGetCountSize
-    int countSize = TIFFFieldSetGetCountSize(reinterpret_cast<const TIFFField*>(&field));
-    std::cout << "TIFFFieldSetGetCountSize: " << countSize << std::endl;
+    // Prepare for TIFFCIELabToXYZ
+    TIFFCIELabToRGB cielab;
+    uint32_t L = static_cast<uint32_t>(Data[0]);
+    int32_t a = static_cast<int32_t>(Data[1]);
+    int32_t b = static_cast<int32_t>(Data[2]);
+    float X, Y, Z;
+    TIFFCIELabToXYZ(&cielab, L, a, b, &X, &Y, &Z);
 
-    // Fuzz TIFFFieldReadCount
-    int readCount = TIFFFieldReadCount(reinterpret_cast<const TIFFField*>(&field));
-    std::cout << "TIFFFieldReadCount: " << readCount << std::endl;
+    // Prepare for LogLuv24fromXYZ
+    uint32_t logLuv24 = LogLuv24fromXYZ(xyzData, 1);
 
-    // Fuzz TIFFFieldWriteCount
-    int writeCount = TIFFFieldWriteCount(reinterpret_cast<const TIFFField*>(&field));
-    std::cout << "TIFFFieldWriteCount: " << writeCount << std::endl;
-
-    // Fuzz TIFFFieldSetGetSize
-    int getSize = TIFFFieldSetGetSize(reinterpret_cast<const TIFFField*>(&field));
-    std::cout << "TIFFFieldSetGetSize: " << getSize << std::endl;
+    // Prepare for LogLuv32fromXYZ
+    uint32_t logLuv32 = LogLuv32fromXYZ(xyzData, 1);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_59(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

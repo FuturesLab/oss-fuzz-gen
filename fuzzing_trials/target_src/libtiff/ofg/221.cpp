@@ -1,45 +1,72 @@
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+
 extern "C" {
-#include <tiffio.h>
-#include <unistd.h>  // Include for 'unlink' and 'close'
+    #include <tiffio.h>
 }
 
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-
 extern "C" int LLVMFuzzerTestOneInput_221(const uint8_t *data, size_t size) {
-    // Ensure data is large enough to create a valid string
-    if (size < 1) {
+    // Ensure size is sufficient for creating non-NULL strings
+    if (size < 3) {
         return 0;
     }
 
-    // Create a temporary TIFF file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
+    // Initialize parameters for TIFFErrorExt
+    thandle_t handle = (thandle_t)1; // Non-NULL handle, using 1 as an example
+    const char *module = "testModule";
+    const char *fmt = "testFormat";
 
-    // Open the temporary file as a TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "w");
-    if (!tiff) {
-        close(fd);
-        return 0;
+    // Allocate memory for the void pointer and ensure it's non-NULL
+    void *clientData = malloc(1);
+    if (clientData == NULL) {
+        return 0; // Exit if memory allocation fails
     }
-
-    // Set up a non-NULL string for the third parameter
-    char description[256];
-    size_t desc_len = (size < 255) ? size : 255;
-    memcpy(description, data, desc_len);
-    description[desc_len] = '\0';
 
     // Call the function-under-test
-    int result = TIFFWriteCheck(tiff, 1, description);
+    TIFFErrorExt(handle, module, fmt, clientData);
 
-    // Cleanup
-    TIFFClose(tiff);
-    close(fd);
-    unlink(tmpl);
+    // Free the allocated memory
+    free(clientData);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_221(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

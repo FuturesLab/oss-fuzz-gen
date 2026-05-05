@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -8,82 +10,96 @@
 #include "cstdint"
 #include <cstddef>
 #include "tiffio.h"
-#include <cstdarg>
+#include "cstdint"
+#include <cstdio>
+#include "cstdlib"
+#include "cstring"
 
-static tmsize_t readProc(thandle_t fd, void* buf, tmsize_t size) {
-    return fread(buf, 1, size, (FILE*)fd);
-}
-
-static tmsize_t writeProc(thandle_t fd, void* buf, tmsize_t size) {
-    return fwrite(buf, 1, size, (FILE*)fd);
-}
-
-static toff_t seekProc(thandle_t fd, toff_t off, int whence) {
-    return fseek((FILE*)fd, off, whence);
-}
-
-static int closeProc(thandle_t fd) {
-    return fclose((FILE*)fd);
-}
-
-static toff_t sizeProc(thandle_t fd) {
-    fseek((FILE*)fd, 0, SEEK_END);
-    return ftell((FILE*)fd);
-}
-
-static TIFF* initializeDummyTIFF() {
-    FILE* file = fopen("./dummy_file", "wb+");
-    if (!file) return nullptr;
-
-    TIFF* tiff = TIFFClientOpen("dummy", "w", (thandle_t)file,
-                                readProc, writeProc,
-                                seekProc, closeProc, sizeProc,
-                                nullptr, nullptr);
-
-    if (!tiff) {
-        fclose(file);
-    }
-    return tiff;
-}
-
-extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t* Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    TIFF* tiff = initializeDummyTIFF();
-    if (!tiff) return 0;
-
-    uint32_t tag = static_cast<uint32_t>(Data[0]);
-    TIFFDataType dataType = static_cast<TIFFDataType>(Data[0] % 7); // Random data type based on input
-
-    // Ensure the fieldName is null-terminated and within bounds
-    std::string fieldName(reinterpret_cast<const char*>(Data), Size);
-    fieldName.push_back('\0');
-
-    // Test TIFFGetField
-    int result = TIFFGetField(tiff, tag);
-    if (result) {
-        // Handle success case if needed
+extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t *Data, size_t Size) {
+    if (Size < 1) {
+        return 0;
     }
 
-    // Test TIFFFieldWithName
-    const TIFFField* fieldWithName = TIFFFieldWithName(tiff, fieldName.c_str());
+    // Create a dummy file to be used by libtiff
+    const char *filename = "./dummy_file";
+    FILE *file = fopen(filename, "wb");
+    if (!file) {
+        return 0;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    // Test TIFFFieldDataType
-    if (fieldWithName) {
-        TIFFDataType fieldType = TIFFFieldDataType(fieldWithName);
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen(filename, "r+");
+    if (!tif) {
+        remove(filename);
+        return 0;
     }
 
-    // Test TIFFFieldWithTag
-    const TIFFField* fieldWithTag = TIFFFieldWithTag(tiff, tag);
+    // Fuzz TIFFForceStrileArrayWriting
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFForceStrileArrayWriting with TIFFReadDirectory
+    TIFFReadDirectory(tif);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
-    // Test TIFFFindField
-    const TIFFField* foundField = TIFFFindField(tiff, tag, dataType);
+    // Fuzz TIFFIsMSB2LSB
+    TIFFIsMSB2LSB(tif);
 
-    // Test TIFFFieldTag
-    if (foundField) {
-        uint32_t fieldTag = TIFFFieldTag(foundField);
-    }
+    // Fuzz TIFFSetupStrips
+    TIFFSetupStrips(tif);
 
-    TIFFClose(tiff);
+    // Fuzz TIFFFileno
+    TIFFFileno(tif);
+
+    // Fuzz TIFFGetMode
+    TIFFGetMode(tif);
+
+    // Fuzz TIFFIsTiled
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFIsTiled with TIFFWriteDirectory
+    TIFFWriteDirectory(tif);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+    // Clean up
+    TIFFClose(tif);
+    remove(filename);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_43(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,37 +1,78 @@
+#include <sys/stat.h>
+#include <string.h>
+#include <cstddef>
 #include "cstdint"
 #include <cstdio>
+#include "cstring"
 
 extern "C" {
-    #include "tiffio.h"
+    // Declare the function-under-test
+    void TIFFError(const char *module, const char *fmt, void *data);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create a TIFF structure.
-    if (size < sizeof(uint32_t)) {
+    // Ensure size is sufficient to create non-null strings
+    if (size < 3) {
         return 0;
     }
 
-    // Create a TIFF structure.
-    TIFF *tiff = TIFFClientOpen("MemTIFF", "r", (thandle_t)data,
-                                [](thandle_t, void* buf, tmsize_t size) -> tmsize_t { return size; }, // Read function
-                                [](thandle_t, void*, tmsize_t) -> tmsize_t { return 0; }, // Write function
-                                [](thandle_t, uint64_t, int) -> uint64_t { return 0; }, // Seek function
-                                [](thandle_t) -> int { return 0; },               // Close function
-                                [](thandle_t) -> toff_t { return 0; },               // Size function
-                                nullptr, nullptr);
+    // Find a safe point to split data into module and fmt strings
+    size_t moduleLength = data[0] % (size - 2) + 1; // Ensure at least one byte for module
+    size_t fmtLength = size - moduleLength - 1; // Ensure at least one byte for fmt
 
-    if (!tiff) {
-        return 0;
-    }
+    // Define and initialize the parameters for TIFFError
+    char module[moduleLength + 1];
+    char fmt[fmtLength + 1];
 
-    // Use the first 4 bytes of data as the uint32_t parameter for TIFFVStripSize64
-    uint32_t stripIndex = *reinterpret_cast<const uint32_t*>(data);
+    std::memcpy(module, data + 1, moduleLength);
+    module[moduleLength] = '\0'; // Null-terminate the string
+
+    std::memcpy(fmt, data + 1 + moduleLength, fmtLength);
+    fmt[fmtLength] = '\0'; // Null-terminate the string
+
+    void *dummyData = reinterpret_cast<void*>(1);  // Non-null dummy data
 
     // Call the function-under-test
-    uint64_t stripSize = TIFFVStripSize64(tiff, stripIndex);
-
-    // Clean up
-    TIFFClose(tiff);
+    TIFFError(module, fmt, dummyData);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_43(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

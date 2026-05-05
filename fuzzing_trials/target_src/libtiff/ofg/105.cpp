@@ -1,29 +1,79 @@
-#include <cstdint>
-#include <cstddef>
-#include <tiffio.h>
+extern "C" {
+    #include <tiffio.h>
+    #include <stdint.h>
+    #include <stdlib.h>
+    #include <string.h>
+    #include <unistd.h> // Include for close, unlink, and write
+}
 
 extern "C" int LLVMFuzzerTestOneInput_105(const uint8_t *data, size_t size) {
-    // Ensure that the size is a multiple of the size of uint64_t
-    if (size % sizeof(uint64_t) != 0) {
+    TIFF *tiff;
+    uint32_t tileIndex = 0;
+    tmsize_t bufferSize = 1024; // Arbitrary buffer size
+    void *buffer = malloc(bufferSize);
+
+    // Create a temporary file to store the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        free(buffer);
         return 0;
     }
+    write(fd, data, size);
+    close(fd);
 
-    // Calculate the number of uint64_t elements
-    tmsize_t num_elements = static_cast<tmsize_t>(size / sizeof(uint64_t));
+    // Open the TIFF file
+    tiff = TIFFOpen(tmpl, "r");
+    if (tiff != NULL) {
+        // Call the function-under-test
+        TIFFReadEncodedTile(tiff, tileIndex, buffer, bufferSize);
 
-    // Allocate memory for the array of uint64_t
-    uint64_t *longArray = new uint64_t[num_elements];
-
-    // Copy the input data into the longArray
-    for (tmsize_t i = 0; i < num_elements; ++i) {
-        longArray[i] = reinterpret_cast<const uint64_t*>(data)[i];
+        // Close the TIFF file
+        TIFFClose(tiff);
     }
 
-    // Call the function-under-test
-    TIFFSwabArrayOfLong8(longArray, num_elements);
-
     // Clean up
-    delete[] longArray;
+    free(buffer);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_105(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

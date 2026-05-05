@@ -1,53 +1,72 @@
+#include <cstdint>
+#include <cstdlib>
+#include <cstdarg>
+
+// Include necessary TIFF headers and wrap them in extern "C"
 extern "C" {
     #include <tiffio.h>
-    #include <stdint.h>
-    #include <stddef.h>
-    #include <stdio.h>
-    #include <stdlib.h>
-    #include <unistd.h>  // For close() and unlink()
+
+    // Define a sample error handler function that matches the TIFFErrorHandlerExtR signature
+    int sampleErrorHandler(struct tiff *tif, void *clientData, const char* module, const char* fmt, va_list ap) {
+        // Simple error handler that does nothing
+        return 0;
+    }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_171(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to create a uint32_t
-    if (size < sizeof(uint32_t)) {
-        return 0;
+    // Initialize the TIFFOpenOptions structure
+    TIFFOpenOptions *options = TIFFOpenOptionsAlloc();
+    if (options == nullptr) {
+        return 0; // Exit if allocation fails
     }
 
-    // Create a temporary file to simulate a TIFF file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX.tiff";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
-
-    // Write the data to the temporary file
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (!tiff) {
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Read a uint32_t value from the data
-    uint32_t strip = 0;
-    if (size >= sizeof(uint32_t)) {
-        strip = *((uint32_t *)(data + size - sizeof(uint32_t)));
-    }
+    // Use the first byte of data as a pointer to pass to the error handler
+    void *clientData = (void *)(uintptr_t)(data[0]);
 
     // Call the function-under-test
-    tmsize_t result = TIFFVStripSize(tiff, strip);
+    TIFFOpenOptionsSetErrorHandlerExtR(options, sampleErrorHandler, clientData);
 
     // Clean up
-    TIFFClose(tiff);
-    unlink(tmpl);
+    TIFFOpenOptionsFree(options);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_171(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

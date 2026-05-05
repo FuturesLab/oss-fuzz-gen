@@ -1,80 +1,63 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "cstdint"
 #include "cstdlib"
-#include <cstdio>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-
-extern "C" {
-    #include "tiffio.h"
-}
+#include "tiffio.h"
 
 extern "C" int LLVMFuzzerTestOneInput_92(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate a TIFF file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-
-    // Write the fuzzing data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        return 0;
-    }
-
-    // Close the file descriptor as TIFFOpen will open it again
-    close(fd);
-
-    // Open the temporary file as a TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r+");
+    // Initialize a TIFF structure
+    TIFF *tiff = TIFFOpen("temp.tiff", "w");
     if (tiff == nullptr) {
         return 0;
     }
 
+    // Ensure size is non-zero for the second parameter
+    uint32_t parameter = size > 0 ? static_cast<uint32_t>(data[0]) : 1;
+
     // Call the function-under-test
+    uint32_t stripSize = TIFFDefaultStripSize(tiff, parameter);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFCreateGPSDirectory with TIFFReadDirectory
-    TIFFReadDirectory(tiff);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Close the TIFF file
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFReadDirectory to TIFFReadEncodedStrip
-    uint32_t sqxqpodk = size;
-    TIFFSwabLong(&sqxqpodk);
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFReadEncodedStrip with TIFFWriteEncodedTile
-    tmsize_t ret_TIFFReadEncodedStrip_glmjt = TIFFWriteEncodedTile(tiff, sqxqpodk, (void *)tiff, 0);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFWriteEncodedTile to TIFFReadDirectory
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFReadDirectory with TIFFWriteDirectory
-    int ret_TIFFReadDirectory_ysgga = TIFFWriteDirectory(tiff);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_TIFFReadDirectory_ysgga < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    // Clean up
     TIFFClose(tiff);
-
-    // Remove the temporary file
-    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_92(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

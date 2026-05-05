@@ -1,17 +1,8 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFIsMSB2LSB at tif_open.c:899:5 in tiffio.h
-// TIFFReadBufferSetup at tif_read.c:1385:5 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// LogL16toY at tif_luv.c:801:5 in tiffio.h
-// LogL10toY at tif_luv.c:883:5 in tiffio.h
+// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
+// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
+// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
+// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -21,70 +12,86 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
-#include <cmath>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <tiffio.h>
 
-static TIFF* createDummyTIFF() {
-    TIFF* tif = TIFFOpen("./dummy_file", "w");
-    if (tif) {
-        // Perform minimal setup
-        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 1);
-        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 1);
-        TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1);
-        TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
-        TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
-        TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
-        TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
-    }
-    return tif;
-}
-
 extern "C" int LLVMFuzzerTestOneInput_92(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(double) + sizeof(int)) {
+    if (Size < sizeof(uint32_t)) {
         return 0;
     }
 
-    double yValue;
-    int intValue;
+    uint32_t logLuvValue;
+    std::memcpy(&logLuvValue, Data, sizeof(uint32_t));
 
-    memcpy(&yValue, Data, sizeof(double));
-    memcpy(&intValue, Data + sizeof(double), sizeof(int));
+    float xyz[3] = {0.0f, 0.0f, 0.0f};
 
-    TIFF* tif = createDummyTIFF();
-    if (tif) {
-        // Test TIFFIsMSB2LSB
-        int msb2lsb = TIFFIsMSB2LSB(tif);
-        (void)msb2lsb; // Use the result as needed
+    // Fuzz LogLuv32toXYZ
+    LogLuv32toXYZ(logLuvValue, xyz);
 
-        // Test TIFFReadBufferSetup
-        void* buffer = nullptr;
-        tmsize_t bufferSize = static_cast<tmsize_t>(Size);
-        int readBufferSetupResult = TIFFReadBufferSetup(tif, buffer, bufferSize);
-        (void)readBufferSetupResult; // Use the result as needed
+    // Fuzz TIFFSwabLong
+    TIFFSwabLong(&logLuvValue);
 
-        TIFFClose(tif);
+    // Fuzz LogLuv24toXYZ
+    LogLuv24toXYZ(logLuvValue, xyz);
+
+    // Prepare data for TIFFSwabArrayOfFloat
+    tmsize_t numFloats = (Size - sizeof(uint32_t)) / sizeof(float);
+    if (numFloats > 0) {
+        float *floatArray = reinterpret_cast<float *>(malloc(numFloats * sizeof(float)));
+        if (floatArray) {
+            std::memcpy(floatArray, Data + sizeof(uint32_t), numFloats * sizeof(float));
+            TIFFSwabArrayOfFloat(floatArray, numFloats);
+            free(floatArray);
+        }
     }
 
-    // Test LogL10fromY
-    if (yValue > 0) {
-        int logL10Result = LogL10fromY(yValue, intValue);
-        (void)logL10Result; // Use the result as needed
-    }
+    // Fuzz LogLuv24fromXYZ
+    uint32_t logLuv24 = LogLuv24fromXYZ(xyz, 1);
 
-    // Test LogL16toY
-    double logL16toYResult = LogL16toY(intValue);
-    (void)logL16toYResult; // Use the result as needed
-
-    // Test LogL16fromY
-    int logL16fromYResult = LogL16fromY(yValue, intValue);
-    (void)logL16fromYResult; // Use the result as needed
-
-    // Test LogL10toY
-    double logL10toYResult = LogL10toY(intValue);
-    (void)logL10toYResult; // Use the result as needed
+    // Fuzz LogLuv32fromXYZ
+    uint32_t logLuv32 = LogLuv32fromXYZ(xyz, 3);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_92(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

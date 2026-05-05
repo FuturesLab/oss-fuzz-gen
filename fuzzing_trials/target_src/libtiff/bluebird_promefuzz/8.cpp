@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -9,24 +11,12 @@
 #include <cstddef>
 #include "cstdint"
 #include <cstdio>
+#include "cstdlib"
 #include <cstdarg>
 #include "cstring"
 #include "tiffio.h"
 
-static TIFF *openDummyTIFF() {
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of TIFFOpenExt
-    TIFF *tif = TIFFOpenExt((const char *)"w", "w", NULL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (!tif) {
-        TIFFErrorExtR(nullptr, "openDummyTIFF", "Failed to open dummy TIFF file.");
-    }
-    return tif;
-}
-
-static void writeDummyDataToFile(const uint8_t *Data, size_t Size) {
+static void WriteDummyFile(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
     if (file) {
         fwrite(Data, 1, Size, file);
@@ -34,60 +24,82 @@ static void writeDummyDataToFile(const uint8_t *Data, size_t Size) {
     }
 }
 
+static TIFFFieldInfo* GenerateDummyFieldInfo(size_t count) {
+    TIFFFieldInfo* fieldInfo = static_cast<TIFFFieldInfo*>(malloc(count * sizeof(TIFFFieldInfo)));
+    if (fieldInfo) {
+        memset(fieldInfo, 0, count * sizeof(TIFFFieldInfo));
+    }
+    return fieldInfo;
+}
+
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(TIFFFieldInfo)) {
+    if (Size < 1) {
         return 0;
     }
 
-    writeDummyDataToFile(Data, Size);
+    WriteDummyFile(Data, Size);
 
-    TIFF *tif = openDummyTIFF();
+    TIFF *tif = TIFFOpen("./dummy_file", "r");
     if (!tif) {
         return 0;
     }
 
-    TIFFFieldInfo fieldInfo;
-    memcpy(&fieldInfo, Data, sizeof(TIFFFieldInfo));
-
-    // Test TIFFMergeFieldInfo
-    TIFFMergeFieldInfo(tif, &fieldInfo, 1);
-
-    // Test TIFFFlushData
-    TIFFFlushData(tif);
-
-    // Test TIFFIsBigTIFF
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFIsBigTIFF with TIFFReadDirectory
-    TIFFReadDirectory(tif);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Test TIFFErrorExtR
-    TIFFErrorExtR(tif, "Module", "Test error with value: %d", fieldInfo.field_tag);
-
-    // Test TIFFWriteCheck
-    TIFFWriteCheck(tif, 1, "TestWriteCheck");
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFWriteCheck to TIFFClientdata
-
-    thandle_t ret_TIFFClientdata_iilin = TIFFClientdata(tif);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFOpenExt to TIFFSetSubDirectory
-    double riggmkfu = Size;
-    TIFFSwabDouble(&riggmkfu);
-
-    int ret_TIFFSetSubDirectory_ywgwn = TIFFSetSubDirectory(tif, (uint64_t )riggmkfu);
-    if (ret_TIFFSetSubDirectory_ywgwn < 0){
-    	return 0;
+    TIFFFieldInfo* fieldInfo = GenerateDummyFieldInfo(1);
+    if (fieldInfo) {
+        TIFFMergeFieldInfo(tif, fieldInfo, 1);
+        free(fieldInfo);
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFIsBigTIFF with TIFFCreateGPSDirectory
+    TIFFCreateGPSDirectory(tif);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+    TIFFFlushData(tif);
+
+    TIFFWriteCheck(tif, 1, "test");
+
+    TIFFErrorExtR(tif, "test_module", "Test error message: %d", 123);
 
     TIFFClose(tif);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_8(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

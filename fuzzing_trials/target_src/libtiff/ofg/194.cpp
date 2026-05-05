@@ -1,35 +1,56 @@
-#include <stdint.h>
 #include <tiffio.h>
 
-extern "C" {
-    // Function to be fuzzed
-    void TIFFRGBAImageEnd(TIFFRGBAImage *);
-}
-
 extern "C" int LLVMFuzzerTestOneInput_194(const uint8_t *data, size_t size) {
-    // Check if the input size is sufficient to initialize TIFFRGBAImage
-    if (size < sizeof(TIFFRGBAImage)) {
-        return 0;
-    }
-
-    // Allocate and initialize a TIFFRGBAImage structure
-    TIFFRGBAImage img;
-    TIFF *tif = TIFFOpen("dummy.tiff", "r");
-    if (tif == NULL) {
-        return 0;
-    }
-
-    // Initialize the TIFFRGBAImage structure with some default values
-    if (!TIFFRGBAImageBegin(&img, tif, 0, NULL)) {
-        TIFFClose(tif);
-        return 0;
-    }
-
     // Call the function-under-test
-    TIFFRGBAImageEnd(&img);
+    TIFFOpenOptions *options = TIFFOpenOptionsAlloc();
 
-    // Clean up
-    TIFFClose(tif);
+    // Check if options is not NULL
+    if (options != NULL) {
+        // Perform any additional operations if necessary
+        // ...
+
+        // Free the allocated options to avoid memory leaks
+        TIFFOpenOptionsFree(options);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_194(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

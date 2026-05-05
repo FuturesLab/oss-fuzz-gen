@@ -1,8 +1,8 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
-// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
-// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
-// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
+// TIFFReadBufferSetup at tif_read.c:1385:5 in tiffio.h
+// TIFFIsMSB2LSB at tif_open.c:899:5 in tiffio.h
+// LogL10toY at tif_luv.c:883:5 in tiffio.h
+// LogL16toY at tif_luv.c:801:5 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -12,48 +12,127 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <tiffio.h>
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <tiffio.h>
+
+// Dummy TIFF structure for testing
+struct tiff {
+    char *tif_name;
+    int tif_fd;
+    uint32_t tif_flags;
+    uint64_t tif_diroff;
+    void *tif_map_dir_offset_to_number; // Placeholder for unknown type
+    void *tif_dir;                      // Placeholder for unknown type
+    void *tif_header;                   // Placeholder for unknown type
+    uint16_t tif_header_size;
+    tdir_t tif_curdir;
+    tmsize_t tif_tilesize;
+    void *tif_fixuptags;                // Placeholder for unknown type
+    void *tif_predecode;                // Placeholder for unknown type
+    void *tif_decoderow;                // Placeholder for unknown type
+    void *tif_close;                    // Placeholder for unknown type
+    void *tif_seek;                     // Placeholder for unknown type
+    void *tif_defstripsize;             // Placeholder for unknown type
+    void *tif_deftilesize;              // Placeholder for unknown type
+    uint8_t *tif_data;
+    void *tif_mapproc;                  // Placeholder for unknown type
+    void *tif_unmapproc;                // Placeholder for unknown type
+    thandle_t tif_clientdata;
+    void *tif_readproc;                 // Placeholder for unknown type
+    void *tif_seekproc;                 // Placeholder for unknown type
+    void *tif_closeproc;                // Placeholder for unknown type
+    void *tif_sizeproc;                 // Placeholder for unknown type
+    void *tif_postdecode;               // Placeholder for unknown type
+    void *tif_fields;                   // Placeholder for unknown type
+    size_t tif_nfields;
+    void *tif_foundfield;               // Placeholder for unknown type
+    void *tif_tagmethods;               // Placeholder for unknown type
+    void *tif_clientinfo;               // Placeholder for unknown type
+    void *tif_fieldscompat;             // Placeholder for unknown type
+    void *tif_errorhandler;             // Placeholder for unknown type
+    void *tif_errorhandler_user_data;
+};
 
 extern "C" int LLVMFuzzerTestOneInput_134(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t) + 3 * sizeof(float)) {
+    if (Size < sizeof(double) + sizeof(int)) {
         return 0;
     }
 
-    // Prepare data for LogLuv24toXYZ and LogLuv32toXYZ
-    uint32_t logLuvColor = *reinterpret_cast<const uint32_t*>(Data);
-    float xyzOutput[3] = {0.0f, 0.0f, 0.0f};
+    double Y;
+    int param;
+    memcpy(&Y, Data, sizeof(double));
+    memcpy(&param, Data + sizeof(double), sizeof(int));
 
-    // Test LogLuv24toXYZ
-    LogLuv24toXYZ(logLuvColor, xyzOutput);
+    // Test LogL10fromY
+    if (Y > 0) {
+        int logL10Result = LogL10fromY(Y, param);
+    }
 
-    // Test LogLuv32toXYZ
-    LogLuv32toXYZ(logLuvColor, xyzOutput);
+    // Test LogL16fromY
+    int logL16Result = LogL16fromY(Y, param);
 
-    // Prepare data for LogLuv32fromXYZ
-    float xyzInput[3];
-    memcpy(xyzInput, Data + sizeof(uint32_t), 3 * sizeof(float));
+    // Test TIFFReadBufferSetup
+    TIFF dummyTIFF;
+    memset(&dummyTIFF, 0, sizeof(TIFF)); // Initialize the structure to avoid undefined behavior
+    dummyTIFF.tif_name = const_cast<char*>("./dummy_file");
+    void *buffer = nullptr;
+    tmsize_t bufferSize = Size - sizeof(double) - sizeof(int);
+    if (bufferSize < 0 || bufferSize > 1024 * 1024) bufferSize = 1024 * 1024; // Ensure bufferSize is not negative and within a reasonable limit
+    int readBufferSetupResult = TIFFReadBufferSetup(&dummyTIFF, buffer, bufferSize);
 
-    // Test LogLuv32fromXYZ
-    uint32_t logLuv32 = LogLuv32fromXYZ(xyzInput, 3);
+    // Test TIFFIsMSB2LSB
+    int isMSB2LSB = TIFFIsMSB2LSB(&dummyTIFF);
 
-    // Test TIFFSwabLong
-    TIFFSwabLong(&logLuv32);
+    // Test LogL10toY
+    int logValue;
+    memcpy(&logValue, Data, sizeof(int));
+    double linearY10 = LogL10toY(logValue);
 
-    // Prepare data for TIFFSwabArrayOfFloat
-    float floatArray[3];
-    memcpy(floatArray, Data + sizeof(uint32_t), 3 * sizeof(float));
-
-    // Test TIFFSwabArrayOfFloat
-    TIFFSwabArrayOfFloat(floatArray, 3);
-
-    // Test LogLuv24fromXYZ
-    uint32_t logLuv24 = LogLuv24fromXYZ(xyzInput, 3);
-
-    // Cleanup if necessary (not needed here as we're not allocating resources)
+    // Test LogL16toY
+    double linearY16 = LogL16toY(logValue);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_134(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -24,71 +24,102 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
-#include <cstdlib>
 #include <cstdio>
-#include <cstring>
+#include <cstdlib>
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    // Step 1: Prepare a dummy TIFF file
+    const char *dummyFileName = "./dummy_file.tiff";
+    FILE *dummyFile = fopen(dummyFileName, "wb");
+    if (!dummyFile) {
+        return 0;
+    }
+    fwrite(Data, 1, Size, dummyFile);
+    fclose(dummyFile);
 
-    // Create a dummy file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    // Open the TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "r+");
-    if (!tif) return 0;
-
-    // TIFFFileName
-    const char *filename = TIFFFileName(tif);
-    if (filename) {
-        printf("TIFFFileName: %s\n", filename);
+    // Step 2: Open the TIFF file
+    TIFF *tif = TIFFOpen(dummyFileName, "r+");
+    if (!tif) {
+        return 0;
     }
 
-    // TIFFFieldWithTag
-    const TIFFField *field1 = TIFFFieldWithTag(tif, 256);
-    const TIFFField *field2 = TIFFFieldWithTag(tif, 257);
-    const TIFFField *field3 = TIFFFieldWithTag(tif, 258);
-    const TIFFField *field4 = TIFFFieldWithTag(tif, 259);
+    // Step 3: Invoke TIFFFileName
+    const char *fileName = TIFFFileName(tif);
 
-    // TIFFTileSize
+    // Step 4: Invoke TIFFFieldWithTag multiple times
+    TIFFFieldWithTag(tif, 256); // Width
+    TIFFFieldWithTag(tif, 257); // Height
+    TIFFFieldWithTag(tif, 258); // BitsPerSample
+    TIFFFieldWithTag(tif, 259); // Compression
+
+    // Step 5: Invoke TIFFTileSize
     tmsize_t tileSize = TIFFTileSize(tif);
 
-    // TIFFFieldWithTag
-    const TIFFField *field5 = TIFFFieldWithTag(tif, 262);
+    // Step 6: Invoke TIFFFieldWithTag again
+    TIFFFieldWithTag(tif, 262); // Photometric
 
-    // _TIFFmalloc
+    // Step 7: Invoke _TIFFmalloc
     void *buffer = _TIFFmalloc(tileSize);
     if (!buffer) {
         TIFFClose(tif);
         return 0;
     }
 
-    // TIFFNumberOfTiles
+    // Step 8: Invoke TIFFNumberOfTiles
     uint32_t numTiles = TIFFNumberOfTiles(tif);
 
-    // TIFFWriteEncodedTile
+    // Step 9: Invoke TIFFWriteEncodedTile
     if (numTiles > 0) {
-        tmsize_t written = TIFFWriteEncodedTile(tif, 0, buffer, tileSize);
-        printf("TIFFWriteEncodedTile: %ld\n", (long)written);
+        TIFFWriteEncodedTile(tif, 0, buffer, tileSize);
     }
 
-    // TIFFWriteScanline
-    int row = 0;
-    if (TIFFWriteScanline(tif, buffer, row, 0) == 1) {
-        printf("TIFFWriteScanline: success\n");
-    }
-    if (TIFFWriteScanline(tif, buffer, row + 1, 0) == 1) {
-        printf("TIFFWriteScanline: success\n");
-    }
+    // Step 10: Invoke TIFFWriteScanline twice
+    TIFFWriteScanline(tif, buffer, 0, 0);
+    TIFFWriteScanline(tif, buffer, 1, 0);
 
-    // _TIFFfree
+    // Step 11: Cleanup
     _TIFFfree(buffer);
-
-    // Close the TIFF file
     TIFFClose(tif);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

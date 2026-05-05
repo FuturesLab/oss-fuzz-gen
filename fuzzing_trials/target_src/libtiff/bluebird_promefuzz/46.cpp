@@ -1,23 +1,16 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
-#include "sstream"
-#include <string>
-#include <vector>
-#include "cstring"
-#include "cstdlib"
-#include <cstdio>
 #include "cstdint"
 #include <cstddef>
 #include "tiffio.h"
-#include "cstdint"
-#include "cstring"
-#include <cstdio>
 
 extern "C" int LLVMFuzzerTestOneInput_46(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t)) {
-        return 0; // Not enough data to proceed
-    }
+    if (Size < 4) {
+        return 0;
+    } // Ensure there's enough data for a minimal operation
 
-    // Create a dummy file with the input data
+    // Create a temporary file to simulate a TIFF file
     FILE *file = fopen("./dummy_file", "wb");
     if (!file) {
         return 0;
@@ -25,44 +18,161 @@ extern "C" int LLVMFuzzerTestOneInput_46(const uint8_t *Data, size_t Size) {
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    // Open the dummy TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
-    if (!tif) {
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen("./dummy_file", "r");
+    if (!tiff) {
         return 0;
     }
 
-    // Use a portion of the input data to simulate a strip index or number of rows
-    uint32_t stripOrRows = 0;
-    memcpy(&stripOrRows, Data, sizeof(uint32_t));
+    // Step 1: Check if the TIFF image is tiled
+    int tiled = TIFFIsTiled(tiff);
 
-    // Invoke the target API functions with the TIFF handle and simulated values
+    // Step 2: Allocate memory using _TIFFmalloc
+    tmsize_t allocSize1 = 1024; // Arbitrary allocation size
+    void *memory1 = _TIFFmalloc(allocSize1);
+    if (!memory1) {
+        TIFFClose(tiff);
+        return 0; // Memory allocation failed
+    }
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of TIFFRawStripSize
-    tmsize_t rawStripSize = TIFFRawStripSize(tif, FIELD_CUSTOM);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    tmsize_t allocSize2 = 2048; // Another arbitrary allocation size
+    void *memory2 = _TIFFmalloc(allocSize2);
+    if (!memory2) {
+        _TIFFfree(memory1);
+        TIFFClose(tiff);
+        return 0; // Memory allocation failed
+    }
 
+    // Step 3: Initialize a TIFFRGBAImage structure
+    TIFFRGBAImage img;
+    char emsg[1024];
+    if (!TIFFRGBAImageBegin(&img, tiff, 0, emsg)) {
+        _TIFFfree(memory1);
+        _TIFFfree(memory2);
+        TIFFClose(tiff);
+        return 0; // Initialization failed
+    }
 
-    tmsize_t rasterScanlineSize = TIFFRasterScanlineSize(tif);
-    tmsize_t vStripSize = TIFFVStripSize(tif, stripOrRows);
+    // Step 4: Retrieve RGBA pixel data into a raster buffer
+    uint32_t width = 100; // Arbitrary width
+    uint32_t height = 100; // Arbitrary height
+    uint32_t *raster = static_cast<uint32_t *>(_TIFFmalloc(width * height * sizeof(uint32_t)));
+    if (!raster) {
+        TIFFRGBAImageEnd(&img);
+        _TIFFfree(memory1);
+        _TIFFfree(memory2);
+        TIFFClose(tiff);
+        return 0; // Memory allocation failed
+    }
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFScanlineSize with TIFFRasterScanlineSize
+    if (!TIFFRGBAImageGet(&img, raster, width, height)) {
+        _TIFFfree(raster);
+        TIFFRGBAImageEnd(&img);
+        _TIFFfree(memory1);
+        _TIFFfree(memory2);
+        TIFFClose(tiff);
+        return 0; // Failed to get image data
+    }
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFRasterScanlineSize with TIFFTileSize
-    tmsize_t scanlineSize = TIFFTileSize(tif);
+    // Step 5: Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFRGBAImageGet to TIFFReadRGBAImage
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tiff) {
+    	return 0;
+    }
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFIsBigEndian with TIFFReadDirectory
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from TIFFRGBAImageGet to TIFFReadScanline using the plateau pool
+    void* buffer = malloc(TIFFScanlineSize(tiff));
+    uint32_t row = 0;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tiff) {
+    	return 0;
+    }
+    int ret_TIFFReadScanline_jioud = TIFFReadScanline(tiff, buffer, row, (uint16_t )*raster);
+    if (ret_TIFFReadScanline_jioud < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    int ret_TIFFIsBigEndian_jfdix = TIFFReadDirectory(tiff);
     // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    tmsize_t stripSize = TIFFStripSize(tif);
-    tmsize_t tileRowSize = TIFFTileRowSize(tif);
-
-    // Handle the results (e.g., logging, further processing)
-    // For fuzzing, typically we just want to ensure no crashes occur
-
-    // Clean up
-    TIFFClose(tif);
+    if (ret_TIFFIsBigEndian_jfdix < 0){
+    	return 0;
+    }
+    double ieaxblly = -1;
+    TIFFSwabDouble(&ieaxblly);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tiff) {
+    	return 0;
+    }
+    uint64_t ret_TIFFRasterScanlineSize64_rlwhb = TIFFRasterScanlineSize64(tiff);
+    if (ret_TIFFRasterScanlineSize64_rlwhb < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tiff) {
+    	return 0;
+    }
+    uint32_t ret_TIFFNumberOfTiles_tvfvs = TIFFNumberOfTiles(tiff);
+    if (ret_TIFFNumberOfTiles_tvfvs < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tiff) {
+    	return 0;
+    }
+    int ret_TIFFReadRGBAImage_cejau = TIFFReadRGBAImage(tiff, *raster, (uint32_t )ieaxblly, (uint32_t *)&ret_TIFFRasterScanlineSize64_rlwhb, (int )ret_TIFFNumberOfTiles_tvfvs);
+    if (ret_TIFFReadRGBAImage_cejau < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    TIFFRGBAImageEnd(&img);
+    _TIFFfree(raster);
+    _TIFFfree(memory1);
+    _TIFFfree(memory2);
+    TIFFClose(tiff);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_46(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

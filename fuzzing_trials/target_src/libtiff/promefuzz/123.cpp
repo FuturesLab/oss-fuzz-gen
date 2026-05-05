@@ -7,15 +7,14 @@
 // TIFFSetField at tif_dir.c:1152:5 in tiffio.h
 // TIFFSetField at tif_dir.c:1152:5 in tiffio.h
 // TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFWriteEncodedStrip at tif_write.c:215:10 in tiffio.h
+// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFIsMSB2LSB at tif_open.c:899:5 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// LogL16toY at tif_luv.c:801:5 in tiffio.h
-// TIFFReadBufferSetup at tif_read.c:1385:5 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// LogL10toY at tif_luv.c:883:5 in tiffio.h
+// TIFFCreateGPSDirectory at tif_dir.c:1752:5 in tiffio.h
+// TIFFReadEXIFDirectory at tif_dirread.c:5556:5 in tiffio.h
+// TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
+// TIFFLastDirectory at tif_dir.c:2239:5 in tiffio.h
+// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
+// TIFFReadGPSDirectory at tif_dirread.c:5564:5 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -25,75 +24,110 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
 #include <tiffio.h>
-#include <cmath>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
-static TIFF* createDummyTIFF() {
-    TIFF* tif = TIFFOpen("./dummy_file", "w");
-    if (tif) {
-        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 1);
-        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 1);
-        TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1);
-        TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
-        TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
-        TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
-        TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
-        char buf[1] = {0};
-        TIFFWriteEncodedStrip(tif, 0, buf, 1);
-        TIFFClose(tif);
+static TIFF* createDummyTIFF(const char* filename) {
+    TIFF* tiff = TIFFOpen(filename, "w");
+    if (!tiff) {
+        return nullptr;
     }
-    return TIFFOpen("./dummy_file", "r");
+    // Set some dummy fields to create a valid TIFF structure.
+    TIFFSetField(tiff, TIFFTAG_IMAGEWIDTH, 1);
+    TIFFSetField(tiff, TIFFTAG_IMAGELENGTH, 1);
+    TIFFSetField(tiff, TIFFTAG_SAMPLESPERPIXEL, 1);
+    TIFFSetField(tiff, TIFFTAG_BITSPERSAMPLE, 8);
+    TIFFSetField(tiff, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
+    TIFFSetField(tiff, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+    TIFFSetField(tiff, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
+    TIFFWriteDirectory(tiff);
+    return tiff;
+}
+
+static void cleanup(TIFF* tiff, const char* filename) {
+    if (tiff) {
+        TIFFClose(tiff);
+    }
+    std::remove(filename);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_123(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(double) + sizeof(int)) {
+    const char* filename = "./dummy_file";
+    TIFF* tiff = createDummyTIFF(filename);
+    if (!tiff) {
         return 0;
     }
 
-    TIFF* tif = createDummyTIFF();
-    if (tif) {
-        int msb2lsb = TIFFIsMSB2LSB(tif);
-        (void)msb2lsb; // Use the result to avoid unused variable warning
-        TIFFClose(tif);
+    // Use the data as an offset or other parameters.
+    uint64_t offset = 0;
+    if (Size >= sizeof(offset)) {
+        std::memcpy(&offset, Data, sizeof(offset));
     }
 
-    double y = 0;
-    int param = 0;
-    std::memcpy(&y, Data, sizeof(double));
-    std::memcpy(&param, Data + sizeof(double), sizeof(int));
-
-    if (y > 0) {
-        int logL10FromY = LogL10fromY(y, param);
-        (void)logL10FromY; // Use the result to avoid unused variable warning
+    // Fuzz TIFFCreateGPSDirectory
+    if (TIFFCreateGPSDirectory(tiff) == 0) {
+        cleanup(tiff, filename);
+        return 0;
     }
 
-    double logL16ToY = LogL16toY(param);
-    (void)logL16ToY; // Use the result to avoid unused variable warning
+    // Fuzz TIFFReadEXIFDirectory
+    TIFFReadEXIFDirectory(tiff, static_cast<toff_t>(offset));
 
-    if (Size > sizeof(double) + sizeof(int) + 1) {
-        void* buffer = nullptr;
-        tmsize_t bufferSize = static_cast<tmsize_t>(Data[sizeof(double) + sizeof(int)]);
-        if (bufferSize > 0) {
-            buffer = malloc(bufferSize);
-        }
-        TIFF* tif = createDummyTIFF();
-        if (tif) {
-            TIFFReadBufferSetup(tif, buffer, bufferSize);
-            TIFFClose(tif);
-        }
-        free(buffer);
-    }
+    // Fuzz TIFFSetSubDirectory
+    TIFFSetSubDirectory(tiff, offset);
 
-    if (y > 0) {
-        int logL16FromY = LogL16fromY(y, param);
-        (void)logL16FromY; // Use the result to avoid unused variable warning
-    }
+    // Fuzz TIFFLastDirectory
+    TIFFLastDirectory(tiff);
 
-    double logL10ToY = LogL10toY(param);
-    (void)logL10ToY; // Use the result to avoid unused variable warning
+    // Fuzz TIFFReadDirectory
+    TIFFReadDirectory(tiff);
 
+    // Fuzz TIFFReadGPSDirectory
+    TIFFReadGPSDirectory(tiff, static_cast<toff_t>(offset));
+
+    cleanup(tiff, filename);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_123(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

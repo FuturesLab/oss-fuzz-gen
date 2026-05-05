@@ -1,108 +1,99 @@
-#include "tiffio.h"
+#include <sys/stat.h>
+#include <string.h>
 #include "cstdint"
-#include "cstdlib"
-#include "cstring"
-#include <unistd.h>  // Include for close() function
+#include <cstddef>
+#include "cstring"  // Include this for memcpy
+#include <cstdio>   // Include this for remove()
 
 extern "C" {
     #include "tiffio.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    if (size < 1) {
-        return 0;
-    } // Ensure there's at least some data
-
-    // Create a temporary file to write the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
-    
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "rm");
-    if (!tiff) {
-        remove(tmpl);
-        return 0;
+    // Check if the size is sufficient to represent a double
+    if (size < sizeof(double)) {
+        return 0; // Not enough data to form a double, exit early
     }
 
-    // Use a non-null string for the field name
-    const char *fieldName = "SampleFieldName";
+    // Initialize a double variable from the input data
+    double value;
+    // Copy bytes from data to the double variable
+    memcpy(&value, data, sizeof(double));
 
     // Call the function-under-test
+    TIFFSwabDouble(&value);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFOpen to TIFFVGetField
+    // Attempt to use the value after swabbing to ensure coverage
+    // For demonstration, we'll just print it to a dummy variable
+    volatile double dummy = value; // Use volatile to prevent optimization
 
+    // Additional code to increase coverage
+    // Create a TIFF file in memory and perform operations on it
+    const char* filename = "temp.tiff";
+    TIFF* tiff = TIFFOpen(filename, "w");
+    if (tiff) {
+        // Set a field to use the swabbed double value
+        TIFFSetField(tiff, TIFFTAG_XRESOLUTION, dummy);
+        TIFFSetField(tiff, TIFFTAG_YRESOLUTION, dummy);
+        TIFFSetField(tiff, TIFFTAG_RESOLUTIONUNIT, RESUNIT_INCH);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFVGetField with TIFFVSetField
-    int ret_TIFFVGetField_upros = TIFFVSetField(tiff, TIFF_VARIABLE, NULL);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        // Perform additional operations to increase code coverage
+        TIFFWriteDirectory(tiff);
+        TIFFClose(tiff);
 
+        // Attempt to reopen the TIFF file to further increase coverage
+        tiff = TIFFOpen(filename, "r");
+        if (tiff) {
+            double xres, yres;
+            uint16_t resunit;
+            TIFFGetField(tiff, TIFFTAG_XRESOLUTION, &xres);
+            TIFFGetField(tiff, TIFFTAG_YRESOLUTION, &yres);
+            TIFFGetField(tiff, TIFFTAG_RESOLUTIONUNIT, &resunit);
+            TIFFClose(tiff);
+        }
 
-    if (ret_TIFFVGetField_upros < 0){
-    	return 0;
+        // Clean up by removing the temporary TIFF file
+        remove(filename);
     }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFVSetField to TIFFComputeTile
-    uint64_t ret_TIFFScanlineSize64_oxdbd = TIFFScanlineSize64(tiff);
-    if (ret_TIFFScanlineSize64_oxdbd < 0){
-    	return 0;
-    }
-    int ret_TIFFGetMode_sticn = TIFFGetMode(tiff);
-    if (ret_TIFFGetMode_sticn < 0){
-    	return 0;
-    }
-    double pkwcdxba = 1;
-    TIFFSwabDouble(&pkwcdxba);
-    int ret_TIFFIsCODECConfigured_wlumf = TIFFIsCODECConfigured(1);
-    if (ret_TIFFIsCODECConfigured_wlumf < 0){
-    	return 0;
-    }
-
-    uint32_t ret_TIFFComputeTile_ohgte = TIFFComputeTile(tiff, (uint32_t )ret_TIFFVGetField_upros, (uint32_t )ret_TIFFGetMode_sticn, (uint32_t )pkwcdxba, (uint16_t )ret_TIFFIsCODECConfigured_wlumf);
-    if (ret_TIFFComputeTile_ohgte < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    const TIFFField *field = TIFFFieldWithName(tiff, fieldName);
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFFieldWithName to TIFFSetSubDirectory
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFCurrentDirOffset with TIFFStripSize64
-    uint64_t ret_TIFFCurrentDirOffset_uamnh = TIFFStripSize64(tiff);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_TIFFCurrentDirOffset_uamnh < 0){
-    	return 0;
-    }
-
-    int ret_TIFFSetSubDirectory_jmjpr = TIFFSetSubDirectory(tiff, ret_TIFFCurrentDirOffset_uamnh);
-    if (ret_TIFFSetSubDirectory_jmjpr < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    TIFFClose(tiff);
-    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

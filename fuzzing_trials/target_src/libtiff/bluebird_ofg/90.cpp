@@ -1,83 +1,97 @@
+#include <sys/stat.h>
+#include <string.h>
 #include "tiffio.h"
 #include "cstdint"
 #include "cstdlib"
 #include <cstdio>
-#include <unistd.h> // Include for close function
+#include <unistd.h>  // Include this for the 'close' function
 
 extern "C" {
-    #include "tiffio.h" // Ensure TIFF library functions are wrapped in extern "C"
+    int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
+        if (size == 0) {
+            return 0;
+        }
+
+        // Create a temporary file to write the input data
+        char tmpl[] = "/tmp/fuzzfileXXXXXX";
+        int fd = mkstemp(tmpl);
+        if (fd == -1) {
+            return 0;
+        }
+
+        FILE *file = fdopen(fd, "wb");
+        if (file == nullptr) {
+            close(fd);
+            return 0;
+        }
+
+        fwrite(data, 1, size, file);
+        fclose(file);
+
+        // Open the TIFF file
+        TIFF *tiff = TIFFOpen(tmpl, "r");
+        if (tiff != nullptr) {
+            // Call the function-under-test
+            int tiled = TIFFIsTiled(tiff);
+
+            // Close the TIFF file
+
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFIsTiled to TIFFSetupStrips
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!tiff) {
+            	return 0;
+            }
+            int ret_TIFFSetupStrips_xkvcg = TIFFSetupStrips(tiff);
+            if (ret_TIFFSetupStrips_xkvcg < 0){
+            	return 0;
+            }
+            // End mutation: Producer.APPEND_MUTATOR
+            
+            TIFFClose(tiff);
+        }
+
+        // Clean up the temporary file
+        remove(tmpl);
+
+        return 0;
+    }
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-extern "C" int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
-    if (size < 4) {
-        return 0; // Not enough data to proceed
-    }
+    if(argc < 2)
+        exit(0);
 
-    // Create a temporary file to store the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0; // Could not create temporary file
-    }
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
 
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
-        return 0;
-    }
+    fseek(f, 0, SEEK_END);
 
-    fwrite(data, 1, size, file);
-    fclose(file);
+    size = ftell(f);
+    rewind(f);
 
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (!tiff) {
-        remove(tmpl);
-        return 0;
-    }
+    if(size < 1 + 1)
+        exit(0);
 
-    // Initialize parameters for TIFFReadRGBAImage
-    uint32_t width = 1;
-    uint32_t height = 1;
-    uint32_t *raster = (uint32_t *)malloc(width * height * sizeof(uint32_t));
-    if (!raster) {
-        TIFFClose(tiff);
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFClose to TIFFGetStrileOffsetWithErr
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFClose to TIFFReadEncodedStrip
-        uint32_t nklmqrcf = 0;
-        TIFFSwabLong(&nklmqrcf);
+    LLVMFuzzerTestOneInput_90(data + 1, (size_t)(size - 1));
 
-        tmsize_t ret_TIFFReadEncodedStrip_cprve = TIFFReadEncodedStrip(tiff, V_NEU, (void *)&nklmqrcf, 0);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        double ret_LogL10toY_cerll = LogL10toY(TIFF_VARIABLE2);
-        if (ret_LogL10toY_cerll < 0){
-        	return 0;
-        }
-        int oyuilwoy = 64;
-
-        uint64_t ret_TIFFGetStrileOffsetWithErr_bulvv = TIFFGetStrileOffsetWithErr(tiff, (uint32_t )ret_LogL10toY_cerll, &oyuilwoy);
-        if (ret_TIFFGetStrileOffsetWithErr_bulvv < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        remove(tmpl);
-        return 0;
-    }
-    int stopOnError = 1; // Non-zero to stop on error
-
-    // Call the function-under-test
-    TIFFReadRGBAImage(tiff, width, height, raster, stopOnError);
-
-    // Clean up
-    free(raster);
-    TIFFClose(tiff);
-    remove(tmpl);
-
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

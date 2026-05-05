@@ -1,28 +1,69 @@
 #include <cstdint>
-#include <cstddef>
-#include <cstring>  // Include for std::memcpy
+#include <cstdlib>
 #include <tiffio.h>
 
-extern "C" {
-    // Include necessary C headers, source files, functions, and code here.
-    #include <tiffio.h>
-}
-
 extern "C" int LLVMFuzzerTestOneInput_79(const uint8_t *data, size_t size) {
-    // Ensure we have enough data to form a double
-    if (size < sizeof(double)) {
+    // Ensure the size is sufficient to extract a tmsize_t value
+    if (size < sizeof(tmsize_t)) {
         return 0;
     }
 
-    // Initialize a double variable
-    double value;
+    // Initialize TIFFOpenOptions
+    TIFFOpenOptions *options = TIFFOpenOptionsAlloc();
+    if (options == NULL) {
+        return 0;
+    }
 
-    // Copy the data into the double variable
-    // This assumes the data is aligned and valid for a double
-    std::memcpy(&value, data, sizeof(double));
+    // Extract a tmsize_t value from the input data
+    tmsize_t maxMemAlloc = 0;
+    for (size_t i = 0; i < sizeof(tmsize_t); ++i) {
+        maxMemAlloc = (maxMemAlloc << 8) | data[i];
+    }
 
     // Call the function-under-test
-    TIFFSwabDouble(&value);
+    TIFFOpenOptionsSetMaxCumulatedMemAlloc(options, maxMemAlloc);
+
+    // Clean up
+    TIFFOpenOptionsFree(options);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_79(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

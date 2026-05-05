@@ -29,86 +29,91 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
+#include <cstdarg>
 #include <cstdlib>
-#include <cstring>
+#include <tiffio.h>
+
+static TIFF* openDummyTIFF(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return nullptr;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    return TIFFOpen("./dummy_file", "r+");
+}
 
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Create a dummy file for TIFF operations
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    TIFF *tif = TIFFOpen("./dummy_file", "r+");
+    TIFF *tif = openDummyTIFF(Data, Size);
     if (!tif) return 0;
 
-    // TIFFGetField
-    uint32_t tag = 0;
+    uint32_t tag = Data[0]; // Simplified tag selection for fuzzing
     TIFFGetField(tif, tag);
 
-    // TIFFSetSubDirectory
-    uint64_t subdir_offset = 0;
-    TIFFSetSubDirectory(tif, subdir_offset);
-
-    // TIFFReadDirectory
+    TIFFSetSubDirectory(tif, 0);
     TIFFReadDirectory(tif);
-
-    // TIFFSetDirectory
-    tdir_t dir_index = 0;
-    TIFFSetDirectory(tif, dir_index);
-
-    // TIFFSetSubDirectory
-    TIFFSetSubDirectory(tif, subdir_offset);
-
-    // TIFFReadDirectory
+    TIFFSetDirectory(tif, 0);
+    TIFFSetSubDirectory(tif, 0);
     TIFFReadDirectory(tif);
-
-    // TIFFSetDirectory
-    TIFFSetDirectory(tif, dir_index);
-
-    // TIFFReadDirectory
+    TIFFSetDirectory(tif, 0);
     TIFFReadDirectory(tif);
-
-    // TIFFCurrentDirectory
     TIFFCurrentDirectory(tif);
-
-    // TIFFSetSubDirectory
-    TIFFSetSubDirectory(tif, subdir_offset);
-
-    // TIFFNumberOfDirectories
+    TIFFSetSubDirectory(tif, 0);
     TIFFNumberOfDirectories(tif);
-
-    // TIFFCreateDirectory
     TIFFCreateDirectory(tif);
-
-    // TIFFSetField
-    TIFFSetField(tif, tag);
-
-    // TIFFWriteDirectory
+    TIFFSetField(tif, tag, 0);
     TIFFWriteDirectory(tif);
-
-    // TIFFSetField
-    TIFFSetField(tif, tag);
-
-    // TIFFCheckpointDirectory
+    TIFFSetField(tif, tag, 0);
     TIFFCheckpointDirectory(tif);
-
-    // TIFFWriteDirectory
     TIFFWriteDirectory(tif);
-
-    // TIFFCheckpointDirectory
     TIFFCheckpointDirectory(tif);
-
-    // TIFFWriteDirectory
     TIFFWriteDirectory(tif);
 
-    // TIFFClose
-    TIFFClose(tif);
+    TIFFClose(tif); // Ensure proper cleanup
+    tif = nullptr; // Avoid use-after-free by nullifying the pointer
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

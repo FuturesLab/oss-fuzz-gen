@@ -1,54 +1,84 @@
 #include <cstdint>
-#include <cstddef>
-#include <cstdio>
 #include <cstdlib>
-#include <cstring> // Include for memcpy
-#include <unistd.h> // Include for close and remove
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
 
 extern "C" {
     #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_119(const uint8_t *data, size_t size) {
-    if (size < sizeof(uint32_t)) {
-        return 0; // Not enough data to extract a uint32_t tag
-    }
-
-    // Create a temporary TIFF file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX.tiff";
+    // Create a temporary file to write the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
-        return 0; // Failed to create a temporary file
-    }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
+
+    // Write the data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+
+    // Close the file descriptor as TIFFOpen will open it again
+    close(fd);
 
     // Open the TIFF file
     TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (!tiff) {
-        remove(tmpl);
-        return 0; // Failed to open the TIFF file
+    if (tiff == nullptr) {
+        unlink(tmpl);
+        return 0;
     }
 
-    // Extract a uint32_t tag from the data
-    uint32_t tag;
-    memcpy(&tag, data, sizeof(uint32_t));
+    // Call the function-under-test
+    TIFFSizeProc sizeProc = TIFFGetSizeProc(tiff);
 
-    // Call the function-under-test with a simple example argument
-    // Since TIFFVSetField requires a variable number of arguments, 
-    // we need to provide a specific value for testing purposes.
-    // Here, we assume the tag expects an integer value.
-    int exampleValue = 42; // Example value, adjust as needed
-    TIFFSetField(tiff, tag, exampleValue);
-
-    // Cleanup
+    // Clean up
     TIFFClose(tiff);
-    remove(tmpl);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_119(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

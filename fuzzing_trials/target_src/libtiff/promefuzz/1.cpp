@@ -3,10 +3,10 @@
 // TIFFOpenOptionsSetErrorHandlerExtR at tif_open.c:121:6 in tiffio.h
 // TIFFOpenOptionsSetWarningHandlerExtR at tif_open.c:129:6 in tiffio.h
 // TIFFOpenExt at tif_unix.c:237:7 in tiffio.h
-// TIFFOpenOptionsFree at tif_open.c:87:6 in tiffio.h
-// TIFFErrorExtR at tif_error.c:107:6 in tiffio.h
 // TIFFWarningExtR at tif_warning.c:80:6 in tiffio.h
+// TIFFErrorExtR at tif_error.c:107:6 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFOpenOptionsFree at tif_open.c:87:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -17,13 +17,14 @@
 #include <cstdint>
 #include <cstddef>
 #include <tiffio.h>
+#include <cstdarg>
 
-static int CustomErrorHandler(TIFF* tif, void* user_data, const char* module, const char* fmt, va_list ap) {
+static int CustomErrorHandler(TIFF*, void*, const char* module, const char* fmt, va_list ap) {
     vfprintf(stderr, fmt, ap);
     return 0;
 }
 
-static int CustomWarningHandler(TIFF* tif, void* user_data, const char* module, const char* fmt, va_list ap) {
+static int CustomWarningHandler(TIFF*, void*, const char* module, const char* fmt, va_list ap) {
     vfprintf(stderr, fmt, ap);
     return 0;
 }
@@ -31,27 +32,67 @@ static int CustomWarningHandler(TIFF* tif, void* user_data, const char* module, 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Prepare a dummy file for TIFFOpenExt
-    FILE* file = fopen("./dummy_file", "wb");
+    FILE *file = fopen("./dummy_file", "wb");
     if (!file) return 0;
+
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    TIFFOpenOptions* opts = TIFFOpenOptionsAlloc();
+    TIFFOpenOptions *opts = TIFFOpenOptionsAlloc();
     if (!opts) return 0;
 
     TIFFOpenOptionsSetErrorHandlerExtR(opts, CustomErrorHandler, nullptr);
     TIFFOpenOptionsSetWarningHandlerExtR(opts, CustomWarningHandler, nullptr);
 
-    TIFF* tiff = TIFFOpenExt("./dummy_file", "r", opts);
-    TIFFOpenOptionsFree(opts);
+    TIFF *tif = TIFFOpenExt("./dummy_file", "r", opts);
+    if (tif) {
+        TIFFWarningExtR(tif, "module", "This is a test warning.");
+        TIFFErrorExtR(tif, "module", "This is a test error.");
 
-    if (tiff) {
-        TIFFErrorExtR(tiff, "FuzzModule", "Error occurred during fuzzing");
-        TIFFWarningExtR(tiff, "FuzzModule", "Warning occurred during fuzzing");
-        TIFFClose(tiff);
-        tiff = nullptr;
+        TIFFClose(tif);
     }
+
+    TIFFOpenOptionsFree(opts);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

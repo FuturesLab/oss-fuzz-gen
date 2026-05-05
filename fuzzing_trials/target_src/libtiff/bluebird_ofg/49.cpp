@@ -1,54 +1,80 @@
-#include "tiffio.h"
+#include <sys/stat.h>
+#include <string.h>
 #include "cstdint"
 #include "cstdlib"
-#include <cstdio>
-#include <unistd.h> // Include for 'close' and 'unlink'
-
-extern "C" {
-    #include "tiffio.h"
-}
+#include <unistd.h> // Include for close and write
+#include "tiffio.h"
 
 extern "C" int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    // Create a temporary file to hold the TIFF data
+    if (size == 0) return 0;
+
+    // Create a temporary file to write the data
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
+    if (fd == -1) return 0;
 
-    // Write the input data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
+    // Write the data to the file
+    if (write(fd, data, size) != static_cast<ssize_t>(size)) {
         close(fd);
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
+
+    // Close the file descriptor
+    close(fd);
 
     // Open the TIFF file
     TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (!tiff) {
-        unlink(tmpl);
+    if (tiff == nullptr) {
+        // Remove the temporary file
+        remove(tmpl);
         return 0;
     }
 
-    // Prepare buffer for reading
-    tmsize_t bufferSize = 1024; // Arbitrary buffer size for testing
-    void *buffer = malloc(bufferSize);
-    if (!buffer) {
-        TIFFClose(tiff);
-        unlink(tmpl);
-        return 0;
-    }
+    // Call the function-under-test
+    int result = TIFFIsMSB2LSB(tiff);
 
-    // Read the encoded tile
-    uint32_t tileIndex = 0; // Start with the first tile for fuzzing
-    tmsize_t bytesRead = TIFFReadEncodedTile(tiff, tileIndex, buffer, bufferSize);
-
-    // Clean up
-    free(buffer);
+    // Close the TIFF file and remove the temporary file
     TIFFClose(tiff);
-    unlink(tmpl);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_49(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

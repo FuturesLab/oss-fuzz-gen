@@ -1,26 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
 // TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFCreateEXIFDirectory at tif_dir.c:1742:5 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFWriteCustomDirectory at tif_dirwrite.c:303:5 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
 // TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
+// TIFFCurrentDirOffset at tif_dir.c:2233:10 in tiffio.h
+// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
+// TIFFForceStrileArrayWriting at tif_flush.c:76:5 in tiffio.h
+// TIFFFlushData at tif_flush.c:146:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
@@ -32,12 +17,14 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
-#include <tiffio.h>
-#include <cstdarg>
+#include <cstdlib>
+#include <cstring>
+#include <exception>
 
-static void WriteDummyFile(const uint8_t *Data, size_t Size) {
+static void InitializeDummyTIFFFile(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
     if (file) {
         fwrite(Data, 1, Size, file);
@@ -46,67 +33,93 @@ static void WriteDummyFile(const uint8_t *Data, size_t Size) {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Write the dummy file for TIFF operations
-    WriteDummyFile(Data, Size);
-
-    TIFF *tif = TIFFOpen("./dummy_file", "r+");
-    if (!tif) return 0;
-
-    tdir_t dirNum = Data[0] % 256; // Simplistic way to choose a directory number
-    if (!TIFFSetDirectory(tif, dirNum)) {
-        TIFFClose(tif);
-        return 0;
+    if (Size < 1) {
+        return 0; // Not enough data
     }
 
-    // Set some fields with arbitrary values, which depend on the input data
-    TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 100);
-    TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 100);
+    InitializeDummyTIFFFile(Data, Size);
 
-    if (!TIFFWriteDirectory(tif)) {
-        TIFFClose(tif);
-        return 0;
+    TIFF *tiff = TIFFOpen("./dummy_file", "w+");
+    if (!tiff) {
+        return 0; // Could not open TIFF file
     }
 
-    if (!TIFFCreateEXIFDirectory(tif)) {
-        TIFFClose(tif);
-        return 0;
+    try {
+        // TIFFWriteDirectory
+        if (!TIFFWriteDirectory(tiff)) {
+            throw std::runtime_error("TIFFWriteDirectory failed");
+        }
+
+        // TIFFSetDirectory
+        tdir_t dirIndex = static_cast<tdir_t>(Data[0] % 256); // Use first byte for directory index
+        if (!TIFFSetDirectory(tiff, dirIndex)) {
+            throw std::runtime_error("TIFFSetDirectory failed");
+        }
+
+        // TIFFCurrentDirOffset
+        uint64_t dirOffset = TIFFCurrentDirOffset(tiff);
+        (void)dirOffset; // Use dirOffset as needed
+
+        // TIFFSetDirectory again with a different index
+        dirIndex = static_cast<tdir_t>((Data[0] + 1) % 256);
+        if (!TIFFSetDirectory(tiff, dirIndex)) {
+            throw std::runtime_error("TIFFSetDirectory failed on second call");
+        }
+
+        // TIFFForceStrileArrayWriting
+        if (!TIFFForceStrileArrayWriting(tiff)) {
+            throw std::runtime_error("TIFFForceStrileArrayWriting failed");
+        }
+
+        // TIFFFlushData
+        if (!TIFFFlushData(tiff)) {
+            throw std::runtime_error("TIFFFlushData failed");
+        }
+    } catch (const std::exception &ex) {
+        TIFFClose(tiff);
+        return 0; // Handle exceptions by closing TIFF and returning
     }
 
-    // Set more fields in the EXIF directory
-    // TIFFTAG_EXIFVERSION is not a standard tag in libtiff, using a placeholder tag
-    TIFFSetField(tif, 0x9000, "0230"); // 0x9000 is a typical EXIF version tag
-
-    TIFFSetField(tif, TIFFTAG_DATETIME, "2023:10:10 10:10:10");
-
-    // Set additional fields
-    TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
-    TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 3);
-    TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
-    TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
-    TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_RGB);
-
-    uint64_t customDirOffset;
-    if (!TIFFWriteCustomDirectory(tif, &customDirOffset)) {
-        TIFFClose(tif);
-        return 0;
-    }
-
-    if (!TIFFSetDirectory(tif, 0)) {
-        TIFFClose(tif);
-        return 0;
-    }
-
-    // Set fields again for the main directory
-    TIFFSetField(tif, TIFFTAG_DOCUMENTNAME, "Fuzz Test Document");
-
-    if (!TIFFWriteDirectory(tif)) {
-        TIFFClose(tif);
-        return 0;
-    }
-
-    TIFFClose(tif);
-
+    TIFFClose(tiff);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_22(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,48 +1,97 @@
+#include <tiffio.h>
 #include <cstdint>
-#include <cstdlib>
-#include <cstdio>
-#include <unistd.h>  // Include this header for the 'close' function
+#include <cstddef>
+#include <cstdio> // For std::tmpfile
 
 extern "C" {
-    #include <tiffio.h>
+    // Define a custom error handler function
+    void customErrorHandler_131(const char* module, const char* fmt, va_list ap) {
+        // Custom handling of the error messages can be implemented here
+        // For this example, we'll just ignore the error messages
+    }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_131(const uint8_t *data, size_t size) {
-    // Create a temporary file to simulate a TIFF file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
+    if (size < 1) {
+        return 0; // Not enough data to process
     }
 
-    // Write the fuzz data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (file == nullptr) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
+    // Ensure that the custom error handler is set
+    TIFFErrorHandler previousHandler = TIFFSetErrorHandler(customErrorHandler_131);
 
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff == nullptr) {
-        remove(tmpl);
-        return 0;
+    // Create a temporary file to write the input data
+    FILE* tempFile = std::tmpfile();
+    if (!tempFile) {
+        return 0; // Failed to create a temporary file
     }
 
-    // Prepare parameters for TIFFReadRGBATileExt
-    uint32_t x = 0;
-    uint32_t y = 0;
-    uint32_t raster[256]; // Example size, adjust as needed
-    int stopOnError = 1;
+    // Write the input data to the temporary file
+    if (fwrite(data, 1, size, tempFile) != size) {
+        fclose(tempFile);
+        return 0; // Failed to write data to the temporary file
+    }
 
-    // Call the function-under-test
-    TIFFReadRGBATileExt(tiff, x, y, raster, stopOnError);
+    // Rewind the file to the beginning
+    rewind(tempFile);
 
-    // Clean up
-    TIFFClose(tiff);
-    remove(tmpl);
+    // Open the temporary file as a TIFF image
+    TIFF* tif = TIFFFdOpen(fileno(tempFile), "tempfile", "r");
+    if (tif) {
+        // Perform operations on the TIFF image
+        // For example, read the number of directories
+        uint16_t dirCount = 0;
+        do {
+            dirCount++;
+        } while (TIFFReadDirectory(tif));
+
+        // Close the TIFF image
+        TIFFClose(tif);
+    }
+
+    // Close the temporary file
+    fclose(tempFile);
+
+    // Reset the error handler to the previous one after the test
+    TIFFSetErrorHandler(previousHandler);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_131(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

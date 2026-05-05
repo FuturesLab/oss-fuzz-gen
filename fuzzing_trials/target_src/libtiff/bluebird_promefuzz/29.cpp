@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -8,57 +10,86 @@
 #include "cstdint"
 #include <cstddef>
 #include "tiffio.h"
-#include <cstdarg>
-#include <fcntl.h>
-#include <unistd.h>
+#include "cstdint"
+#include <cstdio>
+#include "cstdlib"
+#include "cstring"
 
-static void customWarningHandler(const char* module, const char* fmt, va_list ap) {
-    // Custom warning handler logic (could be logging or ignoring)
-}
-
-static void customErrorHandler(const char* module, const char* fmt, va_list ap) {
-    // Custom error handler logic (could be logging or ignoring)
+static TIFF* initializeTIFF(const char* filename) {
+    TIFF* tif = TIFFOpen(filename, "w");
+    if (tif) {
+        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 1);
+        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 1);
+        TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1);
+        TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
+        TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
+        TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+        TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
+    }
+    return tif;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_29(const uint8_t *Data, size_t Size) {
-    // Create a dummy file
-    FILE *file = fopen("./dummy_file", "wb+");
-    if (!file) {
-        return 0;
-    }
+    if (Size < 1) return 0;
+
+    FILE* file = fopen("./dummy_file", "wb");
+    if (!file) return 0;
+
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    // Open the TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "r+");
-    if (!tif) {
-        return 0;
-    }
+    TIFF* tif = initializeTIFF("./dummy_file");
+    if (!tif) return 0;
 
-    // Set custom warning and error handlers
-    TIFFErrorHandler prevWarningHandler = TIFFSetWarningHandler(customWarningHandler);
-    TIFFErrorHandler prevErrorHandler = TIFFSetErrorHandler(customErrorHandler);
+    uint64_t offset;
+    uint8_t buffer[4] = {0};
 
-    // Invoke target functions
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFFlushData with TIFFLastDirectory
-    TIFFLastDirectory(tif);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFCheckpointDirectory with TIFFIsBigTIFF
-    TIFFIsBigTIFF(tif);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    TIFFCheckpointDirectory(tif);
+    TIFFWriteCustomDirectory(tif, &offset);
+    TIFFWriteScanline(tif, buffer, 0, 0);
+    TIFFCreateDirectory(tif);
+    TIFFRewriteDirectory(tif);
     TIFFWriteDirectory(tif);
-    TIFFSetDirectory(tif, 0);
 
-    // Cleanup
     TIFFClose(tif);
-    TIFFSetWarningHandler(prevWarningHandler);
-    TIFFSetErrorHandler(prevErrorHandler);
-
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_29(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

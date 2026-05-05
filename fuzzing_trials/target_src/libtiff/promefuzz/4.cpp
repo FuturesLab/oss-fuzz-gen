@@ -1,10 +1,8 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 // TIFFReadEncodedStrip at tif_read.c:543:10 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 // TIFFSetField at tif_dir.c:1152:5 in tiffio.h
 // TIFFSetField at tif_dir.c:1152:5 in tiffio.h
 // TIFFSetField at tif_dir.c:1152:5 in tiffio.h
@@ -21,16 +19,13 @@
 // TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
 // TIFFForceStrileArrayWriting at tif_flush.c:76:5 in tiffio.h
 // TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
-// TIFFTileSize at tif_tile.c:253:10 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
 // TIFFWriteEncodedTile at tif_write.c:414:10 in tiffio.h
 // TIFFWriteEncodedStrip at tif_write.c:215:10 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 // TIFFReadEncodedTile at tif_read.c:963:10 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -42,43 +37,47 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
-#include <cstdlib>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 
-static void WriteDummyFile(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-}
-
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 8) return 0; // Ensure there's enough data for basic operations
 
-    // Prepare dummy file for TIFFOpen
-    WriteDummyFile(Data, Size);
+    // Prepare a dummy file for TIFF operations
+    const char *filename = "./dummy_file.tiff";
+    FILE *file = fopen(filename, "wb");
+    if (!file) return 0;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    // Open TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "w");
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen(filename, "r+");
     if (!tif) return 0;
 
-    // Set fields in TIFF
-    TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 256);
-    TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 256);
-    TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
-    TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1);
-    TIFFSetField(tif, TIFFTAG_ROWSPERSTRIP, 16);
+    // Prepare a buffer for reading and writing
+    tmsize_t bufferSize = 1024;
+    void *buffer = malloc(bufferSize);
+    if (!buffer) {
+        TIFFClose(tif);
+        return 0;
+    }
+
+    // Set fields using TIFFSetField
+    TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 100);
+    TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 100);
     TIFFSetField(tif, TIFFTAG_COMPRESSION, COMPRESSION_NONE);
-    TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
+    TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_RGB);
+    TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
+    TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 3);
     TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+    TIFFSetField(tif, TIFFTAG_ROWSPERSTRIP, 100);
 
     // Defer strile array writing
     TIFFDeferStrileArrayWriting(tif);
 
-    // Check writing capability
-    TIFFWriteCheck(tif, 1, "WriteCheck");
+    // Write check
+    TIFFWriteCheck(tif, 0, "test");
 
     // Write directory
     TIFFWriteDirectory(tif);
@@ -98,52 +97,83 @@ extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
     // Set directory again
     TIFFSetDirectory(tif, 0);
 
-    // Prepare buffer for encoded tile/strip
-    tmsize_t bufSize = TIFFTileSize(tif);
-    void *buffer = _TIFFmalloc(bufSize);
-    if (!buffer) {
-        TIFFClose(tif);
-        return 0;
-    }
-    memset(buffer, 0, bufSize);
-
     // Write encoded tile
-    TIFFWriteEncodedTile(tif, 0, buffer, bufSize);
+    TIFFWriteEncodedTile(tif, 0, buffer, bufferSize);
 
     // Write encoded strip
-    TIFFWriteEncodedStrip(tif, 0, buffer, bufSize);
+    TIFFWriteEncodedStrip(tif, 0, buffer, bufferSize);
 
     // Close TIFF
     TIFFClose(tif);
 
-    // Open TIFF file for reading
-    tif = TIFFOpen("./dummy_file", "r");
+    // Re-open the TIFF file
+    tif = TIFFOpen(filename, "r");
     if (!tif) {
-        _TIFFfree(buffer);
+        free(buffer);
         return 0;
     }
 
     // Read encoded tile
-    TIFFReadEncodedTile(tif, 0, buffer, bufSize);
+    TIFFReadEncodedTile(tif, 0, buffer, bufferSize);
 
     // Close TIFF
     TIFFClose(tif);
 
-    // Open TIFF file again for reading
-    tif = TIFFOpen("./dummy_file", "r");
+    // Re-open the TIFF file
+    tif = TIFFOpen(filename, "r");
     if (!tif) {
-        _TIFFfree(buffer);
+        free(buffer);
         return 0;
     }
 
     // Read encoded strip
-    TIFFReadEncodedStrip(tif, 0, buffer, bufSize);
+    TIFFReadEncodedStrip(tif, 0, buffer, bufferSize);
 
     // Final close
     TIFFClose(tif);
 
-    // Free allocated buffer
-    _TIFFfree(buffer);
+    // Cleanup
+    free(buffer);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

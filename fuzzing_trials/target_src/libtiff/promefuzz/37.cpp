@@ -1,13 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFTileSize at tif_tile.c:253:10 in tiffio.h
-// TIFFReadTile at tif_read.c:950:10 in tiffio.h
-// TIFFComputeTile at tif_tile.c:35:10 in tiffio.h
-// TIFFNumberOfTiles at tif_tile.c:108:10 in tiffio.h
-// TIFFCurrentTile at tif_open.c:884:10 in tiffio.h
-// TIFFDefaultTileSize at tif_tile.c:267:6 in tiffio.h
-// TIFFComputeStrip at tif_strip.c:35:10 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFRasterScanlineSize64 at tif_strip.c:357:10 in tiffio.h
+// TIFFGetStrileByteCount at tif_dirread.c:8514:10 in tiffio.h
+// TIFFStripSize64 at tif_strip.c:196:10 in tiffio.h
+// TIFFTileSize64 at tif_tile.c:249:10 in tiffio.h
+// TIFFVStripSize64 at tif_strip.c:88:10 in tiffio.h
+// TIFFScanlineSize64 at tif_strip.c:257:10 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -19,52 +18,95 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <cstdio>
 
-extern "C" int LLVMFuzzerTestOneInput_37(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0; // Not enough data to perform meaningful operations
-
-    // Create a dummy file to work with
+static TIFF* createDummyTIFF(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return 0;
+    if (!file) return nullptr;
+
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    // Open the TIFF file
     TIFF *tif = TIFFOpen("./dummy_file", "r");
+    return tif;
+}
+
+static void cleanupTIFF(TIFF *tif) {
+    if (tif) {
+        TIFFClose(tif);
+    }
+}
+
+extern "C" int LLVMFuzzerTestOneInput_37(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return 0;
+
+    TIFF *tif = createDummyTIFF(Data, Size);
     if (!tif) return 0;
 
-    // Prepare buffers and variables for function calls
-    uint32_t x = 0, y = 0, z = 0;
-    uint16_t s = 0;
-    uint32_t tileWidth, tileHeight;
-    tmsize_t tileSize = TIFFTileSize(tif);
-    void *buf = malloc(tileSize);
+    // Fuzz TIFFRasterScanlineSize64
+    uint64_t rasterScanlineSize = TIFFRasterScanlineSize64(tif);
 
-    // Fuzz TIFFReadTile
-    if (buf) {
-        TIFFReadTile(tif, buf, x, y, z, s);
-        free(buf);
-    }
+    // Fuzz TIFFGetStrileByteCount
+    uint32_t strileIndex = Data[0] % 10; // Simple modulo to get a valid index
+    uint64_t strileByteCount = TIFFGetStrileByteCount(tif, strileIndex);
 
-    // Fuzz TIFFComputeTile
-    TIFFComputeTile(tif, x, y, z, s);
+    // Fuzz TIFFStripSize64
+    uint64_t stripSize = TIFFStripSize64(tif);
 
-    // Fuzz TIFFNumberOfTiles
-    TIFFNumberOfTiles(tif);
+    // Fuzz TIFFTileSize64
+    uint64_t tileSize = TIFFTileSize64(tif);
 
-    // Fuzz TIFFCurrentTile
-    TIFFCurrentTile(tif);
+    // Fuzz TIFFVStripSize64
+    uint32_t nrows = (Size > 1) ? Data[1] : 1;
+    uint64_t vStripSize = TIFFVStripSize64(tif, nrows);
 
-    // Fuzz TIFFDefaultTileSize
-    TIFFDefaultTileSize(tif, &tileWidth, &tileHeight);
+    // Fuzz TIFFScanlineSize64
+    uint64_t scanlineSize = TIFFScanlineSize64(tif);
 
-    // Fuzz TIFFComputeStrip
-    TIFFComputeStrip(tif, y, s);
+    // Cleanup
+    cleanupTIFF(tif);
 
-    // Clean up
-    TIFFClose(tif);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_37(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

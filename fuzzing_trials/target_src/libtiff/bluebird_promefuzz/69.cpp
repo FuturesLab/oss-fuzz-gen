@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -8,47 +10,91 @@
 #include "cstdint"
 #include <cstddef>
 #include "tiffio.h"
+#include "cstdint"
 #include <cstdarg>
-#include <fcntl.h>
-#include <unistd.h>
+#include <cstdio>
+#include "cstring"
 
-static void customWarningHandler(const char* module, const char* fmt, va_list ap) {
-    // Custom warning handler logic (could be logging or ignoring)
-}
+static TIFF* openDummyTIFFFile() {
+    FILE* file = fopen("./dummy_file", "wb+");
+    if (!file) return nullptr;
+    
+    const char header[] = "II*\0"; // Minimal TIFF header
+    fwrite(header, 1, sizeof(header), file);
+    fclose(file);
 
-static void customErrorHandler(const char* module, const char* fmt, va_list ap) {
-    // Custom error handler logic (could be logging or ignoring)
+    return TIFFOpen("./dummy_file", "rb+");
 }
 
 extern "C" int LLVMFuzzerTestOneInput_69(const uint8_t *Data, size_t Size) {
-    // Create a dummy file
-    FILE *file = fopen("./dummy_file", "wb+");
-    if (!file) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    if (Size < 4) return 0; // Ensure there's enough data for a tag and index
 
-    // Open the TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "r+");
+    TIFF* tif = openDummyTIFFFile();
     if (!tif) {
         return 0;
     }
 
-    // Set custom warning and error handlers
-    TIFFErrorHandler prevWarningHandler = TIFFSetWarningHandler(customWarningHandler);
-    TIFFErrorHandler prevErrorHandler = TIFFSetErrorHandler(customErrorHandler);
+    uint32_t tag = *reinterpret_cast<const uint32_t*>(Data);
+    int tag_index = static_cast<int>(Data[0] % 255); // Use first byte for tag index
 
-    // Invoke target functions
-    TIFFFlushData(tif);
-    TIFFCheckpointDirectory(tif);
-    TIFFWriteDirectory(tif);
-    TIFFSetDirectory(tif, 0);
+    // Fuzz TIFFGetTagListEntry
+    TIFFGetTagListEntry(tif, tag_index);
 
-    // Cleanup
+    // Fuzz TIFFGetField using variable arguments
+    int fieldStatus = TIFFGetField(tif, tag);
+
+    // Fuzz TIFFFieldWithTag
+    const TIFFField* fieldWithTag = TIFFFieldWithTag(tif, tag);
+    if (fieldWithTag) {
+        // Fuzz TIFFFieldTag if field is valid
+        TIFFFieldTag(fieldWithTag);
+    }
+
+    // Fuzz TIFFUnsetField
+    TIFFUnsetField(tif, tag);
+
+    // Fuzz TIFFFindField
+    TIFFFindField(tif, tag, TIFF_NOTYPE);
+
     TIFFClose(tif);
-    TIFFSetWarningHandler(prevWarningHandler);
-    TIFFSetErrorHandler(prevErrorHandler);
-
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_69(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

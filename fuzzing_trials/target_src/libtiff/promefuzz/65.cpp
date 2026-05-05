@@ -1,10 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// _TIFFmemset at tif_unix.c:353:6 in tiffio.h
-// _TIFFmemcpy at tif_unix.c:355:6 in tiffio.h
-// _TIFFmemcmp at tif_unix.c:360:5 in tiffio.h
-// _TIFFrealloc at tif_unix.c:351:7 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFGetStrileByteCount at tif_dirread.c:8514:10 in tiffio.h
+// TIFFStripSize64 at tif_strip.c:196:10 in tiffio.h
+// TIFFRawStripSize64 at tif_strip.c:153:10 in tiffio.h
+// TIFFGetStrileByteCountWithErr at tif_dirread.c:8521:10 in tiffio.h
+// TIFFGetStrileOffset at tif_dirread.c:8497:10 in tiffio.h
+// TIFFScanlineSize64 at tif_strip.c:257:10 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,52 +16,95 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <tiffio.h>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <tiffio.h>
+
+static TIFF* createDummyTIFF(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return nullptr;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    TIFF *tif = TIFFOpen("./dummy_file", "rm");
+    return tif;
+}
+
+static void cleanupTIFF(TIFF *tif) {
+    if (tif) {
+        TIFFClose(tif);
+    }
+    remove("./dummy_file");
+}
 
 extern "C" int LLVMFuzzerTestOneInput_65(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Ensure there's at least 1 byte for meaningful operations
+    TIFF *tif = createDummyTIFF(Data, Size);
+    if (!tif) return 0;
 
-    // Test _TIFFmalloc
-    tmsize_t alloc_size = static_cast<tmsize_t>(Data[0]);
-    void *memory = _TIFFmalloc(alloc_size);
-    if (!memory) return 0; // Allocation failed, exit early
+    uint32_t strile = 0;
+    uint32_t strip = 0;
+    int pbErr = 0;
 
-    // Test _TIFFmemset
-    int set_value = Data[0];
-    _TIFFmemset(memory, set_value, alloc_size);
+    // Fuzz TIFFGetStrileByteCount
+    uint64_t strileByteCount = TIFFGetStrileByteCount(tif, strile);
 
-    // Test _TIFFmemcpy
-    if (Size > 1) {
-        tmsize_t copy_size = (Size - 1) < alloc_size ? (Size - 1) : alloc_size;
-        _TIFFmemcpy(memory, Data + 1, copy_size);
-    }
+    // Fuzz TIFFStripSize64
+    uint64_t stripSize64 = TIFFStripSize64(tif);
 
-    // Test _TIFFmemcmp
-    if (Size > 2) {
-        int cmp_result = _TIFFmemcmp(memory, Data + 2, alloc_size > (Size - 2) ? (Size - 2) : alloc_size);
-        (void)cmp_result; // Suppress unused variable warning
-    }
+    // Fuzz TIFFRawStripSize64
+    uint64_t rawStripSize64 = TIFFRawStripSize64(tif, strip);
 
-    // Test _TIFFrealloc
-    if (Size > 3) {
-        tmsize_t realloc_size = static_cast<tmsize_t>(Data[3]);
-        void *reallocated_memory = _TIFFrealloc(memory, realloc_size);
-        if (reallocated_memory) {
-            memory = reallocated_memory;
-        } else {
-            // If realloc fails, the original memory block is not freed
-            // so we should not attempt to free it here
-            return 0;
-        }
-    }
+    // Fuzz TIFFGetStrileByteCountWithErr
+    uint64_t strileByteCountWithErr = TIFFGetStrileByteCountWithErr(tif, strile, &pbErr);
 
-    // Cleanup
-    if (memory) {
-        _TIFFfree(memory);
-    }
+    // Fuzz TIFFGetStrileOffset
+    uint64_t strileOffset = TIFFGetStrileOffset(tif, strile);
 
+    // Fuzz TIFFScanlineSize64
+    uint64_t scanlineSize64 = TIFFScanlineSize64(tif);
+
+    cleanupTIFF(tif);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_65(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

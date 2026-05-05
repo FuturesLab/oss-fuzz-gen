@@ -1,18 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFWriteCustomDirectory at tif_dirwrite.c:303:5 in tiffio.h
-// TIFFCheckpointDirectory at tif_dirwrite.c:292:5 in tiffio.h
-// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
-// TIFFRewriteDirectory at tif_dirwrite.c:483:5 in tiffio.h
-// TIFFDeferStrileArrayWriting at tif_dirwrite.c:268:5 in tiffio.h
+// TIFFReadEncodedStrip at tif_read.c:543:10 in tiffio.h
+// TIFFStripSize at tif_strip.c:204:10 in tiffio.h
+// TIFFReadEncodedTile at tif_read.c:963:10 in tiffio.h
+// TIFFReadFromUserBuffer at tif_read.c:1555:5 in tiffio.h
+// TIFFWriteEncodedStrip at tif_write.c:215:10 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -23,63 +17,99 @@
 #include <cstdint>
 #include <cstddef>
 #include <tiffio.h>
-#include <cstdint>
 #include <cstdio>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
-static TIFF* initializeTIFF(const char* filename) {
-    TIFF* tif = TIFFOpen(filename, "w");
-    if (!tif) return nullptr;
-
-    // Setup basic TIFF fields (example setup, may vary based on requirements)
-    TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 1);
-    TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 1);
-    TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1);
-    TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
-    TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
-    TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
-    TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
-
-    return tif;
-}
-
-static void cleanupTIFF(TIFF* tif) {
-    if (tif) {
-        TIFFClose(tif);
-    }
-}
-
 extern "C" int LLVMFuzzerTestOneInput_89(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;  // Not enough data to process
+    if (Size < 1) return 0;
 
-    // Step 1: Prepare a dummy file
-    const char* filename = "./dummy_file";
-    FILE* file = fopen(filename, "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    // Create a dummy TIFF file
+    FILE *dummyFile = fopen("./dummy_file", "wb+");
+    if (!dummyFile) return 0;
+    fwrite(Data, 1, Size, dummyFile);
+    fflush(dummyFile);
+    fseek(dummyFile, 0, SEEK_SET);
 
-    // Step 2: Initialize TIFF structure
-    TIFF* tif = initializeTIFF(filename);
-    if (!tif) return 0;
+    // Open the dummy TIFF file
+    TIFF *tif = TIFFOpen("./dummy_file", "r+");
+    if (!tif) {
+        fclose(dummyFile);
+        return 0;
+    }
 
-    uint64_t dir_offset;
+    // Buffer for reading and writing
+    tmsize_t bufferSize = 1024;
+    void *buffer = malloc(bufferSize);
+    if (!buffer) {
+        TIFFClose(tif);
+        fclose(dummyFile);
+        return 0;
+    }
 
-    // Step 3: Invoke target functions with diverse inputs
-    TIFFWriteCustomDirectory(tif, &dir_offset);
-    TIFFCheckpointDirectory(tif);
-    TIFFWriteDirectory(tif);
-    TIFFRewriteDirectory(tif);
+    // Fuzz TIFFReadEncodedStrip
+    TIFFReadEncodedStrip(tif, 0, buffer, bufferSize);
 
-    // Prepare buffer for TIFFWriteScanline
-    uint8_t buf[1] = {0};  // Minimal buffer for testing
-    TIFFWriteScanline(tif, buf, 0, 0);
+    // Fuzz TIFFPrintDirectory
+    TIFFPrintDirectory(tif, stdout, 0);
 
-    TIFFDeferStrileArrayWriting(tif);
+    // Fuzz TIFFStripSize
+    TIFFStripSize(tif);
 
-    // Step 4: Cleanup
-    cleanupTIFF(tif);
+    // Fuzz TIFFReadEncodedTile
+    TIFFReadEncodedTile(tif, 0, buffer, bufferSize);
+
+    // Fuzz TIFFReadFromUserBuffer
+    TIFFReadFromUserBuffer(tif, 0, buffer, bufferSize, buffer, bufferSize);
+
+    // Fuzz TIFFWriteEncodedStrip
+    TIFFWriteEncodedStrip(tif, 0, buffer, bufferSize);
+
+    // Cleanup
+    free(buffer);
+    TIFFClose(tif);
+    fclose(dummyFile);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_89(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

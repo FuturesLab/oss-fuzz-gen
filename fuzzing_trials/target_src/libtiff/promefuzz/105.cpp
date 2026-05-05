@@ -1,8 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFReadRGBAStrip at tif_getimage.c:3387:5 in tiffio.h
-// TIFFReadRGBATile at tif_getimage.c:3462:5 in tiffio.h
-// TIFFReadRGBAStripExt at tif_getimage.c:3393:5 in tiffio.h
+// TIFFNumberOfDirectories at tif_dir.c:2042:8 in tiffio.h
+// TIFFComputeStrip at tif_strip.c:35:10 in tiffio.h
+// TIFFCurrentStrip at tif_open.c:879:10 in tiffio.h
+// TIFFCurrentTile at tif_open.c:884:10 in tiffio.h
+// TIFFCurrentDirectory at tif_open.c:874:8 in tiffio.h
+// TIFFCurrentRow at tif_open.c:869:10 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -15,53 +18,80 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
-#include <cstring>
 #include <cstdio>
+#include <cstdlib>
 
 extern "C" int LLVMFuzzerTestOneInput_105(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0; // Ensure enough data for minimal operations
-
-    // Write data to a dummy file for TIFF operations
+    // Create a dummy TIFF file
     FILE *file = fopen("./dummy_file", "wb");
     if (!file) return 0;
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    // Open the dummy file with libtiff
+    // Open the dummy TIFF file
     TIFF *tif = TIFFOpen("./dummy_file", "r");
     if (!tif) return 0;
 
-    // Prepare buffers and variables for the functions
-    uint32_t width = 100, height = 100; // Default dimensions
-    uint32_t *raster = new uint32_t[width * height];
-    uint32_t row = 0, col = 0;
-    int orientation = ORIENTATION_TOPLEFT;
-    int stop_on_error = 1;
-    void *scanline_buf = new uint32_t[width];
-    uint16_t sample = 0;
+    // Fuzz TIFFNumberOfDirectories
+    tdir_t numDirs = TIFFNumberOfDirectories(tif);
 
-    // Fuzz TIFFReadRGBAImageOriented
-    TIFFReadRGBAImageOriented(tif, width, height, raster, orientation, stop_on_error);
+    // Fuzz TIFFComputeStrip
+    uint32_t strip = TIFFComputeStrip(tif, 0, 0);
 
-    // Fuzz TIFFReadRGBAStrip
-    TIFFReadRGBAStrip(tif, row, raster);
+    // Fuzz TIFFCurrentStrip
+    uint32_t currentStrip = TIFFCurrentStrip(tif);
 
-    // Fuzz TIFFReadRGBATile
-    TIFFReadRGBATile(tif, col, row, raster);
+    // Fuzz TIFFCurrentTile
+    uint32_t currentTile = TIFFCurrentTile(tif);
 
-    // Fuzz TIFFReadScanline
-    TIFFReadScanline(tif, scanline_buf, row, sample);
+    // Fuzz TIFFCurrentDirectory
+    tdir_t currentDir = TIFFCurrentDirectory(tif);
 
-    // Fuzz TIFFReadRGBAImage
-    TIFFReadRGBAImage(tif, width, height, raster, stop_on_error);
-
-    // Fuzz TIFFReadRGBAStripExt
-    TIFFReadRGBAStripExt(tif, row, raster, stop_on_error);
+    // Fuzz TIFFCurrentRow
+    uint32_t currentRow = TIFFCurrentRow(tif);
 
     // Cleanup
-    delete[] raster;
-    delete[] static_cast<uint32_t*>(scanline_buf);
     TIFFClose(tif);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_105(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

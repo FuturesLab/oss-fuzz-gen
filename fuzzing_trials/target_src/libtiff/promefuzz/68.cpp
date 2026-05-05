@@ -1,11 +1,10 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFClientOpen at tif_open.c:289:7 in tiffio.h
-// TIFFCreateEXIFDirectory at tif_dir.c:1742:5 in tiffio.h
-// TIFFCreateGPSDirectory at tif_dir.c:1752:5 in tiffio.h
-// TIFFReadEXIFDirectory at tif_dirread.c:5556:5 in tiffio.h
-// TIFFGetVersion at tif_version.c:28:13 in tiffio.h
-// TIFFReadGPSDirectory at tif_dirread.c:5564:5 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
+// XYZtoRGB24 at tif_luv.c:865:5 in tiffio.h
+// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
+// TIFFCIELabToRGBInit at tif_color.c:135:5 in tiffio.h
+// TIFFCIELabToXYZ at tif_color.c:43:6 in tiffio.h
+// TIFFXYZToRGB at tif_color.c:89:6 in tiffio.h
+// TIFFYCbCrToRGBInit at tif_color.c:251:5 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,49 +15,136 @@
 #include <cstdint>
 #include <cstddef>
 #include <tiffio.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <iostream>
 
-static TIFF* createDummyTIFF() {
-    FILE* file = fopen("./dummy_file", "wb+");
-    if (!file) return nullptr;
+static void TestXYZtoRGB24(const uint8_t *Data, size_t Size) {
+    if (Size < 3 * sizeof(float) + 3 * sizeof(uint8_t)) return;
 
-    TIFF* tiff = TIFFClientOpen("dummy", "w+", (thandle_t)file,
-                                [](thandle_t fd, void* buf, tmsize_t size) -> tmsize_t { return fread(buf, 1, size, (FILE*)fd); },
-                                [](thandle_t fd, void* buf, tmsize_t size) -> tmsize_t { return fwrite(buf, 1, size, (FILE*)fd); },
-                                [](thandle_t fd, toff_t off, int whence) -> toff_t { return fseek((FILE*)fd, off, whence); },
-                                [](thandle_t fd) -> int { return fclose((FILE*)fd); },
-                                [](thandle_t fd) -> toff_t { fseek((FILE*)fd, 0, SEEK_END); return ftell((FILE*)fd); },
-                                nullptr, nullptr);
+    float xyz[3];
+    uint8_t rgb[3];
 
-    if (!tiff) fclose(file);
-    return tiff;
+    memcpy(xyz, Data, 3 * sizeof(float));
+    XYZtoRGB24(xyz, rgb);
 }
 
-extern "C" int LLVMFuzzerTestOneInput_68(const uint8_t* Data, size_t Size) {
-    if (Size < sizeof(toff_t)) return 0;
+static void TestLogLuv24toXYZ(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(uint32_t) + 3 * sizeof(float)) return;
 
-    TIFF* tiff = createDummyTIFF();
-    if (!tiff) return 0;
+    uint32_t logluv;
+    float xyz[3];
 
-    // Fuzz TIFFCreateEXIFDirectory
-    TIFFCreateEXIFDirectory(tiff);
+    memcpy(&logluv, Data, sizeof(uint32_t));
+    LogLuv24toXYZ(logluv, xyz);
+}
 
-    // Fuzz TIFFCreateGPSDirectory
-    TIFFCreateGPSDirectory(tiff);
+static void TestTIFFCIELabToRGBInit(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(TIFFCIELabToRGB) + sizeof(TIFFDisplay) + 3 * sizeof(float)) return;
 
-    // Fuzz TIFFReadEXIFDirectory
-    toff_t exifOffset;
-    memcpy(&exifOffset, Data, sizeof(toff_t));
-    TIFFReadEXIFDirectory(tiff, exifOffset);
+    TIFFCIELabToRGB cielabToRGB;
+    TIFFDisplay display;
+    float refWhite[3];
 
-    // Fuzz TIFFGetVersion
-    const char* version = TIFFGetVersion();
-    (void)version;  // Suppress unused variable warning
+    memcpy(&cielabToRGB, Data, sizeof(TIFFCIELabToRGB));
+    memcpy(&display, Data + sizeof(TIFFCIELabToRGB), sizeof(TIFFDisplay));
+    memcpy(refWhite, Data + sizeof(TIFFCIELabToRGB) + sizeof(TIFFDisplay), 3 * sizeof(float));
 
-    // Fuzz TIFFReadGPSDirectory
-    toff_t gpsOffset;
-    memcpy(&gpsOffset, Data, sizeof(toff_t));
-    TIFFReadGPSDirectory(tiff, gpsOffset);
+    TIFFCIELabToRGBInit(&cielabToRGB, &display, refWhite);
+}
 
-    TIFFClose(tiff);
+static void TestTIFFCIELabToXYZ(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(TIFFCIELabToRGB) + 3 * sizeof(uint32_t) + 3 * sizeof(float)) return;
+
+    TIFFCIELabToRGB cielabToRGB;
+    uint32_t L, a, b;
+    float X, Y, Z;
+
+    memcpy(&cielabToRGB, Data, sizeof(TIFFCIELabToRGB));
+    memcpy(&L, Data + sizeof(TIFFCIELabToRGB), sizeof(uint32_t));
+    memcpy(&a, Data + sizeof(TIFFCIELabToRGB) + sizeof(uint32_t), sizeof(uint32_t));
+    memcpy(&b, Data + sizeof(TIFFCIELabToRGB) + 2 * sizeof(uint32_t), sizeof(uint32_t));
+
+    TIFFCIELabToXYZ(&cielabToRGB, L, a, b, &X, &Y, &Z);
+}
+
+static void TestTIFFXYZToRGB(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(TIFFCIELabToRGB) + 3 * sizeof(float) + 3 * sizeof(uint32_t)) return;
+
+    TIFFCIELabToRGB cielabToRGB;
+    float X, Y, Z;
+    uint32_t R, G, B;
+
+    memcpy(&cielabToRGB, Data, sizeof(TIFFCIELabToRGB));
+    memcpy(&X, Data + sizeof(TIFFCIELabToRGB), sizeof(float));
+    memcpy(&Y, Data + sizeof(TIFFCIELabToRGB) + sizeof(float), sizeof(float));
+    memcpy(&Z, Data + sizeof(TIFFCIELabToRGB) + 2 * sizeof(float), sizeof(float));
+
+    TIFFXYZToRGB(&cielabToRGB, X, Y, Z, &R, &G, &B);
+}
+
+static void TestTIFFYCbCrToRGBInit(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(TIFFYCbCrToRGB) + 2 * 256 * sizeof(float)) return;
+
+    TIFFYCbCrToRGB ycbcrToRGB;
+    float luma[256];
+    float refBlackWhite[256];
+
+    memcpy(&ycbcrToRGB, Data, sizeof(TIFFYCbCrToRGB));
+    memcpy(luma, Data + sizeof(TIFFYCbCrToRGB), 256 * sizeof(float));
+    memcpy(refBlackWhite, Data + sizeof(TIFFYCbCrToRGB) + 256 * sizeof(float), 256 * sizeof(float));
+
+    TIFFYCbCrToRGBInit(&ycbcrToRGB, luma, refBlackWhite);
+}
+
+extern "C" int LLVMFuzzerTestOneInput_68(const uint8_t *Data, size_t Size) {
+    TestXYZtoRGB24(Data, Size);
+    TestLogLuv24toXYZ(Data, Size);
+    TestTIFFCIELabToRGBInit(Data, Size);
+    TestTIFFCIELabToXYZ(Data, Size);
+    TestTIFFXYZToRGB(Data, Size);
+    TestTIFFYCbCrToRGBInit(Data, Size);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_68(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

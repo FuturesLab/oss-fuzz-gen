@@ -1,43 +1,79 @@
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
 #include <tiffio.h>
-#include <unistd.h>
-#include <fcntl.h>
+
+extern "C" {
+    void* _TIFFrealloc(void* ptr, tmsize_t size);
+    void* _TIFFmalloc(tmsize_t size);
+    void _TIFFfree(void* ptr);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_189(const uint8_t *data, size_t size) {
-    // Create a temporary file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
+    // Initialize a non-NULL pointer for the initial allocation
+    tmsize_t initial_size = 10; // Arbitrary non-zero size
+    void* ptr = _TIFFmalloc(initial_size);
+    if (ptr == NULL) {
+        return 0; // If allocation fails, exit the fuzzer
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Ensure the file is flushed and the file descriptor is reset
-    fsync(fd);
-    lseek(fd, 0, SEEK_SET);
-
-    // Define mode for opening the TIFF file
-    const char *mode = "r";
+    // Use the input data to determine the new size for reallocation
+    tmsize_t new_size = static_cast<tmsize_t>(size);
 
     // Call the function-under-test
-    TIFF *tiff = TIFFFdOpen(fd, tmpl, mode);
+    void* new_ptr = _TIFFrealloc(ptr, new_size);
 
-    // If the TIFF file is successfully opened, close it
-    if (tiff != nullptr) {
-        TIFFClose(tiff);
+    // Check if reallocation was successful
+    if (new_ptr != NULL) {
+        // If the reallocation was successful and the new size is zero, 
+        // the pointer should be freed as per the C standard library semantics.
+        if (new_size == 0) {
+            _TIFFfree(new_ptr);
+        }
+    } else {
+        // If reallocation failed and new size is not zero, free the original pointer
+        if (new_size != 0) {
+            _TIFFfree(ptr);
+        }
     }
-
-    // Clean up: close file descriptor and remove the temporary file
-    close(fd);
-    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_189(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

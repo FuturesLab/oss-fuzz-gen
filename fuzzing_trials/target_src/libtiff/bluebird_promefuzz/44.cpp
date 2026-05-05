@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -10,79 +12,87 @@
 #include "tiffio.h"
 #include "cstdint"
 #include <cstdio>
-#include <cstdarg>
 #include "cstdlib"
 #include "cstring"
 
 extern "C" int LLVMFuzzerTestOneInput_44(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
-
-    // Step 1: Prepare the environment
-    TIFFOpenOptions *opts = TIFFOpenOptionsAlloc();
-    if (!opts) {
-        return 0; // Allocation failed, exit early
-    }
-
-    // Set a reasonable max single memory allocation size
-    tmsize_t max_single_mem_alloc = 1024 * 1024; // 1MB
-    TIFFOpenOptionsSetMaxSingleMemAlloc(opts, max_single_mem_alloc);
-
-    // Write input data to a dummy file
+    // Write the input data to a dummy file
     FILE *file = fopen("./dummy_file", "wb");
     if (!file) {
-        TIFFOpenOptionsFree(opts);
-        return 0; // File open failed, exit early
+        return 0;
     }
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    // Step 2: Invoke the target functions
-    TIFF *tif = TIFFOpenExt("./dummy_file", "r", opts);
-
-    // Free the options as they are no longer needed
-    TIFFOpenOptionsFree(opts);
-
-    if (tif) {
-        // Set some fields, using tags and values that are typical
-        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 100);
-        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 100);
-
-        // Write the current directory
-        TIFFWriteDirectory(tif);
-
-        // Close the TIFF handle
-        TIFFClose(tif);
-        tif = NULL; // Prevent further operations on freed memory
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    if (!tif) {
+        return 0;
     }
 
-    // Attempt to open the file again in write mode
-    tif = TIFFOpenExt("./dummy_file", "w", NULL);
-    if (tif) {
-        // Set some fields again
-        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 200);
-        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 200);
+    // Fuzz TIFFGetWriteProc
+    TIFFReadWriteProc writeProc = TIFFGetWriteProc(tif);
 
-        // Write the current directory again
+    // Fuzz TIFFGetUnmapFileProc
+    TIFFUnmapFileProc unmapFileProc = TIFFGetUnmapFileProc(tif);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFSetField to TIFFWriteRawStrip
-        TIFFReadWriteProc ret_TIFFGetWriteProc_gbkfg = TIFFGetWriteProc(tif);
-        int ret_TIFFFieldSetGetCountSize_ytelw = TIFFFieldSetGetCountSize(NULL);
-        if (ret_TIFFFieldSetGetCountSize_ytelw < 0){
-        	return 0;
-        }
-        tmsize_t ret_TIFFTileSize_ibfyr = TIFFTileSize(tif);
+    // Fuzz TIFFReadDirectory
+    int readDirResult = TIFFReadDirectory(tif);
 
-        tmsize_t ret_TIFFWriteRawStrip_afsmo = TIFFWriteRawStrip(tif, (uint32_t )ret_TIFFFieldSetGetCountSize_ytelw, (void *)tif, ret_TIFFTileSize_ibfyr);
+    // Fuzz TIFFGetReadProc
+    TIFFReadWriteProc readProc = TIFFGetReadProc(tif);
 
-        // End mutation: Producer.APPEND_MUTATOR
+    // Fuzz TIFFGetSeekProc
+    TIFFSeekProc seekProc = TIFFGetSeekProc(tif);
 
-        TIFFWriteDirectory(tif);
-
-        // Close the TIFF handle
-        TIFFClose(tif);
-        tif = NULL; // Prevent further operations on freed memory
+    // Fuzz TIFFSetSubDirectory
+    if (Size >= sizeof(uint64_t)) {
+        uint64_t offset;
+        memcpy(&offset, Data, sizeof(uint64_t));
+        int setSubDirResult = TIFFSetSubDirectory(tif, offset);
     }
+
+    // Cleanup
+    TIFFClose(tif);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_44(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

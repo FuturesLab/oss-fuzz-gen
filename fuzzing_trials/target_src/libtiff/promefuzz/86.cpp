@@ -1,10 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFSetClientdata at tif_open.c:838:11 in tiffio.h
-// TIFFClientdata at tif_open.c:833:11 in tiffio.h
-// TIFFSetClientInfo at tif_extension.c:78:6 in tiffio.h
-// TIFFGetClientInfo at tif_extension.c:64:7 in tiffio.h
-// TIFFFieldWithName at tif_dirinfo.c:941:18 in tiffio.h
+// TIFFRasterScanlineSize at tif_strip.c:375:10 in tiffio.h
+// TIFFVStripSize at tif_strip.c:142:10 in tiffio.h
+// TIFFRawStripSize at tif_strip.c:168:10 in tiffio.h
+// TIFFStripSize at tif_strip.c:204:10 in tiffio.h
+// TIFFScanlineSize at tif_strip.c:343:10 in tiffio.h
+// TIFFTileRowSize at tif_tile.c:177:10 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -17,45 +18,86 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
-#include <cstring>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
+
+static TIFF* createDummyTIFF(const uint8_t* Data, size_t Size) {
+    FILE* file = fopen("./dummy_file", "wb");
+    if (!file) return nullptr;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    TIFF* tif = TIFFOpen("./dummy_file", "r");
+    return tif;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_86(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Create a dummy file and write some data to avoid TIFFOpen failure
-    FILE *dummyFile = fopen("./dummy_file", "wb");
-    if (!dummyFile) return 0;
-    fwrite(Data, 1, Size, dummyFile);
-    fclose(dummyFile);
-
-    // Open the dummy file with TIFF
-    TIFF *tif = TIFFOpen("./dummy_file", "r+");
+    TIFF* tif = createDummyTIFF(Data, Size);
     if (!tif) return 0;
 
-    // Prepare a buffer to store client data
-    char client_data[256] = {0};
-    if (Size < sizeof(client_data)) {
-        memcpy(client_data, Data, Size);
-    } else {
-        memcpy(client_data, Data, sizeof(client_data) - 1);
-    }
+    // Fuzz TIFFRasterScanlineSize
+    tmsize_t rasterScanlineSize = TIFFRasterScanlineSize(tif);
 
-    // Testing TIFFSetClientdata and TIFFClientdata
-    thandle_t previous_client_data = TIFFSetClientdata(tif, client_data);
-    thandle_t retrieved_client_data = TIFFClientdata(tif);
-    
-    // Testing TIFFSetClientInfo and TIFFGetClientInfo
-    const char *info_name = "test_info";
-    TIFFSetClientInfo(tif, client_data, info_name);
-    void *retrieved_info = TIFFGetClientInfo(tif, info_name);
+    // Fuzz TIFFVStripSize
+    uint32_t nrows = Data[0];
+    tmsize_t vStripSize = TIFFVStripSize(tif, nrows);
 
-    // Testing TIFFFieldWithName with a dummy field name
-    const char *field_name = "dummy_field";
-    const TIFFField *field = TIFFFieldWithName(tif, field_name);
+    // Fuzz TIFFRawStripSize
+    uint32_t strip = Data[0];
+    tmsize_t rawStripSize = TIFFRawStripSize(tif, strip);
 
-    // Cleanup
+    // Fuzz TIFFStripSize
+    tmsize_t stripSize = TIFFStripSize(tif);
+
+    // Fuzz TIFFScanlineSize
+    tmsize_t scanlineSize = TIFFScanlineSize(tif);
+
+    // Fuzz TIFFTileRowSize
+    tmsize_t tileRowSize = TIFFTileRowSize(tif);
+
     TIFFClose(tif);
-
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_86(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

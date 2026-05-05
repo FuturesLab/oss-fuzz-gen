@@ -4,9 +4,12 @@
 // TIFFCurrentDirOffset at tif_dir.c:2233:10 in tiffio.h
 // TIFFNumberOfTiles at tif_tile.c:108:10 in tiffio.h
 // TIFFTileSize64 at tif_tile.c:249:10 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
 // TIFFReadEncodedTile at tif_read.c:963:10 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 // TIFFScanlineSize64 at tif_strip.c:257:10 in tiffio.h
-// TIFFNumberOfTiles at tif_tile.c:108:10 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -19,69 +22,105 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
-#include <cstdlib>
 #include <cstdio>
 #include <cstring>
+#include <cassert>
 
-static void writeDummyFile(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+static TIFF* initializeTIFF(const uint8_t* Data, size_t Size) {
+    FILE* file = fopen("./dummy_file", "wb");
+    if (!file) return nullptr;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    TIFF* tif = TIFFOpen("./dummy_file", "r");
+    return tif;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(uint32_t)) return 0;
 
-    // Write the input data to a dummy file
-    writeDummyFile(Data, Size);
-
-    // Open the dummy TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    TIFF* tif = initializeTIFF(Data, Size);
     if (!tif) return 0;
 
-    // Set directory
-    tdir_t dirNum = Data[0] % 256; // Use the first byte of data as directory number
-    TIFFSetDirectory(tif, dirNum);
+    tdir_t dirNumber = *reinterpret_cast<const tdir_t*>(Data);
 
-    // Get current directory offset
-    uint64_t dirOffset = TIFFCurrentDirOffset(tif);
+    // TIFFSetDirectory
+    if (TIFFSetDirectory(tif, dirNumber)) {
+        // TIFFCurrentDirOffset
+        uint64_t dirOffset = TIFFCurrentDirOffset(tif);
+        (void)dirOffset; // Use the offset if needed
 
-    // Get number of tiles
-    uint32_t numTiles = TIFFNumberOfTiles(tif);
+        // TIFFNumberOfTiles
+        uint32_t numTiles = TIFFNumberOfTiles(tif);
+        
+        // TIFFTileSize64
+        uint64_t tileSize = TIFFTileSize64(tif);
 
-    // Get tile size
-    uint64_t tileSize = TIFFTileSize64(tif);
-
-    // Prepare a buffer for reading tiles
-    uint8_t *tileBuffer = (tileSize > 0) ? (uint8_t *)malloc(tileSize) : nullptr;
-
-    // Read encoded tile
-    if (tileBuffer) {
-        for (uint32_t tile = 0; tile < numTiles; ++tile) {
-            TIFFReadEncodedTile(tif, tile, tileBuffer, tileSize);
+        // TIFFReadEncodedTile
+        if (numTiles > 0 && tileSize > 0) {
+            void* buf = _TIFFmalloc(tileSize);
+            if (buf) {
+                tmsize_t readSize = TIFFReadEncodedTile(tif, 0, buf, tileSize);
+                (void)readSize; // Use the read size if needed
+                _TIFFfree(buf);
+            }
         }
-        free(tileBuffer);
+
+        // TIFFScanlineSize64
+        uint64_t scanlineSize = TIFFScanlineSize64(tif);
+
+        // TIFFReadScanline
+        if (scanlineSize > 0) {
+            void* scanlineBuf = _TIFFmalloc(scanlineSize);
+            if (scanlineBuf) {
+                TIFFReadScanline(tif, scanlineBuf, 0, 0);
+                _TIFFfree(scanlineBuf);
+            }
+        }
     }
 
-    // Get scanline size
-    uint64_t scanlineSize = TIFFScanlineSize64(tif);
-
-    // Prepare a buffer for reading scanlines
-    uint8_t *scanlineBuffer = (scanlineSize > 0) ? (uint8_t *)malloc(scanlineSize) : nullptr;
-
-    // Read scanlines
-    if (scanlineBuffer) {
-        uint32_t rowsPerStrip = (uint32_t)TIFFNumberOfTiles(tif); // Using number of tiles as an arbitrary number of rows
-        for (uint32_t row = 0; row < rowsPerStrip; ++row) {
-            TIFFReadScanline(tif, scanlineBuffer, row, 0);
-        }
-        free(scanlineBuffer);
-    }
-
-    // Close the TIFF file
+    // TIFFClose
     TIFFClose(tif);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_8(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

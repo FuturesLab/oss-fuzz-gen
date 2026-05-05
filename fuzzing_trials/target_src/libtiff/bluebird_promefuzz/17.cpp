@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -7,81 +9,112 @@
 #include <cstdio>
 #include "cstdint"
 #include <cstddef>
-#include "tiffio.h"
 #include "cstdint"
-#include <cstdio>
-#include <cstdarg>
-#include "cstdlib"
 #include "cstring"
+#include "cstdlib"
+#include "tiffio.h"
 
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size < 8) return 0; // Ensure there's enough data for at least one 64-bit integer
 
-    // Step 1: Prepare the environment
-    TIFFOpenOptions *opts = TIFFOpenOptionsAlloc();
-    if (!opts) {
-        return 0; // Allocation failed, exit early
-    }
+    // Test TIFFSwabLong8
+    uint64_t long8Value;
+    memcpy(&long8Value, Data, sizeof(uint64_t));
+    TIFFSwabLong8(&long8Value);
 
-    // Set a reasonable max single memory allocation size
-    tmsize_t max_single_mem_alloc = 1024 * 1024; // 1MB
-    TIFFOpenOptionsSetMaxSingleMemAlloc(opts, max_single_mem_alloc);
-
-    // Write input data to a dummy file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        TIFFOpenOptionsFree(opts);
-        return 0; // File open failed, exit early
-    }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    // Step 2: Invoke the target functions
-    TIFF *tif = TIFFOpenExt("./dummy_file", "r", opts);
-
-    // Free the options as they are no longer needed
-    TIFFOpenOptionsFree(opts);
-
-    if (tif) {
-        // Set some fields, using tags and values that are typical
-        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 100);
-        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 100);
-
-        // Write the current directory
-        TIFFWriteDirectory(tif);
-
-        // Close the TIFF handle
-        TIFFClose(tif);
-        tif = NULL; // Prevent further operations on freed memory
-    }
-
-    // Attempt to open the file again in write mode
-    tif = TIFFOpenExt("./dummy_file", "w", NULL);
-    if (tif) {
-        // Set some fields again
-        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 200);
-        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 200);
-
-        // Write the current directory again
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFSetField to TIFFWriteRawStrip
-        int ret_TIFFDeferStrileArrayWriting_ypaad = TIFFDeferStrileArrayWriting(tif);
-        if (ret_TIFFDeferStrileArrayWriting_ypaad < 0){
-        	return 0;
+    // Test TIFFSwabArrayOfTriples
+    if (Size >= 3) {
+        uint8_t *triplesData = (uint8_t *)malloc(Size);
+        if (triplesData) {
+            memcpy(triplesData, Data, Size);
+            tmsize_t numTriples = Size / 3;
+            TIFFSwabArrayOfTriples(triplesData, numTriples);
+            free(triplesData);
         }
-        tmsize_t ret_TIFFStripSize_jxwkz = TIFFStripSize(tif);
-
-        tmsize_t ret_TIFFWriteRawStrip_fkggz = TIFFWriteRawStrip(tif, LOGLUV_PUBLIC, (void *)tif, ret_TIFFStripSize_jxwkz);
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-        TIFFWriteDirectory(tif);
-
-        // Close the TIFF handle
-        TIFFClose(tif);
-        tif = NULL; // Prevent further operations on freed memory
     }
+
+    // Test TIFFSwabArrayOfShort
+    if (Size >= sizeof(uint16_t)) {
+        tmsize_t numShorts = Size / sizeof(uint16_t);
+        uint16_t *shortArray = (uint16_t *)malloc(numShorts * sizeof(uint16_t));
+        if (shortArray) {
+            memcpy(shortArray, Data, numShorts * sizeof(uint16_t));
+            TIFFSwabArrayOfShort(shortArray, numShorts);
+            free(shortArray);
+        }
+    }
+
+    // Test TIFFSwabArrayOfLong
+    if (Size >= sizeof(uint32_t)) {
+        tmsize_t numLongs = Size / sizeof(uint32_t);
+        uint32_t *longArray = (uint32_t *)malloc(numLongs * sizeof(uint32_t));
+        if (longArray) {
+            memcpy(longArray, Data, numLongs * sizeof(uint32_t));
+            TIFFSwabArrayOfLong(longArray, numLongs);
+            free(longArray);
+        }
+    }
+
+    // Test TIFFSwabArrayOfLong8
+    if (Size >= sizeof(uint64_t)) {
+        tmsize_t numLong8s = Size / sizeof(uint64_t);
+        uint64_t *long8Array = (uint64_t *)malloc(numLong8s * sizeof(uint64_t));
+        if (long8Array) {
+            memcpy(long8Array, Data, numLong8s * sizeof(uint64_t));
+            TIFFSwabArrayOfLong8(long8Array, numLong8s);
+            free(long8Array);
+        }
+    }
+
+    // Test TIFFSwabArrayOfDouble
+    if (Size >= sizeof(double)) {
+        tmsize_t numDoubles = Size / sizeof(double);
+        double *doubleArray = (double *)malloc(numDoubles * sizeof(double));
+        if (doubleArray) {
+            memcpy(doubleArray, Data, numDoubles * sizeof(double));
+            TIFFSwabArrayOfDouble(doubleArray, numDoubles);
+            free(doubleArray);
+        }
+    }
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

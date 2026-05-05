@@ -1,25 +1,82 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <tiffio.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <unistd.h> // Include for close()
 
-// Assuming the function LogL16toY is defined elsewhere
-extern "C" double LogL16toY(int value);
+extern "C" {
+    // Ensure that C headers and functions are correctly linked with C++
+    #include <tiffio.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_254(const uint8_t *data, size_t size) {
-    if (size < sizeof(int)) {
-        return 0; // Not enough data to form an int
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // Unable to create a temporary file
     }
 
-    // Extract an int from the input data
-    int value = 0;
-    for (size_t i = 0; i < sizeof(int); ++i) {
-        value |= data[i] << (i * 8);
+    // Write the fuzz data to the temporary file
+    FILE *file = fdopen(fd, "wb");
+    if (!file) {
+        close(fd);
+        return 0;
+    }
+    fwrite(data, 1, size, file);
+    fclose(file);
+
+    // Open the temporary file with libtiff
+    TIFF *tiff = TIFFOpen(tmpl, "r");
+    if (tiff) {
+        // Call the function-under-test
+        TIFFReadWriteProc writeProc = TIFFGetWriteProc(tiff);
+
+        // Clean up
+        TIFFClose(tiff);
     }
 
-    // Call the function-under-test
-    double result = LogL16toY(value);
-
-    // Use the result in some way to avoid compiler optimizations removing the call
-    (void)result;
+    // Remove the temporary file
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_254(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

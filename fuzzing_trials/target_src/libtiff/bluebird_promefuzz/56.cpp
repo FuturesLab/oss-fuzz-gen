@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -8,70 +10,81 @@
 #include "cstdint"
 #include <cstddef>
 #include "tiffio.h"
+#include "cstdint"
+#include <cstdio>
+
+static void DummyTagExtender(TIFF *tif) {
+    // This is a dummy tag extender function for demonstration purposes.
+}
 
 extern "C" int LLVMFuzzerTestOneInput_56(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint64_t)) {
-        return 0; // Not enough data for a valid offset
-    }
+    if (Size < 1) return 0; // Ensure there is at least some data to work with.
 
-    // Create a dummy TIFF file
-    const char *filename = "./dummy_file";
-    FILE *file = fopen(filename, "wb");
-    if (!file) {
-        return 0;
-    }
+    // Write the fuzz data to a dummy file
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return 0;
     fwrite(Data, 1, Size, file);
     fclose(file);
 
     // Open the TIFF file
-    TIFF *tif = TIFFOpen(filename, "r+");
-    if (!tif) {
-        return 0;
-    }
+    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    if (!tif) return 0; // If opening fails, exit early.
 
-    // Extract an offset from the data
-    toff_t offset;
-    memcpy(&offset, Data, sizeof(offset));
+    // Set a dummy tag extender
+    TIFFExtendProc prevExtender = TIFFSetTagExtender(DummyTagExtender);
 
-    // Fuzz TIFFCreateEXIFDirectory
-    TIFFCreateEXIFDirectory(tif);
+    // Attempt to get a few fields from the TIFF file
+    uint32_t tag = 256; // Typically, width or other standard tags
+    uint32_t value;
+    TIFFGetField(tif, tag, &value);
+    TIFFGetField(tif, tag + 1, &value);
+    TIFFGetField(tif, tag + 2, &value);
+    TIFFGetField(tif, tag + 3, &value);
 
-    // Fuzz TIFFReadEXIFDirectory
-    TIFFReadEXIFDirectory(tif, offset);
-
-    // Fuzz TIFFGetMapFileProc
-    TIFFMapFileProc mapProc = TIFFGetMapFileProc(tif);
-    if (mapProc) {
-        // Call the map procedure if available
-        tdata_t base = nullptr;
-        toff_t size = 0;
-        mapProc(tif, &base, &size);
-    }
-
-    // Fuzz TIFFReadDirectory
-    TIFFReadDirectory(tif);
-
-    // Fuzz TIFFFreeDirectory
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFReadDirectory to TIFFVGetField
-    uint64_t ret_TIFFTileRowSize64_jzwjh = TIFFTileRowSize64(tif);
-    if (ret_TIFFTileRowSize64_jzwjh < 0){
-    	return 0;
-    }
-
-    int ret_TIFFVGetField_sevum = TIFFVGetField(tif, (uint32_t )ret_TIFFTileRowSize64_jzwjh, NULL);
-    if (ret_TIFFVGetField_sevum < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    TIFFFreeDirectory(tif);
-
-    // Since TIFFField and TIFFFieldArray are incomplete types, we skip the TIFFReadCustomDirectory call
+    // Restore the previous tag extender
+    TIFFSetTagExtender(prevExtender);
 
     // Close the TIFF file
     TIFFClose(tif);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_56(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

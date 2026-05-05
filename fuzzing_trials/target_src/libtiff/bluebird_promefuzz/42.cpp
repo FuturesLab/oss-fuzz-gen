@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -7,75 +9,99 @@
 #include <cstdio>
 #include "cstdint"
 #include <cstddef>
+#include <cmath>
 #include "tiffio.h"
-#include "cstdint"
-#include <cstdio>
-#include <fcntl.h>
-#include <unistd.h>
 
-static int customErrorHandler(TIFF* tif, void* user_data, const char* module, const char* fmt, va_list ap) {
-    // Custom error handler that does nothing
-    return 0;
+// Dummy implementation for the external TIFF functions
+extern "C" int LogL10fromY(double, int);
+extern "C" int LogL16fromY(double, int);
+extern "C" int TIFFReadBufferSetup(TIFF *tif, void *bp, tmsize_t size);
+extern "C" int TIFFIsMSB2LSB(TIFF *);
+extern "C" double LogL10toY(int);
+extern "C" double LogL16toY(int);
+
+static TIFF* createDummyTIFF() {
+    // Instead of creating a TIFF struct directly, use TIFFOpen to get a TIFF object
+    FILE* dummyFile = fopen("./dummy_file", "wb+");
+    if (!dummyFile) return nullptr;
+    TIFF* tif = TIFFClientOpen("dummy", "w", (thandle_t)dummyFile,
+                               nullptr, nullptr, nullptr, nullptr,
+                               nullptr, nullptr, nullptr);
+    return tif;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_42(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Prepare dummy file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    // Open the file descriptor
-    int fd = open("./dummy_file", O_RDONLY);
-    if (fd < 0) return 0;
-
-    // 1. Test TIFFFdOpen
-    TIFF *tiff1 = TIFFFdOpen(fd, "dummy_file", "r");
-    if (tiff1) {
-        TIFFClose(tiff1);
+    if (Size < sizeof(double) + sizeof(int)) {
+        return 0;
     }
 
-    // 2. Test TIFFOpenOptionsAlloc
-    TIFFOpenOptions *opts = TIFFOpenOptionsAlloc();
-    if (opts) {
-        // 3. Test TIFFOpenOptionsSetErrorHandlerExtR
-        TIFFOpenOptionsSetErrorHandlerExtR(opts, customErrorHandler, nullptr);
+    double Y = *reinterpret_cast<const double*>(Data);
+    int param = *reinterpret_cast<const int*>(Data + sizeof(double));
 
-        // 4. Test TIFFFdOpenExt
-        TIFF *tiff2 = TIFFFdOpenExt(fd, "dummy_file", "r", opts);
-        if (tiff2) {
-            TIFFClose(tiff2);
-        }
-
-        // 5. Test TIFFOpenExt
-        TIFF *tiff3 = TIFFOpenExt("dummy_file", "r", opts);
-        if (tiff3) {
-            TIFFClose(tiff3);
-        }
-
-        TIFFOpenOptionsFree(opts);
+    // Fuzz LogL10fromY
+    if (Y > 0) {
+        volatile int logL10Result = LogL10fromY(Y, param);
     }
 
-    // Close the file descriptor
-    close(fd);
+    // Fuzz LogL16fromY
+    volatile int logL16Result = LogL16fromY(Y, param);
 
-    // 6. Test TIFFClientOpenExt with dummy callbacks
-    TIFF *tiff4 = TIFFClientOpenExt(
-        "dummy_file", "r", (thandle_t)fd,
-        [](thandle_t, void*, tmsize_t) -> tmsize_t { return 0; }, // Read
-        [](thandle_t, void*, tmsize_t) -> tmsize_t { return 0; }, // Write
-        [](thandle_t, toff_t, int) -> toff_t { return 0; },       // Seek
-        [](thandle_t) -> int { return 0; },                       // Close
-        [](thandle_t) -> toff_t { return 0; },                    // Size
-        nullptr,                                                  // Map
-        nullptr,                                                  // Unmap
-        nullptr                                                   // Options
-    );
-    if (tiff4) {
-        TIFFClose(tiff4);
+    // Fuzz TIFFReadBufferSetup
+    TIFF* tif = createDummyTIFF();
+    if (tif) {
+        volatile int readBufferSetupResult = TIFFReadBufferSetup(tif, nullptr, Size);
+
+        // Fuzz TIFFIsMSB2LSB
+        volatile int isMSB2LSBResult = TIFFIsMSB2LSB(tif);
+
+        // Clean up
+        TIFFClose(tif);
     }
+
+    // Fuzz LogL10toY
+    volatile double logL10toYResult = LogL10toY(param);
+
+    // Fuzz LogL16toY
+    volatile double logL16toYResult = LogL16toY(param);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_42(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

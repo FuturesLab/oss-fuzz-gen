@@ -1,11 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFReadEXIFDirectory at tif_dirread.c:5556:5 in tiffio.h
-// TIFFScanlineSize at tif_strip.c:343:10 in tiffio.h
-// TIFFIsBigTIFF at tif_open.c:912:5 in tiffio.h
-// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
-// TIFFReadCustomDirectory at tif_dirread.c:5372:5 in tiffio.h
-// TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFRGBAImageGet at tif_getimage.c:589:5 in tiffio.h
+// TIFFReadRGBAStripExt at tif_getimage.c:3393:5 in tiffio.h
+// TIFFReadRGBATile at tif_getimage.c:3462:5 in tiffio.h
+// TIFFReadRGBAStrip at tif_getimage.c:3387:5 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -18,54 +19,92 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
+#include <cstdio>
 #include <cstring>
 
-static TIFF* openDummyTIFF(const uint8_t *Data, size_t Size) {
+static void writeDummyFile(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return nullptr;
-
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    return TIFFOpen("./dummy_file", "r");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_90(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 4) return 0; // Minimum size check
 
-    TIFF *tif = openDummyTIFF(Data, Size);
+    // Write the input data to a dummy file
+    writeDummyFile(Data, Size);
+
+    TIFF *tif = TIFFOpen("./dummy_file", "rm");
     if (!tif) return 0;
 
-    // 1. TIFFReadEXIFDirectory
-    toff_t exifOffset = 0; // Example offset, adjust according to your needs
-    TIFFReadEXIFDirectory(tif, exifOffset);
-
-    // 2. TIFFReadScanline
-    uint32_t row = 0; // Example row, adjust according to your needs
-    uint16_t sample = 0; // Example sample, adjust according to your needs
-    tsize_t scanlineSize = TIFFScanlineSize(tif);
-    void *buf = malloc(scanlineSize);
-    if (buf) {
-        TIFFReadScanline(tif, buf, row, sample);
-        free(buf);
+    // Prepare variables for the target functions
+    uint32_t *raster = (uint32_t *)_TIFFmalloc(4 * 1024 * 1024); // Large enough buffer
+    if (!raster) {
+        TIFFClose(tif);
+        return 0;
     }
 
-    // 3. TIFFIsBigTIFF
-    TIFFIsBigTIFF(tif);
+    // Create a TIFFRGBAImage object
+    TIFFRGBAImage img;
+    memset(&img, 0, sizeof(img));
+    img.tif = tif;
+    img.width = 256; // Example width
+    img.bitspersample = 8; // Example bits per sample
 
-    // 4. TIFFReadDirectory
-    TIFFReadDirectory(tif);
+    // Call the target functions with various parameters
+    TIFFRGBAImageGet(&img, raster, 256, 256);
+    TIFFReadRGBAStripExt(tif, 0, raster, 1);
+    TIFFReadRGBATile(tif, 0, 0, raster);
+    TIFFReadRGBAStrip(tif, 0, raster);
+    TIFFReadRGBAImage(tif, 256, 256, raster, 0);
+    TIFFReadRGBAImageOriented(tif, 256, 256, raster, 0, ORIENTATION_TOPLEFT);
 
-    // 5. TIFFReadCustomDirectory
-    TIFFFieldArray *infoarray = nullptr; // Example, adjust according to your needs
-    TIFFReadCustomDirectory(tif, exifOffset, infoarray);
-
-    // 6. TIFFSetSubDirectory
-    uint64_t subDirOffset = 0; // Example offset, adjust according to your needs
-    TIFFSetSubDirectory(tif, subDirOffset);
-
+    // Cleanup
+    _TIFFfree(raster);
     TIFFClose(tif);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_90(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

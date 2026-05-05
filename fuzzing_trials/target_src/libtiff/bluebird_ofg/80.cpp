@@ -1,69 +1,111 @@
-#include <stdint.h>
+#include <sys/stat.h>
+#include <string.h>
+#include "tiffio.h"
+#include "cstdint"
 #include "cstdlib"
-#include "cstring"
-#include <unistd.h>  // Include for close, write, and unlink
-#include <fcntl.h>   // Include for mkstemp
+#include <cstdio>
+#include <unistd.h>  // Include this for the 'close' function
 
 extern "C" {
-    #include "tiffio.h"
-    #include "/src/libtiff/libtiff/tiff.h"
+    int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
+        if (size == 0) {
+            return 0;
+        }
+
+        // Create a temporary file to write the input data
+        char tmpl[] = "/tmp/fuzzfileXXXXXX";
+        int fd = mkstemp(tmpl);
+        if (fd == -1) {
+            return 0;
+        }
+
+        FILE *file = fdopen(fd, "wb");
+        if (file == nullptr) {
+            close(fd);
+            return 0;
+        }
+
+        fwrite(data, 1, size, file);
+        fclose(file);
+
+        // Open the TIFF file
+        TIFF *tiff = TIFFOpen(tmpl, "r");
+        if (tiff != nullptr) {
+            // Call the function-under-test
+            int tiled = TIFFIsTiled(tiff);
+
+            // Close the TIFF file
+
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFIsTiled to TIFFReadRawStrip
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!tiff) {
+            	return 0;
+            }
+            uint32_t ret_TIFFCurrentRow_yakec = TIFFCurrentRow(tiff);
+            if (ret_TIFFCurrentRow_yakec < 0){
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!tiff) {
+            	return 0;
+            }
+            tmsize_t ret_TIFFRasterScanlineSize_jytks = TIFFRasterScanlineSize(tiff);
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!tiff) {
+            	return 0;
+            }
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!tiff) {
+            	return 0;
+            }
+            tmsize_t ret_TIFFReadRawStrip_gbmhd = TIFFReadRawStrip(tiff, ret_TIFFCurrentRow_yakec, (void *)tiff, ret_TIFFRasterScanlineSize_jytks);
+            // End mutation: Producer.APPEND_MUTATOR
+            
+            TIFFClose(tiff);
+        }
+
+        // Clean up the temporary file
+        remove(tmpl);
+
+        return 0;
+    }
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
-extern "C" int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for a minimal TIFF header
-    if (size < 8) {
-        return 0;
-    }
+    if(argc < 2)
+        exit(0);
 
-    // Create a temporary file to store the input data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
 
-    // Write the data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
+    fseek(f, 0, SEEK_END);
 
-    // Close the file descriptor
-    close(fd);
+    size = ftell(f);
+    rewind(f);
 
-    // Open the TIFF file
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (!tiff) {
-        unlink(tmpl);
-        return 0;
-    }
+    if(size < 1 + 1)
+        exit(0);
 
-    // Initialize the TIFFRGBAImage structure
-    TIFFRGBAImage img;
-    char emsg[1024];
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
 
-    // Call the function-under-test
-    int result = TIFFRGBAImageBegin(&img, tiff, 0, emsg);
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
 
-    // Clean up
+    LLVMFuzzerTestOneInput_80(data + 1, (size_t)(size - 1));
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFRGBAImageBegin to TIFFVStripSize64
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of TIFFVStripSize64
-    uint64_t ret_TIFFVStripSize64_xdaod = TIFFVStripSize64(tiff, CIELABTORGB_TABLE_RANGE);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_TIFFVStripSize64_xdaod < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    TIFFClose(tiff);
-    unlink(tmpl);
-
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

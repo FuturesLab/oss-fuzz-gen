@@ -1,34 +1,68 @@
 #include <cstdint>
-#include <cstdlib>
 #include <tiffio.h>
 
-extern "C" {
-    // Include necessary C headers, source files, functions, and code here.
-    void TIFFCIELabToXYZ(TIFFCIELabToRGB *, uint32_t, int32_t, int32_t, float *, float *, float *);
-}
-
 extern "C" int LLVMFuzzerTestOneInput_210(const uint8_t *data, size_t size) {
-    // Declare and initialize the parameters for the function-under-test
-    TIFFCIELabToRGB cielab;
-    uint32_t sample = 0;
-    int32_t L = 0;
-    int32_t a = 0;
-    float X = 0.0f;
-    float Y = 0.0f;
-    float Z = 0.0f;
-
-    // Ensure the size is large enough to extract meaningful values
-    if (size < sizeof(uint32_t) + 2 * sizeof(int32_t)) {
+    // Ensure there's enough data to work with
+    if (size < sizeof(uint32_t)) {
         return 0;
     }
 
-    // Extract values from the input data
-    sample = *reinterpret_cast<const uint32_t*>(data);
-    L = *reinterpret_cast<const int32_t*>(data + sizeof(uint32_t));
-    a = *reinterpret_cast<const int32_t*>(data + sizeof(uint32_t) + sizeof(int32_t));
+    // Initialize TIFF structure
+    TIFF *tiff = TIFFOpen("/tmp/fuzzfile.tiff", "w");
+    if (tiff == nullptr) {
+        return 0;
+    }
+
+    // Extract a uint32_t value from the input data
+    uint32_t strip = 0;
+    if (size >= sizeof(uint32_t)) {
+        strip = *(reinterpret_cast<const uint32_t*>(data));
+    }
 
     // Call the function-under-test
-    TIFFCIELabToXYZ(&cielab, sample, L, a, &X, &Y, &Z);
+    tmsize_t result = TIFFVStripSize(tiff, strip);
+
+    // Clean up
+    TIFFClose(tiff);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_210(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

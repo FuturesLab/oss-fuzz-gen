@@ -1,10 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFSwabArrayOfDouble at tif_swab.c:222:6 in tiffio.h
-// TIFFSwabDouble at tif_swab.c:201:6 in tiffio.h
-// TIFFSwabArrayOfTriples at tif_swab.c:99:6 in tiffio.h
-// TIFFSwabArrayOfLong at tif_swab.c:117:6 in tiffio.h
-// TIFFSwabArrayOfShort at tif_swab.c:81:6 in tiffio.h
-// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFForceStrileArrayWriting at tif_flush.c:76:5 in tiffio.h
+// TIFFIsMSB2LSB at tif_open.c:899:5 in tiffio.h
+// TIFFSetupStrips at tif_write.c:553:5 in tiffio.h
+// TIFFFileno at tif_open.c:818:5 in tiffio.h
+// TIFFGetMode at tif_open.c:848:5 in tiffio.h
+// TIFFIsTiled at tif_open.c:864:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,70 +16,90 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <fstream>
-#include <iostream>
 #include <tiffio.h>
-
-static void fuzz_TIFFSwabArrayOfDouble(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(double)) return;
-    size_t num_doubles = Size / sizeof(double);
-    double *doubles = new double[num_doubles];
-    std::memcpy(doubles, Data, num_doubles * sizeof(double));
-    TIFFSwabArrayOfDouble(doubles, num_doubles);
-    delete[] doubles;
-}
-
-static void fuzz_TIFFSwabDouble(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(double)) return;
-    double value;
-    std::memcpy(&value, Data, sizeof(double));
-    TIFFSwabDouble(&value);
-}
-
-static void fuzz_TIFFSwabArrayOfTriples(const uint8_t *Data, size_t Size) {
-    if (Size < 3) return;
-    size_t num_triples = Size / 3;
-    uint8_t *triples = new uint8_t[num_triples * 3];
-    std::memcpy(triples, Data, num_triples * 3);
-    TIFFSwabArrayOfTriples(triples, num_triples);
-    delete[] triples;
-}
-
-static void fuzz_TIFFSwabArrayOfLong(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t)) return;
-    size_t num_longs = Size / sizeof(uint32_t);
-    uint32_t *longs = new uint32_t[num_longs];
-    std::memcpy(longs, Data, num_longs * sizeof(uint32_t));
-    TIFFSwabArrayOfLong(longs, num_longs);
-    delete[] longs;
-}
-
-static void fuzz_TIFFSwabArrayOfShort(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint16_t)) return;
-    size_t num_shorts = Size / sizeof(uint16_t);
-    uint16_t *shorts = new uint16_t[num_shorts];
-    std::memcpy(shorts, Data, num_shorts * sizeof(uint16_t));
-    TIFFSwabArrayOfShort(shorts, num_shorts);
-    delete[] shorts;
-}
-
-static void fuzz_TIFFSwabArrayOfFloat(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(float)) return;
-    size_t num_floats = Size / sizeof(float);
-    float *floats = new float[num_floats];
-    std::memcpy(floats, Data, num_floats * sizeof(float));
-    TIFFSwabArrayOfFloat(floats, num_floats);
-    delete[] floats;
-}
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_26(const uint8_t *Data, size_t Size) {
-    fuzz_TIFFSwabArrayOfDouble(Data, Size);
-    fuzz_TIFFSwabDouble(Data, Size);
-    fuzz_TIFFSwabArrayOfTriples(Data, Size);
-    fuzz_TIFFSwabArrayOfLong(Data, Size);
-    fuzz_TIFFSwabArrayOfShort(Data, Size);
-    fuzz_TIFFSwabArrayOfFloat(Data, Size);
+    if (Size < 1) return 0;
+
+    // Create a dummy file to be used by libtiff
+    const char *filename = "./dummy_file";
+    FILE *file = fopen(filename, "wb");
+    if (!file) return 0;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen(filename, "r+");
+    if (!tif) {
+        remove(filename);
+        return 0;
+    }
+
+    // Fuzz TIFFForceStrileArrayWriting
+    TIFFForceStrileArrayWriting(tif);
+
+    // Fuzz TIFFIsMSB2LSB
+    TIFFIsMSB2LSB(tif);
+
+    // Fuzz TIFFSetupStrips
+    TIFFSetupStrips(tif);
+
+    // Fuzz TIFFFileno
+    TIFFFileno(tif);
+
+    // Fuzz TIFFGetMode
+    TIFFGetMode(tif);
+
+    // Fuzz TIFFIsTiled
+    TIFFIsTiled(tif);
+
+    // Clean up
+    TIFFClose(tif);
+    remove(filename);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_26(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

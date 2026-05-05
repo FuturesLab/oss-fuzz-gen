@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFSwabArrayOfDouble at tif_swab.c:222:6 in tiffio.h
-// TIFFSwabArrayOfLong8 at tif_swab.c:138:6 in tiffio.h
-// TIFFSwabArrayOfTriples at tif_swab.c:99:6 in tiffio.h
-// TIFFSwabArrayOfLong at tif_swab.c:117:6 in tiffio.h
-// TIFFSwabArrayOfShort at tif_swab.c:81:6 in tiffio.h
-// TIFFSwabLong8 at tif_swab.c:60:6 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFRGBAImageGet at tif_getimage.c:589:5 in tiffio.h
+// TIFFReadRGBAStripExt at tif_getimage.c:3393:5 in tiffio.h
+// TIFFReadRGBATile at tif_getimage.c:3462:5 in tiffio.h
+// TIFFReadRGBAStrip at tif_getimage.c:3387:5 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,69 +14,146 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdlib>
+#include <cstdio>
 #include <cstring>
-#include <fstream>
-#include <iostream>
-#include <tiffio.h>
+
+static TIFF* initializeTIFF(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return nullptr;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+    return TIFFOpen("./dummy_file", "rb");
+}
+
+static void fuzzTIFFRGBAImageGet(const uint8_t *Data, size_t Size) {
+    TIFFRGBAImage img;
+    uint32_t *raster = nullptr;
+    uint32_t width = 100, height = 100; // Example dimensions
+
+    if (Size < sizeof(TIFFRGBAImage)) return;
+    memcpy(&img, Data, sizeof(TIFFRGBAImage));
+
+    raster = (uint32_t *)malloc(width * height * sizeof(uint32_t));
+    if (!raster) return;
+
+    TIFFRGBAImageGet(&img, raster, width, height);
+
+    free(raster);
+}
+
+static void fuzzTIFFReadRGBAStripExt(TIFF *tiff, const uint8_t *Data, size_t Size) {
+    uint32_t row = 0;
+    uint32_t *raster = (uint32_t *)malloc(100 * sizeof(uint32_t)); // Example size
+    int stop_on_error = 1;
+
+    if (!raster) return;
+
+    TIFFReadRGBAStripExt(tiff, row, raster, stop_on_error);
+
+    free(raster);
+}
+
+static void fuzzTIFFReadRGBATile(TIFF *tiff, const uint8_t *Data, size_t Size) {
+    uint32_t col = 0, row = 0;
+    uint32_t *raster = (uint32_t *)malloc(100 * sizeof(uint32_t)); // Example size
+
+    if (!raster) return;
+
+    TIFFReadRGBATile(tiff, col, row, raster);
+
+    free(raster);
+}
+
+static void fuzzTIFFReadRGBAStrip(TIFF *tiff, const uint8_t *Data, size_t Size) {
+    uint32_t row = 0;
+    uint32_t *raster = (uint32_t *)malloc(100 * sizeof(uint32_t)); // Example size
+
+    if (!raster) return;
+
+    TIFFReadRGBAStrip(tiff, row, raster);
+
+    free(raster);
+}
+
+static void fuzzTIFFReadRGBAImage(TIFF *tiff, const uint8_t *Data, size_t Size) {
+    uint32_t width = 100, height = 100;
+    uint32_t *raster = (uint32_t *)malloc(width * height * sizeof(uint32_t));
+    int stop_on_error = 1;
+
+    if (!raster) return;
+
+    TIFFReadRGBAImage(tiff, width, height, raster, stop_on_error);
+
+    free(raster);
+}
+
+static void fuzzTIFFReadRGBAImageOriented(TIFF *tiff, const uint8_t *Data, size_t Size) {
+    uint32_t width = 100, height = 100;
+    uint32_t *raster = (uint32_t *)malloc(width * height * sizeof(uint32_t));
+    int orientation = ORIENTATION_TOPLEFT;
+    int stop_on_error = 1;
+
+    if (!raster) return;
+
+    TIFFReadRGBAImageOriented(tiff, width, height, raster, orientation, stop_on_error);
+
+    free(raster);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_131(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(double) && Size < sizeof(uint64_t) && Size < sizeof(uint32_t) && Size < sizeof(uint16_t)) {
-        return 0;
-    }
+    TIFF *tiff = initializeTIFF(Data, Size);
+    if (!tiff) return 0;
 
-    // Prepare data for TIFFSwabArrayOfDouble
-    if (Size >= sizeof(double)) {
-        size_t numDoubles = Size / sizeof(double);
-        double *doubleArray = new double[numDoubles];
-        std::memcpy(doubleArray, Data, numDoubles * sizeof(double));
-        TIFFSwabArrayOfDouble(doubleArray, numDoubles);
-        delete[] doubleArray;
-    }
+    fuzzTIFFRGBAImageGet(Data, Size);
+    fuzzTIFFReadRGBAStripExt(tiff, Data, Size);
+    fuzzTIFFReadRGBATile(tiff, Data, Size);
+    fuzzTIFFReadRGBAStrip(tiff, Data, Size);
+    fuzzTIFFReadRGBAImage(tiff, Data, Size);
+    fuzzTIFFReadRGBAImageOriented(tiff, Data, Size);
 
-    // Prepare data for TIFFSwabArrayOfLong8
-    if (Size >= sizeof(uint64_t)) {
-        size_t numLong8 = Size / sizeof(uint64_t);
-        uint64_t *long8Array = new uint64_t[numLong8];
-        std::memcpy(long8Array, Data, numLong8 * sizeof(uint64_t));
-        TIFFSwabArrayOfLong8(long8Array, numLong8);
-        delete[] long8Array;
-    }
-
-    // Prepare data for TIFFSwabArrayOfTriples
-    if (Size >= 3) {
-        size_t numTriples = Size / 3;
-        uint8_t *triplesArray = new uint8_t[numTriples * 3];
-        std::memcpy(triplesArray, Data, numTriples * 3);
-        TIFFSwabArrayOfTriples(triplesArray, numTriples);
-        delete[] triplesArray;
-    }
-
-    // Prepare data for TIFFSwabArrayOfLong
-    if (Size >= sizeof(uint32_t)) {
-        size_t numLongs = Size / sizeof(uint32_t);
-        uint32_t *longArray = new uint32_t[numLongs];
-        std::memcpy(longArray, Data, numLongs * sizeof(uint32_t));
-        TIFFSwabArrayOfLong(longArray, numLongs);
-        delete[] longArray;
-    }
-
-    // Prepare data for TIFFSwabArrayOfShort
-    if (Size >= sizeof(uint16_t)) {
-        size_t numShorts = Size / sizeof(uint16_t);
-        uint16_t *shortArray = new uint16_t[numShorts];
-        std::memcpy(shortArray, Data, numShorts * sizeof(uint16_t));
-        TIFFSwabArrayOfShort(shortArray, numShorts);
-        delete[] shortArray;
-    }
-
-    // Prepare data for TIFFSwabLong8
-    if (Size >= sizeof(uint64_t)) {
-        uint64_t long8;
-        std::memcpy(&long8, Data, sizeof(uint64_t));
-        TIFFSwabLong8(&long8);
-    }
-
+    TIFFClose(tiff);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_131(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

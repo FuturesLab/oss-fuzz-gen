@@ -1,17 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFForceStrileArrayWriting at tif_flush.c:76:5 in tiffio.h
+// TIFFSetWriteOffset at tif_write.c:961:6 in tiffio.h
+// TIFFFlushData at tif_flush.c:146:5 in tiffio.h
 // TIFFIsTiled at tif_open.c:864:5 in tiffio.h
-// TIFFReadRGBAStrip at tif_getimage.c:3387:5 in tiffio.h
-// TIFFIsTiled at tif_open.c:864:5 in tiffio.h
-// TIFFReadRGBATile at tif_getimage.c:3462:5 in tiffio.h
-// TIFFIsTiled at tif_open.c:864:5 in tiffio.h
-// TIFFReadRGBAStripExt at tif_getimage.c:3393:5 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFGetStrileOffsetWithErr at tif_dirread.c:8504:10 in tiffio.h
+// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -28,62 +22,88 @@
 #include <cstdlib>
 #include <cstring>
 
-static void writeDummyFile(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-}
-
 extern "C" int LLVMFuzzerTestOneInput_99(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0; // Ensure there's enough data
+    if (Size < 1) return 0;
 
-    writeDummyFile(Data, Size);
+    // Create a dummy file
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return 0;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen("./dummy_file", "r+");
     if (!tif) return 0;
 
-    uint32_t width = 0, height = 0;
-    TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
-    TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
+    // Fuzz TIFFForceStrileArrayWriting
+    TIFFForceStrileArrayWriting(tif);
 
-    if (width == 0 || height == 0) {
-        TIFFClose(tif);
-        return 0;
+    // Fuzz TIFFSetWriteOffset
+    if (Size >= sizeof(toff_t)) {
+        toff_t offset;
+        memcpy(&offset, Data, sizeof(toff_t));
+        TIFFSetWriteOffset(tif, offset);
     }
 
-    uint32_t *raster = (uint32_t *)_TIFFmalloc(width * height * sizeof(uint32_t));
-    if (!raster) {
-        TIFFClose(tif);
-        return 0;
+    // Fuzz TIFFFlushData
+    TIFFFlushData(tif);
+
+    // Fuzz TIFFIsTiled
+    TIFFIsTiled(tif);
+
+    // Fuzz TIFFGetStrileOffsetWithErr
+    if (Size >= sizeof(uint32_t)) {
+        uint32_t strile;
+        memcpy(&strile, Data, sizeof(uint32_t));
+        int err;
+        TIFFGetStrileOffsetWithErr(tif, strile, &err);
     }
 
-    // Test TIFFReadRGBAImageOriented
-    TIFFReadRGBAImageOriented(tif, width, height, raster, ORIENTATION_TOPLEFT, 0);
+    // Fuzz TIFFReadDirectory
+    TIFFReadDirectory(tif);
 
-    // Test TIFFReadRGBAStrip
-    if (TIFFIsTiled(tif) == 0) {
-        TIFFReadRGBAStrip(tif, 0, raster);
-    }
-
-    // Test TIFFReadRGBATile
-    if (TIFFIsTiled(tif)) {
-        TIFFReadRGBATile(tif, 0, 0, raster);
-    }
-
-    // Test TIFFReadScanline
-    TIFFReadScanline(tif, raster, 0, 0);
-
-    // Test TIFFReadRGBAImage
-    TIFFReadRGBAImage(tif, width, height, raster, 0);
-
-    // Test TIFFReadRGBAStripExt
-    if (TIFFIsTiled(tif) == 0) {
-        TIFFReadRGBAStripExt(tif, 0, raster, 0);
-    }
-
-    _TIFFfree(raster);
+    // Close the TIFF file
     TIFFClose(tif);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_99(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

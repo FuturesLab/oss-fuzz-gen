@@ -1,15 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFFdOpen at tif_unix.c:209:7 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFOpenOptionsAlloc at tif_open.c:80:18 in tiffio.h
-// TIFFOpenOptionsSetErrorHandlerExtR at tif_open.c:121:6 in tiffio.h
-// TIFFFdOpenExt at tif_unix.c:214:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFOpenExt at tif_unix.c:237:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFOpenOptionsFree at tif_open.c:87:6 in tiffio.h
-// TIFFClientOpenExt at tif_open.c:300:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFSwabDouble at tif_swab.c:201:6 in tiffio.h
+// TIFFSwabArrayOfDouble at tif_swab.c:222:6 in tiffio.h
+// TIFFIsByteSwapped at tif_open.c:889:5 in tiffio.h
+// TIFFIsBigEndian at tif_open.c:904:5 in tiffio.h
+// uv_decode at tif_luv.c:997:5 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -22,72 +18,111 @@
 #include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
-#include <fcntl.h>
-#include <unistd.h>
+#include <cstdlib>
+#include <cstring>
 
-static int customErrorHandler(TIFF* tif, void* user_data, const char* module, const char* fmt, va_list ap) {
-    // Custom error handler that does nothing
-    return 0;
+static TIFF* openDummyTIFF() {
+    FILE* file = fopen("./dummy_file", "wb+");
+    if (!file) return nullptr;
+
+    // Write a minimal valid TIFF header to the file
+    const unsigned char header[] = { 'I', 'I', 42, 0, 8, 0, 0, 0 };
+    fwrite(header, sizeof(header), 1, file);
+    fclose(file);
+
+    return TIFFOpen("./dummy_file", "r+");
+}
+
+static void closeDummyTIFF(TIFF* tiff) {
+    if (tiff) {
+        TIFFClose(tiff);
+        remove("./dummy_file");
+    }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_113(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(double)) return 0;
 
-    // Prepare dummy file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    // Fuzz TIFFSwabDouble
+    double value;
+    memcpy(&value, Data, sizeof(double));
+    TIFFSwabDouble(&value);
 
-    // Open the file descriptor
-    int fd = open("./dummy_file", O_RDONLY);
-    if (fd < 0) return 0;
-
-    // 1. Test TIFFFdOpen
-    TIFF *tiff1 = TIFFFdOpen(fd, "dummy_file", "r");
-    if (tiff1) {
-        TIFFClose(tiff1);
+    // Fuzz TIFFSwabArrayOfDouble
+    if (Size >= 2 * sizeof(double)) {
+        double array[2];
+        memcpy(array, Data, 2 * sizeof(double));
+        TIFFSwabArrayOfDouble(array, 2);
     }
 
-    // 2. Test TIFFOpenOptionsAlloc
-    TIFFOpenOptions *opts = TIFFOpenOptionsAlloc();
-    if (opts) {
-        // 3. Test TIFFOpenOptionsSetErrorHandlerExtR
-        TIFFOpenOptionsSetErrorHandlerExtR(opts, customErrorHandler, nullptr);
-
-        // 4. Test TIFFFdOpenExt
-        TIFF *tiff2 = TIFFFdOpenExt(fd, "dummy_file", "r", opts);
-        if (tiff2) {
-            TIFFClose(tiff2);
-        }
-
-        // 5. Test TIFFOpenExt
-        TIFF *tiff3 = TIFFOpenExt("dummy_file", "r", opts);
-        if (tiff3) {
-            TIFFClose(tiff3);
-        }
-
-        TIFFOpenOptionsFree(opts);
+    // Fuzz TIFFIsByteSwapped and TIFFIsBigEndian
+    TIFF* tiff = openDummyTIFF();
+    if (tiff) {
+        TIFFIsByteSwapped(tiff);
+        TIFFIsBigEndian(tiff);
+        closeDummyTIFF(tiff);
     }
 
-    // Close the file descriptor
-    close(fd);
+    // Fuzz uv_encode
+    if (Size >= 2 * sizeof(double) + sizeof(int)) {
+        double lat, lon;
+        int precision;
+        memcpy(&lat, Data, sizeof(double));
+        memcpy(&lon, Data + sizeof(double), sizeof(double));
+        memcpy(&precision, Data + 2 * sizeof(double), sizeof(int));
+        uv_encode(lat, lon, precision);
+    }
 
-    // 6. Test TIFFClientOpenExt with dummy callbacks
-    TIFF *tiff4 = TIFFClientOpenExt(
-        "dummy_file", "r", (thandle_t)fd,
-        [](thandle_t, void*, tmsize_t) -> tmsize_t { return 0; }, // Read
-        [](thandle_t, void*, tmsize_t) -> tmsize_t { return 0; }, // Write
-        [](thandle_t, toff_t, int) -> toff_t { return 0; },       // Seek
-        [](thandle_t) -> int { return 0; },                       // Close
-        [](thandle_t) -> toff_t { return 0; },                    // Size
-        nullptr,                                                  // Map
-        nullptr,                                                  // Unmap
-        nullptr                                                   // Options
-    );
-    if (tiff4) {
-        TIFFClose(tiff4);
+    // Fuzz uv_decode
+    if (Size >= sizeof(double)) {
+        // Ensure the inputBuffer size does not exceed the actual data size
+        size_t numDoubles = Size / sizeof(double);
+        std::vector<double> inputBuffer(numDoubles);
+        memcpy(inputBuffer.data(), Data, numDoubles * sizeof(double));
+
+        double u, v;
+        uv_decode(inputBuffer.data(), &u, static_cast<int>(numDoubles));
     }
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_113(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

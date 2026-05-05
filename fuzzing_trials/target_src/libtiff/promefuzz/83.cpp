@@ -1,11 +1,16 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFClientOpen at tif_open.c:289:7 in tiffio.h
-// TIFFClientdata at tif_open.c:833:11 in tiffio.h
-// TIFFGetSizeProc at tif_open.c:937:14 in tiffio.h
-// TIFFSetClientdata at tif_open.c:838:11 in tiffio.h
-// TIFFReadBufferSetup at tif_read.c:1385:5 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFClientOpenExt at tif_open.c:300:7 in tiffio.h
+// TIFFRGBAImageBegin at tif_getimage.c:310:5 in tiffio.h
+// TIFFRGBAImageGet at tif_getimage.c:589:5 in tiffio.h
+// TIFFRGBAImageEnd at tif_getimage.c:253:6 in tiffio.h
+// TIFFReadRGBAStripExt at tif_getimage.c:3393:5 in tiffio.h
+// TIFFReadRGBATile at tif_getimage.c:3462:5 in tiffio.h
+// TIFFReadRGBAStrip at tif_getimage.c:3387:5 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -15,67 +20,89 @@
 #include <cstdlib>
 #include <cstdio>
 #include <cstdint>
+#include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 
-static tmsize_t dummyReadProc(thandle_t, void*, tmsize_t) { return 0; }
-static tmsize_t dummyWriteProc(thandle_t, void*, tmsize_t) { return 0; }
-static toff_t dummySeekProc(thandle_t, toff_t, int) { return 0; }
-static int dummyCloseProc(thandle_t) { return 0; }
-static toff_t dummySizeProc(thandle_t) { return 0; }
-static int dummyMapProc(thandle_t, void**, toff_t*) { return 0; }
-static void dummyUnmapProc(thandle_t, void*, toff_t) {}
+static TIFF* createDummyTIFF(const uint8_t* Data, size_t Size) {
+    FILE* file = fopen("./dummy_file", "wb");
+    if (!file) return nullptr;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+    return TIFFOpen("./dummy_file", "r");
+}
 
 extern "C" int LLVMFuzzerTestOneInput_83(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 4) return 0; // Ensure there's enough data
 
-    // Create a dummy file if needed
-    const char* dummyFileName = "./dummy_file";
-    FILE* file = fopen(dummyFileName, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+    TIFF* tiff = createDummyTIFF(Data, Size);
+    if (!tiff) return 0;
 
-    // Open a TIFF file using TIFFClientOpen
-    TIFF* tiff = TIFFClientOpen("dummy", "r", nullptr,
-                                dummyReadProc, dummyWriteProc,
-                                dummySeekProc, dummyCloseProc,
-                                dummySizeProc, dummyMapProc, dummyUnmapProc);
+    uint32_t width = 0, height = 0;
+    TIFFGetField(tiff, TIFFTAG_IMAGEWIDTH, &width);
+    TIFFGetField(tiff, TIFFTAG_IMAGELENGTH, &height);
 
-    if (tiff) {
-        // Test TIFFClientdata
-        thandle_t clientData = TIFFClientdata(tiff);
-
-        // Test TIFFGetSizeProc
-        TIFFSizeProc sizeProc = TIFFGetSizeProc(tiff);
-
-        // Test TIFFSetClientdata
-        thandle_t oldClientData = TIFFSetClientdata(tiff, const_cast<thandle_t>(reinterpret_cast<const void*>(Data)));
-
-        // Test TIFFReadBufferSetup
-        int setupResult = TIFFReadBufferSetup(tiff, nullptr, static_cast<tmsize_t>(Size));
-
-        // Close the TIFF handle
+    uint32_t* raster = (uint32_t*)_TIFFmalloc(width * height * sizeof(uint32_t));
+    if (!raster) {
         TIFFClose(tiff);
+        return 0;
     }
 
-    // Open a TIFF file using TIFFClientOpenExt
-    TIFFOpenOptions* opts = nullptr; // Use a null pointer for options
-    TIFF* tiffExt = TIFFClientOpenExt("dummy", "r", nullptr,
-                                      dummyReadProc, dummyWriteProc,
-                                      dummySeekProc, dummyCloseProc,
-                                      dummySizeProc, dummyMapProc, dummyUnmapProc,
-                                      opts);
-
-    if (tiffExt) {
-        // Perform operations similar to TIFFClientOpen if needed
-
-        // Close the TIFF handle
-        TIFFClose(tiffExt);
+    TIFFRGBAImage img;
+    if (TIFFRGBAImageBegin(&img, tiff, 0, nullptr)) {
+        TIFFRGBAImageGet(&img, raster, width, height);
+        TIFFRGBAImageEnd(&img);
     }
 
+    TIFFReadRGBAStripExt(tiff, 0, raster, 1);
+    TIFFReadRGBATile(tiff, 0, 0, raster);
+    TIFFReadRGBAStrip(tiff, 0, raster);
+    TIFFReadRGBAImage(tiff, width, height, raster, 1);
+    TIFFReadRGBAImageOriented(tiff, width, height, raster, ORIENTATION_TOPLEFT, 1);
+
+    _TIFFfree(raster);
+    TIFFClose(tiff);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_83(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

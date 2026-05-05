@@ -1,39 +1,68 @@
 #include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <unistd.h>  // For close, write, and unlink
-
-extern "C" {
+#include <cstddef>
 #include <tiffio.h>
-}
 
 extern "C" int LLVMFuzzerTestOneInput_213(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure that the size is a multiple of the size of uint16_t
+    if (size < sizeof(uint16_t) || size % sizeof(uint16_t) != 0) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        return 0;
+    // Calculate the number of uint16_t elements
+    tmsize_t num_elements = size / sizeof(uint16_t);
+
+    // Create a buffer to hold the uint16_t elements
+    uint16_t *shortArray = new uint16_t[num_elements];
+
+    // Copy data into the uint16_t array
+    for (tmsize_t i = 0; i < num_elements; ++i) {
+        shortArray[i] = static_cast<uint16_t>(data[i * sizeof(uint16_t)] | (data[i * sizeof(uint16_t) + 1] << 8));
     }
 
-    // Close the file descriptor
-    close(fd);
+    // Call the function-under-test
+    TIFFSwabArrayOfShort(shortArray, num_elements);
 
-    // Open the TIFF file using the temporary file name
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff != nullptr) {
-        // Call the function-under-test
-        TIFFClose(tiff);
-    }
-
-    // Remove the temporary file
-    unlink(tmpl);
+    // Clean up
+    delete[] shortArray;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_213(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

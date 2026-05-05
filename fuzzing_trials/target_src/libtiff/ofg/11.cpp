@@ -1,47 +1,89 @@
-#include <tiffio.h>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
-#include <unistd.h>  // Include for the 'close' function
+#include <cstring>
 
 extern "C" {
-    // Ensure that all C headers and functions from the libtiff project are wrapped in extern "C"
     #include <tiffio.h>
+
+    TIFFCodec *TIFFRegisterCODEC(uint16_t scheme, const char *name, TIFFInitMethod init);
+    void TIFFUnRegisterCODEC(TIFFCodec *codec);
+    int dummyInit(TIFF* tif, int scheme); // Dummy initialization function
 }
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
+    if (size < 4) {
+        return 0; // Not enough data to extract meaningful inputs
     }
 
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
+    // Use the input data to influence the parameters
+    uint16_t scheme = data[0] | (data[1] << 8); // Use the first two bytes for scheme
+    const char *name = reinterpret_cast<const char*>(data + 2); // Use the rest as the name
+
+    // Ensure the name is null-terminated to prevent out-of-bounds access
+    size_t name_length = size - 2;
+    char *name_copy = new char[name_length + 1];
+    std::memcpy(name_copy, name, name_length);
+    name_copy[name_length] = '\0';
+
+    // Use a dummy initialization function to ensure the init method is not null
+    TIFFInitMethod init = dummyInit;
+
+    // Call the function-under-test
+    TIFFCodec *codec = TIFFRegisterCODEC(scheme, name_copy, init);
+
+    // Check if the codec was successfully registered
+    if (codec != nullptr) {
+        // Optionally, perform additional operations with the codec
+        // For example, unregister the codec to ensure proper cleanup
+        TIFFUnRegisterCODEC(codec);
     }
 
-    // Write the data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (file == nullptr) {
-        close(fd);
-        return 0;
-    }
-    fwrite(data, 1, size, file);
-    fclose(file);
-
-    // Open the TIFF file using the temporary file path
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff != nullptr) {
-        // Call the function-under-test
-        int fileno = TIFFFileno(tiff);
-
-        // Close the TIFF file
-        TIFFClose(tiff);
-    }
-
-    // Remove the temporary file
-    remove(tmpl);
+    // Clean up
+    delete[] name_copy;
 
     return 0;
 }
+
+extern "C" int dummyInit(TIFF* tif, int scheme) {
+    // A simple dummy initialization function that does nothing
+    return 1; // Return success
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

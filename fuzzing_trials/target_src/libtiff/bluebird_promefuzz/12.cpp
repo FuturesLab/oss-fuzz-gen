@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -9,58 +11,91 @@
 #include <cstddef>
 #include "tiffio.h"
 #include "cstdint"
-#include "cstring"
 #include <cstdio>
+#include <cstdarg>
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t)) {
-        return 0; // Not enough data to proceed
+    if (Size < 1) {
+        return 0;
     }
 
-    // Create a dummy file with the input data
+    // Step 1: Prepare environment
+    TIFFOpenOptions *opts = TIFFOpenOptionsAlloc();
+    if (!opts) {
+        return 0; // Allocation failed, exit
+    }
+
+    // Set maximum single memory allocation
+    tmsize_t max_single_mem_alloc = static_cast<tmsize_t>(Data[0]);
+    TIFFOpenOptionsSetMaxSingleMemAlloc(opts, max_single_mem_alloc);
+
+    // Write data to a dummy file
     FILE *file = fopen("./dummy_file", "wb");
     if (!file) {
+        TIFFOpenOptionsFree(opts);
         return 0;
     }
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    // Open the dummy TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    // Step 2: Open the TIFF file
+    TIFF *tif = TIFFOpenExt("./dummy_file", "r+", opts);
+    TIFFOpenOptionsFree(opts); // Free options after use
+
     if (!tif) {
-        return 0;
+        return 0; // Failed to open, exit
     }
 
-    // Use a portion of the input data to simulate a strip index or number of rows
-    uint32_t stripOrRows = 0;
-    memcpy(&stripOrRows, Data, sizeof(uint32_t));
-
-    // Invoke the target API functions with the TIFF handle and simulated values
-    tmsize_t rawStripSize = TIFFRawStripSize(tif, stripOrRows);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFRawStripSize to TIFFDefaultTileSize
-    float mzuhnxez = Size;
-    TIFFSwabFloat(&mzuhnxez);
-    int ret_TIFFDeferStrileArrayWriting_zjewu = TIFFDeferStrileArrayWriting(tif);
-    if (ret_TIFFDeferStrileArrayWriting_zjewu < 0){
-    	return 0;
+    // Step 3: Set fields with arbitrary tags and values
+    TIFFSetField(tif, static_cast<uint32_t>(Data[0]), Data[0]);
+    if (Size > 1) {
+        TIFFSetField(tif, static_cast<uint32_t>(Data[1]), Data[1]);
     }
 
-    TIFFDefaultTileSize(tif, (uint32_t *)&mzuhnxez, (uint32_t *)&ret_TIFFDeferStrileArrayWriting_zjewu);
+    // Step 4: Write directory
+    TIFFWriteDirectory(tif);
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-    tmsize_t rasterScanlineSize = TIFFRasterScanlineSize(tif);
-    tmsize_t vStripSize = TIFFVStripSize(tif, stripOrRows);
-    tmsize_t scanlineSize = TIFFScanlineSize(tif);
-    tmsize_t stripSize = TIFFStripSize(tif);
-    tmsize_t tileRowSize = TIFFTileRowSize(tif);
-
-    // Handle the results (e.g., logging, further processing)
-    // For fuzzing, typically we just want to ensure no crashes occur
-
-    // Clean up
+    // Step 5: Close the TIFF file
     TIFFClose(tif);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_12(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

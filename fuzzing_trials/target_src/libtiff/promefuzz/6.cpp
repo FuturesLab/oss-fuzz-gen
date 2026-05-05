@@ -1,65 +1,145 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
-// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
-// TIFFCurrentDirOffset at tif_dir.c:2233:10 in tiffio.h
-// TIFFGetSeekProc at tif_open.c:927:14 in tiffio.h
-// TIFFIsByteSwapped at tif_open.c:889:5 in tiffio.h
-// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
-// TIFFGetWriteProc at tif_open.c:922:19 in tiffio.h
-// TIFFNumberOfDirectories at tif_dir.c:2042:8 in tiffio.h
-// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
-// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
+// TIFFIsTiled at tif_open.c:864:5 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFRGBAImageBegin at tif_getimage.c:310:5 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
+// TIFFRGBAImageEnd at tif_getimage.c:253:6 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFRGBAImageGet at tif_getimage.c:589:5 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFRGBAImageEnd at tif_getimage.c:253:6 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFRGBAImageEnd at tif_getimage.c:253:6 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// _TIFFfree at tif_unix.c:349:6 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <cstring>
-#include <cstdlib>
-#include <cstdio>
 #include <cstdint>
 #include <cstddef>
 #include <tiffio.h>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-
-static TIFF* initialize_tiff(const uint8_t* Data, size_t Size) {
-    FILE* file = std::fopen("./dummy_file", "wb");
-    if (!file) return nullptr;
-    std::fwrite(Data, 1, Size, file);
-    std::fclose(file);
-
-    TIFF* tiff = TIFFOpen("./dummy_file", "r+");
-    return tiff;
-}
 
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(tdir_t) * 3 + sizeof(uint32_t)) return 0;
+    if (Size < 4) return 0; // Ensure there's enough data for a minimal operation
 
-    TIFF* tiff = initialize_tiff(Data, Size);
+    // Create a temporary file to simulate a TIFF file
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return 0;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen("./dummy_file", "r");
     if (!tiff) return 0;
 
-    tdir_t dir1 = *reinterpret_cast<const tdir_t*>(Data);
-    tdir_t dir2 = *reinterpret_cast<const tdir_t*>(Data + sizeof(tdir_t));
-    tdir_t dir3 = *reinterpret_cast<const tdir_t*>(Data + 2 * sizeof(tdir_t));
-    uint32_t longValue = *reinterpret_cast<const uint32_t*>(Data + 3 * sizeof(tdir_t));
+    // Step 1: Check if the TIFF image is tiled
+    int tiled = TIFFIsTiled(tiff);
 
-    TIFFSetDirectory(tiff, dir1);
-    TIFFSetDirectory(tiff, dir2);
-    TIFFCurrentDirOffset(tiff);
-    TIFFGetSeekProc(tiff);
-    TIFFIsByteSwapped(tiff);
-    TIFFSwabLong(&longValue);
-    TIFFGetWriteProc(tiff);
-    TIFFNumberOfDirectories(tiff);
-    TIFFSetDirectory(tiff, dir3);
-    TIFFSetDirectory(tiff, dir1);
+    // Step 2: Allocate memory using _TIFFmalloc
+    tmsize_t allocSize1 = 1024; // Arbitrary allocation size
+    void *memory1 = _TIFFmalloc(allocSize1);
+    if (!memory1) {
+        TIFFClose(tiff);
+        return 0; // Memory allocation failed
+    }
 
+    tmsize_t allocSize2 = 2048; // Another arbitrary allocation size
+    void *memory2 = _TIFFmalloc(allocSize2);
+    if (!memory2) {
+        _TIFFfree(memory1);
+        TIFFClose(tiff);
+        return 0; // Memory allocation failed
+    }
+
+    // Step 3: Initialize a TIFFRGBAImage structure
+    TIFFRGBAImage img;
+    char emsg[1024];
+    if (!TIFFRGBAImageBegin(&img, tiff, 0, emsg)) {
+        _TIFFfree(memory1);
+        _TIFFfree(memory2);
+        TIFFClose(tiff);
+        return 0; // Initialization failed
+    }
+
+    // Step 4: Retrieve RGBA pixel data into a raster buffer
+    uint32_t width = 100; // Arbitrary width
+    uint32_t height = 100; // Arbitrary height
+    uint32_t *raster = static_cast<uint32_t *>(_TIFFmalloc(width * height * sizeof(uint32_t)));
+    if (!raster) {
+        TIFFRGBAImageEnd(&img);
+        _TIFFfree(memory1);
+        _TIFFfree(memory2);
+        TIFFClose(tiff);
+        return 0; // Memory allocation failed
+    }
+
+    if (!TIFFRGBAImageGet(&img, raster, width, height)) {
+        _TIFFfree(raster);
+        TIFFRGBAImageEnd(&img);
+        _TIFFfree(memory1);
+        _TIFFfree(memory2);
+        TIFFClose(tiff);
+        return 0; // Failed to get image data
+    }
+
+    // Step 5: Clean up
+    TIFFRGBAImageEnd(&img);
+    _TIFFfree(raster);
+    _TIFFfree(memory1);
+    _TIFFfree(memory2);
     TIFFClose(tiff);
-    tiff = nullptr; // Prevent further operations on freed memory
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

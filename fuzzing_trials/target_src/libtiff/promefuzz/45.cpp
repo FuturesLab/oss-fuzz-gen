@@ -1,12 +1,10 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFCreateEXIFDirectory at tif_dir.c:1742:5 in tiffio.h
-// TIFFCreateGPSDirectory at tif_dir.c:1752:5 in tiffio.h
-// TIFFReadEXIFDirectory at tif_dirread.c:5556:5 in tiffio.h
-// TIFFReadGPSDirectory at tif_dirread.c:5564:5 in tiffio.h
-// TIFFLastDirectory at tif_dir.c:2239:5 in tiffio.h
-// TIFFReadCustomDirectory at tif_dirread.c:5372:5 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFSwabLong8 at tif_swab.c:60:6 in tiffio.h
+// TIFFSwabArrayOfTriples at tif_swab.c:99:6 in tiffio.h
+// TIFFSwabArrayOfShort at tif_swab.c:81:6 in tiffio.h
+// TIFFSwabArrayOfLong at tif_swab.c:117:6 in tiffio.h
+// TIFFSwabArrayOfLong8 at tif_swab.c:138:6 in tiffio.h
+// TIFFSwabArrayOfDouble at tif_swab.c:222:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,40 +14,113 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
-#include <tiffio.h>
-}
-
 #include <cstdint>
-#include <cstdio>
-
-static TIFF* initializeTIFF(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return nullptr;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    TIFF *tif = TIFFOpen("./dummy_file", "r+");
-    return tif;
-}
+#include <cstring>
+#include <cstdlib>
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_45(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint64_t)) return 0; // Ensure enough data for offsets
+    if (Size < 8) return 0; // Ensure there's enough data for at least one 64-bit integer
 
-    TIFF *tif = initializeTIFF(Data, Size);
-    if (!tif) return 0;
+    // Test TIFFSwabLong8
+    uint64_t long8Value;
+    memcpy(&long8Value, Data, sizeof(uint64_t));
+    TIFFSwabLong8(&long8Value);
 
-    toff_t offset = *reinterpret_cast<const toff_t*>(Data);
+    // Test TIFFSwabArrayOfTriples
+    if (Size >= 3) {
+        uint8_t *triplesData = (uint8_t *)malloc(Size);
+        if (triplesData) {
+            memcpy(triplesData, Data, Size);
+            tmsize_t numTriples = Size / 3;
+            TIFFSwabArrayOfTriples(triplesData, numTriples);
+            free(triplesData);
+        }
+    }
 
-    TIFFCreateEXIFDirectory(tif);
-    TIFFCreateGPSDirectory(tif);
-    TIFFReadEXIFDirectory(tif, offset);
-    TIFFReadGPSDirectory(tif, offset);
-    TIFFLastDirectory(tif);
+    // Test TIFFSwabArrayOfShort
+    if (Size >= sizeof(uint16_t)) {
+        tmsize_t numShorts = Size / sizeof(uint16_t);
+        uint16_t *shortArray = (uint16_t *)malloc(numShorts * sizeof(uint16_t));
+        if (shortArray) {
+            memcpy(shortArray, Data, numShorts * sizeof(uint16_t));
+            TIFFSwabArrayOfShort(shortArray, numShorts);
+            free(shortArray);
+        }
+    }
 
-    TIFFFieldArray *dummyInfoArray = nullptr; // Placeholder for actual info array
-    TIFFReadCustomDirectory(tif, offset, dummyInfoArray);
+    // Test TIFFSwabArrayOfLong
+    if (Size >= sizeof(uint32_t)) {
+        tmsize_t numLongs = Size / sizeof(uint32_t);
+        uint32_t *longArray = (uint32_t *)malloc(numLongs * sizeof(uint32_t));
+        if (longArray) {
+            memcpy(longArray, Data, numLongs * sizeof(uint32_t));
+            TIFFSwabArrayOfLong(longArray, numLongs);
+            free(longArray);
+        }
+    }
 
-    TIFFClose(tif);
+    // Test TIFFSwabArrayOfLong8
+    if (Size >= sizeof(uint64_t)) {
+        tmsize_t numLong8s = Size / sizeof(uint64_t);
+        uint64_t *long8Array = (uint64_t *)malloc(numLong8s * sizeof(uint64_t));
+        if (long8Array) {
+            memcpy(long8Array, Data, numLong8s * sizeof(uint64_t));
+            TIFFSwabArrayOfLong8(long8Array, numLong8s);
+            free(long8Array);
+        }
+    }
+
+    // Test TIFFSwabArrayOfDouble
+    if (Size >= sizeof(double)) {
+        tmsize_t numDoubles = Size / sizeof(double);
+        double *doubleArray = (double *)malloc(numDoubles * sizeof(double));
+        if (doubleArray) {
+            memcpy(doubleArray, Data, numDoubles * sizeof(double));
+            TIFFSwabArrayOfDouble(doubleArray, numDoubles);
+            free(doubleArray);
+        }
+    }
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_45(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

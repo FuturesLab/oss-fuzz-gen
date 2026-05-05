@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -8,94 +10,114 @@
 #include "cstdint"
 #include <cstddef>
 #include "tiffio.h"
-#include <cstdio>
 #include "cstdint"
-#include <cstddef>
-#include <fcntl.h>
-#include <unistd.h>
-
-static void writeDummyFile(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-}
+#include <cstdio>
+#include "cstdlib"
+#include "cstring"
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
     if (Size < 1) {
         return 0;
     }
 
-    // Step 1: Write data to a dummy file
-    writeDummyFile(Data, Size);
-
-    // Step 2: Open the dummy file
-    int fd = open("./dummy_file", O_RDWR);
-    if (fd < 0) {
+    // Create a dummy file
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) {
         return 0;
     }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    // Step 3: Use TIFFFdOpen to open the TIFF file
-    TIFF *tif = TIFFFdOpen(fd, "./dummy_file", "r+");
+    // Open the TIFF file
+    TIFF *tif = TIFFOpen("./dummy_file", "r+");
     if (!tif) {
-        close(fd);
         return 0;
     }
 
-    // Step 4: Invoke TIFFFileno
+    // Fuzz TIFFForceStrileArrayWriting
+    TIFFForceStrileArrayWriting(tif);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFFdOpen to TIFFReadRGBAImage
-    int ret_TIFFRewriteDirectory_afbal = TIFFRewriteDirectory(tif);
-    if (ret_TIFFRewriteDirectory_afbal < 0){
-    	return 0;
-    }
-    int ret_TIFFIsBigEndian_umbzu = TIFFIsBigEndian(tif);
-    if (ret_TIFFIsBigEndian_umbzu < 0){
-    	return 0;
-    }
-    uint32_t ret_TIFFCurrentRow_ntcfn = TIFFCurrentRow(tif);
-    if (ret_TIFFCurrentRow_ntcfn < 0){
-    	return 0;
-    }
-    uint16_t dmdnvvzn = Size;
-    TIFFSwabShort(&dmdnvvzn);
-
-    int ret_TIFFReadRGBAImage_xoejh = TIFFReadRGBAImage(tif, (uint32_t )ret_TIFFRewriteDirectory_afbal, (uint32_t )ret_TIFFIsBigEndian_umbzu, &ret_TIFFCurrentRow_ntcfn, (int )dmdnvvzn);
-    if (ret_TIFFReadRGBAImage_xoejh < 0){
-    	return 0;
+    // Fuzz TIFFSetWriteOffset
+    if (Size >= sizeof(toff_t)) {
+        toff_t offset;
+        memcpy(&offset, Data, sizeof(toff_t));
+        TIFFSetWriteOffset(tif, offset);
     }
 
+    // Fuzz TIFFFlushData
+    TIFFFlushData(tif);
+
+    // Fuzz TIFFIsTiled
+    TIFFIsTiled(tif);
+
+    // Fuzz TIFFGetStrileOffsetWithErr
+    if (Size >= sizeof(uint32_t)) {
+        uint32_t strile;
+        memcpy(&strile, Data, sizeof(uint32_t));
+        int err;
+        TIFFGetStrileOffsetWithErr(tif, strile, &err);
+    }
+
+    // Fuzz TIFFReadDirectory
+    TIFFReadDirectory(tif);
+
+    // Close the TIFF file
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFReadDirectory to TIFFComputeStrip
+    float iomhwvvc = 64;
+    TIFFSwabFloat(&iomhwvvc);
+    uint64_t fhbndphk = 64;
+    TIFFSwabLong8(&fhbndphk);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tif) {
+    	return 0;
+    }
+    uint32_t ret_TIFFComputeStrip_yiagp = TIFFComputeStrip(tif, (uint32_t )iomhwvvc, (uint16_t )fhbndphk);
+    if (ret_TIFFComputeStrip_yiagp < 0){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
-
-    int fileno = TIFFFileno(tif);
-
-    // Step 5: Read directory using TIFFReadDirectory
-    int readDirResult = TIFFReadDirectory(tif);
-
-    // Step 6: Flush data using TIFFFlush
-    int flushResult = TIFFFlush(tif);
-
-    // Step 7: Attempt to unlink a directory
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFFlush to _TIFFmemcmp
-    const char* ret_TIFFFileName_cawuh = TIFFFileName(tif);
-    if (ret_TIFFFileName_cawuh == NULL){
-    	return 0;
-    }
-
-    int ret__TIFFmemcmp_aelck = _TIFFmemcmp((const void *)tif, (const void *)tif, 0);
-    if (ret__TIFFmemcmp_aelck < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    TIFFUnlinkDirectory(tif, 1);
-
-    // Step 8: Clean up
+    
     TIFFClose(tif);
-    close(fd);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

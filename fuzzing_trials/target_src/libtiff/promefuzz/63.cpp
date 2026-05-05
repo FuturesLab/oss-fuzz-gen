@@ -1,10 +1,11 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFSwabDouble at tif_swab.c:201:6 in tiffio.h
-// TIFFSwabArrayOfDouble at tif_swab.c:222:6 in tiffio.h
-// uv_decode at tif_luv.c:997:5 in tiffio.h
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFIsByteSwapped at tif_open.c:889:5 in tiffio.h
-// TIFFIsBigEndian at tif_open.c:904:5 in tiffio.h
+// TIFFIsBigTIFF at tif_open.c:912:5 in tiffio.h
+// TIFFReadEXIFDirectory at tif_dirread.c:5556:5 in tiffio.h
+// TIFFReadCustomDirectory at tif_dirread.c:5372:5 in tiffio.h
+// TIFFGetMapFileProc at tif_open.c:942:17 in tiffio.h
+// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
+// TIFFFreeDirectory at tif_dir.c:1629:6 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -15,66 +16,90 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
-#include <cstdint>
-#include <cstring>
 #include <tiffio.h>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_63(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(double)) return 0;
+    // Prepare a dummy file
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) {
+        return 0;
+    }
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    // Prepare a double for TIFFSwabDouble
-    double singleDouble;
-    memcpy(&singleDouble, Data, sizeof(double));
-    TIFFSwabDouble(&singleDouble);
-
-    // Prepare an array of doubles for TIFFSwabArrayOfDouble
-    if (Size >= 2 * sizeof(double)) {
-        size_t numDoubles = Size / sizeof(double);
-        double *doubleArray = new double[numDoubles];
-        memcpy(doubleArray, Data, numDoubles * sizeof(double));
-        TIFFSwabArrayOfDouble(doubleArray, static_cast<tmsize_t>(numDoubles));
-        delete[] doubleArray;
+    // Open the dummy file with TIFFOpen
+    TIFF *tiffFile = TIFFOpen("./dummy_file", "r");
+    if (!tiffFile) {
+        return 0;
     }
 
-    // Use uv_encode with two doubles and an int
-    if (Size >= 2 * sizeof(double) + sizeof(int)) {
-        double latitude, longitude;
-        int precision;
-        memcpy(&latitude, Data, sizeof(double));
-        memcpy(&longitude, Data + sizeof(double), sizeof(double));
-        memcpy(&precision, Data + 2 * sizeof(double), sizeof(int));
-        uv_encode(latitude, longitude, precision);
-    }
-    
-    // Use uv_decode with input and output arrays
-    if (Size >= 2 * sizeof(double) + sizeof(int)) {
-        int numDoubles = Size / sizeof(double);
-        double *inputArray = new double[numDoubles];
-        double *uArray = new double[numDoubles];
-        double *vArray = new double[numDoubles];
-        memcpy(inputArray, Data, numDoubles * sizeof(double));
-        uv_decode(inputArray, uArray, numDoubles);
-        delete[] inputArray;
-        delete[] uArray;
-        delete[] vArray;
-    }
+    // Invoke TIFFIsBigTIFF
+    int isBigTIFF = TIFFIsBigTIFF(tiffFile);
 
-    // Prepare a dummy TIFF structure for TIFFIsByteSwapped and TIFFIsBigEndian
-    // Since we can't directly allocate a TIFF struct, we simulate with a dummy file
-    std::ofstream dummyFile("./dummy_file");
-    if (dummyFile.is_open()) {
-        dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-        dummyFile.close();
-
-        TIFF* tiffStruct = TIFFOpen("./dummy_file", "r");
-        if (tiffStruct) {
-            TIFFIsByteSwapped(tiffStruct);
-            TIFFIsBigEndian(tiffStruct);
-            TIFFClose(tiffStruct);
-        }
+    // Invoke TIFFReadEXIFDirectory with an arbitrary offset
+    toff_t exifOffset = 0;
+    if (Size >= sizeof(toff_t)) {
+        memcpy(&exifOffset, Data, sizeof(toff_t));
     }
+    int exifStatus = TIFFReadEXIFDirectory(tiffFile, exifOffset);
+
+    // Invoke TIFFReadCustomDirectory with an arbitrary offset and a dummy infoarray
+    const TIFFFieldArray *infoArray = nullptr; // Use nullptr as we don't have a real info array
+    int customDirStatus = TIFFReadCustomDirectory(tiffFile, exifOffset, infoArray);
+
+    // Invoke TIFFGetMapFileProc
+    TIFFMapFileProc mapFileProc = TIFFGetMapFileProc(tiffFile);
+
+    // Invoke TIFFReadDirectory
+    int readDirStatus = TIFFReadDirectory(tiffFile);
+
+    // Clean up
+    TIFFFreeDirectory(tiffFile);
+    TIFFClose(tiffFile);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_63(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

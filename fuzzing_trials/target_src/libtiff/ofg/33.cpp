@@ -1,45 +1,70 @@
-#include <tiffio.h>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <cstddef>
+#include <cstring>  // Include for memcpy
+
+extern "C" {
+    #include <tiffio.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    // Initialize TIFF structure
-    TIFF *tif = TIFFOpen("/tmp/fuzzfile.tiff", "w");
-    if (tif == nullptr) {
+    // Ensure the size is a multiple of sizeof(float)
+    if (size % sizeof(float) != 0 || size == 0) {
         return 0;
     }
 
-    // Set up some basic TIFF fields
-    TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 1);
-    TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 1);
-    TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1);
-    TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
-    TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
-    TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
-    TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
+    // Calculate the number of float elements
+    tmsize_t num_floats = size / sizeof(float);
 
-    // Ensure the data size is not zero and allocate a buffer for the tile
-    tmsize_t tileSize = static_cast<tmsize_t>(size);
-    if (tileSize == 0) {
-        tileSize = 1;
-    }
-    void *tileBuffer = _TIFFmalloc(tileSize);
-    if (tileBuffer == nullptr) {
-        TIFFClose(tif);
-        return 0;
-    }
+    // Allocate memory for the float array
+    float *floatArray = new float[num_floats];
 
-    // Copy the data into the tile buffer
-    memcpy(tileBuffer, data, tileSize);
+    // Copy the data into the float array
+    memcpy(floatArray, data, size);
 
     // Call the function-under-test
-    uint32_t tileIndex = 0; // Assuming the first tile
-    TIFFWriteEncodedTile(tif, tileIndex, tileBuffer, tileSize);
+    TIFFSwabArrayOfFloat(floatArray, num_floats);
 
     // Clean up
-    _TIFFfree(tileBuffer);
-    TIFFClose(tif);
+    delete[] floatArray;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

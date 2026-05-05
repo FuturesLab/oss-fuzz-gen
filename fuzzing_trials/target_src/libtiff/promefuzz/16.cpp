@@ -8,11 +8,6 @@
 // TIFFSetField at tif_dir.c:1152:5 in tiffio.h
 // TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFOpenExt at tif_unix.c:237:7 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -26,66 +21,90 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdarg>
-#include <cstdlib>
-#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
     if (Size < 1) {
         return 0;
     }
 
-    // Step 1: Prepare the environment
+    // Step 1: Prepare environment
     TIFFOpenOptions *opts = TIFFOpenOptionsAlloc();
     if (!opts) {
-        return 0; // Allocation failed, exit early
+        return 0; // Allocation failed, exit
     }
 
-    // Set a reasonable max single memory allocation size
-    tmsize_t max_single_mem_alloc = 1024 * 1024; // 1MB
+    // Set maximum single memory allocation
+    tmsize_t max_single_mem_alloc = static_cast<tmsize_t>(Data[0]);
     TIFFOpenOptionsSetMaxSingleMemAlloc(opts, max_single_mem_alloc);
 
-    // Write input data to a dummy file
+    // Write data to a dummy file
     FILE *file = fopen("./dummy_file", "wb");
     if (!file) {
         TIFFOpenOptionsFree(opts);
-        return 0; // File open failed, exit early
+        return 0;
     }
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    // Step 2: Invoke the target functions
-    TIFF *tif = TIFFOpenExt("./dummy_file", "r", opts);
+    // Step 2: Open the TIFF file
+    TIFF *tif = TIFFOpenExt("./dummy_file", "r+", opts);
+    TIFFOpenOptionsFree(opts); // Free options after use
 
-    // Free the options as they are no longer needed
-    TIFFOpenOptionsFree(opts);
-
-    if (tif) {
-        // Set some fields, using tags and values that are typical
-        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 100);
-        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 100);
-
-        // Write the current directory
-        TIFFWriteDirectory(tif);
-
-        // Close the TIFF handle
-        TIFFClose(tif);
-        tif = NULL; // Prevent further operations on freed memory
+    if (!tif) {
+        return 0; // Failed to open, exit
     }
 
-    // Attempt to open the file again in write mode
-    tif = TIFFOpenExt("./dummy_file", "w", NULL);
-    if (tif) {
-        // Set some fields again
-        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 200);
-        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 200);
-
-        // Write the current directory again
-        TIFFWriteDirectory(tif);
-
-        // Close the TIFF handle
-        TIFFClose(tif);
-        tif = NULL; // Prevent further operations on freed memory
+    // Step 3: Set fields with arbitrary tags and values
+    TIFFSetField(tif, static_cast<uint32_t>(Data[0]), Data[0]);
+    if (Size > 1) {
+        TIFFSetField(tif, static_cast<uint32_t>(Data[1]), Data[1]);
     }
+
+    // Step 4: Write directory
+    TIFFWriteDirectory(tif);
+
+    // Step 5: Close the TIFF file
+    TIFFClose(tif);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

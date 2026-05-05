@@ -1,50 +1,85 @@
 #include <cstdint>
-#include <cstdlib>
 #include <tiffio.h>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 
-extern "C" {
-
-// Define a dummy struct for TIFFOpenOptions since the actual definition is not available
-struct TIFFOpenOptions {
-    // Add necessary fields if known, otherwise keep it empty
-};
-
-void CustomErrorHandler(thandle_t, const char* module, const char* fmt, va_list ap) {
-    // Custom error handling logic can be implemented here.
-}
-
-int LLVMFuzzerTestOneInput_137(const uint8_t *data, size_t size) {
-    if (size < sizeof(TIFFOpenOptions)) {
+extern "C" int LLVMFuzzerTestOneInput_137(const uint8_t *data, size_t size) {
+    // Ensure size is sufficient to create a TIFF structure and a tag
+    if (size < sizeof(uint32_t) + sizeof(uint32_t)) {
         return 0;
     }
 
-    // Allocate memory for TIFFOpenOptions
-    TIFFOpenOptions *options = static_cast<TIFFOpenOptions*>(malloc(sizeof(TIFFOpenOptions)));
-    if (options == nullptr) {
+    // Create a temporary file to hold the TIFF data
+    FILE* tempFile = std::tmpfile();
+    if (!tempFile) {
         return 0;
     }
 
-    // Ensure the void pointer is non-null
-    void *user_data = static_cast<void*>(malloc(1));
-    if (user_data == nullptr) {
-        free(options);
+    // Write the input data to the temporary file
+    if (fwrite(data, 1, size, tempFile) != size) {
+        fclose(tempFile);
         return 0;
     }
 
-    // Correct the function signature to match the expected TIFFErrorHandlerExtR type
-    auto CustomErrorHandlerExtR = [](TIFF*, void*, const char* module, const char* fmt, va_list ap) -> int {
-        CustomErrorHandler(nullptr, module, fmt, ap);
+    // Rewind the file to the beginning
+    rewind(tempFile);
+
+    // Initialize TIFF structure
+    TIFF* tiff = TIFFFdOpen(fileno(tempFile), "temp.tiff", "r");
+    if (!tiff) {
+        fclose(tempFile);
         return 0;
-    };
+    }
+
+    // Extract a uint32_t tag from the input data
+    uint32_t tag = *reinterpret_cast<const uint32_t*>(data);
 
     // Call the function-under-test
-    TIFFOpenOptionsSetErrorHandlerExtR(options, CustomErrorHandlerExtR, user_data);
+    const TIFFField* field = TIFFFieldWithTag(tiff, tag);
 
     // Clean up
-    free(user_data);
-    free(options);
+    TIFFClose(tiff);
+    fclose(tempFile);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
 
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_137(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
 }
+#endif

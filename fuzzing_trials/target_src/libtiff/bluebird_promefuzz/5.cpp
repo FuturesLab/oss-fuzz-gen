@@ -1,116 +1,178 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
-#include "sstream"
-#include <string>
-#include <vector>
-#include "cstring"
-#include "cstdlib"
-#include <cstdio>
 #include "cstdint"
 #include <cstddef>
 #include "tiffio.h"
-#include "cstdint"
-#include "cstdlib"
-#include <cstdio>
-#include "cstring"
-
-static void WriteDummyFile(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
-}
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 4) {
+        return 0;
+    } // Ensure there's enough data for a minimal operation
 
-    // Prepare dummy file for TIFFOpen
-    WriteDummyFile(Data, Size);
-
-    // Open TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "w");
-    if (!tif) return 0;
-
-    // Set fields in TIFF
-    TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 256);
-    TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 256);
-    TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
-    TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1);
-    TIFFSetField(tif, TIFFTAG_ROWSPERSTRIP, 16);
-    TIFFSetField(tif, TIFFTAG_COMPRESSION, COMPRESSION_NONE);
-    TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
-    TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
-
-    // Defer strile array writing
-    TIFFDeferStrileArrayWriting(tif);
-
-    // Check writing capability
-    TIFFWriteCheck(tif, 1, "WriteCheck");
-
-    // Write directory
-    TIFFWriteDirectory(tif);
-
-    // Set directory
-    TIFFSetDirectory(tif, 0);
-
-    // Force strile array writing
-    TIFFForceStrileArrayWriting(tif);
-
-    // Set directory again
-    TIFFSetDirectory(tif, 0);
-
-    // Force strile array writing again
-    TIFFForceStrileArrayWriting(tif);
-
-    // Set directory again
-    TIFFSetDirectory(tif, 0);
-
-    // Prepare buffer for encoded tile/strip
-    tmsize_t bufSize = TIFFTileSize(tif);
-    void *buffer = _TIFFmalloc(bufSize);
-    if (!buffer) {
-        TIFFClose(tif);
+    // Create a temporary file to simulate a TIFF file
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) {
         return 0;
     }
-    memset(buffer, 0, bufSize);
+    fwrite(Data, 1, Size, file);
+    fclose(file);
 
-    // Write encoded tile
-    TIFFWriteEncodedTile(tif, 0, buffer, bufSize);
-
-    // Write encoded strip
-    TIFFWriteEncodedStrip(tif, 0, buffer, bufSize);
-
-    // Close TIFF
-    TIFFClose(tif);
-
-    // Open TIFF file for reading
-    tif = TIFFOpen("./dummy_file", "r");
-    if (!tif) {
-        _TIFFfree(buffer);
+    // Open the TIFF file
+    TIFF *tiff = TIFFOpen("./dummy_file", "r");
+    if (!tiff) {
         return 0;
     }
 
-    // Read encoded tile
-    TIFFReadEncodedTile(tif, 0, buffer, bufSize);
+    // Step 1: Check if the TIFF image is tiled
+    int tiled = TIFFIsTiled(tiff);
 
-    // Close TIFF
-    TIFFClose(tif);
-
-    // Open TIFF file again for reading
-    tif = TIFFOpen("./dummy_file", "r");
-    if (!tif) {
-        _TIFFfree(buffer);
-        return 0;
+    // Step 2: Allocate memory using _TIFFmalloc
+    tmsize_t allocSize1 = 1024; // Arbitrary allocation size
+    void *memory1 = _TIFFmalloc(allocSize1);
+    if (!memory1) {
+        TIFFClose(tiff);
+        return 0; // Memory allocation failed
     }
 
-    // Read encoded strip
-    TIFFReadEncodedStrip(tif, 0, buffer, bufSize);
+    tmsize_t allocSize2 = 2048; // Another arbitrary allocation size
+    void *memory2 = _TIFFmalloc(allocSize2);
+    if (!memory2) {
+        _TIFFfree(memory1);
+        TIFFClose(tiff);
+        return 0; // Memory allocation failed
+    }
 
-    // Final close
-    TIFFClose(tif);
+    // Step 3: Initialize a TIFFRGBAImage structure
+    TIFFRGBAImage img;
+    char emsg[1024];
+    if (!TIFFRGBAImageBegin(&img, tiff, 0, emsg)) {
+        _TIFFfree(memory1);
+        _TIFFfree(memory2);
+        TIFFClose(tiff);
+        return 0; // Initialization failed
+    }
 
-    // Free allocated buffer
-    _TIFFfree(buffer);
+    // Step 4: Retrieve RGBA pixel data into a raster buffer
+    uint32_t width = 100; // Arbitrary width
+    uint32_t height = 100; // Arbitrary height
+    uint32_t *raster = static_cast<uint32_t *>(_TIFFmalloc(width * height * sizeof(uint32_t)));
+    if (!raster) {
+        TIFFRGBAImageEnd(&img);
+        _TIFFfree(memory1);
+        _TIFFfree(memory2);
+        TIFFClose(tiff);
+        return 0; // Memory allocation failed
+    }
+
+    if (!TIFFRGBAImageGet(&img, raster, width, height)) {
+        _TIFFfree(raster);
+        TIFFRGBAImageEnd(&img);
+        _TIFFfree(memory1);
+        _TIFFfree(memory2);
+        TIFFClose(tiff);
+        return 0; // Failed to get image data
+    }
+
+    // Step 5: Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFRGBAImageGet to TIFFReadRGBAImage
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tiff) {
+    	return 0;
+    }
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFIsBigEndian with TIFFReadDirectory
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from TIFFRGBAImageGet to TIFFReadScanline using the plateau pool
+    void* buffer = malloc(TIFFScanlineSize(tiff));
+    uint16_t sample = 0;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tiff) {
+    	return 0;
+    }
+    int ret_TIFFReadScanline_emqhe = TIFFReadScanline(tiff, buffer, *raster, sample);
+    if (ret_TIFFReadScanline_emqhe < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    int ret_TIFFIsBigEndian_jfdix = TIFFReadDirectory(tiff);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    if (ret_TIFFIsBigEndian_jfdix < 0){
+    	return 0;
+    }
+    double ieaxblly = -1;
+    TIFFSwabDouble(&ieaxblly);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tiff) {
+    	return 0;
+    }
+    uint64_t ret_TIFFRasterScanlineSize64_rlwhb = TIFFRasterScanlineSize64(tiff);
+    if (ret_TIFFRasterScanlineSize64_rlwhb < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tiff) {
+    	return 0;
+    }
+    uint32_t ret_TIFFNumberOfTiles_tvfvs = TIFFNumberOfTiles(tiff);
+    if (ret_TIFFNumberOfTiles_tvfvs < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!tiff) {
+    	return 0;
+    }
+    int ret_TIFFReadRGBAImage_cejau = TIFFReadRGBAImage(tiff, *raster, (uint32_t )ieaxblly, (uint32_t *)&ret_TIFFRasterScanlineSize64_rlwhb, (int )ret_TIFFNumberOfTiles_tvfvs);
+    if (ret_TIFFReadRGBAImage_cejau < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    TIFFRGBAImageEnd(&img);
+    _TIFFfree(raster);
+    _TIFFfree(memory1);
+    _TIFFfree(memory2);
+    TIFFClose(tiff);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

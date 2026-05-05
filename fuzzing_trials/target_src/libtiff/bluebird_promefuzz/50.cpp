@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -9,87 +11,92 @@
 #include <cstddef>
 #include "tiffio.h"
 #include "cstdint"
-#include <cstdio>
 #include "cstdlib"
-#include "cstring"
+#include <cstdio>
+#include <cstdarg>
+
+static TIFFErrorHandler defaultErrorHandler = nullptr;
+
+static void customErrorHandler(const char* module, const char* fmt, va_list ap) {
+    if (defaultErrorHandler) {
+        defaultErrorHandler(module, fmt, ap);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_50(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Write the input data to a dummy file
     FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        return 0;
-    }
+    if (!file) return 0;
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    // Open the TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
-    if (!tif) {
-        return 0;
-    }
+    TIFF *tif = TIFFOpen("./dummy_file", "r+");
+    if (!tif) return 0;
 
-    // 1. Check if the TIFF is tiled
+    TIFFWriteDirectory(tif);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFIsTiled with TIFFIsBigEndian
-    int isTiled = TIFFIsBigEndian(tif);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    TIFFSetSubDirectory(tif, static_cast<uint64_t>(Data[0]));
 
+    TIFFSetField(tif, static_cast<uint32_t>(Data[0]), static_cast<int>(Data[0]));
 
+    defaultErrorHandler = TIFFSetErrorHandler(customErrorHandler);
 
-    // 2. Allocate memory using _TIFFmalloc
-    tmsize_t size1 = 1024; // Example size
-    tmsize_t size2 = 2048; // Example size
-    void *mem1 = _TIFFmalloc(size1);
-    void *mem2 = _TIFFmalloc(size2);
+    TIFFWriteDirectory(tif);
 
-    // 3. Initialize a TIFFRGBAImage
-    TIFFRGBAImage img;
-    char emsg[1024];
-    if (!TIFFRGBAImageBegin(&img, tif, 0, emsg)) {
-        TIFFClose(tif);
-        _TIFFfree(mem1);
-        _TIFFfree(mem2);
-        return 0;
-    }
+    TIFFSetErrorHandler(defaultErrorHandler);
 
-    // 4. Allocate raster buffer
-    uint32_t width = 100;  // Example width
-    uint32_t height = 100; // Example height
-    uint32_t *raster = (uint32_t *)_TIFFmalloc(width * height * sizeof(uint32_t));
-    if (!raster) {
-        TIFFRGBAImageEnd(&img);
-        TIFFClose(tif);
-        _TIFFfree(mem1);
-        _TIFFfree(mem2);
-        return 0;
-    }
+    TIFFSetDirectory(tif, static_cast<tdir_t>(Data[0]));
 
-    // 5. Get the RGBA image data
-    TIFFRGBAImageGet(&img, raster, width, height);
+    TIFFCurrentDirOffset(tif);
 
-    // 6. End the RGBA image processing
-    TIFFRGBAImageEnd(&img);
+    TIFFSetDirectory(tif, static_cast<tdir_t>(Data[0]));
 
-    // Clean up
+    TIFFCurrentDirOffset(tif);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFRGBAImageEnd to TIFFWriteBufferSetup
-    tmsize_t ret_TIFFTileRowSize_kkfhf = TIFFTileRowSize(tif);
-
-    int ret_TIFFWriteBufferSetup_rkyub = TIFFWriteBufferSetup(tif, (void *)&img, ret_TIFFTileRowSize_kkfhf);
-    if (ret_TIFFWriteBufferSetup_rkyub < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
+    TIFFSetSubDirectory(tif, static_cast<uint64_t>(Data[0]));
 
     TIFFClose(tif);
-    _TIFFfree(raster);
-    _TIFFfree(mem1);
-    _TIFFfree(mem2);
+    tif = nullptr;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_50(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

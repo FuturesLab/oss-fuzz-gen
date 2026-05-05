@@ -1,67 +1,70 @@
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
-#include <cstdio>
-#include <unistd.h>  // Include for close and unlink
-
-extern "C" {
-    #include <tiffio.h>
-}
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
-    // Ensure that the size is large enough to contain at least one tile of data
-    if (size < 1024) {
-        return 0;
+    if (size < sizeof(float)) {
+        return 0; // Not enough data to form even one float
     }
 
-    // Create a temporary TIFF file
-    char tmpl[] = "/tmp/fuzz_tiffXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
-    }
-    FILE *file = fdopen(fd, "wb+");
-    if (!file) {
-        close(fd);
-        return 0;
+    // Calculate the number of floats we can extract from the input data
+    tmsize_t numFloats = size / sizeof(float);
+
+    // Allocate memory for the float array
+    float *floatArray = static_cast<float*>(malloc(numFloats * sizeof(float)));
+    if (floatArray == nullptr) {
+        return 0; // Memory allocation failed
     }
 
-    // Initialize TIFF structure
-    TIFF *tiff = TIFFOpen(tmpl, "w+");
-    if (!tiff) {
-        fclose(file);
-        return 0;
+    // Copy data into the float array
+    for (tmsize_t i = 0; i < numFloats; ++i) {
+        floatArray[i] = reinterpret_cast<const float*>(data)[i];
     }
 
-    // Set up TIFF fields (example values)
-    TIFFSetField(tiff, TIFFTAG_IMAGEWIDTH, 256);
-    TIFFSetField(tiff, TIFFTAG_IMAGELENGTH, 256);
-    TIFFSetField(tiff, TIFFTAG_SAMPLESPERPIXEL, 3);
-    TIFFSetField(tiff, TIFFTAG_BITSPERSAMPLE, 8);
-    TIFFSetField(tiff, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
-    TIFFSetField(tiff, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
-    TIFFSetField(tiff, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_RGB);
-    TIFFSetField(tiff, TIFFTAG_TILEWIDTH, 128);
-    TIFFSetField(tiff, TIFFTAG_TILELENGTH, 128);
+    // Call the function-under-test
+    TIFFSwabArrayOfFloat(floatArray, numFloats);
 
-    // Calculate tile size
-    tmsize_t tileSize = TIFFTileSize(tiff);
-
-    // Ensure data size is sufficient for at least one tile
-    if (size < static_cast<size_t>(tileSize)) {
-        TIFFClose(tiff);
-        fclose(file);
-        return 0;
-    }
-
-    // Write encoded tile
-    uint32_t tileIndex = 0;
-    tmsize_t result = TIFFWriteEncodedTile(tiff, tileIndex, (void *)data, tileSize);
-
-    // Clean up
-    TIFFClose(tiff);
-    fclose(file);
-    unlink(tmpl);
+    // Free the allocated memory
+    free(floatArray);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_32(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,21 +1,10 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
+// TIFFSwabDouble at tif_swab.c:201:6 in tiffio.h
+// TIFFSwabArrayOfDouble at tif_swab.c:222:6 in tiffio.h
+// uv_decode at tif_luv.c:997:5 in tiffio.h
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
-// TIFFWriteCheck at tif_write.c:605:5 in tiffio.h
-// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFReadFromUserBuffer at tif_read.c:1555:5 in tiffio.h
-// TIFFReadEncodedTile at tif_read.c:963:10 in tiffio.h
-// TIFFWriteEncodedStrip at tif_write.c:215:10 in tiffio.h
-// TIFFStripSize at tif_strip.c:204:10 in tiffio.h
-// TIFFReadEncodedStrip at tif_read.c:543:10 in tiffio.h
+// TIFFIsByteSwapped at tif_open.c:889:5 in tiffio.h
+// TIFFIsBigEndian at tif_open.c:904:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -26,80 +15,104 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <tiffio.h>
-#include <cstdio>
 #include <cstdint>
-#include <cstring>
+#include <cstdio>
 #include <cstdlib>
-#include <fcntl.h>
-#include <unistd.h>
-
-static TIFF* createDummyTIFF() {
-    TIFF* tif = TIFFOpen("./dummy_file", "w+");
-    if (tif) {
-        // Create a minimal valid TIFF structure
-        TIFFSetField(tif, TIFFTAG_IMAGEWIDTH, 1);
-        TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 1);
-        TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 1);
-        TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8);
-        TIFFSetField(tif, TIFFTAG_ORIENTATION, ORIENTATION_TOPLEFT);
-        TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
-        TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_MINISBLACK);
-        TIFFWriteCheck(tif, 0, "createDummyTIFF");
-        TIFFWriteDirectory(tif);
-    }
-    return tif;
-}
+#include <cstring>
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_121(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Create a dummy TIFF file
-    TIFF* tif = createDummyTIFF();
-    if (!tif) return 0;
-
-    // Prepare buffers
-    void* inbuf = malloc(Size);
-    if (!inbuf) {
-        TIFFClose(tif);
-        return 0;
-    }
-    memcpy(inbuf, Data, Size);
-
-    void* outbuf = malloc(Size);
-    if (!outbuf) {
-        free(inbuf);
-        TIFFClose(tif);
-        return 0;
+    if (Size < sizeof(double) * 2 + sizeof(int)) {
+        return 0; // Not enough data for meaningful fuzzing
     }
 
-    // Fuzz TIFFReadFromUserBuffer
-    TIFFReadFromUserBuffer(tif, 0, inbuf, static_cast<tmsize_t>(Size), outbuf, static_cast<tmsize_t>(Size));
+    // Fuzzing TIFFSwabDouble
+    double value;
+    memcpy(&value, Data, sizeof(double));
+    TIFFSwabDouble(&value);
 
-    // Fuzz TIFFReadEncodedTile
-    TIFFReadEncodedTile(tif, 0, outbuf, static_cast<tmsize_t>(Size));
-
-    // Fuzz TIFFPrintDirectory
-    FILE* dummyFile = fopen("./dummy_file", "w+");
-    if (dummyFile) {
-        TIFFPrintDirectory(tif, dummyFile, 0);
-        fclose(dummyFile);
+    // Fuzzing TIFFSwabArrayOfDouble
+    tmsize_t numDoubles = static_cast<tmsize_t>(Size / sizeof(double));
+    double *doubleArray = static_cast<double *>(malloc(numDoubles * sizeof(double)));
+    if (doubleArray) {
+        memcpy(doubleArray, Data, numDoubles * sizeof(double));
+        TIFFSwabArrayOfDouble(doubleArray, numDoubles);
+        free(doubleArray);
     }
 
-    // Fuzz TIFFWriteEncodedStrip
-    TIFFWriteEncodedStrip(tif, 0, inbuf, static_cast<tmsize_t>(Size));
+    // Fuzzing uv_encode
+    double latitude, longitude;
+    memcpy(&latitude, Data, sizeof(double));
+    memcpy(&longitude, Data + sizeof(double), sizeof(double));
+    int precision = *reinterpret_cast<const int *>(Data + sizeof(double) * 2);
+    uv_encode(latitude, longitude, precision);
 
-    // Fuzz TIFFStripSize
-    TIFFStripSize(tif);
+    // Fuzzing uv_decode
+    int numCoordinates = precision; // Using precision as a proxy for number of coordinates
+    if (numCoordinates > 0 && Size >= numCoordinates * sizeof(double)) {
+        double *inputData = static_cast<double *>(malloc(numCoordinates * sizeof(double)));
+        double *u = static_cast<double *>(malloc(numCoordinates * sizeof(double)));
+        double *v = static_cast<double *>(malloc(numCoordinates * sizeof(double)));
+        if (inputData && u && v) {
+            memcpy(inputData, Data, numCoordinates * sizeof(double));
+            uv_decode(inputData, u, numCoordinates);
+            free(inputData);
+            free(u);
+            free(v);
+        } else {
+            free(inputData);
+            free(u);
+            free(v);
+        }
+    }
 
-    // Fuzz TIFFReadEncodedStrip
-    TIFFReadEncodedStrip(tif, 0, outbuf, static_cast<tmsize_t>(Size));
-
-    // Cleanup
-    free(inbuf);
-    free(outbuf);
-    TIFFClose(tif);
-    unlink("./dummy_file");
+    // Fuzzing TIFFIsByteSwapped and TIFFIsBigEndian
+    TIFF *tiff = TIFFOpen("./dummy_file", "r");
+    if (tiff) {
+        TIFFIsByteSwapped(tiff);
+        TIFFIsBigEndian(tiff);
+        TIFFClose(tiff);
+    }
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_121(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,13 +1,8 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFFdOpen at tif_unix.c:209:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFDefaultStripSize at tif_strip.c:218:10 in tiffio.h
-// TIFFCurrentStrip at tif_open.c:879:10 in tiffio.h
-// TIFFNumberOfStrips at tif_strip.c:65:10 in tiffio.h
-// TIFFWriteEncodedStrip at tif_write.c:215:10 in tiffio.h
-// TIFFStripSize at tif_strip.c:204:10 in tiffio.h
-// TIFFReadEncodedStrip at tif_read.c:543:10 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
+// LogLuv32toXYZ at tif_luv.c:1180:5 in tiffio.h
+// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
+// TIFFSwabLong at tif_swab.c:45:6 in tiffio.h
+// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -17,59 +12,95 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_136(const uint8_t *Data, size_t Size) {
-    // Create a dummy file to act as a TIFF source
-    FILE* dummyFile = fopen("./dummy_file", "wb+");
-    if (!dummyFile) {
-        return 0; // Failed to create a dummy file
-    }
-    fwrite(Data, 1, Size, dummyFile);
-    rewind(dummyFile);
-
-    // Open the dummy file as a TIFF file
-    TIFF* tif = TIFFFdOpen(fileno(dummyFile), "./dummy_file", "r+");
-    if (!tif) {
-        fclose(dummyFile);
-        return 0; // Failed to open TIFF
+    if (Size < 4) {
+        return 0;
     }
 
-    // Prepare a buffer for reading/writing strips
-    void* buffer = malloc(Size);
-    if (!buffer) {
-        TIFFClose(tif);
-        fclose(dummyFile);
-        return 0; // Failed to allocate buffer
+    // Prepare data for LogLuv32toXYZ and LogLuv24toXYZ
+    uint32_t logLuvValue = *reinterpret_cast<const uint32_t*>(Data);
+    float xyz[3] = {0.0f, 0.0f, 0.0f};
+
+    // Invoke LogLuv32toXYZ
+    LogLuv32toXYZ(logLuvValue, xyz);
+
+    // Invoke LogLuv24toXYZ
+    LogLuv24toXYZ(logLuvValue, xyz);
+
+    // Prepare data for TIFFSwabLong
+    uint32_t swabLongValue = logLuvValue;
+
+    // Invoke TIFFSwabLong
+    TIFFSwabLong(&swabLongValue);
+
+    // Prepare data for TIFFSwabArrayOfFloat
+    if (Size < 16) {
+        return 0;
     }
-    memcpy(buffer, Data, Size);
+    float floatArray[4];
+    for (int i = 0; i < 4; ++i) {
+        floatArray[i] = *reinterpret_cast<const float*>(Data + i * sizeof(float));
+    }
 
-    // Fuzz TIFFDefaultStripSize
-    uint32_t stripSize = TIFFDefaultStripSize(tif, static_cast<uint32_t>(Size));
+    // Invoke TIFFSwabArrayOfFloat
+    TIFFSwabArrayOfFloat(floatArray, 4);
 
-    // Fuzz TIFFCurrentStrip
-    uint32_t currentStrip = TIFFCurrentStrip(tif);
+    // Prepare data for LogLuv24fromXYZ and LogLuv32fromXYZ
+    float xyzInput[3] = {0.0f, 0.0f, 0.0f};
+    for (int i = 0; i < 3; ++i) {
+        xyzInput[i] = *reinterpret_cast<const float*>(Data + i * sizeof(float));
+    }
 
-    // Fuzz TIFFNumberOfStrips
-    uint32_t numberOfStrips = TIFFNumberOfStrips(tif);
+    // Invoke LogLuv24fromXYZ
+    uint32_t logLuv24 = LogLuv24fromXYZ(xyzInput, 1);
 
-    // Fuzz TIFFWriteEncodedStrip
-    tmsize_t writeResult = TIFFWriteEncodedStrip(tif, currentStrip, buffer, static_cast<tmsize_t>(Size));
-
-    // Fuzz TIFFStripSize
-    tmsize_t stripSizeResult = TIFFStripSize(tif);
-
-    // Fuzz TIFFReadEncodedStrip
-    tmsize_t readResult = TIFFReadEncodedStrip(tif, currentStrip, buffer, static_cast<tmsize_t>(Size));
-
-    // Cleanup
-    free(buffer);
-    TIFFClose(tif);
-    fclose(dummyFile);
+    // Invoke LogLuv32fromXYZ
+    uint32_t logLuv32 = LogLuv32fromXYZ(xyzInput, 1);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_136(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

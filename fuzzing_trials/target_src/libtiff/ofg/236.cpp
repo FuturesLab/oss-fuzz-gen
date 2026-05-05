@@ -1,35 +1,94 @@
 #include <cstdint>
 #include <cstdlib>
-#include <tiffio.h>
+#include <cstdio>
+#include <unistd.h>
+#include <cstring>
 
 extern "C" {
-    void TIFFXYZToRGB(TIFFCIELabToRGB *, float, float, float, uint32_t *, uint32_t *, uint32_t *);
+    #include <tiffio.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_236(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for extracting float values and pointers
-    if (size < sizeof(float) * 3 + sizeof(uint32_t) * 3) {
+    TIFF *tiff;
+    uint32_t tile = 0;
+    void *buffer;
+    tmsize_t bufferSize = static_cast<tmsize_t>(size);
+
+    // Create a temporary file to use with TIFF
+    char tmpl[] = "/tmp/fuzz-tiffXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    FILE *file = fdopen(fd, "wb+");
+    if (!file) {
+        close(fd);
         return 0;
     }
 
-    // Initialize TIFFCIELabToRGB structure
-    TIFFCIELabToRGB cielab;
-    // Normally, you would initialize the structure with meaningful data, 
-    // but for fuzzing, we will just use it as is.
+    // Initialize TIFF structure
+    tiff = TIFFOpen(tmpl, "w+");
+    if (!tiff) {
+        fclose(file);
+        return 0;
+    }
 
-    // Extract float values from the data
-    float X = *reinterpret_cast<const float*>(data);
-    float Y = *reinterpret_cast<const float*>(data + sizeof(float));
-    float Z = *reinterpret_cast<const float*>(data + 2 * sizeof(float));
+    // Allocate memory for buffer and copy data
+    buffer = malloc(bufferSize);
+    if (!buffer) {
+        TIFFClose(tiff);
+        fclose(file);
+        return 0;
+    }
+    memcpy(buffer, data, size);
 
-    // Extract uint32_t pointers from the data
-    uint32_t R, G, B;
-    uint32_t *pR = &R;
-    uint32_t *pG = &G;
-    uint32_t *pB = &B;
+    // Fuzz the function
+    TIFFWriteRawTile(tiff, tile, buffer, bufferSize);
 
-    // Call the function-under-test
-    TIFFXYZToRGB(&cielab, X, Y, Z, pR, pG, pB);
+    // Clean up
+    free(buffer);
+    TIFFClose(tiff);
+    fclose(file);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_236(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

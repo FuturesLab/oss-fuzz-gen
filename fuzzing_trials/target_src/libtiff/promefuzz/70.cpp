@@ -1,12 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
-// TIFFCIELabToRGBInit at tif_color.c:135:5 in tiffio.h
-// TIFFCIELabToXYZ at tif_color.c:43:6 in tiffio.h
-// XYZtoRGB24 at tif_luv.c:865:5 in tiffio.h
-// TIFFXYZToRGB at tif_color.c:89:6 in tiffio.h
-// _TIFFmalloc at tif_unix.c:333:7 in tiffio.h
-// TIFFYCbCrToRGBInit at tif_color.c:251:5 in tiffio.h
-// _TIFFfree at tif_unix.c:349:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFWarningExtR at tif_warning.c:80:6 in tiffio.h
+// TIFFError at tif_error.c:46:6 in tiffio.h
+// TIFFWarningExt at tif_warning.c:63:6 in tiffio.h
+// TIFFWarning at tif_warning.c:46:6 in tiffio.h
+// TIFFErrorExtR at tif_error.c:107:6 in tiffio.h
+// TIFFErrorExt at tif_error.c:63:6 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,59 +16,131 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+extern "C" {
+#include "tiffio.h"
+}
+
 #include <cstdint>
+#include <cstdarg>
 #include <cstdio>
-#include <cstdlib>
-#include <tiffio.h>
+#include <cstring>
+
+// Helper function to create a dummy TIFF structure
+static TIFF* createDummyTIFF() {
+    // Allocate memory for a TIFF object using TIFFOpen to ensure it's properly initialized
+    TIFF* tiff = TIFFOpen("./dummy_file", "w");
+    return tiff;
+}
+
+// Helper function to write data to a file
+static void writeDummyFile(const uint8_t* Data, size_t Size) {
+    FILE* file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
+}
+
+// Helper function to invoke TIFFWarningExtR
+static void invokeTIFFWarningExtR(TIFF* tiff, const char* module, const char* fmt, int value) {
+    TIFFWarningExtR(tiff, module, fmt, value);
+}
+
+// Helper function to invoke TIFFError
+static void invokeTIFFError(const char* module, const char* fmt, int value) {
+    TIFFError(module, fmt, value);
+}
+
+// Helper function to invoke TIFFWarningExt
+static void invokeTIFFWarningExt(thandle_t handle, const char* module, const char* fmt, int value) {
+    TIFFWarningExt(handle, module, fmt, value);
+}
+
+// Helper function to invoke TIFFWarning
+static void invokeTIFFWarning(const char* module, const char* fmt, int value) {
+    TIFFWarning(module, fmt, value);
+}
+
+// Helper function to invoke TIFFErrorExtR
+static void invokeTIFFErrorExtR(TIFF* tiff, const char* module, const char* fmt, int value) {
+    TIFFErrorExtR(tiff, module, fmt, value);
+}
+
+// Helper function to invoke TIFFErrorExt
+static void invokeTIFFErrorExt(thandle_t handle, const char* module, const char* fmt, int value) {
+    TIFFErrorExt(handle, module, fmt, value);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_70(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t) + 3 * sizeof(float) + 3 * sizeof(int32_t)) {
-        return 0;
+    // Write the input data to a dummy file
+    writeDummyFile(Data, Size);
+
+    // Create a dummy TIFF object
+    TIFF* tiff = createDummyTIFF();
+    if (!tiff) {
+        return 0; // If TIFF creation fails, exit early
     }
 
-    // Fuzzing LogLuv24toXYZ
-    uint32_t logLuvColor = *reinterpret_cast<const uint32_t*>(Data);
-    float xyz[3] = {0.0f, 0.0f, 0.0f};
-    LogLuv24toXYZ(logLuvColor, xyz);
+    // Prepare dummy module name and format string
+    const char* moduleName = "TestModule";
+    const char* formatString = "Test message with value: %d";
 
-    // Fuzzing TIFFCIELabToRGBInit
-    TIFFCIELabToRGB cielabToRGB;
-    TIFFDisplay display;
-    float refWhite[3] = {1.0f, 1.0f, 1.0f};
-    TIFFCIELabToRGBInit(&cielabToRGB, &display, refWhite);
-
-    // Fuzzing TIFFCIELabToXYZ
-    uint32_t L = static_cast<uint32_t>(Data[0]);
-    int32_t a = static_cast<int32_t>(Data[1]);
-    int32_t bValue = static_cast<int32_t>(Data[2]);
-    float x, y, z;
-    TIFFCIELabToXYZ(&cielabToRGB, L, a, bValue, &x, &y, &z);
-
-    // Fuzzing XYZtoRGB24
-    float xyzInput[3] = {xyz[0], xyz[1], xyz[2]};
-    uint8_t rgb[3];
-    XYZtoRGB24(xyzInput, rgb);
-
-    // Fuzzing TIFFXYZToRGB
-    uint32_t r, g, b;
-    TIFFXYZToRGB(&cielabToRGB, x, y, z, &r, &g, &b);
-
-    // Allocate sufficient memory for TIFFYCbCrToRGB structure
-    size_t ycbcrSize = ((sizeof(TIFFYCbCrToRGB) + sizeof(long) - 1) / sizeof(long)) * sizeof(long) +
-                       4 * 256 * sizeof(TIFFRGBValue) + 2 * 256 * sizeof(int) +
-                       3 * 256 * sizeof(int32_t);
-    TIFFYCbCrToRGB* ycbcrToRGB = (TIFFYCbCrToRGB*)_TIFFmalloc(ycbcrSize);
-    if (!ycbcrToRGB) {
-        return 0;
+    // Extract a dummy integer value from the data
+    int value = 0;
+    if (Size >= sizeof(int)) {
+        memcpy(&value, Data, sizeof(int));
     }
 
-    // Fuzzing TIFFYCbCrToRGBInit
-    float luma[3] = {1.0f, 1.0f, 1.0f};
-    float refBlackWhite[6] = {0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 1.0f};
-    TIFFYCbCrToRGBInit(ycbcrToRGB, luma, refBlackWhite);
+    // Invoke the target functions with diverse inputs
+    invokeTIFFWarningExtR(tiff, moduleName, formatString, value);
+    invokeTIFFError(moduleName, formatString, value);
+    invokeTIFFWarningExt(reinterpret_cast<thandle_t>(tiff), moduleName, formatString, value);
+    invokeTIFFWarning(moduleName, formatString, value);
+    invokeTIFFErrorExtR(tiff, moduleName, formatString, value);
+    invokeTIFFErrorExt(reinterpret_cast<thandle_t>(tiff), moduleName, formatString, value);
 
-    // Free allocated memory
-    _TIFFfree(ycbcrToRGB);
+    // Cleanup
+    TIFFClose(tiff);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_70(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

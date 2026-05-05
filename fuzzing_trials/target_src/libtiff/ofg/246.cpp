@@ -1,47 +1,59 @@
-#include <tiffio.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <stdlib.h> // Include for mkstemp
-
-extern "C" {
-    // Include necessary C headers and functions
-    int TIFFCreateGPSDirectory(TIFF *);
-}
+#include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_246(const uint8_t *data, size_t size) {
-    // Create a temporary file to initialize a TIFF structure
-    char tmpl[] = "/tmp/fuzzfileXXXXXX.tiff";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    // Ensure there is enough data to create a uint16_t value
+    if (size < sizeof(uint16_t)) {
         return 0;
     }
 
-    // Write the fuzz data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        return 0;
-    }
-
-    // Rewind the file descriptor to the beginning
-    lseek(fd, 0, SEEK_SET);
-
-    // Open the TIFF file
-    TIFF *tiff = TIFFFdOpen(fd, tmpl, "r+");
-    if (tiff == NULL) {
-        close(fd);
-        return 0;
-    }
+    // Extract a uint16_t value from the input data
+    uint16_t codec = *(const uint16_t*)data;
 
     // Call the function-under-test
-    TIFFCreateGPSDirectory(tiff);
+    int result = TIFFIsCODECConfigured(codec);
 
-    // Clean up
-    TIFFClose(tiff);
-    close(fd);
-    unlink(tmpl);
+    // Use the result in some way to avoid compiler optimizations removing the call
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_246(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

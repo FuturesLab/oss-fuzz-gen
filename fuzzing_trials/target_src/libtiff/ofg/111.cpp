@@ -1,34 +1,84 @@
-#include <cstdint>
-#include <cstdio>
-#include <tiffio.h>
-
-// Define a simple TIFFInitMethod function for testing purposes
-int dummyTIFFInitMethod(TIFF *tif, int scheme) {
-    // This is a dummy implementation. In a real scenario, this function would
-    // initialize the TIFF codec with the appropriate scheme.
-    return 1; // Return success
+extern "C" {
+    #include <tiffio.h>
+    #include <unistd.h>  // For mkstemp, write, close
+    #include <sys/types.h> // For ssize_t
+    #include <stdio.h>  // For remove
+    #include <fcntl.h>  // For open flags
+    #include <stdlib.h> // For mkstemp
 }
 
 extern "C" int LLVMFuzzerTestOneInput_111(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract a uint16_t and a string
-    if (size < 3) {
+    if (size == 0) {
         return 0;
     }
 
-    // Extract a uint16_t value from the input data
-    uint16_t scheme = (data[0] << 8) | data[1];
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
 
-    // Extract a string from the remaining input data
-    const char *name = reinterpret_cast<const char *>(data + 2);
+    // Write the data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        return 0;
+    }
 
-    // Register the codec using the extracted scheme, name, and dummy init method
-    TIFFCodec *codec = TIFFRegisterCODEC(scheme, name, dummyTIFFInitMethod);
+    // Close the file descriptor
+    close(fd);
 
-    // Optionally, perform some operations with the codec if needed
-    // ...
+    // Open the TIFF file using the temporary file name
+    TIFF* tiff = TIFFOpen(tmpl, "r");
+    if (tiff != NULL) {
+        // Call the function-under-test
+        int result = TIFFIsTiled(tiff);
 
-    // Since the function signature does not specify how to clean up or free the codec,
-    // we assume that the TIFF library manages the codec's lifecycle.
+        // Close the TIFF file
+        TIFFClose(tiff);
+    }
+
+    // Remove the temporary file
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_111(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

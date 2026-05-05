@@ -1,12 +1,10 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFReadEncodedTile at tif_read.c:963:10 in tiffio.h
-// TIFFTileRowSize64 at tif_tile.c:140:10 in tiffio.h
-// TIFFNumberOfTiles at tif_tile.c:108:10 in tiffio.h
-// TIFFScanlineSize64 at tif_strip.c:257:10 in tiffio.h
-// TIFFTileSize64 at tif_tile.c:249:10 in tiffio.h
+// TIFFFdOpen at tif_unix.c:209:7 in tiffio.h
+// TIFFIsBigTIFF at tif_open.c:912:5 in tiffio.h
+// TIFFWriteCheck at tif_write.c:605:5 in tiffio.h
 // TIFFSetSubDirectory at tif_dir.c:2163:5 in tiffio.h
+// TIFFWriteDirectory at tif_dirwrite.c:238:5 in tiffio.h
+// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -17,57 +15,98 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
+#include <iostream>
+#include <fstream>
+#include <fcntl.h>
+#include <unistd.h>
 #include <tiffio.h>
 
 extern "C" int LLVMFuzzerTestOneInput_80(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t)) return 0;
+    // Step 1: Prepare environment
+    const char *dummyFileName = "./dummy_file";
+    std::ofstream dummyFile(dummyFileName, std::ios::binary);
+    if (!dummyFile.is_open()) {
+        return 0;
+    }
+    dummyFile.write(reinterpret_cast<const char *>(Data), Size);
+    dummyFile.close();
 
-    // Create a dummy TIFF file
-    const char *filename = "./dummy_file.tiff";
-    FILE *file = fopen(filename, "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    // Open the TIFF file
-    TIFF *tif = TIFFOpen(filename, "r");
-    if (!tif) return 0;
-
-    // Buffer for reading tiles
-    tmsize_t buf_size = 1024; // Arbitrary buffer size
-    void *buf = malloc(buf_size);
-    if (!buf) {
-        TIFFClose(tif);
+    // Open the dummy file to get a file descriptor
+    int fd = open(dummyFileName, O_RDWR);
+    if (fd < 0) {
         return 0;
     }
 
-    // Fuzzing TIFFReadEncodedTile
-    uint32_t tile = 0; // Starting tile index
-    TIFFReadEncodedTile(tif, tile, buf, buf_size);
+    // Step 2: Invoke TIFFFdOpen
+    TIFF *tiff = TIFFFdOpen(fd, dummyFileName, "r");
+    if (!tiff) {
+        close(fd);
+        return 0;
+    }
 
-    // Fuzzing TIFFTileRowSize64
-    TIFFTileRowSize64(tif);
+    // Step 3: Explore program states
+    // Check if the TIFF is a BigTIFF
+    TIFFIsBigTIFF(tiff);
 
-    // Fuzzing TIFFNumberOfTiles
-    TIFFNumberOfTiles(tif);
+    // Check if the TIFF is ready for writing
+    TIFFWriteCheck(tiff, 1, "test");
 
-    // Fuzzing TIFFScanlineSize64
-    TIFFScanlineSize64(tif);
+    // Set subdirectory
+    uint64_t offset = 0;
+    if (Size >= sizeof(uint64_t)) {
+        offset = *reinterpret_cast<const uint64_t *>(Data);
+    }
+    TIFFSetSubDirectory(tiff, offset);
 
-    // Fuzzing TIFFTileSize64
-    TIFFTileSize64(tif);
+    // Write directory
+    TIFFWriteDirectory(tiff);
 
-    // Fuzzing TIFFSetSubDirectory
-    uint64_t subdir_offset = 0; // Example offset
-    TIFFSetSubDirectory(tif, subdir_offset);
+    // Read directory
+    TIFFReadDirectory(tiff);
 
-    // Clean up
-    free(buf);
-    TIFFClose(tif);
+    // Step 4: Cleanup
+    TIFFClose(tiff);
+    close(fd);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_80(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

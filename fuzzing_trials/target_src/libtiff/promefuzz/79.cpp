@@ -1,10 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// LogLuv24toXYZ at tif_luv.c:1032:5 in tiffio.h
-// TIFFSwabFloat at tif_swab.c:165:6 in tiffio.h
-// TIFFCIELabToXYZ at tif_color.c:43:6 in tiffio.h
-// XYZtoRGB24 at tif_luv.c:865:5 in tiffio.h
-// TIFFXYZToRGB at tif_color.c:89:6 in tiffio.h
-// TIFFSwabArrayOfFloat at tif_swab.c:180:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFFieldWithName at tif_dirinfo.c:941:18 in tiffio.h
+// TIFFSetClientInfo at tif_extension.c:78:6 in tiffio.h
+// TIFFGetClientInfo at tif_extension.c:64:7 in tiffio.h
+// TIFFSetFileName at tif_open.c:808:13 in tiffio.h
+// TIFFFileName at tif_open.c:803:13 in tiffio.h
+// TIFFClientdata at tif_open.c:833:11 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,42 +17,95 @@
 #include <cstdint>
 #include <cstddef>
 #include <tiffio.h>
+#include <fstream>
+
+static void WriteDummyFile(const uint8_t *Data, size_t Size) {
+    std::ofstream file("./dummy_file", std::ios::binary);
+    if (file.is_open()) {
+        file.write(reinterpret_cast<const char*>(Data), Size);
+        file.close();
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_79(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(uint32_t) + sizeof(float) * 3 + sizeof(uint8_t) * 3) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Prepare data for LogLuv24toXYZ
-    uint32_t logLuvColor = *reinterpret_cast<const uint32_t*>(Data);
-    float xyzOutput[3] = {0.0f, 0.0f, 0.0f};
-    LogLuv24toXYZ(logLuvColor, xyzOutput);
+    // Create a dummy TIFF structure
+    TIFF* tif = TIFFOpen("./dummy_file", "w");
+    if (!tif) return 0;
 
-    // Prepare data for TIFFSwabFloat
-    float swabFloat = *reinterpret_cast<const float*>(Data + sizeof(uint32_t));
-    TIFFSwabFloat(&swabFloat);
+    // Write the dummy file
+    WriteDummyFile(Data, Size);
 
-    // Prepare data for TIFFCIELabToXYZ
-    TIFFCIELabToRGB labToRgb;
-    uint32_t L = static_cast<uint32_t>(Data[sizeof(uint32_t) + sizeof(float)]);
-    int32_t a = static_cast<int32_t>(Data[sizeof(uint32_t) + sizeof(float) + 1]);
-    int32_t bVal = static_cast<int32_t>(Data[sizeof(uint32_t) + sizeof(float) + 2]);
-    float cieX, cieY, cieZ;
-    TIFFCIELabToXYZ(&labToRgb, L, a, bVal, &cieX, &cieY, &cieZ);
+    // Ensure null-terminated string for fieldName
+    std::vector<char> fieldNameBuffer(Data, Data + Size);
+    fieldNameBuffer.push_back('\0');
+    const char* fieldName = fieldNameBuffer.data();
 
-    // Prepare data for XYZtoRGB24
-    float xyzInput[3] = {xyzOutput[0], xyzOutput[1], xyzOutput[2]};
-    uint8_t rgbOutput[3];
-    XYZtoRGB24(xyzInput, rgbOutput);
+    // Prepare data for testing
+    void* clientData = const_cast<uint8_t*>(Data);
+    const char* clientName = "client_info";
 
-    // Prepare data for TIFFXYZToRGB
-    uint32_t r, g, b;
-    TIFFXYZToRGB(&labToRgb, cieX, cieY, cieZ, &r, &g, &b);
+    // Test TIFFFieldWithName
+    const TIFFField* field = TIFFFieldWithName(tif, fieldName);
 
-    // Prepare data for TIFFSwabArrayOfFloat
-    float floatArray[3] = {xyzOutput[0], xyzOutput[1], xyzOutput[2]};
-    tmsize_t numFloats = 3;
-    TIFFSwabArrayOfFloat(floatArray, numFloats);
+    // Test TIFFSetClientInfo
+    TIFFSetClientInfo(tif, clientData, clientName);
+
+    // Test TIFFGetClientInfo
+    void* retrievedClientData = TIFFGetClientInfo(tif, clientName);
+
+    // Test TIFFSetFileName
+    const char* prevFileName = TIFFSetFileName(tif, "./dummy_file");
+
+    // Test TIFFFileName
+    const char* fileName = TIFFFileName(tif);
+
+    // Test TIFFClientdata
+    thandle_t clientDataHandle = TIFFClientdata(tif);
+
+    // Cleanup
+    TIFFClose(tif);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_79(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

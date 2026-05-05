@@ -1,10 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFFdOpen at tif_unix.c:209:7 in tiffio.h
-// TIFFFileno at tif_open.c:818:5 in tiffio.h
-// TIFFReadDirectory at tif_dirread.c:4323:5 in tiffio.h
-// TIFFFlush at tif_flush.c:30:5 in tiffio.h
-// TIFFUnlinkDirectory at tif_dir.c:2247:5 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFReadBufferSetup at tif_read.c:1385:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFIsMSB2LSB at tif_open.c:899:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
+// LogL10toY at tif_luv.c:883:5 in tiffio.h
+// LogL16toY at tif_luv.c:801:5 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,58 +16,95 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <fcntl.h>
-#include <unistd.h>
+#include <cmath>
+#include "tiffio.h"
 
 extern "C" int LLVMFuzzerTestOneInput_103(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    if (Size < sizeof(double) + sizeof(int)) {
+        return 0; // Not enough data to proceed
     }
 
-    // Step 1: Write the input data to a dummy file
-    const char *filename = "./dummy_file";
-    FILE *file = fopen(filename, "wb");
-    if (!file) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    // Extract double and int from the input data
+    double Y;
+    int param;
+    std::memcpy(&Y, Data, sizeof(double));
+    std::memcpy(&param, Data + sizeof(double), sizeof(int));
 
-    // Step 2: Open the file descriptor
-    int fd = open(filename, O_RDWR);
-    if (fd < 0) {
-        return 0;
+    // 1. Fuzz LogL10fromY
+    if (Y > 0) { // Ensure Y is positive to avoid undefined behavior
+        int result1 = LogL10fromY(Y, param);
     }
 
-    // Step 3: Use TIFFFdOpen to open the TIFF file
-    TIFF *tiff = TIFFFdOpen(fd, filename, "r+");
-    if (!tiff) {
-        close(fd);
-        return 0;
+    // 2. Fuzz LogL16fromY
+    if (Y > 0) {
+        int result2 = LogL16fromY(Y, param);
     }
 
-    // Step 4: Call TIFFFileno
-    int fileno = TIFFFileno(tiff);
+    // 3. Fuzz TIFFReadBufferSetup
+    TIFF *tif = TIFFOpen("./dummy_file", "r");
+    if (tif) {
+        void *buffer = nullptr;
+        tmsize_t bufferSize = static_cast<tmsize_t>(Size);
+        int result3 = TIFFReadBufferSetup(tif, buffer, bufferSize);
+        TIFFClose(tif);
+    }
 
-    // Step 5: Call TIFFReadDirectory
-    int readDirResult = TIFFReadDirectory(tiff);
+    // 4. Fuzz TIFFIsMSB2LSB
+    tif = TIFFOpen("./dummy_file", "r");
+    if (tif) {
+        int result4 = TIFFIsMSB2LSB(tif);
+        TIFFClose(tif);
+    }
 
-    // Step 6: Call TIFFFlush
-    int flushResult = TIFFFlush(tiff);
+    // 5. Fuzz LogL10toY
+    double result5 = LogL10toY(param);
 
-    // Step 7: Call TIFFUnlinkDirectory with a sample directory index
-    int unlinkDirResult = TIFFUnlinkDirectory(tiff, 1);
-
-    // Cleanup: Close the TIFF file
-    TIFFClose(tiff);
-
-    // Close the file descriptor
-    close(fd);
+    // 6. Fuzz LogL16toY
+    double result6 = LogL16toY(param);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_103(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

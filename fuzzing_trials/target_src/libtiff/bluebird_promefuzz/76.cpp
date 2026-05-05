@@ -1,3 +1,5 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <iostream>
 #include "sstream"
 #include <string>
@@ -10,85 +12,86 @@
 #include "tiffio.h"
 #include "cstdint"
 #include <cstdio>
-#include "cstdlib"
-#include "cstring"
+#include <cstdarg>
+
+static void writeDummyFile(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_76(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    if (Size < 1) return 0; // Ensure there's at least some data
+
+    writeDummyFile(Data, Size);
+
+    TIFF* tif = TIFFOpen("./dummy_file", "r+");
+    if (!tif) return 0;
+
+    tdir_t dirNum = static_cast<tdir_t>(Data[0] % 256); // Use first byte for directory number
+    if (TIFFSetDirectory(tif, dirNum)) {
+        uint32_t tag = TIFFTAG_IMAGEWIDTH; // Example tag
+        if (TIFFSetField(tif, tag, 256)) { // Example value
+            if (TIFFWriteDirectory(tif)) {
+                if (TIFFCreateEXIFDirectory(tif)) {
+                    uint64_t offset;
+                    if (TIFFWriteCustomDirectory(tif, &offset)) {
+                        // Setting multiple fields with example tags and values
+                        if (TIFFSetField(tif, TIFFTAG_IMAGELENGTH, 256) &&
+                            TIFFSetField(tif, TIFFTAG_BITSPERSAMPLE, 8) &&
+                            TIFFSetField(tif, TIFFTAG_COMPRESSION, COMPRESSION_NONE) &&
+                            TIFFSetField(tif, TIFFTAG_PHOTOMETRIC, PHOTOMETRIC_RGB) &&
+                            TIFFSetField(tif, TIFFTAG_SAMPLESPERPIXEL, 3) &&
+                            TIFFSetField(tif, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG)) {
+                            TIFFWriteDirectory(tif);
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    // Write the input data to a dummy file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    // Open the TIFF file
-    TIFF *tif = TIFFOpen("./dummy_file", "r");
-    if (!tif) {
-        return 0;
-    }
-
-    // 1. Check if the TIFF is tiled
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function TIFFIsTiled with TIFFCheckpointDirectory
-    int isTiled = TIFFCheckpointDirectory(tif);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // 2. Allocate memory using _TIFFmalloc
-    tmsize_t size1 = 1024; // Example size
-    tmsize_t size2 = 2048; // Example size
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from TIFFCheckpointDirectory to TIFFSetMode
-
-    int ret_TIFFSetMode_heqhn = TIFFSetMode(tif, TIFF_VARIABLE);
-    if (ret_TIFFSetMode_heqhn < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    void *mem1 = _TIFFmalloc(size1);
-    void *mem2 = _TIFFmalloc(size2);
-
-    // 3. Initialize a TIFFRGBAImage
-    TIFFRGBAImage img;
-    char emsg[1024];
-    if (!TIFFRGBAImageBegin(&img, tif, 0, emsg)) {
-        TIFFClose(tif);
-        _TIFFfree(mem1);
-        _TIFFfree(mem2);
-        return 0;
-    }
-
-    // 4. Allocate raster buffer
-    uint32_t width = 100;  // Example width
-    uint32_t height = 100; // Example height
-    uint32_t *raster = (uint32_t *)_TIFFmalloc(width * height * sizeof(uint32_t));
-    if (!raster) {
-        TIFFRGBAImageEnd(&img);
-        TIFFClose(tif);
-        _TIFFfree(mem1);
-        _TIFFfree(mem2);
-        return 0;
-    }
-
-    // 5. Get the RGBA image data
-    TIFFRGBAImageGet(&img, raster, width, height);
-
-    // 6. End the RGBA image processing
-    TIFFRGBAImageEnd(&img);
-
-    // Clean up
     TIFFClose(tif);
-    _TIFFfree(raster);
-    _TIFFfree(mem1);
-    _TIFFfree(mem2);
-
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_76(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

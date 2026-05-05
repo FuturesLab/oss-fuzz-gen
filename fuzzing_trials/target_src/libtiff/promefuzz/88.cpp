@@ -1,13 +1,12 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
-// TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFReadEncodedTile at tif_read.c:963:10 in tiffio.h
-// TIFFRawStripSize at tif_strip.c:168:10 in tiffio.h
-// TIFFVStripSize at tif_strip.c:142:10 in tiffio.h
-// TIFFVTileSize at tif_tile.c:238:10 in tiffio.h
-// TIFFStripSize at tif_strip.c:204:10 in tiffio.h
-// TIFFTileRowSize at tif_tile.c:177:10 in tiffio.h
-// TIFFClose at tif_close.c:155:6 in tiffio.h
+// TIFFOpenOptionsAlloc at tif_open.c:80:18 in tiffio.h
+// TIFFSetErrorHandlerExt at tif_error.c:39:21 in tiffio.h
+// TIFFSetErrorHandler at tif_error.c:32:18 in tiffio.h
+// TIFFSetWarningHandler at tif_warning.c:32:18 in tiffio.h
+// TIFFSetWarningHandlerExt at tif_warning.c:39:21 in tiffio.h
+// TIFFOpenOptionsSetErrorHandlerExtR at tif_open.c:121:6 in tiffio.h
+// TIFFOpenOptionsSetWarningHandlerExtR at tif_open.c:129:6 in tiffio.h
+// TIFFOpenOptionsFree at tif_open.c:87:6 in tiffio.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -18,54 +17,106 @@
 #include <cstdint>
 #include <cstddef>
 #include <tiffio.h>
-#include <cstdint>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
 
-static TIFF* createDummyTIFF(const uint8_t *Data, size_t Size) {
-    FILE* file = fopen("./dummy_file", "wb");
-    if (!file) return nullptr;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+// Dummy error and warning handlers
+static void dummyErrorHandler(const char* module, const char* fmt, va_list ap) {
+    vfprintf(stderr, fmt, ap);
+}
 
-    TIFF* tif = TIFFOpen("./dummy_file", "r");
-    return tif;
+static void dummyWarningHandler(const char* module, const char* fmt, va_list ap) {
+    vfprintf(stderr, fmt, ap);
+}
+
+static void dummyErrorHandlerExt(void* user_data, const char* module, const char* fmt, va_list ap) {
+    vfprintf(stderr, fmt, ap);
+}
+
+static void dummyWarningHandlerExt(void* user_data, const char* module, const char* fmt, va_list ap) {
+    vfprintf(stderr, fmt, ap);
+}
+
+static int dummyErrorHandlerExtR(TIFF* tif, void* user_data, const char* module, const char* fmt, va_list ap) {
+    vfprintf(stderr, fmt, ap);
+    return 0;
+}
+
+static int dummyWarningHandlerExtR(TIFF* tif, void* user_data, const char* module, const char* fmt, va_list ap) {
+    vfprintf(stderr, fmt, ap);
+    return 0;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_88(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    TIFF* tif = createDummyTIFF(Data, Size);
-    if (!tif) return 0;
-
-    uint32_t index = Data[0] % 256; // Use the first byte for index
-    tmsize_t bufferSize = 1024;
-    void* buffer = malloc(bufferSize);
-    if (!buffer) {
-        TIFFClose(tif);
-        return 0;
+    // Check if the input size is sufficient for our operations
+    if (Size < sizeof(void*) * 2) {
+        return 0; // Not enough data to proceed
     }
 
-    // Fuzz TIFFReadEncodedTile
-    TIFFReadEncodedTile(tif, index, buffer, bufferSize);
+    // Initialize dummy TIFFOpenOptions using dynamic allocation
+    TIFFOpenOptions *opts = TIFFOpenOptionsAlloc();
+    if (!opts) {
+        return 0; // Memory allocation failed
+    }
 
-    // Fuzz TIFFRawStripSize
-    TIFFRawStripSize(tif, index);
+    // Test TIFFSetErrorHandlerExt
+    TIFFSetErrorHandlerExt(dummyErrorHandlerExt);
 
-    // Fuzz TIFFVStripSize
-    TIFFVStripSize(tif, index);
+    // Test TIFFSetErrorHandler
+    TIFFSetErrorHandler(dummyErrorHandler);
 
-    // Fuzz TIFFVTileSize
-    TIFFVTileSize(tif, index);
+    // Test TIFFSetWarningHandler
+    TIFFSetWarningHandler(dummyWarningHandler);
 
-    // Fuzz TIFFStripSize
-    TIFFStripSize(tif);
+    // Test TIFFSetWarningHandlerExt
+    TIFFSetWarningHandlerExt(dummyWarningHandlerExt);
 
-    // Fuzz TIFFTileRowSize
-    TIFFTileRowSize(tif);
+    // Test TIFFOpenOptionsSetErrorHandlerExtR
+    TIFFOpenOptionsSetErrorHandlerExtR(opts, dummyErrorHandlerExtR, nullptr);
 
-    free(buffer);
-    TIFFClose(tif);
+    // Test TIFFOpenOptionsSetWarningHandlerExtR
+    TIFFOpenOptionsSetWarningHandlerExtR(opts, dummyWarningHandlerExtR, nullptr);
+
+    // Free allocated memory
+    TIFFOpenOptionsFree(opts);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_88(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

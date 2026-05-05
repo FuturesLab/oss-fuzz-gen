@@ -1,11 +1,9 @@
+#include <tiffio.h>
 #include <cstdint>
 #include <cstdio>
-#include <cstdlib> // For mkstemp and close
-#include <unistd.h> // For mkstemp and close
-
-extern "C" {
-    #include <tiffio.h>
-}
+#include <cstdlib>
+#include <cstring>
+#include <unistd.h>
 
 extern "C" int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
     // Create a temporary file to write the fuzz data
@@ -16,26 +14,61 @@ extern "C" int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
     }
 
     // Write the fuzz data to the temporary file
-    FILE *file = fdopen(fd, "wb");
-    if (file == nullptr) {
+    if (write(fd, data, size) != (ssize_t)size) {
         close(fd);
+        unlink(tmpl);
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
+    close(fd);
 
-    // Open the temporary file as a TIFF image
-    TIFF *tiff = TIFFOpen(tmpl, "r");
-    if (tiff != nullptr) {
+    // Open the TIFF file using the temporary filename
+    TIFF *tif = TIFFOpen(tmpl, "r");
+    if (tif != NULL) {
         // Call the function-under-test
-        tdir_t dir = TIFFCurrentDirectory(tiff);
-
-        // Close the TIFF image
-        TIFFClose(tiff);
+        TIFFClose(tif);
     }
 
-    // Remove the temporary file
-    remove(tmpl);
+    // Clean up the temporary file
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_95(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

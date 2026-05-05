@@ -20,36 +20,78 @@
 #include <cstdio>
 #include <cstring>
 
-static const char *dummyFileName = "./dummy_file";
-static const char *dummyMode = "r";
-
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *Data, size_t Size) {
-    // Step 1: Prepare environment
-    FILE *file = fopen(dummyFileName, "wb");
+    if (Size < 1) return 0;
+
+    // Write data to a dummy file
+    const char* filename = "./dummy_file";
+    FILE* file = fopen(filename, "wb");
     if (!file) return 0;
     fwrite(Data, 1, Size, file);
     fclose(file);
 
-    TIFF *tif = TIFFOpen(dummyFileName, dummyMode);
+    // Open the TIFF file
+    TIFF* tif = TIFFOpen(filename, "r");
     if (!tif) return 0;
 
-    // Step 2: Invoke TIFFGetField
-    uint32_t tag = 0;
-    int status = TIFFGetField(tif, tag, nullptr);
+    // Attempt to get a field from the TIFF, using a random tag
+    uint32_t tag = 256; // Example tag, could be varied for more exploration
+    uint32_t value;
+    TIFFGetField(tif, tag, &value);
 
-    // Step 3: Use _TIFFmemcmp
-    if (Size > 1) {
+    // Compare memory blocks using _TIFFmemcmp
+    if (Size >= 2) {
         _TIFFmemcmp(Data, Data + 1, Size - 1);
     }
-    if (Size > 2) {
+    if (Size >= 3) {
         _TIFFmemcmp(Data, Data + 2, Size - 2);
     }
-    if (Size > 3) {
+    if (Size >= 4) {
         _TIFFmemcmp(Data, Data + 3, Size - 3);
     }
 
-    // Step 4: Clean up
+    // Close the TIFF file
     TIFFClose(tif);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_23(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

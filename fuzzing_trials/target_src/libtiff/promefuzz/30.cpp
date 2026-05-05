@@ -1,12 +1,23 @@
 // This fuzz driver is generated for library libtiff, aiming to fuzz the following functions:
 // TIFFOpen at tif_unix.c:232:7 in tiffio.h
-// TIFFSetFileno at tif_open.c:823:5 in tiffio.h
-// TIFFIsMSB2LSB at tif_open.c:899:5 in tiffio.h
-// TIFFFileno at tif_open.c:818:5 in tiffio.h
-// TIFFSetupStrips at tif_write.c:553:5 in tiffio.h
-// TIFFGetMode at tif_open.c:848:5 in tiffio.h
+// TIFFFreeDirectory at tif_dir.c:1629:6 in tiffio.h
+// TIFFCreateCustomDirectory at tif_dir.c:1714:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFWriteCustomDirectory at tif_dirwrite.c:303:5 in tiffio.h
+// TIFFSetDirectory at tif_dir.c:2067:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
+// TIFFSetField at tif_dir.c:1152:5 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
-// TIFFReadBufferSetup at tif_read.c:1385:5 in tiffio.h
+// TIFFOpen at tif_unix.c:232:7 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFReadEXIFDirectory at tif_dirread.c:5556:5 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFReadCustomDirectory at tif_dirread.c:5372:5 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFGetField at tif_dir.c:1592:5 in tiffio.h
+// TIFFClose at tif_close.c:155:6 in tiffio.h
 // TIFFClose at tif_close.c:155:6 in tiffio.h
 #include <iostream>
 #include <sstream>
@@ -19,54 +30,106 @@
 #include <cstddef>
 #include <tiffio.h>
 #include <cstdint>
+#include <cstdarg>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
-#include <unistd.h>
-#include <fcntl.h>
+
+static void writeDummyFile(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
     if (Size < 1) {
         return 0;
     }
 
-    // Create a TIFF object using TIFFOpen
-    TIFF *tif = TIFFOpen("./dummy_file", "w+");
+    writeDummyFile(Data, Size);
+
+    TIFF *tif = TIFFOpen("./dummy_file", "r");
     if (!tif) {
         return 0;
     }
 
-    // Use the first byte of data as the new file descriptor
-    int new_fd = static_cast<int>(Data[0]);
-    
-    // Fuzz TIFFSetFileno
-    int old_fd = TIFFSetFileno(tif, new_fd);
+    // Since TIFFFieldArray is an opaque type, initialize it to nullptr
+    const TIFFFieldArray *infoarray = nullptr;
 
-    // Fuzz TIFFIsMSB2LSB
-    int is_msb2lsb = TIFFIsMSB2LSB(tif);
+    TIFFFreeDirectory(tif);
+    TIFFCreateCustomDirectory(tif, infoarray);
 
-    // Fuzz TIFFFileno
-    int current_fd = TIFFFileno(tif);
+    uint32_t tag = static_cast<uint32_t>(Data[0]);
+    TIFFSetField(tif, tag, static_cast<int>(Data[0]));
+    TIFFSetField(tif, tag, static_cast<int>(Data[0]));
 
-    // Fuzz TIFFSetupStrips
-    int setup_strips = TIFFSetupStrips(tif);
+    uint64_t offset;
+    TIFFWriteCustomDirectory(tif, &offset);
 
-    // Fuzz TIFFGetMode
-    int mode = TIFFGetMode(tif);
+    TIFFSetDirectory(tif, static_cast<tdir_t>(Data[0]));
+    TIFFSetField(tif, tag, static_cast<int>(Data[0]));
+    TIFFSetField(tif, tag, static_cast<int>(Data[0]));
 
-    // Allocate a buffer for TIFFReadBufferSetup
-    void *buffer = malloc(1024);
-    if (!buffer) {
-        TIFFClose(tif);
+    TIFFClose(tif);
+
+    tif = TIFFOpen("./dummy_file", "r");
+    if (!tif) {
         return 0;
     }
 
-    // Fuzz TIFFReadBufferSetup
-    int read_buffer_setup = TIFFReadBufferSetup(tif, buffer, 1024);
+    TIFFGetField(tif, tag, nullptr);
+    TIFFGetField(tif, tag, nullptr);
 
-    // Clean up
-    free(buffer);
+    TIFFReadEXIFDirectory(tif, static_cast<toff_t>(offset));
+    TIFFGetField(tif, tag, nullptr);
+
+    TIFFReadCustomDirectory(tif, static_cast<toff_t>(offset), infoarray);
+    TIFFGetField(tif, tag, nullptr);
+    TIFFGetField(tif, tag, nullptr);
+
+    TIFFClose(tif);
     TIFFClose(tif);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_30(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    
