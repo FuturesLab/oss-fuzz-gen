@@ -1,45 +1,98 @@
-#include <gpac/isomedia.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <stdio.h>  // Include for FILE operations and fopen
+
+// Assuming GF_EXPORT is defined in a specific project header
+// #include <gpac/some_header.h> // Uncomment and replace with the actual header file that defines GF_EXPORT
+
+// If GF_EXPORT is not defined in any header, define it as empty for C
+#ifndef GF_EXPORT
+#define GF_EXPORT
+#endif
+
+// Assuming these types are defined in the relevant headers
+typedef struct {
+    // Placeholder for actual struct members
+} GF_ISOFile;
+
+typedef int Bool;
+typedef uint32_t u32;
+typedef struct {
+    // Placeholder for actual struct members
+} GF_ImageItemProperties;
+
+// Function signature provided
+GF_EXPORT void gf_isom_add_meta_item(GF_ISOFile *file, Bool root_meta, u32 track_num, Bool self_reference, char *resource_path, const char *item_name, u32 item_id, u32 item_type,
+                             const char *mime_type, const char *content_encoding, const char *URL, const char *URN,
+                             GF_ImageItemProperties *image_props);
 
 int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
-    GF_ISOFile *file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!file) return 0;
+    // Initialize variables
+    GF_ISOFile file;
+    Bool root_meta = 1;
+    u32 track_num = 1;
+    Bool self_reference = 0;
+    char resource_path[256];
+    const char *item_name = "test_item";
+    u32 item_id = 1;
+    u32 item_type = 1;
+    const char *mime_type = "application/octet-stream";
+    const char *content_encoding = "identity";
+    const char *URL = "http://example.com";
+    const char *URN = "urn:example";
+    GF_ImageItemProperties image_props;
 
-    // Ensure the data size is not zero for valid operation
-    if (size == 0) {
-        gf_isom_close(file);
-        return 0;
-    }
-
-    // Create a temporary file for XMLFileName
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        gf_isom_close(file);
-        return 0;
-    }
-    close(fd);
-
-    // Write the fuzz data to the temporary file
-    FILE *xmlFile = fopen(tmpl, "wb");
-    if (xmlFile) {
-        fwrite(data, 1, size, xmlFile);
-        fclose(xmlFile);
+    // Ensure the resource_path is not NULL and has some content
+    if (size > 0) {
+        size_t copy_size = size < sizeof(resource_path) ? size : sizeof(resource_path) - 1;
+        memcpy(resource_path, data, copy_size);
+        resource_path[copy_size] = '\0';
     } else {
-        gf_isom_close(file);
-        return 0;
+        strcpy(resource_path, "default_path");
     }
 
     // Call the function-under-test
-    gf_isom_set_meta_xml(file, 1, 1, tmpl, (unsigned char *)data, (u32)size, 0);
-
-    // Clean up
-    unlink(tmpl);
-    gf_isom_close(file);
+    gf_isom_add_meta_item(&file, root_meta, track_num, self_reference, resource_path, item_name, item_id, item_type,
+                          mime_type, content_encoding, URL, URN, &image_props);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_72(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

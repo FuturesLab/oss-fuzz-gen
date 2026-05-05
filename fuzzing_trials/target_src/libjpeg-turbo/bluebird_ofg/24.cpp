@@ -1,70 +1,77 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" {
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
-    // Initialize variables for tjDecompressToYUV2
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        return 0;
-    }
+    // Declare and initialize variables
+    int width = 1;
+    int height = 1;
+    int subsamp = TJSAMP_444; // Use a valid subsampling option
+    int plane = 0;
+    int align = 1;
 
-    const unsigned char *jpegBuf = data;
-    unsigned long jpegSize = (unsigned long)size;
-
-    // Allocate memory for the YUV buffer
-    int width = 640;  // Example width
-    int height = 480; // Example height
-    int subsamp = TJSAMP_420; // Example subsampling
-    int flags = 0; // No flags
-
-    unsigned char *yuvBuf = (unsigned char *)malloc(tjBufSizeYUV2(width, 4, height, subsamp));
-    if (yuvBuf == nullptr) {
-        tjDestroy(handle);
-        return 0;
+    // Ensure that the data size is sufficient to extract meaningful values
+    if (size >= 5) {
+        // Extract values from the data to use as parameters
+        width = static_cast<int>(data[0]) + 1;  // Avoid zero
+        height = static_cast<int>(data[1]) + 1; // Avoid zero
+        subsamp = static_cast<int>(data[2]) % 5; // Ensure subsamp is within valid range
+        plane = static_cast<int>(data[3]) % 3;   // Typically 0-2 for YUV planes
+        align = static_cast<int>(data[4]) + 1;   // Avoid zero
     }
 
     // Call the function-under-test
-    tjDecompressToYUV2(handle, jpegBuf, jpegSize, yuvBuf, width, 4, height, flags);
+    unsigned long sizeYUV = tjPlaneSizeYUV(width, height, subsamp, plane, align);
 
-    // Cleanup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjDecompressToYUV2 to tj3DecompressToYUVPlanes8
-    tjhandle ret_tjInitCompress_cdxup = tjInitCompress();
-    void* ret_tj3Alloc_garfq = tj3Alloc(TJXOPT_ARITHMETIC);
-    if (ret_tj3Alloc_garfq == NULL){
-    	return 0;
-    }
-    int ret_tjGetErrorCode_szgsq = tjGetErrorCode(0);
-    if (ret_tjGetErrorCode_szgsq < 0){
-    	return 0;
-    }
-    int hguubqjt = 1;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tj3GetScalingFactors
-    int evhfuwhg = 0;
-    tjscalingfactor* ret_tj3GetScalingFactors_sokrk = tj3GetScalingFactors(&evhfuwhg);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_tj3GetScalingFactors_sokrk == NULL){
-    	return 0;
-    }
-
-    int ret_tj3DecompressToYUVPlanes8_vvyqg = tj3DecompressToYUVPlanes8(ret_tjInitCompress_cdxup, (const unsigned char *)ret_tj3Alloc_garfq, (size_t )ret_tjGetErrorCode_szgsq, &yuvBuf, &hguubqjt);
-    if (ret_tj3DecompressToYUVPlanes8_vvyqg < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(yuvBuf);
-    tjDestroy(handle);
+    // Use the result to avoid compiler optimizations removing the call
+    volatile unsigned long result = sizeYUV;
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_24(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

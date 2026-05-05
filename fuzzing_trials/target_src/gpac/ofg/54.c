@@ -1,41 +1,70 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 #include <stdio.h>
-#include "gpac/isomedia.h"
+#include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_54(const uint8_t *data, size_t size) {
-    // Ensure we have enough data for trakID, refTrakID, MediaType, and TimeScale
-    if (size < sizeof(GF_ISOTrackID) * 2 + sizeof(u32) * 2 + 1) {
+    GF_ISOFile *file = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (!file) {
         return 0;
     }
 
-    // Initialize variables for the function call
-    GF_ISOFile *movie = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
-    if (!movie) {
+    // Ensure we have enough data to extract track_num and item_id
+    if (size < 8) {
+        gf_isom_close(file);
         return 0;
     }
 
-    GF_ISOTrackID trakID = *(GF_ISOTrackID *)data;
-    GF_ISOTrackID refTrakID = *(GF_ISOTrackID *)(data + sizeof(GF_ISOTrackID));
-    u32 MediaType = *(u32 *)(data + sizeof(GF_ISOTrackID) * 2);
-    u32 TimeScale = *(u32 *)(data + sizeof(GF_ISOTrackID) * 2 + sizeof(u32));
+    // Extract track_num and item_id from the input data
+    u32 track_num = *((u32 *)data);
+    u32 item_id = *((u32 *)(data + 4));
 
-    // Ensure the URI is null-terminated
-    size_t uri_offset = sizeof(GF_ISOTrackID) * 2 + sizeof(u32) * 2;
-    size_t uri_length = size - uri_offset;
-    char uri[256]; // Assume a max URI length of 255 for this example
-    if (uri_length > 255) {
-        uri_length = 255;
-    }
-    memcpy(uri, data + uri_offset, uri_length);
-    uri[uri_length] = '\0';
+    // Set root_meta to true or false based on the first byte of data
+    Bool root_meta = (data[0] % 2 == 0) ? GF_TRUE : GF_FALSE;
 
     // Call the function-under-test
-    gf_isom_new_external_track(movie, trakID, refTrakID, MediaType, TimeScale, uri);
+    gf_isom_set_meta_primary_item(file, root_meta, track_num, item_id);
 
     // Clean up
-    gf_isom_close(movie);
+    gf_isom_close(file);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_54(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

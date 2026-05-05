@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_get_sidx_duration at isom_read.c:6196:8 in isomedia.h
-// gf_isom_set_edit at isom_write.c:2783:8 in isomedia.h
-// gf_isom_force_track_duration at isom_write.c:896:8 in isomedia.h
-// gf_isom_set_edit_with_rate at isom_write.c:2789:8 in isomedia.h
-// gf_isom_get_edit at isom_read.c:2560:8 in isomedia.h
-// gf_isom_patch_last_sample_duration at isom_write.c:1425:8 in isomedia.h
+// gf_isom_set_ismacryp_protection at drm_sample.c:559:8 in isomedia.h
+// gf_isom_hevc_config_new at avc_ext.c:1889:8 in isomedia.h
+// gf_isom_new_external_track at isom_write.c:869:5 in isomedia.h
+// gf_isom_get_webvtt_config at sample_descs.c:1577:13 in isomedia.h
+// gf_isom_get_track_kind at isom_read.c:1157:8 in isomedia.h
+// gf_isom_sdp_add_track_line at hint_track.c:740:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -12,59 +12,95 @@
 #include <stdio.h>
 #include "isomedia.h"
 
-// Assuming a maximum size for the GF_ISOFile structure
-#define MAX_ISOFILE_SIZE 1024
-
-static GF_ISOFile* create_dummy_iso_file() {
-    GF_ISOFile *isom_file = (GF_ISOFile *)malloc(MAX_ISOFILE_SIZE);
-    if (!isom_file) return NULL;
-    memset(isom_file, 0, MAX_ISOFILE_SIZE);
-    return isom_file;
-}
-
-static void cleanup_iso_file(GF_ISOFile *isom_file) {
-    if (isom_file) {
-        free(isom_file);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    GF_ISOFile *isom_file = create_dummy_iso_file();
-    if (!isom_file) return 0;
+    // Initialize a dummy GF_ISOFile pointer for testing
+    GF_ISOFile *isom_file = NULL;
 
-    // Fuzz gf_isom_get_sidx_duration
-    u64 sidx_dur = 0;
-    u32 sidx_timescale = 0;
-    gf_isom_get_sidx_duration(isom_file, &sidx_dur, &sidx_timescale);
-
-    // Fuzz gf_isom_set_edit
     u32 trackNumber = Data[0];
-    u64 EditTime = (Size > 8) ? *((u64 *)(Data + 1)) : 0;
-    u64 EditDuration = (Size > 16) ? *((u64 *)(Data + 9)) : 0;
-    u64 MediaTime = (Size > 24) ? *((u64 *)(Data + 17)) : 0;
-    GF_ISOEditType EditMode = (Size > 32) ? *((GF_ISOEditType *)(Data + 25)) : 0;
-    gf_isom_set_edit(isom_file, trackNumber, EditTime, EditDuration, MediaTime, EditMode);
+    u32 sampleDescriptionIndex = Data[0];
+    u32 scheme_type = Data[0];
+    u32 scheme_version = 1;
+    char *scheme_uri = "./dummy_scheme_uri";
+    char *kms_URI = "./dummy_kms_uri";
+    Bool selective_encryption = 1;
+    u32 KI_length = 16;
+    u32 IV_length = 16;
 
-    // Fuzz gf_isom_force_track_duration
-    u64 duration = (Size > 40) ? *((u64 *)(Data + 33)) : 0;
-    gf_isom_force_track_duration(isom_file, trackNumber, duration);
+    gf_isom_set_ismacryp_protection(isom_file, trackNumber, sampleDescriptionIndex, scheme_type, scheme_version, scheme_uri, kms_URI, selective_encryption, KI_length, IV_length);
 
-    // Fuzz gf_isom_set_edit_with_rate
-    u32 MediaRate = (Size > 48) ? *((u32 *)(Data + 41)) : 0x10000; // Default to normal playback
-    gf_isom_set_edit_with_rate(isom_file, trackNumber, EditTime, EditDuration, MediaTime, MediaRate);
+    // Initialize a dummy GF_HEVCConfig pointer for testing
+    GF_HEVCConfig *cfg = NULL;
+    u32 outDescriptionIndex;
+    gf_isom_hevc_config_new(isom_file, trackNumber, cfg, NULL, NULL, &outDescriptionIndex);
 
-    // Fuzz gf_isom_get_edit
-    u32 EditIndex = (Size > 52) ? *((u32 *)(Data + 49)) : 1;
-    u64 EditTimeOut, SegmentDuration, MediaTimeOut;
-    GF_ISOEditType EditModeOut;
-    gf_isom_get_edit(isom_file, trackNumber, EditIndex, &EditTimeOut, &SegmentDuration, &MediaTimeOut, &EditModeOut);
+    GF_ISOTrackID trakID = 0;
+    GF_ISOTrackID refTrakID = 0;
+    u32 MediaType = Data[0];
+    u32 TimeScale = 1000;
+    char *uri = "./dummy_uri";
+    gf_isom_new_external_track(isom_file, trakID, refTrakID, MediaType, TimeScale, uri);
 
-    // Fuzz gf_isom_patch_last_sample_duration
-    u64 next_dts = (Size > 60) ? *((u64 *)(Data + 53)) : 0;
-    gf_isom_patch_last_sample_duration(isom_file, trackNumber, next_dts);
+    const char *webvtt_config = gf_isom_get_webvtt_config(isom_file, trackNumber, sampleDescriptionIndex);
 
-    cleanup_iso_file(isom_file);
+    char *scheme = NULL;
+    char *value = NULL;
+    gf_isom_get_track_kind(isom_file, trackNumber, 1, &scheme, &value);
+
+    const char *sdp_text = "v=0\no=- 0 0 IN IP4 127.0.0.1\ns=No Name\nt=0 0\nc=IN IP4 127.0.0.1\n";
+    gf_isom_sdp_add_track_line(isom_file, trackNumber, sdp_text);
+
+    free(scheme);
+    free(value);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_31(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

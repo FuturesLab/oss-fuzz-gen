@@ -1,66 +1,95 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_has_meta_xml at meta.c:52:5 in isomedia.h
+// gf_isom_get_meta_item_flags at meta.c:207:5 in isomedia.h
+// gf_isom_meta_get_item_ref_count at meta.c:2185:5 in isomedia.h
+// gf_isom_meta_item_has_ref at meta.c:2203:5 in isomedia.h
+// gf_isom_meta_get_item_ref_id at meta.c:2226:5 in isomedia.h
+// gf_isom_get_meta_type at meta.c:43:5 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_get_track_template at isom_write.c:4137:8 in isomedia.h
-// gf_isom_flac_config_get at sample_descs.c:386:8 in isomedia.h
-// gf_isom_add_sample_aux_info at isom_write.c:9301:8 in isomedia.h
-// gf_isom_cenc_get_sample_aux_info at drm_sample.c:1645:8 in isomedia.h
-// gf_isom_get_sample_padding_bits at isom_read.c:2664:8 in isomedia.h
-// gf_isom_get_sample_to_group_info at isom_read.c:5214:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    // Assuming GF_ISOFile is a pointer to a structure, initialize it properly
+static GF_ISOFile* initialize_iso_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return NULL;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
     GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
     return iso_file;
 }
 
-static void destroy_dummy_iso_file(GF_ISOFile *iso_file) {
-    if (iso_file) gf_isom_close(iso_file);
-}
-
 int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-    if (Size < 6) return 0;
+    if (Size < 1) return 0;
 
-    GF_ISOFile *iso_file = create_dummy_iso_file();
+    GF_ISOFile *iso_file = initialize_iso_file(Data, Size);
     if (!iso_file) return 0;
 
-    u32 trackNumber = Data[0];
-    u32 sampleNumber = Data[1];
-    u32 sampleDescriptionIndex = Data[2];
-    u32 aux_type = Data[3];
-    u32 grouping_type = Data[4];
-    u32 grouping_type_parameter = Data[5];
+    Bool root_meta = Data[0] % 2;
+    u32 track_num = (Size > 1) ? Data[1] : 0;
+    u32 item_num = (Size > 2) ? Data[2] : 1;
+    u32 from_id = (Size > 3) ? Data[3] : 1;
+    u32 to_id = (Size > 4) ? Data[4] : 1;
+    u32 type = (Size > 5) ? Data[5] : 0;
+    u32 ref_idx = (Size > 6) ? Data[6] : 1;
 
-    u8 *output = NULL;
-    u32 output_size = 0;
-    gf_isom_get_track_template(iso_file, trackNumber, &output, &output_size);
-    if (output) free(output);
+    u32 result;
 
-    u8 *dsi = NULL;
-    u32 dsi_size = 0;
-    gf_isom_flac_config_get(iso_file, trackNumber, sampleDescriptionIndex, &dsi, &dsi_size);
-    if (dsi) free(dsi);
+    result = gf_isom_has_meta_xml(iso_file, root_meta, track_num);
+    result = gf_isom_get_meta_item_flags(iso_file, root_meta, track_num, item_num);
+    result = gf_isom_meta_get_item_ref_count(iso_file, root_meta, track_num, from_id, type);
+    result = gf_isom_meta_item_has_ref(iso_file, root_meta, track_num, to_id, type);
+    result = gf_isom_meta_get_item_ref_id(iso_file, root_meta, track_num, from_id, type, ref_idx);
+    result = gf_isom_get_meta_type(iso_file, root_meta, track_num);
 
-    u8 *aux_info = NULL;
-    gf_isom_add_sample_aux_info(iso_file, trackNumber, sampleNumber, aux_type, 0, aux_info, Size);
-
-    u8 *out_buffer = NULL;
-    u32 outSize = 0;
-    gf_isom_cenc_get_sample_aux_info(iso_file, trackNumber, sampleNumber, sampleDescriptionIndex, &aux_type, &out_buffer, &outSize);
-    if (out_buffer) free(out_buffer);
-
-    u8 NbBits = 0;
-    gf_isom_get_sample_padding_bits(iso_file, trackNumber, sampleNumber, &NbBits);
-
-    u32 sampleGroupDescIndex = 0;
-    gf_isom_get_sample_to_group_info(iso_file, trackNumber, sampleNumber, grouping_type, grouping_type_parameter, &sampleGroupDescIndex);
-
-    destroy_dummy_iso_file(iso_file);
+    gf_isom_close(iso_file);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

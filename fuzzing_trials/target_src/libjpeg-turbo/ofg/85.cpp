@@ -1,53 +1,82 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
-// Define J16SAMPLE if not defined in the included headers
-#ifndef J16SAMPLE
-typedef unsigned short J16SAMPLE;
-#endif
-
 extern "C" int LLVMFuzzerTestOneInput_85(const uint8_t *data, size_t size) {
-    if (size < 2 * sizeof(J16SAMPLE)) {
-        return 0; // Not enough data to form even a single pixel
+    if (size == 0) return 0;  // Ensure there is data to process
+
+    tjhandle handle = tjInitTransform();
+    if (!handle) return 0;
+
+    const int options = 0;  // No options for transformation
+    unsigned char *dstBuf = nullptr;
+    size_t dstSize = 0;
+    tjtransform transform;
+    memset(&transform, 0, sizeof(tjtransform));  // Initialize transform to default values
+
+    // Ensure the input data is valid JPEG data
+    // This is a simplified assumption; real-world scenarios require more checks
+    if (size < 2 || data[0] != 0xFF || data[1] != 0xD8) {
+        tjDestroy(handle);
+        return 0;
     }
-
-    // Initialize variables for the function call
-    tjhandle handle = tjInitCompress();
-    if (!handle) {
-        return 0; // Early exit if handle initialization fails
-    }
-
-    const J16SAMPLE *srcBuf = reinterpret_cast<const J16SAMPLE *>(data);
-
-    // Dynamically determine width and height based on input size
-    int width = 16; // Example fixed width
-    int pitch = width * sizeof(J16SAMPLE);
-    int height = (size / pitch) > 0 ? (size / pitch) : 1; // Ensure at least 1 row
-
-    int pixelFormat = TJPF_RGB; // Example pixel format
-
-    unsigned char *jpegBuf = nullptr;
-    unsigned long jpegSize = 0; // Correct type for jpegSize
 
     // Call the function-under-test
-    int result = tjCompress2(handle, reinterpret_cast<const unsigned char *>(srcBuf), width, pitch, height, pixelFormat, &jpegBuf, &jpegSize, TJSAMP_444, 100, TJFLAG_FASTDCT);
+    int result = tj3Transform(handle, data, size, options, &dstBuf, &dstSize, &transform);
 
-    // Check if the compression was successful
-    if (result == 0 && jpegSize > 0) {
-        // Optionally, process the jpegBuf or check its contents
+    // Check if transformation was successful
+    if (result == 0 && dstBuf != nullptr && dstSize > 0) {
+        // Process the transformed data if needed
     }
 
     // Clean up
-    tjFree(jpegBuf);
+    if (dstBuf) tjFree(dstBuf);
     tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_85(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

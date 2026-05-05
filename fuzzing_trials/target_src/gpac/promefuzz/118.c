@@ -1,66 +1,115 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_text_set_streaming_mode at isom_read.c:3688:8 in isomedia.h
-// gf_isom_reset_tables at isom_read.c:3407:8 in isomedia.h
-// gf_isom_avc_set_inband_config at avc_ext.c:1759:8 in isomedia.h
-// gf_isom_force_64bit_chunk_offset at isom_write.c:2669:8 in isomedia.h
-// gf_isom_start_segment at movie_fragments.c:2515:8 in isomedia.h
-// gf_isom_release_segment at isom_read.c:3459:8 in isomedia.h
+// gf_isom_get_creation_time at isom_read.c:994:8 in isomedia.h
+// gf_isom_open_segment at isom_read.c:3557:8 in isomedia.h
+// gf_isom_get_current_top_box_offset at isom_read.c:3173:8 in isomedia.h
+// gf_isom_refresh_fragmented at isom_read.c:3088:8 in isomedia.h
+// gf_isom_reset_data_offset at isom_read.c:3151:8 in isomedia.h
+// gf_isom_open_progressive at isom_read.c:503:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
+#include <stdio.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_iso_file() {
-    // Assuming GF_ISOFile is managed by the library and does not need direct allocation
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
-    return isom_file;
-}
-
-static void destroy_iso_file(GF_ISOFile *isom_file) {
-    if (isom_file) {
-        gf_isom_close(isom_file);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *f = fopen("./dummy_file", "wb");
+    if (f) {
+        fwrite(Data, 1, Size, f);
+        fclose(f);
     }
 }
 
 int LLVMFuzzerTestOneInput_118(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Ensure there's at least some data
-
-    GF_ISOFile *isom_file = create_iso_file();
-    if (!isom_file) return 0;
-
-    // Fuzz gf_isom_text_set_streaming_mode
-    Bool do_convert = Data[0] % 2;
-    gf_isom_text_set_streaming_mode(isom_file, do_convert);
-
-    // Fuzz gf_isom_reset_tables
-    Bool reset_sample_count = Data[0] % 2;
-    gf_isom_reset_tables(isom_file, reset_sample_count);
-
-    // Fuzz gf_isom_avc_set_inband_config
-    if (Size >= 9) {
-        u32 trackNumber = (Data[1] << 24) | (Data[2] << 16) | (Data[3] << 8) | Data[4];
-        u32 sampleDescriptionIndex = (Data[5] << 24) | (Data[6] << 16) | (Data[7] << 8) | Data[8];
-        Bool keep_xps = Data[0] % 2;
-        gf_isom_avc_set_inband_config(isom_file, trackNumber, sampleDescriptionIndex, keep_xps);
+    if (Size < sizeof(u64) * 2) {
+        return 0; // Not enough data to proceed
     }
 
-    // Fuzz gf_isom_force_64bit_chunk_offset
-    Bool set_on = Data[0] % 2;
-    gf_isom_force_64bit_chunk_offset(isom_file, set_on);
+    GF_ISOFile *isom_file = NULL;
+    u64 *creationTime = (u64 *)malloc(sizeof(u64));
+    u64 *modificationTime = (u64 *)malloc(sizeof(u64));
+    u64 *current_top_box_offset = (u64 *)malloc(sizeof(u64));
+    u64 *MissingBytes = (u64 *)malloc(sizeof(u64));
+    u64 *top_box_start = (u64 *)malloc(sizeof(u64));
+    GF_ISOFile **isom_file_ptr = (GF_ISOFile **)malloc(sizeof(GF_ISOFile *));
+    *isom_file_ptr = NULL;
+    u64 start_range = 0;
+    u64 end_range = 0;
+    GF_ISOSegOpenMode flags = 0;
+    Bool enable_frag_templates = 0;
 
-    // Fuzz gf_isom_start_segment
-    const char *SegName = (Size > 10) ? "_gpac_isobmff_redirect" : NULL;
-    Bool memory_mode = Data[0] % 2;
-    gf_isom_start_segment(isom_file, SegName, memory_mode);
+    if (!creationTime || !modificationTime || !current_top_box_offset || !MissingBytes || !top_box_start || !isom_file_ptr) {
+        goto cleanup;
+    }
 
-    // Fuzz gf_isom_release_segment
-    Bool reset_tables = Data[0] % 2;
-    gf_isom_release_segment(isom_file, reset_tables);
+    // Write data to a dummy file
+    write_dummy_file(Data, Size);
 
-    destroy_iso_file(isom_file);
+    // Test gf_isom_get_creation_time
+    gf_isom_get_creation_time(isom_file, creationTime, modificationTime);
+
+    // Test gf_isom_open_segment
+    gf_isom_open_segment(isom_file, "./dummy_file", start_range, end_range, flags);
+
+    // Test gf_isom_get_current_top_box_offset
+    gf_isom_get_current_top_box_offset(isom_file, current_top_box_offset);
+
+    // Test gf_isom_refresh_fragmented
+    gf_isom_refresh_fragmented(isom_file, MissingBytes, "./dummy_file");
+
+    // Test gf_isom_reset_data_offset
+    gf_isom_reset_data_offset(isom_file, top_box_start);
+
+    // Test gf_isom_open_progressive
+    gf_isom_open_progressive("./dummy_file", start_range, end_range, enable_frag_templates, isom_file_ptr, MissingBytes);
+
+cleanup:
+    free(creationTime);
+    free(modificationTime);
+    free(current_top_box_offset);
+    free(MissingBytes);
+    free(top_box_start);
+    free(isom_file_ptr);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_118(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

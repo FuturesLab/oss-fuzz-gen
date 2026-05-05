@@ -1,47 +1,88 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
-    // Check if the input size is sufficient for a minimal valid JPEG image
-    if (size < 100) { // Arbitrary small size for a minimal JPEG header
+    // Ensure the input size is large enough to extract necessary parameters
+    if (size < 12) {
         return 0;
     }
 
-    // Define and initialize the parameters for tjDecompressHeader3
-    tjhandle handle = tjInitDecompress();
+    // Initialize the TurboJPEG compressor handle
+    tjhandle handle = tjInitCompress();
     if (handle == nullptr) {
         return 0;
     }
-    
-    int width, height, jpegSubsamp, jpegColorspace;
-    if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) != 0) {
+
+    // Extract parameters from the input data
+    int width = (int)data[0] + 1;  // Ensure width is at least 1
+    int height = (int)data[1] + 1; // Ensure height is at least 1
+    int pixelFormat = (int)data[2] % TJ_NUMPF; // Ensure valid pixel format
+    int padding = (int)data[3] % 4; // Padding can be 0, 1, 2, or 3
+
+    // Calculate the buffer size for the YUV image
+    int yuvSize = tjBufSizeYUV2(width, padding, height, pixelFormat);
+    unsigned char *yuvBuffer = (unsigned char *)malloc(yuvSize);
+    if (yuvBuffer == nullptr) {
         tjDestroy(handle);
         return 0;
     }
 
-    // Allocate memory for imageBuffer
-    unsigned char *imageBuffer = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]);
-    if (imageBuffer == nullptr) {
-        tjDestroy(handle);
-        return 0;
-    }
+    // The input image buffer
+    const unsigned char *srcBuffer = data + 4;
+    int srcSize = size - 4;
 
-    // Decompress the JPEG image into the imageBuffer
-    if (tjDecompress2(handle, data, size, imageBuffer, width, 0, height, TJPF_RGB, 0) != 0) {
-        free(imageBuffer);
-        tjDestroy(handle);
-        return 0;
-    }
+    // Call the function-under-test
+    tjEncodeYUV3(handle, srcBuffer, width, padding, height, pixelFormat, yuvBuffer, padding, height, pixelFormat);
 
     // Clean up
-    free(imageBuffer);
+    free(yuvBuffer);
     tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_95(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

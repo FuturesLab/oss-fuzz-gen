@@ -1,71 +1,115 @@
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static void cleanup_iso_file(GF_ISOFile *isom_file) {
-    if (isom_file) {
-        // Perform any necessary cleanup
-        gf_isom_close(isom_file);
+static GF_ISOFile* create_dummy_isofile() {
+    // Allocate memory for GF_ISOFile using a known size or a dummy structure
+    GF_ISOFile *file = (GF_ISOFile*) malloc(1024); // Use an arbitrary size for the dummy object
+    if (!file) return NULL;
+    memset(file, 0, 1024);
+    return file;
+}
+
+static void free_dummy_isofile(GF_ISOFile *file) {
+    if (file) {
+        free(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32)) {
+    if (Size < 4) return 0;
+
+    GF_ISOFile *isom_file = create_dummy_isofile();
+    GF_ISOFile *orig_file = create_dummy_isofile();
+    if (!isom_file || !orig_file) {
+        free_dummy_isofile(isom_file);
+        free_dummy_isofile(orig_file);
         return 0;
     }
 
-    // Prepare dummy file
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (!dummy_file) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, dummy_file);
-    fclose(dummy_file);
+    u32 trackNumber = Data[0];
+    u32 orig_track = Data[1];
+    u32 orig_desc_index = Data[2];
+    u32 index = Data[3];
 
-    // Open the ISO file
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    if (!isom_file) {
-        return 0;
-    }
+    // Prepare output variables
+    u32 outDescriptionIndex = 0;
+    const char *outName = NULL;
+    const char *sdp = NULL;
+    u32 length = 0;
+    char *scheme = NULL;
+    char *value = NULL;
 
-    // Fuzz gf_isom_wma_enum_tag
-    char *out_tag = NULL;
-    const u8 *data = NULL;
-    u32 data_len = 0, version = 0, data_type = 0;
-    gf_isom_wma_enum_tag(isom_file, 0, &out_tag, &data, &data_len, &version, &data_type);
+    // Fuzz gf_isom_new_xml_metadata_description
+    gf_isom_new_xml_metadata_description(isom_file, trackNumber, (const char*)Data, (const char*)Data, (const char*)Data, &outDescriptionIndex);
 
-    // Fuzz gf_isom_set_track_group
-    u32 trackNumber = 0, track_group_id = 0, group_type = 0;
-    Bool do_add = GF_FALSE;
-    gf_isom_set_track_group(isom_file, trackNumber, track_group_id, group_type, do_add);
+    // Fuzz gf_isom_get_handler_name
+    gf_isom_get_handler_name(isom_file, trackNumber, &outName);
 
-    // Fuzz gf_isom_remove_cenc_seig_sample_group
+    // Fuzz gf_isom_clone_sample_description
+    gf_isom_clone_sample_description(isom_file, trackNumber, orig_file, orig_track, orig_desc_index, (const char*)Data, (const char*)Data, &outDescriptionIndex);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_remove_cenc_seig_sample_group with gf_isom_add_track_to_root_od
-    gf_isom_add_track_to_root_od(isom_file, trackNumber);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Fuzz gf_isom_sdp_get
+    gf_isom_sdp_get(isom_file, &sdp, &length);
 
+    // Fuzz gf_isom_get_track_kind
+    gf_isom_get_track_kind(isom_file, trackNumber, index, &scheme, &value);
 
+    // Fuzz gf_isom_sdp_add_track_line
+    gf_isom_sdp_add_track_line(isom_file, trackNumber, (const char*)Data);
 
-    // Fuzz gf_isom_set_image_sequence_alpha
-    u32 sampleDescriptionIndex = 0;
-    Bool remove = GF_FALSE;
-    gf_isom_set_image_sequence_alpha(isom_file, trackNumber, sampleDescriptionIndex, remove);
+    // Cleanup
+    free_dummy_isofile(isom_file);
+    free_dummy_isofile(orig_file);
+    free(scheme);
+    free(value);
 
-    // Fuzz gf_isom_purge_track_reference
-    gf_isom_purge_track_reference(isom_file, trackNumber);
-
-    // Fuzz gf_isom_enum_sample_group
-    u32 sample_number = 0;
-    u32 sgrp_idx = 0, sgrp_type = 0, sgrp_flags = 0, sgrp_parameter = 0;
-    u8 *sgrp_data = NULL;
-    u32 sgrp_size = 0;
-    gf_isom_enum_sample_group(isom_file, trackNumber, sample_number, &sgrp_idx, &sgrp_type, &sgrp_flags, &sgrp_parameter, &sgrp_data, &sgrp_size);
-    free(sgrp_data);
-
-    cleanup_iso_file(isom_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_31(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

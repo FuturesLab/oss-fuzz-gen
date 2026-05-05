@@ -1,67 +1,96 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_has_time_offset at isom_read.c:1868:5 in isomedia.h
-// gf_isom_get_track_flags at isom_read.c:1064:5 in isomedia.h
-// gf_isom_get_hevc_lhvc_type at avc_ext.c:2728:17 in isomedia.h
-// gf_isom_get_sample_size at isom_read.c:2007:5 in isomedia.h
-// gf_isom_new_track at isom_write.c:863:5 in isomedia.h
-// gf_isom_get_constant_sample_duration at isom_read.c:1789:5 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_needs_layer_reconstruction at isom_read.c:5516:6 in isomedia.h
+// gf_isom_moov_first at isom_read.c:4964:6 in isomedia.h
+// gf_isom_is_smooth_streaming_moov at isom_read.c:5848:6 in isomedia.h
+// gf_isom_has_movie at isom_read.c:835:6 in isomedia.h
+// gf_isom_is_single_av at isom_read.c:4218:6 in isomedia.h
+// gf_isom_disable_odf_conversion at isom_read.c:652:6 in isomedia.h
+// gf_isom_disable_odf_conversion at isom_read.c:652:6 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <string.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    // Since GF_ISOFile is an incomplete type, we cannot allocate it directly.
-    // Assuming there is an API function to create or open an ISO file.
-    // For the purpose of this example, we will return NULL as a placeholder.
-    return NULL;
+static GF_ISOFile* create_dummy_iso_file(const uint8_t *Data, size_t Size) {
+    // Assuming GF_ISOFile is properly initialized elsewhere
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    if (!isom_file) return NULL;
+
+    // Simulate file content if needed for fuzzing
+    FILE *dummy_file = fopen("./dummy_file", "wb");
+    if (dummy_file) {
+        fwrite(Data, 1, Size, dummy_file);
+        fclose(dummy_file);
+    }
+
+    return isom_file;
 }
 
-static void cleanup_iso_file(GF_ISOFile *file) {
-    // Assuming there is an API function to close or delete an ISO file.
-    // For the purpose of this example, we do nothing.
+static void destroy_dummy_iso_file(GF_ISOFile *isom_file) {
+    if (isom_file) {
+        gf_isom_close(isom_file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_264(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0;
+    GF_ISOFile *isom_file = create_dummy_iso_file(Data, Size);
+    if (!isom_file) return 0;
 
-    GF_ISOFile *iso_file = create_dummy_iso_file();
-    if (!iso_file) return 0;
+    // Invoke the target functions with the dummy ISO file
+    Bool needs_reconstruction = gf_isom_needs_layer_reconstruction(isom_file);
+    Bool moov_first = gf_isom_moov_first(isom_file);
+    Bool is_smooth = gf_isom_is_smooth_streaming_moov(isom_file);
+    Bool has_movie = gf_isom_has_movie(isom_file);
+    Bool is_single_av = gf_isom_is_single_av(isom_file);
 
-    u32 trackNumber = Data[0];
-    u32 sampleDescriptionIndex = Data[1];
-    u32 sampleNumber = Data[2];
-    u32 MediaType = Data[3];
-    u32 TimeScale = 1000;  // Arbitrary value for testing
+    // Test gf_isom_disable_odf_conversion with both TRUE and FALSE
+    gf_isom_disable_odf_conversion(isom_file, GF_TRUE);
+    gf_isom_disable_odf_conversion(isom_file, GF_FALSE);
 
-    // Fuzz gf_isom_has_time_offset
-    u32 offset_result = gf_isom_has_time_offset(iso_file, trackNumber);
-
-    // Fuzz gf_isom_get_track_flags
-    u32 flags_result = gf_isom_get_track_flags(iso_file, trackNumber);
-
-    // Fuzz gf_isom_get_hevc_lhvc_type
-    GF_ISOMHEVCType hevc_type_result = gf_isom_get_hevc_lhvc_type(iso_file, trackNumber, sampleDescriptionIndex);
-
-    // Fuzz gf_isom_get_sample_size
-    u32 sample_size_result = gf_isom_get_sample_size(iso_file, trackNumber, sampleNumber);
-
-    // Fuzz gf_isom_new_track
-    u32 new_track_result = gf_isom_new_track(iso_file, 0, MediaType, TimeScale);
-
-    // Fuzz gf_isom_get_constant_sample_duration
-    u32 constant_sample_duration_result = gf_isom_get_constant_sample_duration(iso_file, trackNumber);
-
-    // Handle potential results or errors
-    (void)offset_result;
-    (void)flags_result;
-    (void)hevc_type_result;
-    (void)sample_size_result;
-    (void)new_track_result;
-    (void)constant_sample_duration_result;
-
-    cleanup_iso_file(iso_file);
+    // Cleanup
+    destroy_dummy_iso_file(isom_file);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_264(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

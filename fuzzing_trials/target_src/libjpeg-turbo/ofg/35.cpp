@@ -1,34 +1,77 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstdio>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
-    // Declare and initialize input variables for tjPlaneSizeYUV
-    int width = 1;  // Width of the image, must be > 0
-    int height = 1; // Height of the image, must be > 0
-    int subsamp = TJSAMP_444; // Subsampling option, using a valid constant from turbojpeg
-    int align = 1;  // Alignment, typically 1, 2, 4, or 8
-
-    // Ensure data is not empty to extract meaningful values
-    if (size >= 5) {
-        // Extract values from data to vary the inputs
-        width = data[0] + 1;  // Avoid zero
-        height = data[1] + 1; // Avoid zero
-        subsamp = data[2] % 6; // Valid subsampling values are 0-5
-        align = (data[3] % 4) + 1; // Valid alignments are 1, 2, 3, 4
+    if (size == 0) {
+        return 0;
     }
 
     // Call the function-under-test
-    unsigned long result = tjPlaneSizeYUV(0, width, height, subsamp, align);
+    tjhandle handle = tjInitDecompress();
+    
+    // Check if the handle was initialized successfully
+    if (handle != nullptr) {
+        // Perform some operations with the handle if needed
+        // Example: Decompress the input data
+        int width, height, jpegSubsamp, jpegColorspace;
+        if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
+            // Allocate buffer for decompressed image
+            unsigned char *buffer = new unsigned char[width * height * tjPixelSize[TJPF_RGB]];
+            if (buffer) {
+                // Decompress the image
+                tjDecompress2(handle, data, size, buffer, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT);
+                delete[] buffer;
+            }
+        }
 
-    // Print the result (optional, for debugging purposes)
-    printf("Result: %lu\n", result);
+        // Clean up and destroy the handle
+        tjDestroy(handle);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_35(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

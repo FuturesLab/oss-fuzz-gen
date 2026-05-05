@@ -1,62 +1,113 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    // Allocate memory for a dummy GF_ISOFile structure using a placeholder size
-    size_t placeholder_size = 1024; // Adjust this size according to actual implementation needs
-    GF_ISOFile *file = (GF_ISOFile *)malloc(placeholder_size);
-    if (file) {
-        memset(file, 0, placeholder_size);
-    }
-    return file;
+static void fuzz_gf_isom_remove_cenc_seig_sample_group(GF_ISOFile *isom_file, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(u32)) return;
+    u32 trackNumber = *(u32 *)Data;
+    gf_isom_remove_cenc_seig_sample_group(isom_file, trackNumber);
 }
 
-static void cleanup_iso_file(GF_ISOFile *file) {
-    if (file) {
-        free(file);
+static void fuzz_gf_isom_get_adobe_protection_info(GF_ISOFile *isom_file, const uint8_t *Data, size_t Size) {
+    if (Size < 2 * sizeof(u32)) return;
+    u32 trackNumber = *(u32 *)Data;
+    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
+    u32 outOriginalFormat, outSchemeType, outSchemeVersion;
+    const char *outMetadata;
+    gf_isom_get_adobe_protection_info(isom_file, trackNumber, sampleDescriptionIndex, &outOriginalFormat, &outSchemeType, &outSchemeVersion, &outMetadata);
+}
+
+static void fuzz_gf_isom_set_mpegh_compatible_profiles(GF_ISOFile *isom_file, const uint8_t *Data, size_t Size) {
+    if (Size < 3 * sizeof(u32)) return;
+    u32 trackNumber = *(u32 *)Data;
+    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
+    u32 nb_compatible_profiles = *(u32 *)(Data + 2 * sizeof(u32));
+    const u32 *profiles = NULL;
+    if (Size >= 3 * sizeof(u32) + nb_compatible_profiles * sizeof(u32)) {
+        profiles = (const u32 *)(Data + 3 * sizeof(u32));
     }
+    gf_isom_set_mpegh_compatible_profiles(isom_file, trackNumber, sampleDescriptionIndex, profiles, nb_compatible_profiles);
+}
+
+static void fuzz_gf_isom_get_text_description(GF_ISOFile *isom_file, const uint8_t *Data, size_t Size) {
+    if (Size < 2 * sizeof(u32)) return;
+    u32 trackNumber = *(u32 *)Data;
+    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
+    GF_TextSampleDescriptor *out_desc = NULL;
+    gf_isom_get_text_description(isom_file, trackNumber, sampleDescriptionIndex, &out_desc);
+    if (out_desc) {
+        free(out_desc);
+    }
+}
+
+static void fuzz_gf_isom_remove_stream_description(GF_ISOFile *isom_file, const uint8_t *Data, size_t Size) {
+    if (Size < 2 * sizeof(u32)) return;
+    u32 trackNumber = *(u32 *)Data;
+    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
+    gf_isom_remove_stream_description(isom_file, trackNumber, sampleDescriptionIndex);
+}
+
+static void fuzz_gf_isom_remove_chapter(GF_ISOFile *isom_file, const uint8_t *Data, size_t Size) {
+    if (Size < 2 * sizeof(u32)) return;
+    u32 trackNumber = *(u32 *)Data;
+    u32 index = *(u32 *)(Data + sizeof(u32));
+    gf_isom_remove_chapter(isom_file, trackNumber, index);
 }
 
 int LLVMFuzzerTestOneInput_135(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    if (!isom_file) return 0;
 
-    GF_ISOFile *iso_file = create_dummy_iso_file();
-    if (!iso_file) return 0;
+    fuzz_gf_isom_remove_cenc_seig_sample_group(isom_file, Data, Size);
+    fuzz_gf_isom_get_adobe_protection_info(isom_file, Data, Size);
+    fuzz_gf_isom_set_mpegh_compatible_profiles(isom_file, Data, Size);
+    fuzz_gf_isom_get_text_description(isom_file, Data, Size);
+    fuzz_gf_isom_remove_stream_description(isom_file, Data, Size);
+    fuzz_gf_isom_remove_chapter(isom_file, Data, Size);
 
-    u32 trackNumber = Data[0];
-    const char *xmlnamespace = (Size > 1) ? (const char *)&Data[1] : NULL;
-    const char *schema_loc = (Size > 2) ? (const char *)&Data[2] : NULL;
-    const char *content_encoding = (Size > 3) ? (const char *)&Data[3] : NULL;
-    u32 outDescriptionIndex = 0;
-
-    gf_isom_new_xml_metadata_description(iso_file, trackNumber, xmlnamespace, schema_loc, content_encoding, &outDescriptionIndex);
-
-    u32 sampleDescriptionIndex = Data[0];
-    gf_isom_subtitle_get_mime(iso_file, trackNumber, sampleDescriptionIndex);
-
-    u32 type = Data[0];
-    const char *mime = (Size > 1) ? (const char *)&Data[1] : NULL;
-    const char *encoding = (Size > 2) ? (const char *)&Data[2] : NULL;
-    const char *config = (Size > 3) ? (const char *)&Data[3] : NULL;
-
-    gf_isom_new_stxt_description(iso_file, trackNumber, type, mime, encoding, config, &outDescriptionIndex);
-
-    const char *retrieved_mime = NULL;
-    const char *retrieved_encoding = NULL;
-    const char *retrieved_config = NULL;
-
-    gf_isom_stxt_get_description(iso_file, trackNumber, sampleDescriptionIndex, &retrieved_mime, &retrieved_encoding, &retrieved_config);
-
-    gf_isom_get_webvtt_config(iso_file, trackNumber, sampleDescriptionIndex);
-
-    const char *auxiliary_mimes = (Size > 1) ? (const char *)&Data[1] : NULL;
-
-    gf_isom_new_xml_subtitle_description(iso_file, trackNumber, xmlnamespace, schema_loc, auxiliary_mimes, &outDescriptionIndex);
-
-    cleanup_iso_file(iso_file);
+    gf_isom_close(isom_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_135(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

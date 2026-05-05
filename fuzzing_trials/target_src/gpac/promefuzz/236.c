@@ -1,100 +1,108 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_new_mpeg4_description at isom_write.c:933:8 in isomedia.h
-// gf_isom_set_handler_name at isom_write.c:6060:8 in isomedia.h
-// gf_isom_set_final_name at isom_write.c:1607:8 in isomedia.h
-// gf_isom_ac3_config_new at sample_descs.c:701:8 in isomedia.h
+// gf_isom_last_error at isom_read.c:46:8 in isomedia.h
 // gf_isom_get_media_language at isom_read.c:1100:8 in isomedia.h
-// gf_isom_sdp_add_line at hint_track.c:820:8 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_sdp_get at hint_track.c:909:8 in isomedia.h
+// gf_isom_set_final_name at isom_write.c:1607:8 in isomedia.h
+// gf_isom_iff_create_image_overlay_item at iff.c:2063:8 in isomedia.h
+// gf_isom_set_copyright at isom_write.c:3079:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include <stdio.h>
 #include "isomedia.h"
 
 static GF_ISOFile* initialize_iso_file() {
-    // Assuming there's a function to create or initialize the ISO file in the actual library.
-    return gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    // Since GF_ISOFile is an opaque type, we cannot allocate it directly.
+    // Assume a function exists to create a new GF_ISOFile instance.
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    return isom_file;
 }
 
-static GF_ESD* initialize_esd() {
-    GF_ESD *esd = (GF_ESD*) malloc(sizeof(GF_ESD));
-    if (esd) {
-        memset(esd, 0, sizeof(GF_ESD));
-        // Further initialization if necessary
+static void cleanup_iso_file(GF_ISOFile *isom_file) {
+    if (isom_file) {
+        gf_isom_close(isom_file);
     }
-    return esd;
-}
-
-static GF_AC3Config* initialize_ac3_config() {
-    GF_AC3Config *cfg = (GF_AC3Config*) malloc(sizeof(GF_AC3Config));
-    if (cfg) {
-        memset(cfg, 0, sizeof(GF_AC3Config));
-        // Further initialization if necessary
-    }
-    return cfg;
 }
 
 int LLVMFuzzerTestOneInput_236(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) + 1) {
-        return 0;
-    }
-
     GF_ISOFile *isom_file = initialize_iso_file();
     if (!isom_file) return 0;
 
-    u32 trackNumber = *(u32*)Data;
-    Data += sizeof(u32);
-    Size -= sizeof(u32);
+    // Fuzzing gf_isom_last_error
+    GF_Err err = gf_isom_last_error(isom_file);
+    (void)err; // Suppress unused variable warning
 
-    GF_ESD *esd = initialize_esd();
-    if (!esd) {
-        gf_isom_close(isom_file);
-        return 0;
-    }
-
-    GF_AC3Config *cfg = initialize_ac3_config();
-    if (!cfg) {
-        gf_isom_close(isom_file);
-        free(esd);
-        return 0;
-    }
-
-    char *URLname = "./dummy_file";
-    char *URNname = NULL;
-
-    u32 outDescriptionIndex = 0;
-    GF_Err err;
-
-    // Fuzz gf_isom_new_mpeg4_description
-    err = gf_isom_new_mpeg4_description(isom_file, trackNumber, esd, URLname, URNname, &outDescriptionIndex);
-
-    // Fuzz gf_isom_set_handler_name
-    err = gf_isom_set_handler_name(isom_file, trackNumber, (const char*)Data);
-
-    // Fuzz gf_isom_set_final_name
-    err = gf_isom_set_final_name(isom_file, "./dummy_file");
-
-    // Fuzz gf_isom_ac3_config_new
-    err = gf_isom_ac3_config_new(isom_file, trackNumber, cfg, URLname, URNname, &outDescriptionIndex);
-
-    // Fuzz gf_isom_get_media_language
+    // Fuzzing gf_isom_get_media_language
+    u32 trackNumber = (Size > 4) ? *(u32*)(Data + 4) : 0;
     char *lang = NULL;
     err = gf_isom_get_media_language(isom_file, trackNumber, &lang);
-    if (lang) {
-        free(lang);
-    }
+    if (lang) free(lang);
 
-    // Fuzz gf_isom_sdp_add_line
-    err = gf_isom_sdp_add_line(isom_file, (const char*)Data);
+    // Fuzzing gf_isom_sdp_get
+    const char *sdp = NULL;
+    u32 length = 0;
+    err = gf_isom_sdp_get(isom_file, &sdp, &length);
 
-    gf_isom_close(isom_file);
-    free(esd);
-    free(cfg);
+    // Fuzzing gf_isom_set_final_name
+    char filename[] = "./dummy_file";
+    err = gf_isom_set_final_name(isom_file, filename);
 
+    // Fuzzing gf_isom_iff_create_image_overlay_item
+    Bool root_meta = GF_FALSE;
+    u32 meta_track_number = 0;
+    const char *item_name = "item";
+    u32 item_id = 0;
+    GF_ImageItemProperties *image_props = NULL;
+    err = gf_isom_iff_create_image_overlay_item(isom_file, root_meta, meta_track_number, item_name, item_id, image_props);
+
+    // Fuzzing gf_isom_set_copyright
+    const char *threeCharCode = "eng";
+    char *notice = "Copyright Notice";
+    err = gf_isom_set_copyright(isom_file, threeCharCode, notice);
+
+    cleanup_iso_file(isom_file);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_236(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

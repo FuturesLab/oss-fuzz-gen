@@ -1,72 +1,95 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_is_video_handler_type at isom_read.c:5954:6 in isomedia.h
-// gf_isom_get_tmcd_config at sample_descs.c:1953:8 in isomedia.h
-// gf_isom_has_meta_xml at meta.c:52:5 in isomedia.h
-// gf_isom_get_tile_info at isom_read.c:5878:6 in isomedia.h
-// gf_isom_get_edit_list_type at isom_read.c:2504:6 in isomedia.h
-// gf_isom_is_external_track at isom_read.c:6656:6 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_hevc_set_inband_config at avc_ext.c:2324:8 in isomedia.h
+// gf_isom_avc_set_inband_config at avc_ext.c:1759:8 in isomedia.h
+// gf_isom_set_sample_av1_switch_frame_group at isom_write.c:7740:8 in isomedia.h
+// gf_isom_vvc_set_inband_config at avc_ext.c:2427:8 in isomedia.h
+// gf_isom_set_image_sequence_coding_constraints at isom_write.c:2293:8 in isomedia.h
+// gf_isom_fragment_set_sample_av1_switch_frame_group at isom_write.c:7745:8 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include "isomedia.h"
 
-// Define a dummy size for the incomplete type
-#define DUMMY_ISOFILE_SIZE 1024
+#define DUMMY_FILE_PATH "./dummy_file"
 
-static void initialize_dummy_iso_file(GF_ISOFile **isom_file) {
-    *isom_file = (GF_ISOFile *)malloc(DUMMY_ISOFILE_SIZE);
-    if (*isom_file) {
-        memset(*isom_file, 0, DUMMY_ISOFILE_SIZE);
-    }
-}
-
-static void cleanup_dummy_iso_file(GF_ISOFile *isom_file) {
-    if (isom_file) {
-        free(isom_file);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen(DUMMY_FILE_PATH, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_177(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0;
+    if (Size < sizeof(u32) * 3 + sizeof(Bool)) return 0;
 
-    // Test gf_isom_is_video_handler_type
-    u32 mtype = *((u32 *)Data);
-    gf_isom_is_video_handler_type(mtype);
+    write_dummy_file(Data, Size);
 
-    // Prepare to test gf_isom_get_tmcd_config
-    GF_ISOFile *isom_file = NULL;
-    initialize_dummy_iso_file(&isom_file);
+    GF_ISOFile *isom_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_READ, NULL);
     if (!isom_file) return 0;
 
-    u32 trackNumber = 1;
-    u32 sampleDescriptionIndex = 1;
-    u32 tmcd_flags, tmcd_fps_num, tmcd_fps_den, tmcd_fpt;
-    gf_isom_get_tmcd_config(isom_file, trackNumber, sampleDescriptionIndex, &tmcd_flags, &tmcd_fps_num, &tmcd_fps_den, &tmcd_fpt);
+    u32 trackNumber = *((u32 *)Data);
+    u32 sampleDescriptionIndex = *((u32 *)(Data + sizeof(u32)));
+    u32 sampleNumber = *((u32 *)(Data + sizeof(u32) * 2));
+    Bool keep_xps = *((Bool *)(Data + sizeof(u32) * 3));
+    Bool is_rap = *((Bool *)(Data + sizeof(u32) * 3 + sizeof(Bool)));
 
-    // Test gf_isom_has_meta_xml
-    Bool root_meta = GF_TRUE;
-    u32 track_num = 0;
-    gf_isom_has_meta_xml(isom_file, root_meta, track_num);
+    gf_isom_hevc_set_inband_config(isom_file, trackNumber, sampleDescriptionIndex, keep_xps);
+    gf_isom_avc_set_inband_config(isom_file, trackNumber, sampleDescriptionIndex, keep_xps);
+    gf_isom_set_sample_av1_switch_frame_group(isom_file, trackNumber, sampleNumber, is_rap);
+    gf_isom_vvc_set_inband_config(isom_file, trackNumber, sampleDescriptionIndex, keep_xps);
+    gf_isom_set_image_sequence_coding_constraints(isom_file, trackNumber, sampleDescriptionIndex, keep_xps, is_rap, keep_xps, sampleNumber);
+    gf_isom_fragment_set_sample_av1_switch_frame_group(isom_file, trackNumber, sampleNumber, is_rap);
 
-    // Test gf_isom_get_tile_info
-    u32 sample_group_description_index = 1;
-    u32 default_sample_group_index, id, independent, x, y, w, h;
-    Bool full_frame;
-    gf_isom_get_tile_info(isom_file, trackNumber, sample_group_description_index, &default_sample_group_index, &id, &independent, &full_frame, &x, &y, &w, &h);
+    gf_isom_close(isom_file);
 
-    // Test gf_isom_get_edit_list_type
-    s64 mediaOffset;
-    gf_isom_get_edit_list_type(isom_file, trackNumber, &mediaOffset);
-
-    // Test gf_isom_is_external_track
-    GF_ISOTrackID tkid;
-    u32 type, flags;
-    const char *location;
-    gf_isom_is_external_track(isom_file, trackNumber, &tkid, &type, &flags, &location);
-
-    // Cleanup
-    cleanup_dummy_iso_file(isom_file);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_177(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

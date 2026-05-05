@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_refresh_fragmented at isom_read.c:3088:8 in isomedia.h
-// gf_isom_remove_track_kind at isom_write.c:3185:8 in isomedia.h
-// gf_isom_switch_source at isom_read.c:6717:8 in isomedia.h
-// gf_isom_add_track_kind at isom_write.c:3126:8 in isomedia.h
-// gf_isom_get_handler_name at isom_read.c:1694:8 in isomedia.h
-// gf_isom_wma_set_tag at isom_write.c:6591:8 in isomedia.h
+// gf_isom_get_stsd_template at isom_write.c:4310:8 in isomedia.h
+// gf_isom_add_sample_aux_info at isom_write.c:9301:8 in isomedia.h
+// gf_isom_opus_config_get at sample_descs.c:551:8 in isomedia.h
+// gf_isom_get_track_template at isom_write.c:4137:8 in isomedia.h
+// gf_isom_get_jp2_config at isom_read.c:6095:8 in isomedia.h
+// gf_isom_update_sample_description_from_template at isom_write.c:8597:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -12,52 +12,107 @@
 #include <stdio.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    // Use the API to create a dummy ISO file if available, otherwise return NULL
-    // This is a placeholder as the actual creation might require specific API calls
-    return NULL;
+static GF_ISOFile* initialize_iso_file() {
+    // Allocate memory for the ISO file structure
+    // As the structure is incomplete, we cannot use sizeof(GF_ISOFile)
+    // Instead, allocate a fixed size or handle it appropriately if a specific API is available
+    GF_ISOFile* isom_file = (GF_ISOFile*)malloc(1024); // Assume a fixed size for demonstration
+    if (isom_file) {
+        memset(isom_file, 0, 1024);
+        // Initialize any required fields if necessary
+    }
+    return isom_file;
 }
 
-static void destroy_dummy_iso_file(GF_ISOFile *file) {
-    // Use the API to destroy a dummy ISO file if available
+static void cleanup_iso_file(GF_ISOFile* isom_file) {
+    if (isom_file) {
+        // Free any allocated resources within isom_file if necessary
+        free(isom_file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_123(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(u32) * 3) return 0;
 
-    GF_ISOFile *iso_file = create_dummy_iso_file();
-    if (!iso_file) return 0;
+    GF_ISOFile* isom_file = initialize_iso_file();
+    if (!isom_file) return 0;
 
-    // Fuzz gf_isom_refresh_fragmented
-    u64 missing_bytes = 0;
-    char *new_location = NULL;
-    if (Size > 1) {
-        new_location = (char *)Data;
+    u32 trackNumber = *((u32*)Data);
+    u32 sampleDescriptionIndex = *((u32*)(Data + sizeof(u32)));
+    u32 sampleNumber = *((u32*)(Data + sizeof(u32) * 2));
+    u8* output = NULL;
+    u32 output_size = 0;
+    u8* dsi = NULL;
+    u32 dsi_size = 0;
+    u8* out_dsi = NULL;
+    u32 out_size = 0;
+
+    // Fuzz gf_isom_get_stsd_template
+    gf_isom_get_stsd_template(isom_file, trackNumber, sampleDescriptionIndex, &output, &output_size);
+    free(output);
+
+    // Fuzz gf_isom_add_sample_aux_info
+    if (Size > sizeof(u32) * 3) {
+        gf_isom_add_sample_aux_info(isom_file, trackNumber, sampleNumber, 1, 0, (u8*)(Data + sizeof(u32) * 3), Size - sizeof(u32) * 3);
     }
-    gf_isom_refresh_fragmented(iso_file, &missing_bytes, new_location);
 
-    // Fuzz gf_isom_remove_track_kind
-    u32 track_number = 1;
-    const char *scheme_uri = Size > 2 ? (const char *)(Data + 1) : NULL;
-    const char *value = Size > 3 ? (const char *)(Data + 2) : NULL;
-    gf_isom_remove_track_kind(iso_file, track_number, scheme_uri, value);
+    // Fuzz gf_isom_opus_config_get
+    gf_isom_opus_config_get(isom_file, trackNumber, sampleDescriptionIndex, &dsi, &dsi_size);
+    free(dsi);
 
-    // Fuzz gf_isom_switch_source
-    const char *url = Size > 4 ? (const char *)(Data + 3) : NULL;
-    gf_isom_switch_source(iso_file, url);
+    // Fuzz gf_isom_get_track_template
+    gf_isom_get_track_template(isom_file, trackNumber, &output, &output_size);
+    free(output);
 
-    // Fuzz gf_isom_add_track_kind
-    gf_isom_add_track_kind(iso_file, track_number, scheme_uri, value);
+    // Fuzz gf_isom_get_jp2_config
+    gf_isom_get_jp2_config(isom_file, trackNumber, sampleDescriptionIndex, &out_dsi, &out_size);
+    free(out_dsi);
 
-    // Fuzz gf_isom_get_handler_name
-    const char *out_name = NULL;
-    gf_isom_get_handler_name(iso_file, track_number, &out_name);
+    // Fuzz gf_isom_update_sample_description_from_template
+    if (Size > sizeof(u32) * 3) {
+        gf_isom_update_sample_description_from_template(isom_file, trackNumber, sampleDescriptionIndex, (u8*)(Data + sizeof(u32) * 3), Size - sizeof(u32) * 3);
+    }
 
-    // Fuzz gf_isom_wma_set_tag
-    char *tag_name = Size > 5 ? (char *)(Data + 4) : NULL;
-    char *tag_value = Size > 6 ? (char *)(Data + 5) : NULL;
-    gf_isom_wma_set_tag(iso_file, tag_name, tag_value);
-
-    destroy_dummy_iso_file(iso_file);
+    cleanup_iso_file(isom_file);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_123(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -4,58 +4,82 @@
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_82(const uint8_t *data, size_t size) {
-    if (size < 20) { // Ensure there's enough data for meaningful testing
-        return 0;
-    }
+    if (size < 1) return 0;
 
+    // Initialize a TurboJPEG decompressor handle
     tjhandle handle = tjInitDecompress();
-    if (!handle) {
-        return 0;
-    }
+    if (handle == nullptr) return 0;
 
-    // Extract width and height from the input data
-    int width = data[0] % 256 + 1; // Ensure width is at least 1
-    int height = data[1] % 256 + 1; // Ensure height is at least 1
-    int subsamp = TJSAMP_420; // Common subsampling
-    int flags = 0; // No flags
-
-    // Calculate the required buffer size for the YUV image
-    int yuvSize = tjBufSizeYUV2(width, 1, height, subsamp);
-    if (yuvSize > size - 2) { // Adjust for width and height bytes
-        tjDestroy(handle);
-        return 0; // Not enough data to fill the YUV buffer
-    }
-
-    // Assign the data to YUV planes
-    const unsigned char *yuvPlanes[3];
-    yuvPlanes[0] = data + 2; // Start after width and height bytes
-    yuvPlanes[1] = yuvPlanes[0] + (yuvSize / 3);
-    yuvPlanes[2] = yuvPlanes[1] + (yuvSize / 3);
-
-    // Set strides for each plane
-    int strides[3];
-    strides[0] = width;
-    strides[1] = width / 2;
-    strides[2] = width / 2;
-
-    // Allocate destination buffer for the decoded image
-    int pixelFormat = TJPF_RGB;
-    int dstSize = width * height * tjPixelSize[pixelFormat];
-    unsigned char *dstBuffer = (unsigned char *)malloc(dstSize);
-    if (!dstBuffer) {
+    // Allocate memory for the output buffer
+    int width = 64;  // Example width
+    int height = 64; // Example height
+    int pixelFormat = TJPF_RGB; // Example pixel format
+    int outputBufferSize = width * height * tjPixelSize[pixelFormat];
+    unsigned char *outputBuffer = (unsigned char *)malloc(outputBufferSize);
+    if (outputBuffer == nullptr) {
         tjDestroy(handle);
         return 0;
     }
 
     // Call the function-under-test
-    tjDecodeYUVPlanes(handle, yuvPlanes, strides, subsamp, dstBuffer, width, 0, height, pixelFormat, flags);
+    int result = tj3DecodeYUV8(
+        handle,
+        data, // Input YUV buffer
+        size, // Size of the input buffer
+        outputBuffer, // Output buffer for the decoded image
+        width, // Width of the image
+        4, // Example pitch (bytes per row in the output buffer)
+        height, // Height of the image
+        pixelFormat // Pixel format
+    );
 
     // Clean up
-    free(dstBuffer);
+    free(outputBuffer);
     tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_82(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

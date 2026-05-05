@@ -1,7 +1,11 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdio.h>
+#include <stdint.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
 static void write_dummy_file(const uint8_t *Data, size_t Size) {
@@ -13,67 +17,86 @@ static void write_dummy_file(const uint8_t *Data, size_t Size) {
 }
 
 int LLVMFuzzerTestOneInput_103(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) + sizeof(s32) * 9) {
-        return 0;
-    }
+    if (Size < 4) return 0; // Ensure there's enough data for basic operations
 
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    // Write data to a dummy file to simulate an ISO file
+    write_dummy_file(Data, Size);
+
+    // Open the dummy file as an ISO file
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
     if (!isom_file) return 0;
 
-    u32 trackNumber = *(u32 *)Data;
-    s32 matrix[9];
-    for (int i = 0; i < 9; i++) {
-        matrix[i] = *(s32 *)(Data + sizeof(u32) + sizeof(s32) * i);
+    // Extract some parameters from the input data
+    u32 trackNumber = Data[0];
+    u32 sampleDescriptionIndex = Data[1];
+    u32 chunkNumber = Data[2];
+    u32 nalu_size_length = Data[3];
+
+    // Fuzz gf_isom_dovi_config_get
+    GF_DOVIDecoderConfigurationRecord *dovi_config = gf_isom_dovi_config_get(isom_file, trackNumber, sampleDescriptionIndex);
+    if (dovi_config) {
+        // Simulate deletion of the DOVI config
+        free(dovi_config);
     }
 
-    // Fuzz gf_isom_set_track_matrix
-    gf_isom_set_track_matrix(isom_file, trackNumber, matrix);
+    // Fuzz gf_isom_get_track_flags
+    u32 track_flags = gf_isom_get_track_flags(isom_file, trackNumber);
 
-    if (Size < sizeof(u32) * 15) {
-        gf_isom_close(isom_file);
-        return 0;
-    }
+    // Fuzz gf_isom_get_chunk_info
+    u64 chunk_offset;
+    u32 first_sample_num, sample_per_chunk, sample_desc_idx, cache_1 = 0, cache_2 = 0;
+    GF_Err chunk_info_err = gf_isom_get_chunk_info(isom_file, trackNumber, chunkNumber, &chunk_offset, &first_sample_num, &sample_per_chunk, &sample_desc_idx, &cache_1, &cache_2);
 
-    u32 width = *(u32 *)(Data + sizeof(u32) * 10);
-    u32 height = *(u32 *)(Data + sizeof(u32) * 11);
-    s32 translation_x = *(s32 *)(Data + sizeof(u32) * 12);
-    s32 translation_y = *(s32 *)(Data + sizeof(u32) * 13);
-    s16 layer = *(s16 *)(Data + sizeof(u32) * 14);
+    // Fuzz gf_isom_new_track
+    u32 new_track = gf_isom_new_track(isom_file, 0, trackNumber, sampleDescriptionIndex);
 
-    // Fuzz gf_isom_set_track_layout_info
-    gf_isom_set_track_layout_info(isom_file, trackNumber, width, height, translation_x, translation_y, layer);
+    // Fuzz gf_isom_set_nalu_length_field
+    GF_Err nalu_err = gf_isom_set_nalu_length_field(isom_file, trackNumber, sampleDescriptionIndex, nalu_size_length);
 
-    // Fuzz gf_isom_set_ipod_compatible
-    gf_isom_set_ipod_compatible(isom_file, trackNumber);
+    // Fuzz gf_isom_set_dolby_vision_profile
+    GF_Err dolby_vision_err = gf_isom_set_dolby_vision_profile(isom_file, trackNumber, sampleDescriptionIndex, dovi_config);
 
-    u32 out_width, out_height;
-    s32 out_translation_x, out_translation_y;
-    s16 out_layer;
-
-    // Fuzz gf_isom_get_track_layout_info
-    gf_isom_get_track_layout_info(isom_file, trackNumber, &out_width, &out_height, &out_translation_x, &out_translation_y, &out_layer);
-
-    if (Size < sizeof(u32) * 24 + sizeof(s32) * 2) {
-        gf_isom_close(isom_file);
-        return 0;
-    }
-
-    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32) * 15);
-    u32 cleanApertureWidthN = *(u32 *)(Data + sizeof(u32) * 16);
-    u32 cleanApertureWidthD = *(u32 *)(Data + sizeof(u32) * 17);
-    u32 cleanApertureHeightN = *(u32 *)(Data + sizeof(u32) * 18);
-    u32 cleanApertureHeightD = *(u32 *)(Data + sizeof(u32) * 19);
-    s32 horizOffN = *(s32 *)(Data + sizeof(u32) * 20);
-    u32 horizOffD = *(u32 *)(Data + sizeof(u32) * 21);
-    s32 vertOffN = *(s32 *)(Data + sizeof(u32) * 22);
-    u32 vertOffD = *(u32 *)(Data + sizeof(u32) * 23);
-
-    // Fuzz gf_isom_set_clean_aperture
-    gf_isom_set_clean_aperture(isom_file, trackNumber, sampleDescriptionIndex, cleanApertureWidthN, cleanApertureWidthD, cleanApertureHeightN, cleanApertureHeightD, horizOffN, horizOffD, vertOffN, vertOffD);
-
-    // Fuzz gf_isom_remove_edits
-    gf_isom_remove_edits(isom_file, trackNumber);
-
+    // Close the ISO file
     gf_isom_close(isom_file);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_103(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

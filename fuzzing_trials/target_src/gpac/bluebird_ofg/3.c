@@ -1,36 +1,39 @@
-#include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
-#include "unistd.h"
-#include "/src/gpac/include/gpac/isomedia.h" // Assuming the library header for gf_isom_dump_supported_box
+#include <unistd.h> // Include this for mkstemp and unlink
+#include "/src/gpac/include/gpac/isomedia.h"
+
+#define MAX_SUPPORTED_INDEX 1000 // Define a reasonable maximum index value
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract an index
-    if (size < sizeof(uint32_t)) {
+    // Ensure there is enough data to read a u32 index
+    if (size < sizeof(u32)) {
         return 0;
     }
 
-    // Extract the index from the input data
-    uint32_t idx = *(const uint32_t *)data;
+    // Read the index from the input data
+    u32 idx = *(const u32 *)data;
 
-    // Check if the index is within a valid range
-    // Assuming there's a known maximum number of supported boxes
-    uint32_t max_supported_boxes = 100; // This value should be determined based on the library's documentation or implementation
-    if (idx >= max_supported_boxes) {
+    // Validate the index to ensure it is within a reasonable range
+    // Assuming a hypothetical maximum index value, adjust as necessary
+    if (idx > MAX_SUPPORTED_INDEX) {
         return 0;
     }
 
-    // Create a temporary file to use as the FILE* parameter
+    // Create a temporary file to use as the trace
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Open the temporary file as a FILE* stream
     FILE *trace = fdopen(fd, "w+");
     if (!trace) {
         close(fd);
+        unlink(tmpl);
         return 0;
     }
 
@@ -38,17 +41,47 @@ int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
     gf_isom_dump_supported_box(idx, trace);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_dump_supported_box to gf_isom_dump_hint_sample
-    u32 ret_gf_isom_probe_file_xebby = gf_isom_probe_file((const char *)data);
-    u32 ret_gf_isom_text_sample_size_qpinw = gf_isom_text_sample_size(NULL);
-
-    GF_Err ret_gf_isom_dump_hint_sample_vtzuz = gf_isom_dump_hint_sample(NULL, ret_gf_isom_probe_file_xebby, ret_gf_isom_text_sample_size_qpinw, trace);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
     fclose(trace);
     unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

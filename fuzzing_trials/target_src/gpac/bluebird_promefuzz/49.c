@@ -1,11 +1,12 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-// Dummy implementations of the structs for compilation
-typedef struct _3gpp_text_sample {
+// Define the structure since it's incomplete in the header
+struct _3gpp_text_sample {
     char *text;
     u32 len;
     void *styles; // Placeholder for GF_TextStyleBox
@@ -16,10 +17,11 @@ typedef struct _3gpp_text_sample {
     Bool is_forced;
     GF_List *others;
     void *cur_karaoke; // Placeholder for GF_TextKaraokeBox
-} GF_TextSample;
+};
 
 static GF_TextSample* create_text_sample() {
-    GF_TextSample *sample = (GF_TextSample *)malloc(sizeof(GF_TextSample));
+    // Allocate memory for GF_TextSample
+    GF_TextSample *sample = (GF_TextSample*)malloc(sizeof(GF_TextSample));
     if (sample) {
         sample->text = NULL;
         sample->len = 0;
@@ -35,7 +37,7 @@ static GF_TextSample* create_text_sample() {
     return sample;
 }
 
-static void destroy_text_sample(GF_TextSample *sample) {
+static void free_text_sample(GF_TextSample *sample) {
     if (sample) {
         free(sample->text);
         free(sample);
@@ -48,33 +50,71 @@ int LLVMFuzzerTestOneInput_49(const uint8_t *Data, size_t Size) {
     GF_TextSample *sample = create_text_sample();
     if (!sample) return 0;
 
-    u32 end_time = (Size > 4) ? *(u32*)Data : 0;
-    u16 start_char = (Size > 6) ? *(u16*)(Data + 4) : 0;
-    u16 end_char = (Size > 8) ? *(u16*)(Data + 6) : 1;
-
-    // Fuzz gf_isom_text_set_karaoke_segment
-    gf_isom_text_set_karaoke_segment(sample, end_time, start_char, end_char);
-
-    // Fuzz gf_isom_text_reset_styles
-    gf_isom_text_reset_styles(sample);
-
-    // Fuzz gf_isom_text_add_highlight
-    gf_isom_text_add_highlight(sample, start_char, end_char);
+    u16 start_char = Data[0];
+    u16 end_char = Data[1];
 
     // Fuzz gf_isom_text_add_blink
     gf_isom_text_add_blink(sample, start_char, end_char);
 
-    // Create dummy URL and altString for hyperlink
-    char dummy_url[] = "http://example.com";
-    char dummy_alt[] = "Example Tooltip";
+    // Fuzz gf_isom_text_add_highlight
+    gf_isom_text_add_highlight(sample, start_char, end_char);
 
     // Fuzz gf_isom_text_add_hyperlink
-    gf_isom_text_add_hyperlink(sample, dummy_url, dummy_alt, start_char, end_char);
+    char *url = "http://example.com";
+    char *altString = "tooltip";
+    gf_isom_text_add_hyperlink(sample, url, altString, start_char, end_char);
+
+    // Fuzz gf_isom_text_set_karaoke_segment
+    if (Size >= 6) {
+        u32 end_time = *(u32*)(Data + 2);
+        gf_isom_text_set_karaoke_segment(sample, end_time, start_char, end_char);
+    }
+
+    // Fuzz gf_isom_text_reset_styles
+    gf_isom_text_reset_styles(sample);
 
     // Fuzz gf_isom_text_reset
     gf_isom_text_reset(sample);
 
-    destroy_text_sample(sample);
-
+    free_text_sample(sample);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_49(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

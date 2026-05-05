@@ -1,61 +1,92 @@
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h> // For malloc and free
+#include <string.h>
+#include <sys/stat.h>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
-    // Check if the input size is sufficient to be used meaningfully
     if (size < sizeof(int)) {
-        return 0;
+        return 0; // Ensure there is enough data to extract an integer
     }
 
-    int numScalingFactors = 0;
+    // Extract an integer from the data
+    int initOption = *(reinterpret_cast<const int*>(data));
 
     // Call the function-under-test
-    tjscalingfactor *scalingFactors = tj3GetScalingFactors(&numScalingFactors);
+    tjhandle handle = tj3Init(initOption);
 
-    // Check if scalingFactors is not NULL and numScalingFactors is greater than 0
-    if (scalingFactors != NULL && numScalingFactors > 0) {
-        // Allocate memory for a dummy image buffer
-        int width = 100;
-        int height = 100;
-        int pixelFormat = TJPF_RGB;
-        unsigned char *dummyImage = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
-
-        if (dummyImage != NULL) {
-            // Create a decompressor instance
-            tjhandle decompressor = tj3Init(TJINIT_DECOMPRESS);
-
-            if (decompressor != NULL) {
-                // Perform a dummy decompression operation
-                tjDecompressHeader(decompressor, (unsigned char *)data, size, &width, &height);
-                tjDecompress(decompressor, (unsigned char *)data, size, dummyImage, width, 0, height, pixelFormat, TJFLAG_FASTDCT);
-
-                // Clean up the decompressor
-                tjDestroy(decompressor);
-            }
-
-            // Free the dummy image buffer
-            free(dummyImage);
-        }
-
-        // Iterate over the scaling factors and perform some trivial operations
-        for (int i = 0; i < numScalingFactors; i++) {
-            int num = scalingFactors[i].num;
-            int denom = scalingFactors[i].denom;
-
-            // Perform some basic calculations to ensure full execution
-            if (denom != 0) {
-                volatile double scale = static_cast<double>(num) / denom;
-                (void)scale; // Use volatile to prevent compiler optimization
-            }
-        }
+    // Clean up if initialization was successful
+    if (handle != nullptr) {
+        tj3Destroy(handle);
     }
 
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Init to tjEncodeYUV
+    unsigned char* ret_tjAlloc_gnvlv = tjAlloc(TJXOPT_GRAY);
+    if (ret_tjAlloc_gnvlv == NULL){
+    	return 0;
+    }
+    unsigned char* ret_tjAlloc_anjzb = tjAlloc(TJFLAG_PROGRESSIVE);
+    if (ret_tjAlloc_anjzb == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_tjAlloc_gnvlv) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_tjAlloc_anjzb) {
+    	return 0;
+    }
+    int ret_tjEncodeYUV_arnnh = tjEncodeYUV(handle, ret_tjAlloc_gnvlv, TJXOPT_PERFECT, TJ_NUMPF, 0, size, ret_tjAlloc_anjzb, TJFLAG_PROGRESSIVE, TJXOPT_OPTIMIZE);
+    if (ret_tjEncodeYUV_arnnh < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_32(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,69 +1,113 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_append_sample_data at isom_write.c:1218:8 in isomedia.h
-// gf_isom_get_track_template at isom_write.c:4137:8 in isomedia.h
-// gf_isom_end_hint_sample at hint_track.c:365:8 in isomedia.h
-// gf_isom_set_audio_info at isom_write.c:2373:8 in isomedia.h
-// gf_isom_set_track_stsd_templates at isom_write.c:835:8 in isomedia.h
-// gf_isom_update_sample_description_from_template at isom_write.c:8597:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_set_sample_rap_group at isom_write.c:7715:8 in isomedia.h
+// gf_isom_vvc_set_inband_config at avc_ext.c:2427:8 in isomedia.h
+// gf_isom_fragment_set_sample_rap_group at isom_write.c:7720:8 in isomedia.h
+// gf_isom_fragment_set_sample_av1_switch_frame_group at isom_write.c:7745:8 in isomedia.h
+// gf_isom_finalize_for_fragment at movie_fragments.c:85:8 in isomedia.h
+// gf_isom_get_sample_rap_roll_info at isom_read.c:5119:8 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include "isomedia.h"
 
-#define DUMMY_FILE_PATH "./dummy_file"
-
-static GF_ISOFile* create_dummy_isofile() {
-    // Since GF_ISOFile is an incomplete type, we cannot allocate it directly.
-    // We assume a function or method exists to create or initialize this type.
-    // For the sake of this example, we'll return NULL to avoid compilation errors.
-    return NULL;
-}
-
-static void cleanup_isofile(GF_ISOFile *file) {
-    // Assuming there's a proper way to cleanup GF_ISOFile, 
-    // which is not available due to incomplete type.
-    // Implement the cleanup logic if available.
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_121(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0; // Ensure minimum size for trackNumber and other parameters
+    if (Size < sizeof(u32) * 3 + sizeof(Bool)) return 0;
 
-    GF_ISOFile *isom_file = create_dummy_isofile();
+    // Prepare dummy file
+    write_dummy_file(Data, Size);
+
+    // Initialize variables for target functions
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
     if (!isom_file) return 0;
 
-    // Extract parameters from the input data
-    u32 trackNumber = *((u32 *)Data);
-    u8 *data = (u8 *)(Data + 4);
-    u32 data_size = (Size > 8) ? *((u32 *)(Data + 4)) : 0;
+    u32 trackNumber = *(u32 *)Data;
+    u32 sampleNumber = *(u32 *)(Data + sizeof(u32));
+    Bool is_rap = *(Bool *)(Data + sizeof(u32) * 2);
+    u32 num_leading_samples = *(u32 *)(Data + sizeof(u32) * 2 + sizeof(Bool));
 
-    // Test gf_isom_append_sample_data
-    gf_isom_append_sample_data(isom_file, trackNumber, data, data_size);
+    // 1. Test gf_isom_set_sample_rap_group
+    gf_isom_set_sample_rap_group(isom_file, trackNumber, sampleNumber, is_rap, num_leading_samples);
 
-    // Test gf_isom_get_track_template
-    u8 *output = NULL;
-    u32 output_size = 0;
-    gf_isom_get_track_template(isom_file, trackNumber, &output, &output_size);
-    if (output) free(output);
+    // 2. Test gf_isom_vvc_set_inband_config
+    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32) * 3 + sizeof(Bool));
+    Bool keep_xps = *(Bool *)(Data + sizeof(u32) * 4 + sizeof(Bool));
+    gf_isom_vvc_set_inband_config(isom_file, trackNumber, sampleDescriptionIndex, keep_xps);
 
-    // Test gf_isom_end_hint_sample
-    u8 isRandomAccessPoint = (Size > 12) ? Data[12] : 0;
-    gf_isom_end_hint_sample(isom_file, trackNumber, isRandomAccessPoint);
+    // 3. Test gf_isom_fragment_set_sample_rap_group
+    gf_isom_fragment_set_sample_rap_group(isom_file, trackNumber, sampleNumber, is_rap, num_leading_samples);
 
-    // Test gf_isom_set_audio_info
-    u32 sampleDescriptionIndex = (Size > 16) ? *((u32 *)(Data + 8)) : 0;
-    u32 sampleRate = (Size > 20) ? *((u32 *)(Data + 12)) : 0;
-    u32 nbChannels = (Size > 24) ? *((u32 *)(Data + 16)) : 0;
-    u8 bitsPerSample = (Size > 28) ? Data[20] : 0;
-    GF_AudioSampleEntryImportMode asemode = (Size > 32) ? *((GF_AudioSampleEntryImportMode *)(Data + 24)) : 0;
-    gf_isom_set_audio_info(isom_file, trackNumber, sampleDescriptionIndex, sampleRate, nbChannels, bitsPerSample, asemode);
+    // 4. Test gf_isom_fragment_set_sample_av1_switch_frame_group
+    gf_isom_fragment_set_sample_av1_switch_frame_group(isom_file, trackNumber, sampleNumber, is_rap);
 
-    // Test gf_isom_set_track_stsd_templates
-    gf_isom_set_track_stsd_templates(isom_file, trackNumber, data, data_size);
+    // 5. Test gf_isom_finalize_for_fragment
+    u32 media_segment_type = *(u32 *)(Data + sizeof(u32) * 5 + sizeof(Bool));
+    Bool mvex_after_tracks = *(Bool *)(Data + sizeof(u32) * 6 + sizeof(Bool));
+    gf_isom_finalize_for_fragment(isom_file, media_segment_type, mvex_after_tracks);
 
-    // Test gf_isom_update_sample_description_from_template
-    gf_isom_update_sample_description_from_template(isom_file, trackNumber, sampleDescriptionIndex, data, data_size);
+    // 6. Test gf_isom_get_sample_rap_roll_info
+    Bool is_rap_result;
+    GF_ISOSampleRollType roll_type;
+    s32 roll_distance;
+    gf_isom_get_sample_rap_roll_info(isom_file, trackNumber, sampleNumber, &is_rap_result, &roll_type, &roll_distance);
 
-    cleanup_isofile(isom_file);
+    // Cleanup
+    gf_isom_close(isom_file);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_121(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

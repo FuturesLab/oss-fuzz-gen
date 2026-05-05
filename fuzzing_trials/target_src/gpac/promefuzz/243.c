@@ -1,81 +1,126 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_get_sample_cenc_info at isom_read.c:5790:8 in isomedia.h
-// gf_isom_fragment_set_sample_rap_group at isom_write.c:7720:8 in isomedia.h
-// gf_isom_set_sample_cenc_group at isom_write.c:7824:8 in isomedia.h
-// gf_isom_load_extra_boxes at isom_write.c:603:8 in isomedia.h
-// gf_isom_fragment_add_subsample at movie_fragments.c:3133:8 in isomedia.h
-// gf_isom_fragment_set_cenc_sai at movie_fragments.c:3005:8 in isomedia.h
-// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_text_set_scroll_delay at tx3g.c:358:8 in isomedia.h
+// gf_isom_text_add_karaoke at tx3g.c:335:8 in isomedia.h
+// gf_isom_text_sample_size at tx3g.c:498:5 in isomedia.h
+// gf_isom_text_set_highlight_color at tx3g.c:321:8 in isomedia.h
+// gf_isom_text_set_karaoke_segment at tx3g.c:345:8 in isomedia.h
+// gf_isom_text_add_text at tx3g.c:259:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
 #include "isomedia.h"
 
-static void prepare_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *f = fopen("./dummy_file", "wb");
-    if (f) {
-        fwrite(Data, 1, Size, f);
-        fclose(f);
+// Dummy definitions for incomplete types
+struct GF_TextKaraokeBox {};
+struct GF_TextWrapBox {};
+struct GF_TextBoxBox {};
+struct GF_TextScrollDelayBox {};
+struct GF_TextHighlightColorBox {};
+struct GF_TextStyleBox {};
+struct GF_List {};
+
+typedef struct _3gpp_text_sample {
+    char *text;
+    u32 len;
+    struct GF_TextStyleBox *styles;
+    struct GF_TextHighlightColorBox *highlight_color;
+    struct GF_TextScrollDelayBox *scroll_delay;
+    struct GF_TextBoxBox *box;
+    struct GF_TextWrapBox *wrap;
+    int is_forced;
+    struct GF_List *others;
+    struct GF_TextKaraokeBox *cur_karaoke;
+} GF_TextSample;
+
+static GF_TextSample* create_text_sample() {
+    GF_TextSample *sample = (GF_TextSample *)malloc(sizeof(GF_TextSample));
+    if (sample) {
+        memset(sample, 0, sizeof(GF_TextSample));
+        sample->text = NULL;
+        sample->len = 0;
+        sample->styles = NULL;
+        sample->highlight_color = NULL;
+        sample->scroll_delay = NULL;
+        sample->box = NULL;
+        sample->wrap = NULL;
+        sample->is_forced = 0;
+        sample->others = NULL;
+        sample->cur_karaoke = NULL;
+    }
+    return sample;
+}
+
+static void destroy_text_sample(GF_TextSample *sample) {
+    if (sample) {
+        free(sample->text);
+        free(sample);
     }
 }
 
 int LLVMFuzzerTestOneInput_243(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 3) return 0; // Ensure there's enough data
+    if (Size < 4) return 0;
 
-    prepare_dummy_file(Data, Size);
+    GF_TextSample *sample = create_text_sample();
+    if (!sample) return 0;
 
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    if (!isom_file) return 0;
+    u32 scroll_delay = *(u32 *)Data;
+    u32 start_time = scroll_delay;
+    u32 end_time = scroll_delay;
+    u16 start_char = (u16)(scroll_delay & 0xFFFF);
+    u16 end_char = (u16)((scroll_delay >> 16) & 0xFFFF);
+    u32 argb_color = scroll_delay;
+    char *text_data = (char *)Data;
+    u32 text_len = Size;
 
-    u32 trackNumber = *((u32 *)Data);
-    u32 sampleNumber = *((u32 *)(Data + sizeof(u32)));
-    u32 trackID = *((u32 *)(Data + 2 * sizeof(u32)));
+    gf_isom_text_set_scroll_delay(sample, scroll_delay);
+    gf_isom_text_add_karaoke(sample, start_time);
+    gf_isom_text_sample_size(sample);
+    gf_isom_text_set_highlight_color(sample, argb_color);
+    gf_isom_text_set_karaoke_segment(sample, end_time, start_char, end_char);
+    gf_isom_text_add_text(sample, text_data, text_len);
 
-    // Variables for gf_isom_get_sample_cenc_info
-    Bool isEncrypted;
-    u32 crypt_byte_block, skip_byte_block;
-    const u8 *key_info;
-    u32 key_info_size;
-
-    // Fuzz gf_isom_get_sample_cenc_info
-    gf_isom_get_sample_cenc_info(isom_file, trackNumber, sampleNumber, &isEncrypted, &crypt_byte_block, &skip_byte_block, &key_info, &key_info_size);
-
-    // Fuzz gf_isom_fragment_set_sample_rap_group
-    Bool is_rap = (Bool)(Data[0] % 2);
-    u32 num_leading_samples = *((u32 *)(Data + 3 * sizeof(u32)));
-    gf_isom_fragment_set_sample_rap_group(isom_file, trackID, sampleNumber, is_rap, num_leading_samples);
-
-    // Fuzz gf_isom_set_sample_cenc_group
-    u8 isEncryptedFlag = Data[0];
-    gf_isom_set_sample_cenc_group(isom_file, trackNumber, sampleNumber, isEncryptedFlag, crypt_byte_block, skip_byte_block, (u8 *)key_info, key_info_size);
-
-    // Fuzz gf_isom_load_extra_boxes
-    Bool udta_only = (Bool)(Data[1] % 2);
-    gf_isom_load_extra_boxes(isom_file, (u8 *)Data, (u32)Size, udta_only);
-
-    // Fuzz gf_isom_fragment_add_subsample
-    u32 flags = *((u32 *)(Data + 4 * sizeof(u32)));
-    u32 subSampleSize = *((u32 *)(Data + 5 * sizeof(u32)));
-    u8 priority = Data[2];
-    u32 reserved = *((u32 *)(Data + 6 * sizeof(u32)));
-    Bool discardable = (Bool)(Data[3] % 2);
-    gf_isom_fragment_add_subsample(isom_file, trackID, flags, subSampleSize, priority, reserved, discardable);
-
-    // Fuzz gf_isom_fragment_set_cenc_sai
-    u8 *sai_b = (u8 *)Data;
-    u32 sai_b_size = (u32)Size;
-    Bool use_subsample = (Bool)(Data[4] % 2);
-    Bool use_saio_32bit = (Bool)(Data[5] % 2);
-    Bool use_multikey = (Bool)(Data[6] % 2);
-    gf_isom_fragment_set_cenc_sai(isom_file, trackID, sai_b, sai_b_size, use_subsample, use_saio_32bit, use_multikey);
-
-    gf_isom_close(isom_file);
+    destroy_text_sample(sample);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_243(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

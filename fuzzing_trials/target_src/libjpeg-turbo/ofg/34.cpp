@@ -1,30 +1,75 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
 
-// Include the correct path for turbojpeg.h
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    // If the above path does not exist, try the following paths in order:
+    // #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    // #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    if (size < 3) {
-        return 0; // Not enough data to process
+    if (size < 10) {
+        return 0; // Not enough data to be a valid JPEG
     }
 
-    // Extract parameters from the input data
-    int width = data[0] + 1;  // Ensure width is at least 1
-    int height = data[1] + 1; // Ensure height is at least 1
-    int subsamp = data[2] % TJSAMP_GRAY; // Use a valid subsampling option
-    int plane = 0; // Start with the first plane
-    int align = 1; // Minimum valid alignment
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
+        return 0; // Failed to initialize TurboJPEG
+    }
 
-    // Call the function-under-test with the initialized parameters
-    unsigned long result = tjPlaneSizeYUV(width, height, subsamp, plane, align);
+    int width, height, jpegSubsamp, jpegColorspace;
+    if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) == 0) {
+        unsigned char* buffer = (unsigned char*)malloc(width * height * tjPixelSize[TJPF_RGB]);
+        if (buffer != nullptr) {
+            if (tjDecompress2(handle, data, size, buffer, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT) == 0) {
+                // Successfully decompressed the image
+            }
+            free(buffer);
+        }
+    }
 
-    // Use the result (here we just suppress the unused variable warning)
-    (void)result;
-
+    tjDestroy(handle);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_34(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

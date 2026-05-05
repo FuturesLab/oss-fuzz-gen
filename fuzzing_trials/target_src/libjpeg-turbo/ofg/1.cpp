@@ -1,66 +1,73 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *data, size_t size) {
-    // Initialize variables
-    tjhandle handle = tjInitCompress();
-    if (!handle) {
+    tjhandle handle = NULL;
+    int parameter = 0;
+    int result;
+
+    // Initialize the TurboJPEG decompressor
+    handle = tjInitDecompress();
+    if (handle == NULL) {
         return 0;
     }
 
-    // Check for minimum size requirement for width, height, and pixel size
-    if (size < 12) {
-        tjDestroy(handle);
-        return 0;
+    // Ensure the parameter is within a valid range, for the purpose of fuzzing,
+    // let's assume a small range of parameters to test the function.
+    if (size > 0) {
+        parameter = data[0] % 10; // Example: limit parameter range to 0-9
     }
-
-    // Extract width, height, and pixel size from data
-    int width = data[0] + 1; // Ensure width is at least 1
-    int height = data[1] + 1; // Ensure height is at least 1
-    int pixelSize = data[2] % 4 + 1; // Ensure pixel size is between 1 and 4
-
-    // Calculate the input buffer size
-    int inputBufferSize = width * height * pixelSize;
-    if (size < inputBufferSize + 12) {
-        tjDestroy(handle);
-        return 0;
-    }
-
-    // Allocate and initialize input buffer
-    unsigned char *srcBuf = (unsigned char *)malloc(inputBufferSize);
-    if (!srcBuf) {
-        tjDestroy(handle);
-        return 0;
-    }
-    memcpy(srcBuf, data + 3, inputBufferSize);
-
-    // Allocate output buffer
-    unsigned long jpegSize = tjBufSize(width, height, TJSAMP_444);
-    unsigned char *jpegBuf = (unsigned char *)malloc(jpegSize);
-    if (!jpegBuf) {
-        free(srcBuf);
-        tjDestroy(handle);
-        return 0;
-    }
-
-    // Set parameters for compression
-    int jpegSubsamp = TJSAMP_444;
-    int jpegQual = 75; // Using a standard quality value
-    int flags = 0;
 
     // Call the function-under-test
-    int result = tjCompress(handle, srcBuf, width, 0, height, pixelSize, jpegBuf, &jpegSize, jpegSubsamp, jpegQual, flags);
+    result = tj3Get(handle, parameter);
 
     // Clean up
-    free(srcBuf);
-    free(jpegBuf);
     tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_1(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

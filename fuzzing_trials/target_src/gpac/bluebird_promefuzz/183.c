@@ -1,68 +1,112 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_ISOFile* initialize_iso_file(const char *filename) {
-    // Open the file in read/write mode, assuming a function for this exists.
-    GF_ISOFile *isom_file = gf_isom_open(filename, GF_ISOM_OPEN_EDIT, NULL);
-    return isom_file;
-}
+#define DUMMY_FILE_PATH "./dummy_file"
 
-static void cleanup_iso_file(GF_ISOFile *isom_file) {
-    if (isom_file) {
-        gf_isom_close(isom_file);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen(DUMMY_FILE_PATH, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_183(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 5) {
+    if (Size < sizeof(u32) * 3) {
         return 0;
     }
 
-    // Create a dummy file to simulate the ISO file
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (!dummy_file) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, dummy_file);
-    fclose(dummy_file);
+    write_dummy_file(Data, Size);
 
-    GF_ISOFile *isom_file = initialize_iso_file("./dummy_file");
+    GF_ISOFile *isom_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_EDIT, NULL);
     if (!isom_file) {
         return 0;
     }
 
     u32 trackNumber = *(u32 *)Data;
-    u32 ref_type = *((u32 *)Data + 1);
-    u32 group_id = *((u32 *)Data + 2);
-    u32 max_chunk_size = *((u32 *)Data + 3);
-    u32 new_media_type = *((u32 *)Data + 4);
+    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
+    u32 anotherValue = *(u32 *)(Data + sizeof(u32) * 2);
 
-    // Fuzz gf_isom_remove_track_from_root_od
-    gf_isom_remove_track_from_root_od(isom_file, trackNumber);
+    // Fuzz gf_isom_remove_track
+    gf_isom_remove_track(isom_file, trackNumber);
 
-    // Fuzz gf_isom_remove_track_reference
-    gf_isom_remove_track_reference(isom_file, trackNumber, ref_type);
+    // Fuzz gf_isom_evte_config_new
+    u32 outDescriptionIndex;
+    gf_isom_evte_config_new(isom_file, trackNumber, &outDescriptionIndex);
 
-    // Fuzz gf_isom_set_track_interleaving_group
-    gf_isom_set_track_interleaving_group(isom_file, trackNumber, group_id);
+    // Fuzz gf_isom_set_visual_info
 
-    // Fuzz gf_isom_set_alternate_group_id
-    gf_isom_set_alternate_group_id(isom_file, trackNumber, group_id);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_evte_config_new to gf_isom_get_chapter
+    u32 ret_gf_isom_get_next_moof_number_rinez = gf_isom_get_next_moof_number(NULL);
+    u64 ret_gf_isom_get_original_duration_jznsq = gf_isom_get_original_duration(NULL);
+    const char *qqdihmkw[1024] = {"akwyv", NULL};
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!isom_file) {
+    	return 0;
+    }
+    GF_Err ret_gf_isom_get_chapter_hqsnw = gf_isom_get_chapter(isom_file, ret_gf_isom_get_next_moof_number_rinez, outDescriptionIndex, &ret_gf_isom_get_original_duration_jznsq, qqdihmkw);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    gf_isom_set_visual_info(isom_file, trackNumber, sampleDescriptionIndex, anotherValue, anotherValue);
 
-    // Fuzz gf_isom_hint_max_chunk_size
+    // Fuzz gf_isom_truehd_config_get
+    u32 format_info, peak_data_rate;
+    gf_isom_truehd_config_get(isom_file, trackNumber, sampleDescriptionIndex, &format_info, &peak_data_rate);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_hint_max_chunk_size with gf_isom_set_last_sample_duration
-    gf_isom_set_last_sample_duration(isom_file, trackNumber, max_chunk_size);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Fuzz gf_isom_set_brand_info
+    gf_isom_set_brand_info(isom_file, anotherValue, anotherValue);
 
+    // Fuzz gf_isom_purge_track_reference
+    gf_isom_purge_track_reference(isom_file, trackNumber);
 
-
-    // Fuzz gf_isom_set_media_type
-    gf_isom_set_media_type(isom_file, trackNumber, new_media_type);
-
-    cleanup_iso_file(isom_file);
+    gf_isom_close(isom_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_183(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,61 +1,77 @@
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-
-// Declare the necessary types and functions assumed to be in the missing header file
-typedef struct {
-    // Dummy structure to represent GF_ISOFile
-    // The actual structure would have more fields, but they are not needed for this fuzz harness
-} GF_ISOFile;
-
-typedef int Bool;
-typedef uint32_t u32;
-
-// Dummy declaration of the function under test
-void gf_isom_remove_meta_item(GF_ISOFile *file, Bool root_meta, u32 track_num, u32 item_id, Bool keep_refs, const char *keep_props);
+#include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_63(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient for our needs
-    if (size < sizeof(u32) * 3 + 2) {
+    // Initialize the GF_ISOFile structure
+    GF_ISOFile *movie = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
+    if (!movie) {
         return 0;
     }
 
-    // Initialize the parameters for gf_isom_remove_meta_item
-    GF_ISOFile *file = (GF_ISOFile *)malloc(sizeof(GF_ISOFile)); // Dummy allocation
-    if (!file) {
+    // Ensure the size is large enough for trackNumber and stsd_data_size
+    if (size < sizeof(uint32_t) * 2) {
+        gf_isom_close(movie);
         return 0;
     }
 
-    // Extract values from the input data
-    Bool root_meta = (Bool)data[0];
-    u32 track_num = *((u32 *)(data + 1));
-    u32 item_id = *((u32 *)(data + 1 + sizeof(u32)));
-    Bool keep_refs = (Bool)data[1 + 2 * sizeof(u32)];
+    // Extract trackNumber and stsd_data_size from the input data
+    uint32_t trackNumber = *((uint32_t *)data);
+    uint32_t stsd_data_size = *((uint32_t *)(data + sizeof(uint32_t)));
 
-    // Create a string for keep_props
-    size_t props_len = size - (1 + 2 * sizeof(u32) + 1);
-    char *keep_props = (char *)malloc(props_len + 1);
-    if (!keep_props) {
-        free(file);
+    // Ensure that the stsd_data_size does not exceed the remaining data size
+    if (stsd_data_size > size - sizeof(uint32_t) * 2) {
+        gf_isom_close(movie);
         return 0;
     }
-    memcpy(keep_props, data + 1 + 2 * sizeof(u32) + 1, props_len);
-    keep_props[props_len] = '\0';
 
-    // Ensure the GF_ISOFile structure is initialized properly
-    // This is a dummy initialization; in real scenarios, this should be a valid initialization
-    memset(file, 0, sizeof(GF_ISOFile));
+    // Set the stsd_data pointer to the appropriate location in the input data
+    uint8_t *stsd_data = (uint8_t *)(data + sizeof(uint32_t) * 2);
 
-    // Call the function-under-test
-    // To avoid heap-buffer-overflow, ensure that the input values are within expected ranges
-    // Here, we assume some hypothetical constraints for the function parameters
-    if (track_num < 1000 && item_id < 1000) {
-        gf_isom_remove_meta_item(file, root_meta, track_num, item_id, keep_refs, keep_props);
-    }
+    // Call the function under test
+    gf_isom_set_track_stsd_templates(movie, trackNumber, stsd_data, stsd_data_size);
 
     // Clean up
-    free(keep_props);
-    free(file);
+    gf_isom_close(movie);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_63(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,50 +1,73 @@
 #include <stdint.h>
+#include <stdbool.h>
 #include <stdlib.h>
-#include <string.h> // Include string.h for strdup
 #include <gpac/isomedia.h>
 
-// Define Bool if not defined by the included headers
-#ifndef Bool
-#define Bool int
-#endif
-
 int LLVMFuzzerTestOneInput_82(const uint8_t *data, size_t size) {
-    GF_ISOFile *file;
-    Bool root_meta;
-    u32 track_num, to_id, type;
-
-    // Ensure the size is sufficient to extract parameters
-    if (size < sizeof(Bool) + 3 * sizeof(u32) + 1) { // +1 for null-terminator
+    // Adjust the size check to not include sizeof(GF_ISOFile) since it's an incomplete type
+    if (size < 3 * sizeof(uint32_t) + 3 * sizeof(bool)) {
+        // Not enough data to extract all parameters
         return 0;
     }
 
-    // Create a null-terminated string from the input data
-    char *file_path = (char *)malloc(size + 1);
-    if (!file_path) {
+    // Initialize the GF_ISOFile structure
+    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (!movie) {
         return 0;
-    }
-    memcpy(file_path, data, size);
-    file_path[size] = '\0'; // Null-terminate the string
-
-    // Open the ISO file using the null-terminated string
-    file = gf_isom_open(file_path, GF_ISOM_OPEN_READ, NULL);
-    free(file_path); // Free the allocated memory for the file path
-
-    if (!file) {
-        return 0; // If the file cannot be opened, exit early
     }
 
     // Extract parameters from the input data
-    root_meta = (Bool)data[0];
-    track_num = ((u32)data[1] << 24) | ((u32)data[2] << 16) | ((u32)data[3] << 8) | (u32)data[4];
-    to_id = ((u32)data[5] << 24) | ((u32)data[6] << 16) | ((u32)data[7] << 8) | (u32)data[8];
-    type = ((u32)data[9] << 24) | ((u32)data[10] << 16) | ((u32)data[11] << 8) | (u32)data[12];
+    uint32_t trackNumber = *((uint32_t *)(data));
+    uint32_t StreamDescriptionIndex = *((uint32_t *)(data + sizeof(uint32_t)));
+    bool remove = *((bool *)(data + 2 * sizeof(uint32_t)));
+    bool all_ref_pics_intra = *((bool *)(data + 2 * sizeof(uint32_t) + sizeof(bool)));
+    bool intra_pred_used = *((bool *)(data + 2 * sizeof(uint32_t) + 2 * sizeof(bool)));
+    uint32_t max_ref_per_pic = *((uint32_t *)(data + 2 * sizeof(uint32_t) + 3 * sizeof(bool)));
 
     // Call the function-under-test
-    gf_isom_meta_item_has_ref(file, root_meta, track_num, to_id, type);
+    gf_isom_set_image_sequence_coding_constraints(movie, trackNumber, StreamDescriptionIndex, remove, all_ref_pics_intra, intra_pred_used, max_ref_per_pic);
 
     // Clean up
-    gf_isom_close(file);
+    gf_isom_close(movie);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_82(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,80 +1,104 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_append_sample_data at isom_write.c:1218:8 in isomedia.h
-// gf_isom_get_track_template at isom_write.c:4137:8 in isomedia.h
-// gf_isom_get_raw_user_data at isom_write.c:4070:8 in isomedia.h
-// gf_isom_set_sample_cenc_group at isom_write.c:7824:8 in isomedia.h
-// gf_isom_cenc_get_sample_aux_info at drm_sample.c:1645:8 in isomedia.h
-// gf_isom_hint_blank_data at hint_track.c:414:8 in isomedia.h
+// gf_isom_purge_samples at isom_read.c:3192:8 in isomedia.h
+// gf_isom_check_data_reference at isom_read.c:1705:8 in isomedia.h
+// gf_isom_update_bitrate at sample_descs.c:1776:8 in isomedia.h
+// gf_isom_get_sample_references at isom_read.c:6727:8 in isomedia.h
+// gf_isom_set_track_index at isom_write.c:8945:8 in isomedia.h
+// gf_isom_set_last_sample_duration_ex at isom_write.c:1431:8 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    // Allocate memory for the GF_ISOFile structure indirectly
-    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
-    return iso_file;
-}
-
-static void cleanup_iso_file(GF_ISOFile *iso_file) {
-    if (!iso_file) return;
-    gf_isom_close(iso_file);
+static void dummy_track_num_changed_callback(void *udta, u32 old_track_num, u32 new_track_num) {
+    // Dummy callback function
 }
 
 int LLVMFuzzerTestOneInput_68(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    GF_ISOFile *iso_file = create_dummy_iso_file();
+    // Create a dummy ISO file structure
+    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
     if (!iso_file) return 0;
 
-    u32 trackNumber = Data[0] % 5; // Choose a track number between 0 and 4
-    u8 *data = (u8 *)malloc(Size);
-    if (data) {
-        memcpy(data, Data, Size);
+    // Write the input data to a dummy file
+    FILE *dummy_file = fopen("./dummy_file", "wb");
+    if (!dummy_file) {
+        gf_isom_close(iso_file);
+        return 0;
     }
+    fwrite(Data, 1, Size, dummy_file);
+    fclose(dummy_file);
 
-    // Test gf_isom_append_sample_data
-    gf_isom_append_sample_data(iso_file, trackNumber, data, Size);
+    // Extract some values from the input data
+    u32 trackNumber = (Size > 4) ? Data[0] : 1;
+    u32 nb_samples = (Size > 8) ? Data[1] : 1;
+    u32 sampleDescriptionIndex = (Size > 12) ? Data[2] : 1;
+    u32 average_bitrate = (Size > 16) ? Data[3] : 0;
+    u32 max_bitrate = (Size > 20) ? Data[4] : 0;
+    u32 decode_buffer_size = (Size > 24) ? Data[5] : 0;
+    u32 sampleNumber = (Size > 28) ? Data[6] : 1;
+    u32 dur_num = (Size > 32) ? Data[7] : 1;
+    u32 dur_den = (Size > 36) ? Data[8] : 1;
+    u32 index = (Size > 40) ? Data[9] : 1;
 
-    // Test gf_isom_get_track_template
-    u8 *output = NULL;
-    u32 output_size = 0;
-    gf_isom_get_track_template(iso_file, trackNumber, &output, &output_size);
-    free(output);
+    // Dummy variables for function calls
+    u32 refID, nb_refs;
+    const u32 *refs;
 
-    // Test gf_isom_get_raw_user_data
-    output = NULL;
-    output_size = 0;
-    gf_isom_get_raw_user_data(iso_file, &output, &output_size);
-    free(output);
+    // Call the target functions with the extracted values
+    gf_isom_purge_samples(iso_file, trackNumber, nb_samples);
+    gf_isom_check_data_reference(iso_file, trackNumber, sampleDescriptionIndex);
+    gf_isom_update_bitrate(iso_file, trackNumber, sampleDescriptionIndex, average_bitrate, max_bitrate, decode_buffer_size);
+    gf_isom_get_sample_references(iso_file, trackNumber, sampleNumber, &refID, &nb_refs, &refs);
+    gf_isom_set_track_index(iso_file, trackNumber, index, dummy_track_num_changed_callback, NULL);
+    gf_isom_set_last_sample_duration_ex(iso_file, trackNumber, dur_num, dur_den);
 
-    // Test gf_isom_set_sample_cenc_group
-    u8 isEncrypted = Data[0] % 2;
-    u32 crypt_byte_block = Data[0] % 3;
-    u32 skip_byte_block = Data[0] % 3;
-    u8 *key_info = (u8 *)malloc(20);
-    if (key_info) {
-        memcpy(key_info, Data, 20 < Size ? 20 : Size);
-    }
-    gf_isom_set_sample_cenc_group(iso_file, trackNumber, 1, isEncrypted, crypt_byte_block, skip_byte_block, key_info, 20);
-    free(key_info);
+    // Clean up
+    gf_isom_close(iso_file);
+    remove("./dummy_file");
 
-    // Test gf_isom_cenc_get_sample_aux_info
-    u32 container_type = 0;
-    output = NULL;
-    output_size = 0;
-    gf_isom_cenc_get_sample_aux_info(iso_file, trackNumber, 1, 1, &container_type, &output, &output_size);
-    free(output);
-
-    // Test gf_isom_hint_blank_data
-    u8 AtBegin = Data[0] % 2;
-    gf_isom_hint_blank_data(iso_file, trackNumber, AtBegin);
-
-    cleanup_iso_file(iso_file);
-    free(data);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_68(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

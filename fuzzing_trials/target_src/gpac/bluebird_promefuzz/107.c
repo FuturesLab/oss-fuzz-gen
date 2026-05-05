@@ -1,78 +1,93 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    // Create a dummy ISO file structure for testing
-    GF_ISOFile *iso_file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    return iso_file;
-}
-
-static void destroy_dummy_iso_file(GF_ISOFile *iso_file) {
-    // Free the dummy ISO file structure
-    if (iso_file) {
-        gf_isom_close(iso_file);
-    }
-}
-
-int LLVMFuzzerTestOneInput_107(const uint8_t *Data, size_t Size) {
-    // Prepare a dummy ISO file
-    GF_ISOFile *iso_file = create_dummy_iso_file();
-    if (!iso_file) {
-        return 0;
-    }
-
-    // Prepare variables for function calls
-    u32 item_id = 0;
-    u32 track_num = 0;
-    u32 brand = 0;
-    u32 track_id = 0;
-    u32 from_id = 0;
-    u32 to_id = 0;
-    u32 type = 0;
-    u64 ref_index = 0;
-    Bool root_meta = GF_TRUE;
-    Bool add_it = GF_TRUE;
-    Bool for_fragments = GF_TRUE;
-    Bool remove = GF_TRUE;
-    u32 inverse_priority = 0;
-    char *box_patch_filename = "./dummy_file";
-
-    // Write data to a dummy file if needed
-    FILE *file = fopen(box_patch_filename, "wb");
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
     if (file) {
         fwrite(Data, 1, Size, file);
         fclose(file);
     }
+}
 
-    // Fuzz gf_isom_meta_get_next_item_id
-    gf_isom_meta_get_next_item_id(iso_file, root_meta, track_num, &item_id);
+int LLVMFuzzerTestOneInput_107(const uint8_t *Data, size_t Size) {
+    // Write the input data to a dummy file
+    write_dummy_file(Data, Size);
 
-    // Fuzz gf_isom_modify_alternate_brand
-    gf_isom_modify_alternate_brand(iso_file, brand, add_it);
+    // Create a dummy GF_ISOFile pointer (we do not have the structure size, hence no allocation)
+    GF_ISOFile *isom_file = NULL; // Assume this would be properly initialized in a real scenario
 
-    // Fuzz gf_isom_apply_box_patch
-    gf_isom_apply_box_patch(iso_file, track_id, box_patch_filename, for_fragments);
+    // Initialize variables for function calls
+    u32 trackNumber = 1;
+    u32 sample_group_description_index = 0;
+    u32 grouping_type = 0x73616D70; // 'samp'
+    u32 default_index = 0;
+    const u8 *data = NULL;
+    u32 size = 0;
 
-    // Fuzz gf_isom_set_track_priority_in_group
+    // Call gf_isom_get_sample_group_info
+    gf_isom_get_sample_group_info(isom_file, trackNumber, sample_group_description_index, grouping_type, &default_index, &data, &size);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_set_track_priority_in_group with gf_isom_remove_sample
-    gf_isom_remove_sample(iso_file, track_id, inverse_priority);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Call gf_isom_is_track_encrypted
+    gf_isom_is_track_encrypted(isom_file, trackNumber);
 
+    // Call gf_isom_is_adobe_protection_media
+    gf_isom_is_adobe_protection_media(isom_file, trackNumber, sample_group_description_index);
 
+    // Call gf_isom_is_omadrm_media
+    gf_isom_is_omadrm_media(isom_file, trackNumber, sample_group_description_index);
 
-    // Fuzz gf_isom_update_aperture_info
-    gf_isom_update_aperture_info(iso_file, track_id, remove);
+    // Call gf_isom_enum_track_group
+    u32 idx = 0;
+    u32 track_group_type = 0;
+    u32 track_group_id = 0;
+    gf_isom_enum_track_group(isom_file, trackNumber, &idx, &track_group_type, &track_group_id);
 
-    // Fuzz gf_isom_meta_add_item_ref
-    gf_isom_meta_add_item_ref(iso_file, root_meta, track_num, from_id, to_id, type, &ref_index);
-
-    // Clean up
-    destroy_dummy_iso_file(iso_file);
+    // Call gf_isom_is_ismacryp_media
+    gf_isom_is_ismacryp_media(isom_file, trackNumber, sample_group_description_index);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_107(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

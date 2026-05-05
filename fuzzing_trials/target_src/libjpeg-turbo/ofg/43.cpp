@@ -1,61 +1,92 @@
-#include <stddef.h>
-#include <stdint.h>
-#include <stdlib.h> // For malloc and free
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <unistd.h>
+#include <fcntl.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    // Check if the input size is sufficient to be used meaningfully
-    if (size < sizeof(int)) {
-        return 0;
+    // Declare and initialize all necessary variables
+    tjhandle handle = tjInitDecompress();
+    if (!handle) {
+        return 0; // Exit if handle initialization fails
     }
 
-    int numScalingFactors = 0;
+    // Create a temporary file to store the input data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        tjDestroy(handle);
+        return 0; // Exit if temporary file creation fails
+    }
+
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        tjDestroy(handle);
+        return 0; // Exit if writing to the file fails
+    }
+    close(fd);
+
+    // Declare and initialize the parameters for the function call
+    int width = 0;
+    int height = 0;
+    int subsamp = 0;
+    int colorspace = 0;
 
     // Call the function-under-test
-    tjscalingfactor *scalingFactors = tj3GetScalingFactors(&numScalingFactors);
+    unsigned char *image = (unsigned char *)tj3LoadImage16(handle, tmpl, &width, 1, &height, &subsamp);
 
-    // Check if scalingFactors is not NULL and numScalingFactors is greater than 0
-    if (scalingFactors != NULL && numScalingFactors > 0) {
-        // Allocate memory for a dummy image buffer
-        int width = 100;
-        int height = 100;
-        int pixelFormat = TJPF_RGB;
-        unsigned char *dummyImage = (unsigned char *)malloc(width * height * tjPixelSize[pixelFormat]);
-
-        if (dummyImage != NULL) {
-            // Create a decompressor instance
-            tjhandle decompressor = tj3Init(TJINIT_DECOMPRESS);
-
-            if (decompressor != NULL) {
-                // Perform a dummy decompression operation
-                tjDecompressHeader(decompressor, (unsigned char *)data, size, &width, &height);
-                tjDecompress(decompressor, (unsigned char *)data, size, dummyImage, width, 0, height, pixelFormat, TJFLAG_FASTDCT);
-
-                // Clean up the decompressor
-                tjDestroy(decompressor);
-            }
-
-            // Free the dummy image buffer
-            free(dummyImage);
-        }
-
-        // Iterate over the scaling factors and perform some trivial operations
-        for (int i = 0; i < numScalingFactors; i++) {
-            int num = scalingFactors[i].num;
-            int denom = scalingFactors[i].denom;
-
-            // Perform some basic calculations to ensure full execution
-            if (denom != 0) {
-                volatile double scale = static_cast<double>(num) / denom;
-                (void)scale; // Use volatile to prevent compiler optimization
-            }
-        }
+    // Clean up
+    if (image) {
+        tjFree(image);
     }
+    tjDestroy(handle);
+    remove(tmpl); // Remove the temporary file
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_43(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

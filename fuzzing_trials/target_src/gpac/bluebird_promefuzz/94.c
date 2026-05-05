@@ -1,55 +1,101 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
+static GF_ISOFile* create_dummy_isofile() {
     // Since GF_ISOFile is an incomplete type, we cannot allocate it directly.
-    // Assuming there's a function in the actual library to create an ISOFile.
-    return gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    // Instead, we will assume the library provides a function to create an ISOFile.
+    // For example purposes, we will assume such a function is `gf_isom_open`.
+    // In real use, replace this with the actual function provided by the library.
+    GF_ISOFile *isofile = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    return isofile;
 }
 
-static GF_HEVCConfig* create_dummy_hevc_config() {
-    GF_HEVCConfig *config = malloc(sizeof(GF_HEVCConfig));
-    if (!config) return NULL;
-    memset(config, 0, sizeof(GF_HEVCConfig));
-    return config;
+static void cleanup_dummy_isofile(GF_ISOFile *isofile) {
+    if (isofile) {
+        // Assuming the library provides a function to close/free an ISOFile.
+        // Replace this with the actual function provided by the library.
+        gf_isom_close(isofile);
+    }
 }
 
 int LLVMFuzzerTestOneInput_94(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 3 + sizeof(Bool)) return 0;
+    GF_ISOFile *isofile = create_dummy_isofile();
+    if (!isofile) return 0;
 
-    GF_ISOFile *iso_file = create_dummy_iso_file();
-    if (!iso_file) return 0;
+    // Fuzz gf_isom_last_error
+    GF_Err err = gf_isom_last_error(isofile);
+    (void)err; // Suppress unused variable warning
 
-    GF_HEVCConfig *hevc_config = create_dummy_hevc_config();
-    if (!hevc_config) {
-        gf_isom_close(iso_file);
-        return 0;
+    // Fuzz gf_isom_reset_alt_brands
+    err = gf_isom_reset_alt_brands(isofile);
+    (void)err;
+
+    // Fuzz gf_isom_set_byte_offset
+    if (Size >= sizeof(s64)) {
+        s64 byte_offset = *(s64 *)Data;
+        err = gf_isom_set_byte_offset(isofile, byte_offset);
+        (void)err;
     }
 
-    u32 trackNumber = *((u32 *)Data);
-    u32 sampleDescriptionIndex = *((u32 *)(Data + sizeof(u32)));
-    u32 outDescriptionIndex = 0;
-    Bool is_base_track = *((Bool *)(Data + sizeof(u32) * 2));
+    // Fuzz gf_isom_freeze_order
+    err = gf_isom_freeze_order(isofile);
+    (void)err;
 
-    gf_isom_lhvc_config_update(iso_file, trackNumber, sampleDescriptionIndex, hevc_config, 0);
-    gf_isom_hevc_set_tile_config(iso_file, trackNumber, sampleDescriptionIndex, hevc_config, is_base_track);
-    GF_HEVCConfig *retrieved_config = gf_isom_hevc_config_get(iso_file, trackNumber, sampleDescriptionIndex);
-    if (retrieved_config) free(retrieved_config);
-    retrieved_config = gf_isom_lhvc_config_get(iso_file, trackNumber, sampleDescriptionIndex);
-    if (retrieved_config) free(retrieved_config);
-    gf_isom_hevc_config_new(iso_file, trackNumber, hevc_config, NULL, NULL, &outDescriptionIndex);
-    gf_isom_hevc_config_update(iso_file, trackNumber, sampleDescriptionIndex, hevc_config);
+    // Fuzz gf_isom_update_duration
+    err = gf_isom_update_duration(isofile);
+    (void)err;
 
-    free(hevc_config);
-    gf_isom_close(iso_file);
+    // Fuzz gf_isom_add_desc_to_root_od
+    if (Size >= sizeof(GF_Descriptor)) {
+        const GF_Descriptor *desc = (const GF_Descriptor *)Data;
+        err = gf_isom_add_desc_to_root_od(isofile, desc);
+        (void)err;
+    }
+
+    cleanup_dummy_isofile(isofile);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_94(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

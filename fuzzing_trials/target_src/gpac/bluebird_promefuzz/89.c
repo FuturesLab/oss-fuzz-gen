@@ -1,73 +1,83 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_ISOFile* initialize_iso_file(const char *filename) {
-    // Open the file in read/write mode, assuming a function for this exists.
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of gf_isom_open
-    GF_ISOFile *isom_file = gf_isom_open(filename, GF_ISOM_OPEN_EDIT, (const char *)"r");
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    return isom_file;
+static GF_ISOFile* create_dummy_isofile() {
+    // Assuming GPAC provides a function to create an ISO file structure.
+    // This is a placeholder for such a function.
+    GF_ISOFile* isofile = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    return isofile;
 }
 
-static void cleanup_iso_file(GF_ISOFile *isom_file) {
-    if (isom_file) {
-        gf_isom_close(isom_file);
+static void cleanup_isofile(GF_ISOFile* isofile) {
+    if (isofile) {
+        // Assuming GPAC provides a function to close and cleanup an ISO file structure.
+        gf_isom_close(isofile);
     }
 }
 
 int LLVMFuzzerTestOneInput_89(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 5) {
-        return 0;
-    }
+    if (Size < 1) return 0; // Not enough data to proceed
 
-    // Create a dummy file to simulate the ISO file
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (!dummy_file) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, dummy_file);
-    fclose(dummy_file);
+    GF_ISOFile* isofile = create_dummy_isofile();
+    if (!isofile) return 0;
 
-    GF_ISOFile *isom_file = initialize_iso_file("./dummy_file");
-    if (!isom_file) {
-        return 0;
-    }
+    // Use the first byte of data to decide on a boolean value
+    Bool mode = Data[0] % 2 == 0 ? GF_TRUE : GF_FALSE;
 
-    u32 trackNumber = *(u32 *)Data;
-    u32 ref_type = *((u32 *)Data + 1);
-    u32 group_id = *((u32 *)Data + 2);
-    u32 max_chunk_size = *((u32 *)Data + 3);
-    u32 new_media_type = *((u32 *)Data + 4);
+    // Fuzz the target functions
+    gf_isom_set_single_moof_mode(isofile, mode);
+    gf_isom_disable_odf_conversion(isofile, mode);
 
-    // Fuzz gf_isom_remove_track_from_root_od
-    gf_isom_remove_track_from_root_od(isom_file, trackNumber);
+    Bool needs_layer_reconstruction = gf_isom_needs_layer_reconstruction(isofile);
+    Bool has_movie = gf_isom_has_movie(isofile);
+    Bool is_inplace_rewrite = gf_isom_is_inplace_rewrite(isofile);
+    Bool is_single_av = gf_isom_is_single_av(isofile);
 
-    // Fuzz gf_isom_remove_track_reference
-    gf_isom_remove_track_reference(isom_file, trackNumber, ref_type);
+    // Cleanup
+    cleanup_isofile(isofile);
 
-    // Fuzz gf_isom_set_track_interleaving_group
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_set_track_interleaving_group with gf_isom_set_brand_info
-    gf_isom_set_brand_info(isom_file, trackNumber, group_id);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Fuzz gf_isom_set_alternate_group_id
-    gf_isom_set_alternate_group_id(isom_file, trackNumber, group_id);
-
-    // Fuzz gf_isom_hint_max_chunk_size
-    gf_isom_hint_max_chunk_size(isom_file, trackNumber, max_chunk_size);
-
-    // Fuzz gf_isom_set_media_type
-    gf_isom_set_media_type(isom_file, trackNumber, new_media_type);
-
-    cleanup_iso_file(isom_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_89(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

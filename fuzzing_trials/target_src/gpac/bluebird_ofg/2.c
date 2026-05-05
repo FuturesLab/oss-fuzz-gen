@@ -1,48 +1,65 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include "unistd.h"
-#include <fcntl.h>
 #include <stdlib.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    GF_ISOFile *file = NULL;
-    u32 track = 1;  // Initialize track with a non-zero value
+    // Initialize variables for function parameters
+    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (movie == NULL) {
+        return 0;
+    }
 
-    // Check if the size is sufficient to create a valid ISO file
-    if (size > 0) {
-        // Create a temporary file to store the input data
-        char tmpl[] = "/tmp/fuzzfileXXXXXX";
-        int fd = mkstemp(tmpl);
-        if (fd != -1) {
-            // Write data to the temporary file
-            write(fd, data, size);
-            close(fd);
+    // Ensure trakID, MediaType, and TimeScale are non-zero and within valid ranges
+    GF_ISOTrackID trakID = (GF_ISOTrackID)(size > 0 ? data[0] : 1); // Use first byte or default to 1
+    u32 MediaType = (u32)(size > 1 ? data[1] : GF_ISOM_MEDIA_VISUAL); // Use second byte or default to visual type
+    u32 TimeScale = (u32)(size > 2 ? data[2] : 90000); // Use third byte or default to 90000
 
-            // Open the file as an ISO file
-            file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
-            if (file != NULL) {
-                // Call the function-under-test
+    // Call the function-under-test
+    gf_isom_new_track(movie, trakID, MediaType, TimeScale);
 
-                // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_find_od_id_for_track with gf_isom_get_payt_count
-
-                // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_get_payt_count with gf_isom_find_od_id_for_track
-                gf_isom_find_od_id_for_track(file, track);
-                // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-                // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-                // Close the ISO file
-                gf_isom_close(file);
-            }
-
-            // Remove the temporary file
-            unlink(tmpl);
-        }   }
+    // Close the movie file
+    gf_isom_close(movie);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

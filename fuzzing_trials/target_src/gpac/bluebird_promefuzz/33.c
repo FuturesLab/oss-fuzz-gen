@@ -1,11 +1,19 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
+#define DUMMY_FILE_PATH "./dummy_file"
+
 static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
+    FILE *file = fopen(DUMMY_FILE_PATH, "wb");
     if (file) {
         fwrite(Data, 1, Size, file);
         fclose(file);
@@ -13,52 +21,95 @@ static void write_dummy_file(const uint8_t *Data, size_t Size) {
 }
 
 int LLVMFuzzerTestOneInput_33(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(u32) * 3) {
+        return 0;
+    }
+
     write_dummy_file(Data, Size);
 
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ_EDIT, NULL);
+    GF_ISOFile *isom_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_EDIT, NULL);
     if (!isom_file) {
         return 0;
     }
 
-    // Prepare additional parameters
-    u32 trackNumber = (Size > 0) ? Data[0] : 0;
-    u32 duration = (Size > 1) ? Data[1] : 0;
-    u32 ref_type = (Size > 2) ? Data[2] : 0;
-    u32 nb_segs = (Size > 3) ? Data[3] : 0;
-    u32 sampleDescriptionIndex = (Size > 4) ? Data[4] : 0;
-    s32 hSpacing = (Size > 5) ? Data[5] : 0;
-    s32 vSpacing = (Size > 6) ? Data[6] : 0;
-    Bool force_par = (Size > 7) ? Data[7] : 0;
-    s32 timeOffset = (Size > 8) ? Data[8] : 0;
+    u32 trackNumber = *(u32 *)Data;
+    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
+    u32 anotherValue = *(u32 *)(Data + sizeof(u32) * 2);
 
-    // Dummy variables for gf_isom_allocate_sidx
-    u32 *frags_per_segment = NULL;
-    u32 *start_range = NULL;
-    u32 *end_range = NULL;
-    s32 subsegs_per_sidx = 0;
-    Bool daisy_chain_sidx = 0;
-    Bool use_ssix = 0;
+    // Fuzz gf_isom_remove_track
+    gf_isom_remove_track(isom_file, trackNumber);
 
-    // Call the target functions
-    gf_isom_sdp_clean_track(isom_file, trackNumber);
+    // Fuzz gf_isom_evte_config_new
+    u32 outDescriptionIndex;
+    gf_isom_evte_config_new(isom_file, trackNumber, &outDescriptionIndex);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_set_last_sample_duration with gf_isom_remove_chapter
+    // Fuzz gf_isom_set_visual_info
+    gf_isom_set_visual_info(isom_file, trackNumber, sampleDescriptionIndex, anotherValue, anotherValue);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_remove_chapter with gf_isom_purge_samples
-    gf_isom_purge_samples(isom_file, trackNumber, duration);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Fuzz gf_isom_truehd_config_get
+    u32 format_info, peak_data_rate;
+    gf_isom_truehd_config_get(isom_file, trackNumber, sampleDescriptionIndex, &format_info, &peak_data_rate);
 
+    // Fuzz gf_isom_set_brand_info
 
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_truehd_config_get to gf_isom_get_sample_from_dts
+    u32 ret_gf_isom_get_next_alternate_group_id_ajmns = gf_isom_get_next_alternate_group_id(NULL);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!isom_file) {
+    	return 0;
+    }
+    u64 ret_gf_isom_get_first_mdat_start_vrkma = gf_isom_get_first_mdat_start(isom_file);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!isom_file) {
+    	return 0;
+    }
+    u32 ret_gf_isom_get_sample_from_dts_zohfb = gf_isom_get_sample_from_dts(isom_file, ret_gf_isom_get_next_alternate_group_id_ajmns, ret_gf_isom_get_first_mdat_start_vrkma);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    gf_isom_set_brand_info(isom_file, anotherValue, anotherValue);
 
+    // Fuzz gf_isom_purge_track_reference
+    gf_isom_purge_track_reference(isom_file, trackNumber);
 
-    gf_isom_remove_track_reference(isom_file, trackNumber, ref_type);
-    gf_isom_allocate_sidx(isom_file, subsegs_per_sidx, daisy_chain_sidx, nb_segs, frags_per_segment, start_range, end_range, use_ssix);
-    gf_isom_set_pixel_aspect_ratio(isom_file, trackNumber, sampleDescriptionIndex, hSpacing, vSpacing, force_par);
-    gf_isom_rtp_packet_set_offset(isom_file, trackNumber, timeOffset);
-
-    // Clean up
     gf_isom_close(isom_file);
-
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

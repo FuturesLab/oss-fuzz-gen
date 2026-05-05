@@ -1,95 +1,80 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include "unistd.h"  // Include for close() and unlink()
-#include <fcntl.h>   // Include for mkstemp()
+#include <string.h> // Include for strdup
 #include "/src/gpac/include/gpac/isomedia.h"
-#include "/src/gpac/include/gpac/constants.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    GF_ISOFile *file = NULL;
-    Bool root_meta = GF_FALSE;
-    u32 track_num = 1; // Initialize with a non-zero value
+    // Ensure the data is null-terminated before using it as a string
+    char *data_copy = (char *)malloc(size + 1);
+    if (!data_copy) {
+        return 0; // Exit if memory allocation fails
+    }
+    memcpy(data_copy, data, size);
+    data_copy[size] = '\0'; // Null-terminate the string
 
-    // Create a temporary file to simulate an ISO file
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
-        return 0;
+    // Declare and initialize variables
+    GF_ISOFile *movie = gf_isom_open(data_copy, GF_ISOM_OPEN_READ, NULL);
+    u32 trackNumber = 1; // Assuming track number 1 for testing
+    u32 duration = size > 0 ? (u32)(data[0]) : 1; // Use the first byte of data for duration or default to 1
+
+    // Check if movie is successfully opened
+    if (movie != NULL) {
+        // Call the function-under-test
+        gf_isom_set_last_sample_duration(movie, trackNumber, duration);
+
+        // Close the movie file
+        gf_isom_close(movie);
     }
 
-    // Write data to the temporary file
-    if (write(fd, data, size) != size) {
-        close(fd);
-        unlink(tmpl);
-        return 0;
-    }
-    close(fd);
-
-    // Open the ISO file using the temporary file path
-    file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
-    if (file == NULL) {
-        unlink(tmpl);
-        return 0;
-    }
-
-    // Fuzz the function-under-test
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_open to gf_isom_set_track_id
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_open to gf_isom_get_pl_indication
-
-    u8 ret_gf_isom_get_pl_indication_tvnaf = gf_isom_get_pl_indication(file, 0);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    u32 ret_gf_isom_get_next_alternate_group_id_bsphu = gf_isom_get_next_alternate_group_id(NULL);
-    u32 ret_gf_isom_guess_specification_pghxf = gf_isom_guess_specification(file);
-
-    GF_Err ret_gf_isom_set_track_id_qneyd = gf_isom_set_track_id(file, ret_gf_isom_get_next_alternate_group_id_bsphu, ret_gf_isom_guess_specification_pghxf);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    gf_isom_has_meta_xml(file, root_meta, track_num);
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_has_meta_xml to gf_isom_set_media_type
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_get_next_moof_number with gf_isom_get_pssh_count
-    u32 ret_gf_isom_get_next_moof_number_hnobj = gf_isom_get_pssh_count(file);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    u32 ret_gf_isom_guess_specification_cnshv = gf_isom_guess_specification(file);
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_guess_specification to gf_isom_estimate_size
-
-    u64 ret_gf_isom_estimate_size_zmomf = gf_isom_estimate_size(file);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of gf_isom_set_media_type
-    GF_Err ret_gf_isom_set_media_type_btvuh = gf_isom_set_media_type(file, ret_gf_isom_get_next_moof_number_hnobj, ret_gf_isom_get_next_moof_number_hnobj);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_close with gf_isom_reset_alt_brands
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_reset_alt_brands with gf_isom_update_duration
-    gf_isom_update_duration(file);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    unlink(tmpl);
+    free(data_copy); // Free the allocated memory
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_22(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

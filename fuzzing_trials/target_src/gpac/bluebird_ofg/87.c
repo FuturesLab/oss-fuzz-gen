@@ -1,74 +1,98 @@
+#include <string.h>
+#include <sys/stat.h>
+#include "/src/gpac/include/gpac/isomedia.h"
 #include <stdint.h>
 #include <stdlib.h>
-#include "unistd.h"  // Include for close() and unlink()
-#include <fcntl.h>   // Include for mkstemp()
-#include "/src/gpac/include/gpac/isomedia.h"
-#include "/src/gpac/include/gpac/constants.h"
+#include <unistd.h>
+#include <fcntl.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_87(const uint8_t *data, size_t size) {
-    GF_ISOFile *file = NULL;
-    Bool root_meta = GF_FALSE;
-    u32 track_num = 1; // Initialize with a non-zero value
-
-    // Create a temporary file to simulate an ISO file
+    // Create a temporary file to simulate the GF_ISOFile input
     char tmpl[] = "/tmp/fuzzfileXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
-    // Write data to the temporary file
+    // Write the input data to the temporary file
     if (write(fd, data, size) != size) {
         close(fd);
         unlink(tmpl);
         return 0;
     }
+
+    // Close the file descriptor
     close(fd);
 
-    // Open the ISO file using the temporary file path
-    file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
-    if (file == NULL) {
+    // Open the file as a GF_ISOFile
+    GF_ISOFile *file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
+    if (!file) {
         unlink(tmpl);
         return 0;
     }
 
-    // Fuzz the function-under-test
-    gf_isom_has_meta_xml(file, root_meta, track_num);
+    // Initialize parameters for the function call
+    Bool root_meta = GF_FALSE;
+    u32 track_num = 1;
+    u32 item_id = 1;
+    Bool is_protected;
+    u32 skip_byte_block;
+    u32 crypt_byte_block;
+    const u8 *key_info;
+    u32 key_info_size;
+    u32 aux_info_type_param;
+    u8 *cenc_sai_data;
+    u32 cenc_sai_data_size;
+    u32 cenc_sai_alloc_size;
+
+    // Call the function-under-test
+    gf_isom_extract_meta_item_get_cenc_info(file, root_meta, track_num, item_id, &is_protected,
+                                            &skip_byte_block, &crypt_byte_block, &key_info, &key_info_size,
+                                            &aux_info_type_param, &cenc_sai_data, &cenc_sai_data_size, &cenc_sai_alloc_size);
 
     // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_has_meta_xml to gf_isom_set_media_type
-    u32 ret_gf_isom_get_next_moof_number_hnobj = gf_isom_get_next_moof_number(file);
-    u32 ret_gf_isom_guess_specification_cnshv = gf_isom_guess_specification(file);
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_guess_specification to gf_isom_estimate_size
-
-    u64 ret_gf_isom_estimate_size_zmomf = gf_isom_estimate_size(file);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_set_media_type with gf_isom_set_track_interleaving_group
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_set_track_interleaving_group with gf_isom_hint_max_chunk_duration
-    GF_Err ret_gf_isom_set_media_type_btvuh = gf_isom_hint_max_chunk_duration(file, ret_gf_isom_get_next_moof_number_hnobj, ret_gf_isom_guess_specification_cnshv);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_close with gf_isom_reset_alt_brands
-    gf_isom_reset_alt_brands(file);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    gf_isom_close(file);
     unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_87(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

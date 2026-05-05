@@ -1,63 +1,101 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_get_audio_info at isom_read.c:3880:8 in isomedia.h
+// gf_isom_get_brand_info at isom_read.c:2631:8 in isomedia.h
+// gf_isom_set_nalu_extract_mode at isom_read.c:5481:8 in isomedia.h
+// gf_isom_get_nalu_extract_mode at isom_read.c:5499:23 in isomedia.h
+// gf_isom_set_track_reference at isom_write.c:4967:8 in isomedia.h
+// gf_isom_get_tmcd_config at sample_descs.c:1953:8 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_get_track_switch_parameter at isom_read.c:4831:12 in isomedia.h
-// gf_isom_get_generic_sample_description at isom_read.c:3714:30 in isomedia.h
-// gf_isom_get_media_subtype at isom_read.c:1644:5 in isomedia.h
-// gf_isom_get_track_original_id at isom_read.c:824:15 in isomedia.h
-// gf_isom_segment_get_fragment_count at isom_read.c:864:5 in isomedia.h
-// gf_isom_get_media_timescale at isom_read.c:1459:5 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    // Assuming GF_ISOFile is created through a specific function in gpac
-    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    return iso_file;
-}
-
-static void destroy_dummy_iso_file(GF_ISOFile *iso_file) {
-    if (iso_file) {
-        gf_isom_close(iso_file);
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_260(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 3) return 0;
-
-    GF_ISOFile *iso_file = create_dummy_iso_file();
-    if (!iso_file) return 0;
-
-    u32 trackNumber = *((u32 *)Data);
-    u32 group_index = *((u32 *)(Data + sizeof(u32)));
-    u32 sampleDescriptionIndex = *((u32 *)(Data + sizeof(u32) * 2));
-
-    u32 switchGroupID = 0;
-    u32 criteriaListSize = 0;
-
-    const u32 *criteriaList = gf_isom_get_track_switch_parameter(iso_file, trackNumber, group_index, &switchGroupID, &criteriaListSize);
-    if (criteriaList) {
-        // Process criteriaList if needed
+    // Ensure there's enough data for basic operations
+    if (Size < 4) {
+        return 0;
     }
 
-    GF_GenericSampleDescription *sampleDesc = gf_isom_get_generic_sample_description(iso_file, trackNumber, sampleDescriptionIndex);
-    if (sampleDesc) {
-        // Process sampleDesc if needed
-        free(sampleDesc);
+    // Create a dummy ISO file
+    write_dummy_file(Data, Size);
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+
+    if (!isom_file) {
+        return 0;
     }
 
-    u32 mediaSubtype = gf_isom_get_media_subtype(iso_file, trackNumber, sampleDescriptionIndex);
+    u32 trackNumber = Data[0];
+    u32 sampleDescriptionIndex = Data[1];
+    u32 SampleRate = 0, Channels = 0, bitsPerSample = 0;
+    gf_isom_get_audio_info(isom_file, trackNumber, sampleDescriptionIndex, &SampleRate, &Channels, &bitsPerSample);
 
-    GF_ISOTrackID originalTrackID = gf_isom_get_track_original_id(iso_file, trackNumber);
+    u32 brand = 0, minorVersion = 0, AlternateBrandsCount = 0;
+    gf_isom_get_brand_info(isom_file, &brand, &minorVersion, &AlternateBrandsCount);
 
-    u32 fragmentCount = gf_isom_segment_get_fragment_count(iso_file);
+    GF_ISONaluExtractMode nalu_extract_mode = Data[2];
+    gf_isom_set_nalu_extract_mode(isom_file, trackNumber, nalu_extract_mode);
 
-    u32 mediaTimescale = gf_isom_get_media_timescale(iso_file, trackNumber);
+    gf_isom_get_nalu_extract_mode(isom_file, trackNumber);
 
-    destroy_dummy_iso_file(iso_file);
+    u32 referenceType = Data[3];
+    GF_ISOTrackID ReferencedTrackID = trackNumber; // Use trackNumber as a dummy ID for reference
+    gf_isom_set_track_reference(isom_file, trackNumber, referenceType, ReferencedTrackID);
+
+    u32 tmcd_flags = 0, tmcd_fps_num = 0, tmcd_fps_den = 0, tmcd_fpt = 0;
+    gf_isom_get_tmcd_config(isom_file, trackNumber, sampleDescriptionIndex, &tmcd_flags, &tmcd_fps_num, &tmcd_fps_den, &tmcd_fpt);
+
+    gf_isom_close(isom_file);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_260(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

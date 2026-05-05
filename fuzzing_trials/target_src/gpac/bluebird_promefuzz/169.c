@@ -1,58 +1,89 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-// Since GF_ISOFile and GF_3GPConfig are opaque types, we cannot directly allocate them.
-// We assume there are functions to create and initialize these types provided by the library.
+#define DUMMY_FILE_PATH "./dummy_file"
 
-static GF_ISOFile* create_iso_file() {
-    // Placeholder for actual ISO file creation logic
-    return gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL); // Assuming this function exists
+static GF_ISOFile* create_dummy_iso_file() {
+    // Allocate a dummy ISO file structure
+    GF_ISOFile *iso_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_WRITE, NULL);
+    return iso_file;
 }
 
-static GF_3GPConfig* create_3gp_config() {
-    // Placeholder for actual 3GP config creation logic
-    GF_3GPConfig *config = (GF_3GPConfig *)malloc(sizeof(GF_3GPConfig));
-    if (config) {
-        memset(config, 0, sizeof(GF_3GPConfig));
+static void cleanup_iso_file(GF_ISOFile *iso_file) {
+    if (iso_file) {
+        gf_isom_close(iso_file);
     }
-    return config;
 }
 
 int LLVMFuzzerTestOneInput_169(const uint8_t *Data, size_t Size) {
-    // Prepare the environment
-    GF_ISOFile *iso_file = create_iso_file();
-    GF_3GPConfig *config = create_3gp_config();
-    u32 trackNumber = 1;
-    u32 sampleDescriptionIndex = 0;
-    u32 flags = 0;
-    u32 pcm_size = 0;
-    const char *URLname = NULL;
-    const char *URNname = NULL;
-    u32 outDescriptionIndex = 0;
-    u32 MediaType = 0;
-    u32 TimeScale = 0;
-    GF_ISOTrackID trackID = 0;
+    if (Size < sizeof(u32) * 7) return 0;
 
-    if (!iso_file || !config) {
-        if (iso_file) gf_isom_close(iso_file);
-        free(config);
-        return 0;
-    }
+    GF_ISOFile *iso_file = create_dummy_iso_file();
+    if (!iso_file) return 0;
 
-    // Call the target API functions with diverse inputs
-    gf_isom_3gp_config_new(iso_file, trackNumber, config, URLname, URNname, &outDescriptionIndex);
-    gf_isom_get_pcm_config(iso_file, trackNumber, sampleDescriptionIndex, &flags, &pcm_size);
-    gf_isom_get_media_subtype(iso_file, trackNumber, sampleDescriptionIndex);
-    gf_isom_3gp_config_update(iso_file, trackNumber, config, sampleDescriptionIndex);
-    gf_isom_3gp_config_get(iso_file, trackNumber, sampleDescriptionIndex);
-    gf_isom_new_track(iso_file, trackID, MediaType, TimeScale);
+    // Extract parameters from the input data
+    u32 trackNumber = *(u32 *)(Data);
+    u32 maxChunkDur = *(u32 *)(Data + 4);
+    u32 HintDescriptionIndex = *(u32 *)(Data + 8);
+    u32 TimeOffset = *(u32 *)(Data + 12);
+    u32 maxChunkSize = *(u32 *)(Data + 16);
+    u32 sampleDescriptionIndex = *(u32 *)(Data + 20);
+    u32 InversePriority = *(u32 *)(Data + 24);
 
-    // Cleanup
-    gf_isom_close(iso_file);
-    free(config);
+    // Placeholder for GF_3GPConfig, assuming it's a simple struct for now
+    GF_3GPConfig config;
 
+    // Call the target functions with extracted parameters
+    gf_isom_hint_max_chunk_duration(iso_file, trackNumber, maxChunkDur);
+    gf_isom_rtp_set_time_offset(iso_file, trackNumber, HintDescriptionIndex, TimeOffset);
+    gf_isom_hint_max_chunk_size(iso_file, trackNumber, maxChunkSize);
+    gf_isom_3gp_config_update(iso_file, trackNumber, &config, sampleDescriptionIndex);
+    gf_isom_rtp_set_timescale(iso_file, trackNumber, HintDescriptionIndex, TimeOffset);
+    gf_isom_set_track_priority_in_group(iso_file, trackNumber, InversePriority);
+
+    cleanup_iso_file(iso_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_169(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

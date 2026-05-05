@@ -1,96 +1,95 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_open at isom_read.c:527:13 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_get_raw_user_data at isom_write.c:4070:8 in isomedia.h
-// gf_isom_fragment_append_data at movie_fragments.c:3127:8 in isomedia.h
-// gf_isom_get_trex_template at isom_write.c:4274:8 in isomedia.h
-// gf_isom_add_uuid at isom_write.c:6258:8 in isomedia.h
-// gf_isom_set_track_stsd_templates at isom_write.c:835:8 in isomedia.h
-// gf_isom_update_sample_description_from_template at isom_write.c:8597:8 in isomedia.h
+// gf_isom_get_max_sample_cts_offset at isom_read.c:2070:5 in isomedia.h
+// gf_isom_get_track_by_id at isom_read.c:807:5 in isomedia.h
+// gf_isom_get_sample_description_count at isom_read.c:1373:5 in isomedia.h
+// gf_isom_get_chapter_count at isom_read.c:1526:5 in isomedia.h
+// gf_isom_get_sample_size at isom_read.c:2007:5 in isomedia.h
+// gf_isom_get_constant_sample_size at isom_read.c:1780:5 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    // GF_ISOFile is an incomplete type, so we cannot allocate it directly.
-    // Assume we have a function to create or mock a GF_ISOFile.
-    return gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+static GF_ISOFile* open_dummy_iso_file() {
+    // Create a dummy ISO file for testing purposes
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    return isom_file;
 }
 
-static void free_iso_file(GF_ISOFile *file) {
-    if (file) {
-        gf_isom_close(file);
+static void close_dummy_iso_file(GF_ISOFile *isom_file) {
+    if (isom_file) {
+        gf_isom_close(isom_file);
     }
-}
-
-static void fuzz_gf_isom_get_raw_user_data(GF_ISOFile *file) {
-    u8 *output = NULL;
-    u32 output_size = 0;
-    GF_Err err = gf_isom_get_raw_user_data(file, &output, &output_size);
-    if (err == GF_OK && output) {
-        free(output);
-    }
-}
-
-static void fuzz_gf_isom_fragment_append_data(GF_ISOFile *file, const uint8_t *Data, size_t Size) {
-    if (Size < 4) return; // Ensure there's enough data for TrackID and PaddingBits
-    GF_ISOTrackID TrackID = *(GF_ISOTrackID *)Data;
-    u8 PaddingBits = Data[Size - 1];
-    gf_isom_fragment_append_data(file, TrackID, (u8 *)Data, (u32)Size, PaddingBits);
-}
-
-static void fuzz_gf_isom_get_trex_template(GF_ISOFile *file, const uint8_t *Data, size_t Size) {
-    if (Size < 4) return; // Ensure there's enough data for trackNumber
-    u32 trackNumber = *(u32 *)Data;
-    u8 *output = NULL;
-    u32 output_size = 0;
-    GF_Err err = gf_isom_get_trex_template(file, trackNumber, &output, &output_size);
-    if (err == GF_OK && output) {
-        free(output);
-    }
-}
-
-static void fuzz_gf_isom_add_uuid(GF_ISOFile *file, const uint8_t *Data, size_t Size) {
-    if (Size < 16) return; // Ensure there's enough data for UUID
-    u32 trackNumber = *(u32 *)Data;
-    bin128 UUID;
-    memcpy(UUID, Data + 4, 16);
-    const u8 *data = (Size > 20) ? Data + 20 : NULL;
-    u32 size = (Size > 20) ? (u32)(Size - 20) : 0;
-    gf_isom_add_uuid(file, trackNumber, UUID, data, size);
-}
-
-static void fuzz_gf_isom_set_track_stsd_templates(GF_ISOFile *file, const uint8_t *Data, size_t Size) {
-    if (Size < 4) return; // Ensure there's enough data for trackNumber
-    u32 trackNumber = *(u32 *)Data;
-    u8 *stsd_data = (u8 *)(Data + 4);
-    u32 stsd_data_size = (u32)(Size - 4);
-    gf_isom_set_track_stsd_templates(file, trackNumber, stsd_data, stsd_data_size);
-}
-
-static void fuzz_gf_isom_update_sample_description_from_template(GF_ISOFile *file, const uint8_t *Data, size_t Size) {
-    if (Size < 8) return; // Ensure there's enough data for trackNumber and sampleDescriptionIndex
-    u32 trackNumber = *(u32 *)Data;
-    u32 sampleDescriptionIndex = *(u32 *)(Data + 4);
-    u8 *data = (u8 *)(Data + 8);
-    u32 size = (u32)(Size - 8);
-    gf_isom_update_sample_description_from_template(file, trackNumber, sampleDescriptionIndex, data, size);
 }
 
 int LLVMFuzzerTestOneInput_150(const uint8_t *Data, size_t Size) {
-    GF_ISOFile *file = create_dummy_iso_file();
-    if (!file) return 0;
+    GF_ISOFile *isom_file = open_dummy_iso_file();
+    if (!isom_file) return 0;
 
-    fuzz_gf_isom_get_raw_user_data(file);
-    fuzz_gf_isom_fragment_append_data(file, Data, Size);
-    fuzz_gf_isom_get_trex_template(file, Data, Size);
-    fuzz_gf_isom_add_uuid(file, Data, Size);
-    fuzz_gf_isom_set_track_stsd_templates(file, Data, Size);
-    fuzz_gf_isom_update_sample_description_from_template(file, Data, Size);
+    // Use a portion of the data to determine trackNumber and trackID
+    u32 trackNumber = (Size > 4) ? *((u32*)Data) : 1;
+    GF_ISOTrackID trackID = (Size > 8) ? *((u32*)(Data + 4)) : 1;
+    u32 sampleNumber = (Size > 12) ? *((u32*)(Data + 8)) : 1;
 
-    free_iso_file(file);
+    // Invoke the target functions with various inputs
+    u32 max_cts_offset = gf_isom_get_max_sample_cts_offset(isom_file, trackNumber);
+    u32 track_by_id = gf_isom_get_track_by_id(isom_file, trackID);
+    u32 sample_desc_count = gf_isom_get_sample_description_count(isom_file, trackNumber);
+    u32 chapter_count = gf_isom_get_chapter_count(isom_file, trackNumber);
+    u32 sample_size = gf_isom_get_sample_size(isom_file, trackNumber, sampleNumber);
+    u32 constant_sample_size = gf_isom_get_constant_sample_size(isom_file, trackNumber);
+
+    // Handle the return values, if necessary
+    (void)max_cts_offset;
+    (void)track_by_id;
+    (void)sample_desc_count;
+    (void)chapter_count;
+    (void)sample_size;
+    (void)constant_sample_size;
+
+    close_dummy_iso_file(isom_file);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_150(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

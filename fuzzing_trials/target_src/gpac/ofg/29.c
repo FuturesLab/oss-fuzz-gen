@@ -1,41 +1,88 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>     // For mkstemp, write, close
+#include <stdio.h>      // For remove
 #include <gpac/isomedia.h>
 
-// Define a macro for the GF_EXPORT attribute if it's not already defined
-#ifndef GF_EXPORT
-#define GF_EXPORT
-#endif
-
 int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
-    if (!movie) {
-        return 0;
+    GF_ISOFile *file = NULL;
+    Bool root_meta = 1; // Use True for root_meta
+    u32 track_num = 1;  // Initialize track number to 1
+    u32 item_id = 1;    // Initialize item ID to 1
+    u8 *out_data = NULL;
+    u32 out_size = 0;
+    u32 out_alloc_size = 0;
+    const char *out_mime = NULL;
+    Bool use_annex_b = 0; // Use False for use_annex_b
+
+    // Create a temporary file to simulate an ISO file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0; // If creating the temp file fails, exit
     }
 
-    // Ensure we have enough data for the trackNumber and StreamDescriptionIndex
-    if (size < sizeof(uint32_t) * 2) {
-        gf_isom_close(movie);
-        return 0;
+    // Write the fuzzing data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0; // If writing fails, exit
+    }
+    close(fd);
+
+    // Open the temporary file as an ISO file
+    file = gf_isom_open(tmpl, GF_ISOM_OPEN_READ, NULL);
+    if (file == NULL) {
+        return 0; // If opening the file fails, exit
     }
 
-    // Extract trackNumber and StreamDescriptionIndex from the data
-    uint32_t trackNumber = *((uint32_t *)data);
-    uint32_t StreamDescriptionIndex = *((uint32_t *)(data + sizeof(uint32_t)));
-
-    // Create a sample
-    GF_ISOSample sample;
-    sample.data = (uint8_t *)(data + sizeof(uint32_t) * 2);
-    sample.dataLength = size - sizeof(uint32_t) * 2;
-    sample.DTS = 0;
-    sample.CTS_Offset = 0;
-    sample.IsRAP = 1; // Random Access Point
-
-    // Call the function-under-test
-    gf_isom_add_sample(movie, trackNumber, StreamDescriptionIndex, &sample);
+    // Call the function under test
+    gf_isom_extract_meta_item_mem(file, root_meta, track_num, item_id, &out_data, &out_size, &out_alloc_size, &out_mime, use_annex_b);
 
     // Clean up
-    gf_isom_close(movie);
+    gf_isom_close(file);
+    if (out_data != NULL) {
+        free(out_data);
+    }
+    remove(tmpl); // Remove the temporary file
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_29(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

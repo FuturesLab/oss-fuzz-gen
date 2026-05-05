@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -5,64 +6,106 @@
 #include <stdio.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-#define DUMMY_FILE_PATH "./dummy_file"
+#define DUMMY_FILE "./dummy_file"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen(DUMMY_FILE_PATH, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+static GF_ISOFile* create_dummy_isofile() {
+    // Since GF_ISOFile is an incomplete type, we cannot allocate it directly
+    // Assuming a function exists to create an empty ISOFile
+    GF_ISOFile *file = gf_isom_open(DUMMY_FILE, GF_ISOM_OPEN_WRITE, NULL);
+    return file;
+}
+
+static void cleanup_isofile(GF_ISOFile *file) {
+    if (file) gf_isom_close(file);
 }
 
 int LLVMFuzzerTestOneInput_119(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 5 + sizeof(s32)) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Prepare the environment
-    GF_ISOFile *isom_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_WRITE, NULL);
+    GF_ISOFile *isom_file = create_dummy_isofile();
     if (!isom_file) return 0;
 
-    // Initialize parameters
-    u32 trackNumber = *((u32 *)Data);
-    u32 sampleNumber = *((u32 *)(Data + 4));
-    u32 grouping_type = *((u32 *)(Data + 8));
-    u32 sampleGroupDescriptionIndex = *((u32 *)(Data + 12));
-    u32 grouping_type_parameter = *((u32 *)(Data + 16));
-    s32 ID = *((s32 *)(Data + 20));
+    // Fuzzing gf_isom_setup_track_fragment_template
+    u32 track_id = Data[0];
+    u8 *boxes = (u8 *)Data;
+    u32 boxes_size = (Size > 1) ? Size - 1 : 0;
+    u8 force_traf_flags = Data[0] % 2;
+    gf_isom_setup_track_fragment_template(isom_file, track_id, boxes, boxes_size, force_traf_flags);
 
-    // Write dummy file
-    write_dummy_file(Data, Size);
+    // Fuzzing gf_isom_set_track_stsd_templates
+    u32 track_number = Data[0];
+    u8 *stsd_data = (u8 *)Data;
+    u32 stsd_data_size = (Size > 1) ? Size - 1 : 0;
+    gf_isom_set_track_stsd_templates(isom_file, track_number, stsd_data, stsd_data_size);
 
-    // Fuzz gf_isom_fragment_add_sample_references
-    s32 *refs = (s32 *)malloc(sizeof(s32) * Size);
-    if (refs) {
-        for (size_t i = 0; i < Size / sizeof(s32); i++) {
-            refs[i] = (s32)Data[i];
-        }
-        gf_isom_fragment_add_sample_references(isom_file, trackNumber, ID, Size / sizeof(s32), refs);
-        free(refs);
-    }
+    // Fuzzing gf_isom_append_sample_data
+    u32 append_track_number = Data[0];
+    u8 *append_data = (u8 *)Data;
+    u32 append_data_size = (Size > 1) ? Size - 1 : 0;
+    gf_isom_append_sample_data(isom_file, append_track_number, append_data, append_data_size);
 
-    // Fuzz gf_isom_add_sample_info
-    gf_isom_add_sample_info(isom_file, trackNumber, sampleNumber, grouping_type, sampleGroupDescriptionIndex, grouping_type_parameter);
+    // Fuzzing gf_isom_cenc_get_sample_aux_info
+    u32 sample_number = Data[0];
+    u32 sample_desc_index = Data[0];
+    u32 container_type = Data[0];
+    u8 *out_buffer = NULL;
+    u32 out_size = 0;
+    gf_isom_cenc_get_sample_aux_info(isom_file, track_number, sample_number, sample_desc_index, &container_type, &out_buffer, &out_size);
+    if (out_buffer) free(out_buffer);
 
-    // Fuzz gf_isom_get_reference_count
-    gf_isom_get_reference_count(isom_file, trackNumber, grouping_type);
+    // Fuzzing gf_isom_fragment_append_data
+    u8 *fragment_data = (u8 *)Data;
+    u32 fragment_data_size = (Size > 1) ? Size - 1 : 0;
+    u8 padding_bits = Data[0];
+    gf_isom_fragment_append_data(isom_file, track_id, fragment_data, fragment_data_size, padding_bits);
 
-    // Fuzz gf_isom_set_sample_references
-    gf_isom_set_sample_references(isom_file, trackNumber, sampleNumber, ID, Size / sizeof(s32), refs);
+    // Fuzzing gf_isom_fragment_set_sample_aux_info
+    u32 sample_number_in_frag = Data[0];
+    u32 aux_type = Data[0] + 1; // ensuring non-zero
+    u32 aux_info = Data[0];
+    u8 *aux_data = (u8 *)Data;
+    u32 aux_size = (Size > 1) ? Size - 1 : 0;
+    gf_isom_fragment_set_sample_aux_info(isom_file, track_id, sample_number_in_frag, aux_type, aux_info, aux_data, aux_size);
 
-    // Fuzz gf_isom_set_track_reference
-    gf_isom_set_track_reference(isom_file, trackNumber, grouping_type, trackNumber);
-
-    // Fuzz gf_isom_get_sample_flags
-    u32 is_leading, dependsOn, dependedOn, redundant;
-    gf_isom_get_sample_flags(isom_file, trackNumber, sampleNumber, &is_leading, &dependsOn, &dependedOn, &redundant);
-
-    // Cleanup
-    gf_isom_close(isom_file);
-
+    cleanup_isofile(isom_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_119(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

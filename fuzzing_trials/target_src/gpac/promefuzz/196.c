@@ -1,79 +1,96 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_add_meta_item_sample_ref at meta.c:1806:8 in isomedia.h
-// gf_isom_remove_meta_item at meta.c:1879:8 in isomedia.h
-// gf_isom_extract_meta_xml at meta.c:68:8 in isomedia.h
-// gf_isom_add_meta_item2 at meta.c:1792:8 in isomedia.h
-// gf_isom_extract_meta_item at meta.c:494:8 in isomedia.h
-// gf_isom_get_meta_item_info at meta.c:131:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_meta_item_has_ref at meta.c:2203:5 in isomedia.h
+// gf_isom_get_meta_item_count at meta.c:123:5 in isomedia.h
+// gf_isom_get_meta_item_by_id at meta.c:219:5 in isomedia.h
+// gf_isom_get_meta_primary_item_id at meta.c:600:5 in isomedia.h
+// gf_isom_meta_get_item_ref_id at meta.c:2226:5 in isomedia.h
+// gf_isom_meta_get_item_ref_count at meta.c:2185:5 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
 #include <string.h>
+#include <stdlib.h>
 #include <stdio.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static GF_ISOFile* create_dummy_iso_file() {
+    // Allocate memory for GF_ISOFile using a known size or specific function if available
+    GF_ISOFile* isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    return isom_file;
+}
+
+static void destroy_dummy_iso_file(GF_ISOFile* isom_file) {
+    if (isom_file) {
+        gf_isom_close(isom_file);
     }
 }
 
-static GF_ISOFile* create_dummy_isofile() {
-    // Since we cannot allocate an incomplete type, return NULL for now
-    return NULL;
-}
-
 int LLVMFuzzerTestOneInput_196(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < 20) return 0; // Ensure there's enough data for all parameters
 
-    GF_ISOFile *isom_file = create_dummy_isofile();
-    if (!isom_file) return 0;
+    GF_ISOFile* iso_file = create_dummy_iso_file();
+    if (!iso_file) return 0;
 
-    Bool root_meta = Data[0] % 2;
-    u32 track_num = 0;
-    const char *item_name = "item_name";
-    u32 item_id = 0;
-    u32 item_type = 'test';
-    const char *mime_type = "application/test";
-    const char *content_encoding = "utf-8";
-    GF_ImageItemProperties *image_props = NULL;
-    GF_ISOTrackID tk_id = 1;
-    u32 sample_num = 1;
+    // Extract parameters from input data
+    Bool root_meta = Data[0] % 2; // Convert to Bool (0 or 1)
+    u32 track_num = *((u32*)(Data + 1));
+    u32 to_id = *((u32*)(Data + 5));
+    u32 type = *((u32*)(Data + 9));
+    u32 item_ID = *((u32*)(Data + 13));
 
-    // Fuzz gf_isom_add_meta_item_sample_ref
-    gf_isom_add_meta_item_sample_ref(isom_file, root_meta, track_num, item_name, &item_id, item_type, mime_type, content_encoding, image_props, tk_id, sample_num);
+    // Call each function with extracted parameters
+    u32 ref_count = gf_isom_meta_item_has_ref(iso_file, root_meta, track_num, to_id, type);
+    u32 item_count = gf_isom_get_meta_item_count(iso_file, root_meta, track_num);
+    u32 item_index = gf_isom_get_meta_item_by_id(iso_file, root_meta, track_num, item_ID);
+    u32 primary_item_id = gf_isom_get_meta_primary_item_id(iso_file, root_meta, track_num);
+    u32 ref_id = gf_isom_meta_get_item_ref_id(iso_file, root_meta, track_num, to_id, type, 1);
+    u32 ref_item_count = gf_isom_meta_get_item_ref_count(iso_file, root_meta, track_num, to_id, type);
 
-    // Fuzz gf_isom_remove_meta_item
-    u32 item_num = 1;
-    Bool keep_refs = Data[0] % 2;
-    const char *keep_props = "test_props";
-    gf_isom_remove_meta_item(isom_file, root_meta, track_num, item_num, keep_refs, keep_props);
+    // Print the results (for debug purposes, can be removed in production)
+    printf("Ref Count: %u, Item Count: %u, Item Index: %u, Primary Item ID: %u, Ref ID: %u, Ref Item Count: %u\n",
+           ref_count, item_count, item_index, primary_item_id, ref_id, ref_item_count);
 
-    // Fuzz gf_isom_extract_meta_xml
-    char *outName = "./dummy_file";
-    Bool is_binary = Data[0] % 2;
-    gf_isom_extract_meta_xml(isom_file, root_meta, track_num, outName, &is_binary);
-
-    // Fuzz gf_isom_add_meta_item2
-    Bool self_reference = Data[0] % 2;
-    char *resource_path = "./dummy_file";
-    u32 io_item_id = 0;
-    const char *URL = "http://example.com";
-    const char *URN = "urn:example";
-    gf_isom_add_meta_item2(isom_file, root_meta, track_num, self_reference, resource_path, item_name, &io_item_id, item_type, mime_type, content_encoding, URL, URN, image_props);
-
-    // Fuzz gf_isom_extract_meta_item
-    const char *dump_file_name = "./dummy_file";
-    gf_isom_extract_meta_item(isom_file, root_meta, track_num, item_num, dump_file_name);
-
-    // Fuzz gf_isom_get_meta_item_info
-    u32 itemID, type, protection_scheme, protection_scheme_version;
-    Bool is_self_reference;
-    const char *item_name_out, *item_mime_type, *item_encoding, *item_url, *item_urn;
-    gf_isom_get_meta_item_info(isom_file, root_meta, track_num, item_num, &itemID, &type, &protection_scheme, &protection_scheme_version, &is_self_reference, &item_name_out, &item_mime_type, &item_encoding, &item_url, &item_urn);
-
-    // No need to free isom_file since it's NULL
+    destroy_dummy_iso_file(iso_file);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_196(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

@@ -1,12 +1,12 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
-// gf_isom_has_time_offset at isom_read.c:1868:5 in isomedia.h
-// gf_isom_get_max_sample_delta at isom_read.c:2043:5 in isomedia.h
-// gf_isom_guess_specification at isom_read.c:4276:5 in isomedia.h
-// gf_isom_get_track_group at isom_read.c:6437:5 in isomedia.h
-// gf_isom_new_track_from_template at isom_write.c:640:5 in isomedia.h
-// gf_isom_get_user_data_count at isom_read.c:2735:5 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_hint_sample_description_data at hint_track.c:539:8 in isomedia.h
+// gf_isom_set_last_sample_duration at isom_write.c:1419:8 in isomedia.h
+// gf_isom_hint_sample_data at hint_track.c:469:8 in isomedia.h
+// gf_isom_hint_direct_data at hint_track.c:441:8 in isomedia.h
+// gf_isom_set_visual_color_info at isom_write.c:1890:8 in isomedia.h
+// gf_isom_set_last_sample_duration_ex at isom_write.c:1431:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -14,50 +14,122 @@
 #include <stdio.h>
 #include "isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
+static GF_ISOFile *create_dummy_isofile() {
+    // Since GF_ISOFile is an opaque type, we cannot directly allocate it.
+    // Instead, we assume there's a function to create or initialize it.
+    GF_ISOFile *file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    return file;
+}
+
+static void cleanup_isofile(GF_ISOFile *file) {
     if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+        gf_isom_close(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_115(const uint8_t *Data, size_t Size) {
-    // Step 1: Prepare the environment
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+    if (Size < 1) return 0; // Ensure there is at least some data to work with
+
+    // Create a dummy ISO file
+    GF_ISOFile *isom_file = create_dummy_isofile();
     if (!isom_file) return 0;
 
-    // Prepare a dummy file if needed
-    write_dummy_file(Data, Size);
+    // Define variables for function parameters
+    u32 trackNumber = Data[0] % 256; // Example of extracting data
+    GF_ISOTrackID SourceTrackID = (Size > 1) ? Data[1] : 0;
+    u32 sampleDescriptionIndex = (Size > 2) ? Data[2] : 0;
+    u16 DataLength = (Size > 3) ? Data[3] : 0;
+    u32 offsetInDescription = (Size > 4) ? Data[4] : 0;
+    u8 AtBegin = (Size > 5) ? Data[5] : 0;
 
-    // Track number and other parameters
-    u32 trackNumber = 1;
-    u32 track_group_type = 0;
-    u32 MediaType = 0;
-    u32 TimeScale = 1000;
-    u8 *tk_box = (u8 *)Data;
-    u32 tk_box_size = (u32)Size;
-    Bool udta_only = 0;
-    bin128 UUID;
-    memcpy(UUID, Data, sizeof(bin128) < Size ? sizeof(bin128) : Size);
+    // Invoke gf_isom_hint_sample_description_data
+    gf_isom_hint_sample_description_data(isom_file, trackNumber, SourceTrackID, sampleDescriptionIndex, DataLength, offsetInDescription, AtBegin);
 
-    // Step 2: Invoke the target functions
-    u32 result1 = gf_isom_has_time_offset(isom_file, trackNumber);
-    u32 result2 = gf_isom_get_max_sample_delta(isom_file, trackNumber);
-    u32 result3 = gf_isom_guess_specification(isom_file);
-    u32 result4 = gf_isom_get_track_group(isom_file, trackNumber, track_group_type);
-    u32 result5 = gf_isom_new_track_from_template(isom_file, 0, MediaType, TimeScale, tk_box, tk_box_size, udta_only);
-    u32 result6 = gf_isom_get_user_data_count(isom_file, trackNumber, MediaType, UUID);
+    // Set last sample duration
+    u32 duration = (Size > 6) ? Data[6] : 0;
+    gf_isom_set_last_sample_duration(isom_file, trackNumber, duration);
 
-    // Step 3: Handle results and cleanup
-    (void)result1;
-    (void)result2;
-    (void)result3;
-    (void)result4;
-    (void)result5;
-    (void)result6;
+    // Hint sample data
+    u32 SampleNumber = (Size > 7) ? Data[7] : 0;
+    u32 offsetInSample = (Size > 8) ? Data[8] : 0;
+    u8 *extra_data = NULL;
+    if (Size > 10) {
+        extra_data = (u8 *)malloc(Data[9]);
+        if (extra_data) {
+            memcpy(extra_data, &Data[10], Data[9]);
+        }
+    }
+    gf_isom_hint_sample_data(isom_file, trackNumber, SourceTrackID, SampleNumber, DataLength, offsetInSample, extra_data, AtBegin);
+    if (extra_data) free(extra_data);
 
-    gf_isom_close(isom_file);
+    // Hint direct data
+    u8 data[14];
+    memcpy(data, Data, (Size < 14) ? Size : 14);
+    gf_isom_hint_direct_data(isom_file, trackNumber, data, (Size < 14) ? Size : 14, AtBegin);
 
+    // Set visual color info
+    u32 colour_type = (Size > 11) ? Data[11] : 0;
+    u16 colour_primaries = (Size > 12) ? Data[12] : 0;
+    u16 transfer_characteristics = (Size > 13) ? Data[13] : 0;
+    u16 matrix_coefficients = (Size > 14) ? Data[14] : 0;
+    Bool full_range_flag = (Size > 15) ? Data[15] : 0;
+    u8 *icc_data = NULL;
+    u32 icc_size = (Size > 16) ? Data[16] : 0;
+    if (icc_size > 0 && Size > 16 + icc_size) {
+        icc_data = (u8 *)malloc(icc_size);
+        if (icc_data) {
+            memcpy(icc_data, &Data[17], icc_size);
+        }
+    }
+    gf_isom_set_visual_color_info(isom_file, trackNumber, sampleDescriptionIndex, colour_type, colour_primaries, transfer_characteristics, matrix_coefficients, full_range_flag, icc_data, icc_size);
+    if (icc_data) free(icc_data);
+
+    // Set last sample duration ex
+    u32 dur_num = (Size > 17 + icc_size) ? Data[17 + icc_size] : 0;
+    u32 dur_den = (Size > 18 + icc_size) ? Data[18 + icc_size] : 0;
+    gf_isom_set_last_sample_duration_ex(isom_file, trackNumber, dur_num, dur_den);
+
+    // Cleanup
+    cleanup_isofile(isom_file);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_115(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

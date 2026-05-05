@@ -1,80 +1,100 @@
+#include <string.h>
+#include <sys/stat.h>
+#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <cstdlib> // for std::malloc and std::free
 
 extern "C" {
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitTransform();
-    if (!handle) {
+    if (size < 12) { // Ensure there's enough data for meaningful fuzzing
         return 0;
     }
 
+    // Initialize TurboJPEG handle
+    tjhandle handle = tjInitCompress();
+    if (handle == nullptr) {
+        return 0; // Failed to initialize, exit early
+    }
+
+    // Define YUV plane pointers
+    const unsigned char *yuvPlanes[3];
+    int planeSizes[3];
     unsigned char *jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
-    tjtransform transform;
-    transform.op = TJXOP_NONE; // No transform operation
-    transform.options = 0;
-    transform.r = {0, 0, 0, 0}; // No cropping
-    transform.customFilter = nullptr;
+    size_t jpegSize = 0;
 
-    int flags = 0; // No flags
+    // Set up YUV planes
+    yuvPlanes[0] = data; // Y plane
+    yuvPlanes[1] = data + size / 3; // U plane
+    yuvPlanes[2] = data + 2 * size / 3; // V plane
 
-    // Allocate memory for the destination buffer
-    unsigned char *dstBuf = nullptr;
-    unsigned long dstSize = 0;
+    // Set up plane sizes (assuming 4:2:0 subsampling for simplicity)
+    int width = 2; // Minimum width
+    int height = 2; // Minimum height
+    planeSizes[0] = width * height; // Y plane size
+    planeSizes[1] = width * height / 4; // U plane size
+    planeSizes[2] = width * height / 4; // V plane size
 
-    // Call the function-under-test
+    // Correct the TJBUFSIZE function call to use the correct number of arguments
+    jpegBuf = (unsigned char*)std::malloc(TJBUFSIZE(width, height));
+    if (jpegBuf == nullptr) {
+        tjDestroy(handle);
+        return 0;
+    }
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of tjTransform
-    int result = tjTransform(handle, data, (unsigned long)size, 1, &dstBuf, &dstSize, &transform, size);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    // Ensure tj3CompressFromYUVPlanes8 is called with valid parameters
+    if (tjCompressFromYUVPlanes(handle, yuvPlanes, width, planeSizes, height, TJSAMP_420, &jpegBuf, &jpegSize, 100, TJFLAG_FASTDCT) == -1) {
+        std::free(jpegBuf);
+        tjDestroy(handle);
+        return 0;
+    }
 
     // Clean up
-    if (dstBuf) {
-        tjFree(dstBuf);
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjTransform to tj3Decompress8
-    tjhandle ret_tj3Init_cycpy = tj3Init(TJ_ALPHAFIRST);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Init to tj3DecompressToYUVPlanes8
-    char* ret_tj3GetErrorStr_ociou = tj3GetErrorStr(ret_tj3Init_cycpy);
-    if (ret_tj3GetErrorStr_ociou == NULL){
-    	return 0;
-    }
-    unsigned char* ret_tjAlloc_sebiz = tjAlloc(TJXOPT_GRAY);
-    if (ret_tjAlloc_sebiz == NULL){
-    	return 0;
-    }
-    int ret_tjDestroy_dmwlx = tjDestroy(0);
-    if (ret_tjDestroy_dmwlx < 0){
-    	return 0;
-    }
-
-    int ret_tj3DecompressToYUVPlanes8_mpmkl = tj3DecompressToYUVPlanes8(ret_tj3Init_cycpy, (const unsigned char *)ret_tj3GetErrorStr_ociou, TJ_NUMCS, &ret_tjAlloc_sebiz, &ret_tjDestroy_dmwlx);
-    if (ret_tj3DecompressToYUVPlanes8_mpmkl < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    unsigned char* ret_tjAlloc_isirt = tjAlloc(TJXOPT_NOOUTPUT);
-    if (ret_tjAlloc_isirt == NULL){
-    	return 0;
-    }
-
-    int ret_tj3Decompress8_cwjxf = tj3Decompress8(ret_tj3Init_cycpy, ret_tjAlloc_isirt, 0, NULL, TJFLAG_PROGRESSIVE, (int )dstSize);
-    if (ret_tj3Decompress8_cwjxf < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    std::free(jpegBuf);
     tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

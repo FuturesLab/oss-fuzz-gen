@@ -1,99 +1,96 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+#define DUMMY_ISO_FILE_SIZE 1024
+
+static GF_ISOFile* create_dummy_iso_file() {
+    // Allocate a dummy buffer to simulate the ISO file
+    GF_ISOFile *iso_file = (GF_ISOFile *)malloc(DUMMY_ISO_FILE_SIZE);
+    if (!iso_file) return NULL;
+    memset(iso_file, 0, DUMMY_ISO_FILE_SIZE);
+    return iso_file;
+}
+
+static void destroy_dummy_iso_file(GF_ISOFile *iso_file) {
+    if (iso_file) {
+        free(iso_file);
     }
 }
 
 int LLVMFuzzerTestOneInput_134(const uint8_t *Data, size_t Size) {
-    if (Size < 28) {
-        return 0;
-    } // Ensure enough data for initial parameters
+    if (Size < sizeof(u32) * 5) return 0;
 
-    write_dummy_file(Data, Size);
+    GF_ISOFile *iso_file = create_dummy_iso_file();
+    if (!iso_file) return 0;
 
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ_EDIT, NULL);
-    if (!isom_file) {
-        return 0;
-    }
+    // Fuzz gf_isom_guess_specification
+    gf_isom_guess_specification(iso_file);
 
+    // Fuzz gf_isom_has_track_reference
     u32 trackNumber = *(u32 *)Data;
-    u32 UserDataType = *(u32 *)(Data + 4);
-    bin128 UUID;
-    memcpy(UUID, Data + 8, 16);
-    u32 UserDataIndex = *(u32 *)(Data + 24);
+    u32 referenceType = *(u32 *)(Data + sizeof(u32));
+    GF_ISOTrackID refTrackID = *(GF_ISOTrackID *)(Data + 2 * sizeof(u32));
+    gf_isom_has_track_reference(iso_file, trackNumber, referenceType, refTrackID);
 
-    // Fuzz gf_isom_remove_user_data_item
-    gf_isom_remove_user_data_item(isom_file, trackNumber, UserDataType, UUID, UserDataIndex);
+    // Fuzz gf_isom_get_generic_sample_description
+    u32 sampleDescriptionIndex = *(u32 *)(Data + 3 * sizeof(u32));
+    gf_isom_get_generic_sample_description(iso_file, trackNumber, sampleDescriptionIndex);
 
-    // Prepare data for gf_isom_append_sample_data
-    if (Size > 28) {
-        u8 *sample_data = (u8 *)(Data + 28);
-        u32 sample_data_size = (u32)(Size - 28);
+    // Fuzz gf_isom_get_mpeg4_subtype
+    gf_isom_get_mpeg4_subtype(iso_file, trackNumber, sampleDescriptionIndex);
 
-        // Fuzz gf_isom_append_sample_data
-        gf_isom_append_sample_data(isom_file, trackNumber, sample_data, sample_data_size);
-    }
+    // Fuzz gf_isom_get_edits_count
+    gf_isom_get_edits_count(iso_file, trackNumber);
 
-    // Prepare data for gf_isom_setup_track_fragment_template
-    if (Size > 32) {
-        u8 *boxes = (u8 *)(Data + 32);
-        u32 boxes_size = (u32)(Size - 32);
-        u8 force_traf_flags = Data[Size - 1];
+    // Fuzz gf_isom_enum_track_references
+    u32 idx = *(u32 *)(Data + 4 * sizeof(u32));
+    u32 referenceTypeOut, referenceCountOut;
+    gf_isom_enum_track_references(iso_file, trackNumber, idx, &referenceTypeOut, &referenceCountOut);
 
-        // Fuzz gf_isom_setup_track_fragment_template
-        gf_isom_setup_track_fragment_template(isom_file, trackNumber, boxes, boxes_size, force_traf_flags);
-    }
-
-    // Prepare data for gf_isom_cenc_get_sample_aux_info
-    u32 sampleNumber = UserDataType;
-    u32 sampleDescIndex = UserDataIndex;
-    u32 container_type = 0;
-    u8 *out_buffer = NULL;
-    u32 outSize = 0;
-
-    // Fuzz gf_isom_cenc_get_sample_aux_info
-    gf_isom_cenc_get_sample_aux_info(isom_file, trackNumber, sampleNumber, sampleDescIndex, &container_type, &out_buffer, &outSize);
-
-    // Prepare data for gf_isom_set_track_stsd_templates
-    if (Size > 36) {
-        u8 *stsd_data = (u8 *)(Data + 36);
-        u32 stsd_data_size = (u32)(Size - 36);
-
-        // Fuzz gf_isom_set_track_stsd_templates
-        gf_isom_set_track_stsd_templates(isom_file, trackNumber, stsd_data, stsd_data_size);
-    }
-
-    // Prepare data for gf_isom_rtp_packet_set_flags
-    if (Size > 41) {
-        u8 PackingBit = Data[37];
-        u8 eXtensionBit = Data[38];
-        u8 MarkerBit = Data[39];
-        u8 disposable_packet = Data[40];
-        u8 IsRepeatedPacket = Data[41];
-
-        // Fuzz gf_isom_rtp_packet_set_flags
-        gf_isom_rtp_packet_set_flags(isom_file, trackNumber, PackingBit, eXtensionBit, MarkerBit, disposable_packet, IsRepeatedPacket);
-    }
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function gf_isom_close with gf_isom_reset_switch_parameters
-    gf_isom_reset_switch_parameters(isom_file);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    free(out_buffer);
-
+    destroy_dummy_iso_file(iso_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_134(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

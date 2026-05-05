@@ -1,80 +1,95 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" {
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0; // Not enough data to be a valid JPEG
+    if (size < sizeof(int)) {
+        return 0; // Ensure there is enough data to extract an integer
     }
 
-    tjhandle handle = tjInitDecompress();
-    if (handle == NULL) {
-        return 0; // Initialization failed
-    }
+    // Extract an integer from the data
+    int initOption = *(reinterpret_cast<const int*>(data));
 
-    int width, height, jpegSubsamp, jpegColorspace;
-    // Cast away constness for the tjDecompressHeader2 function call
-    if (tjDecompressHeader2(handle, const_cast<unsigned char*>(data), size, &width, &height, &jpegSubsamp) == 0) {
-        // Allocate buffer for decompressed image
-        unsigned char *buffer = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]);
-        if (buffer != NULL) {
-            // Attempt to decompress the image
-            tjDecompress2(handle, const_cast<unsigned char*>(data), size, buffer, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT);
-            free(buffer);
-        }
+    // Call the function-under-test
+    tjhandle handle = tj3Init(initOption);
+
+    // Clean up if initialization was successful
+    if (handle != nullptr) {
+        tj3Destroy(handle);
     }
 
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjDecompressHeader2 to tjCompressFromYUVPlanes
-    tjhandle ret_tj3Init_drcyg = tj3Init(TJXOPT_OPTIMIZE);
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tj3Alloc
-    void* ret_tj3Alloc_jiszz = tj3Alloc(TJ_NUMXOP);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_tj3Alloc_jiszz == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Init to tjTransform
+    unsigned char* ret_tjAlloc_pxejy = tjAlloc(TJXOPT_GRAY);
+    if (ret_tjAlloc_pxejy == NULL){
     	return 0;
     }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Alloc to tj3GetICCProfile
-    size_t pqopefay = 1;
-
-    int ret_tj3GetICCProfile_jyjvu = tj3GetICCProfile(handle, (unsigned char **)&ret_tj3Alloc_jiszz, &pqopefay);
-    if (ret_tj3GetICCProfile_jyjvu < 0){
+    unsigned char* ret_tjAlloc_zviah = tjAlloc(size);
+    if (ret_tjAlloc_zviah == NULL){
     	return 0;
     }
-
+    unsigned long gpcswetq = -1;
+    tjtransform jkvcvtsg;
+    memset(&jkvcvtsg, 0, sizeof(jkvcvtsg));
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_tjAlloc_pxejy) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_tjAlloc_zviah) {
+    	return 0;
+    }
+    int ret_tjTransform_mxooa = tjTransform(handle, ret_tjAlloc_pxejy, TJFLAG_BOTTOMUP, TJ_NUMERR, &ret_tjAlloc_zviah, &gpcswetq, &jkvcvtsg, TJFLAG_NOREALLOC);
+    if (ret_tjTransform_mxooa < 0){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
-
-    unsigned char* ret_tjAlloc_wkyvj = tjAlloc(TJ_NUMERR);
-    if (ret_tjAlloc_wkyvj == NULL){
-    	return 0;
-    }
-    int yerxdsop = 64;
-    tjscalingfactor* ret_tjGetScalingFactors_pkyfj = tjGetScalingFactors(&yerxdsop);
-    if (ret_tjGetScalingFactors_pkyfj == NULL){
-    	return 0;
-    }
-    int oogmukuk = -1;
-    tjscalingfactor* ret_tjGetScalingFactors_jkhnx = tjGetScalingFactors(&oogmukuk);
-    if (ret_tjGetScalingFactors_jkhnx == NULL){
-    	return 0;
-    }
-    const int oszmkoil = size;
-
-    int ret_tjCompressFromYUVPlanes_eaesf = tjCompressFromYUVPlanes(ret_tj3Init_drcyg, (const unsigned char **)&ret_tj3Alloc_jiszz, width, &oszmkoil, TJXOPT_GRAY, 1, &ret_tjAlloc_wkyvj, (unsigned long *)&yerxdsop, oogmukuk, 64);
-    if (ret_tjCompressFromYUVPlanes_eaesf < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    tjDestroy(handle);
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_39(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

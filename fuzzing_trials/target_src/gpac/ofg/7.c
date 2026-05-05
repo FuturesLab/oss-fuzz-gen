@@ -3,31 +3,61 @@
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    GF_ISOFile *file = NULL;
-    GF_ISOCompressMode compress_mode;
-    u32 compress_flags;
-
-    // Ensure size is sufficient for our needs
-    if (size < sizeof(GF_ISOCompressMode) + sizeof(u32)) {
+    // Initialize variables for function parameters
+    GF_ISOFile *movie = gf_isom_open("temp.mp4", GF_ISOM_OPEN_WRITE, NULL);
+    if (movie == NULL) {
         return 0;
     }
 
-    // Initialize the file (for the purpose of this example, we assume it's non-NULL)
-    // In a real-world scenario, you would need to create or open an actual GF_ISOFile.
-    // Here we just assume the file pointer is valid for fuzzing purposes.
-    file = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL); // Opening a dummy file
-
-    // Extract compress_mode and compress_flags from the input data
-    compress_mode = *((GF_ISOCompressMode *)data);
-    compress_flags = *((u32 *)(data + sizeof(GF_ISOCompressMode)));
+    // Ensure trakID, MediaType, and TimeScale are non-zero and within valid ranges
+    GF_ISOTrackID trakID = (GF_ISOTrackID)(size > 0 ? data[0] : 1); // Use first byte or default to 1
+    u32 MediaType = (u32)(size > 1 ? data[1] : GF_ISOM_MEDIA_VISUAL); // Use second byte or default to visual type
+    u32 TimeScale = (u32)(size > 2 ? data[2] : 90000); // Use third byte or default to 90000
 
     // Call the function-under-test
-    gf_isom_enable_compression(file, compress_mode, compress_flags);
+    gf_isom_new_track(movie, trakID, MediaType, TimeScale);
 
-    // Clean up
-    if (file != NULL) {
-        gf_isom_close(file);
-    }
+    // Close the movie file
+    gf_isom_close(movie);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

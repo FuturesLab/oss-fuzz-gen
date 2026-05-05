@@ -1,12 +1,12 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
 // gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_get_track_id at isom_read.c:796:15 in isomedia.h
+// gf_isom_get_track_flags at isom_read.c:1064:5 in isomedia.h
+// gf_isom_set_default_sync_track at isom_read.c:4209:6 in isomedia.h
+// gf_isom_get_brands at isom_read.c:2657:12 in isomedia.h
+// gf_isom_avs3v_config_get at avc_ext.c:2640:17 in isomedia.h
+// gf_isom_get_constant_sample_duration at isom_read.c:1789:5 in isomedia.h
 // gf_isom_close at isom_read.c:629:8 in isomedia.h
-// gf_isom_segment_get_track_fragment_decode_time at isom_read.c:908:5 in isomedia.h
-// gf_isom_get_sample_description_index at isom_read.c:1358:5 in isomedia.h
-// gf_isom_get_track_duration at isom_read.c:1076:5 in isomedia.h
-// gf_isom_get_sample_dts at isom_read.c:2141:5 in isomedia.h
-// gf_isom_get_sample_from_dts at isom_read.c:2168:5 in isomedia.h
-// gf_isom_get_media_data_size at isom_read.c:4131:5 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -14,59 +14,92 @@
 #include <stdio.h>
 #include "isomedia.h"
 
-static GF_ISOFile* initialize_iso_file(const uint8_t *Data, size_t Size) {
-    // Open the dummy file to simulate the ISO file
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return NULL;
-
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    // Open the file using the gpac API
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    return isom_file;
-}
-
-static void cleanup_iso_file(GF_ISOFile *isom_file) {
-    if (isom_file) {
-        gf_isom_close(isom_file);
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_21(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 3) return 0; // Ensure we have enough data
+    if (Size < sizeof(u32)) return 0;
 
-    GF_ISOFile *isom_file = initialize_iso_file(Data, Size);
+    // Write the input data to a dummy file
+    write_dummy_file(Data, Size);
+
+    // Initialize a dummy GF_ISOFile object
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
+
     if (!isom_file) return 0;
 
-    u32 moof_index = *(u32 *)Data;
-    u32 traf_index = *((u32 *)Data + 1);
-    u32 trackNumber = *((u32 *)Data + 2);
-    u64 decode_time = 0;
+    // Extract a track number from the input data
+    u32 trackNumber = *(u32 *)Data;
 
-    // Fuzz gf_isom_segment_get_track_fragment_decode_time
-    u32 track_id = gf_isom_segment_get_track_fragment_decode_time(isom_file, moof_index, traf_index, &decode_time);
+    // Call gf_isom_get_track_id
+    GF_ISOTrackID trackID = gf_isom_get_track_id(isom_file, trackNumber);
 
-    // Fuzz gf_isom_get_sample_description_index
-    u64 for_time = (Size > sizeof(u32) * 3) ? *((u64 *)(Data + sizeof(u32) * 3)) : 0;
-    u32 sample_desc_index = gf_isom_get_sample_description_index(isom_file, trackNumber, for_time);
+    // Call gf_isom_get_track_flags
+    u32 trackFlags = gf_isom_get_track_flags(isom_file, trackNumber);
 
-    // Fuzz gf_isom_get_track_duration
-    u64 track_duration = gf_isom_get_track_duration(isom_file, trackNumber);
+    // Call gf_isom_set_default_sync_track
+    gf_isom_set_default_sync_track(isom_file, trackNumber);
 
-    // Fuzz gf_isom_get_sample_dts
-    u32 sampleNumber = (Size > sizeof(u32) * 4) ? *((u32 *)(Data + sizeof(u32) * 4)) : 1;
-    u64 sample_dts = gf_isom_get_sample_dts(isom_file, trackNumber, sampleNumber);
+    // Call gf_isom_get_brands
+    const u32 *brands = gf_isom_get_brands(isom_file);
 
-    // Fuzz gf_isom_get_sample_from_dts
-    u64 dts = (Size > sizeof(u32) * 5) ? *((u64 *)(Data + sizeof(u32) * 5)) : 0;
-    u32 sample_from_dts = gf_isom_get_sample_from_dts(isom_file, trackNumber, dts);
+    // Call gf_isom_avs3v_config_get
+    GF_AVS3VConfig *avs3Config = gf_isom_avs3v_config_get(isom_file, trackNumber, 0);
+    if (avs3Config) {
+        // Free the AVS3 configuration if it was successfully retrieved
+        free(avs3Config);
+    }
 
-    // Fuzz gf_isom_get_media_data_size
-    u64 media_data_size = gf_isom_get_media_data_size(isom_file, trackNumber);
+    // Call gf_isom_get_constant_sample_duration
+    u32 sampleDuration = gf_isom_get_constant_sample_duration(isom_file, trackNumber);
 
-    // Clean up
-    cleanup_iso_file(isom_file);
+    // Close the ISO file
+    gf_isom_close(isom_file);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_21(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

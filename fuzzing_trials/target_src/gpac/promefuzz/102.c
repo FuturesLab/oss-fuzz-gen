@@ -1,10 +1,12 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_text_add_karaoke at tx3g.c:335:8 in isomedia.h
-// gf_isom_text_reset_styles at tx3g.c:612:8 in isomedia.h
-// gf_isom_text_sample_write_bs at tx3g.c:440:8 in isomedia.h
-// gf_isom_text_set_wrap at tx3g.c:411:8 in isomedia.h
-// gf_isom_text_set_forced at tx3g.c:423:8 in isomedia.h
-// gf_isom_text_reset at tx3g.c:636:8 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
+// gf_isom_remove_track at isom_write.c:2942:8 in isomedia.h
+// gf_isom_dump_hint_sample at box_dump.c:3460:8 in isomedia.h
+// gf_isom_update_bitrate at sample_descs.c:1776:8 in isomedia.h
+// gf_isom_dump_ismacryp_protection at box_dump.c:4563:8 in isomedia.h
+// gf_isom_get_sample_references at isom_read.c:6727:8 in isomedia.h
+// gf_isom_dump_ismacryp_sample at box_dump.c:4598:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -12,105 +14,105 @@
 #include <stdio.h>
 #include "isomedia.h"
 
-// Forward declare the structures since their definitions are not provided
-typedef struct GF_TextStyleBox GF_TextStyleBox;
-typedef struct GF_TextHighlightColorBox GF_TextHighlightColorBox;
-typedef struct GF_TextScrollDelayBox GF_TextScrollDelayBox;
-typedef struct GF_TextBoxBox GF_TextBoxBox;
-typedef struct GF_TextWrapBox GF_TextWrapBox;
-typedef struct GF_TextKaraokeBox GF_TextKaraokeBox;
-typedef struct _tag_array GF_List;
+static GF_ISOFile* open_dummy_iso_file() {
+    // Use a temporary directory for the gf_isom_open function
+    return gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, "/tmp");
+}
 
-// Define the complete structure for GF_TextSample as per the library's internal implementation
-typedef struct _3gpp_text_sample {
-    char *text;
-    u32 len;
-    GF_TextStyleBox *styles;
-    GF_TextHighlightColorBox *highlight_color;
-    GF_TextScrollDelayBox *scroll_delay;
-    GF_TextBoxBox *box;
-    GF_TextWrapBox *wrap;
-    Bool is_forced;
-    GF_List *others;
-    GF_TextKaraokeBox *cur_karaoke;
-} GF_TextSample;
-
-static GF_TextSample* create_text_sample(const uint8_t *Data, size_t Size) {
-    GF_TextSample *sample = (GF_TextSample *)malloc(sizeof(GF_TextSample));
-    if (!sample) return NULL;
-
-    sample->text = (char *)malloc(Size + 1);
-    if (!sample->text) {
-        free(sample);
-        return NULL;
+static void close_dummy_iso_file(GF_ISOFile *iso_file) {
+    if (iso_file) {
+        gf_isom_close(iso_file);
     }
-    memcpy(sample->text, Data, Size);
-    sample->text[Size] = '\0';
-    sample->len = Size;
-
-    sample->styles = NULL;
-    sample->highlight_color = NULL;
-    sample->scroll_delay = NULL;
-    sample->box = NULL;
-    sample->wrap = NULL;
-    sample->is_forced = 0;
-    sample->others = NULL;
-    sample->cur_karaoke = NULL;
-
-    return sample;
-}
-
-static GF_BitStream* create_bitstream() {
-    GF_BitStream *bs = gf_bs_new(NULL, 0, GF_BITSTREAM_WRITE);
-    return bs;
-}
-
-static void cleanup_text_sample(GF_TextSample *sample) {
-    if (!sample) return;
-    if (sample->text) free(sample->text);
-    free(sample);
-}
-
-static void cleanup_bitstream(GF_BitStream *bs) {
-    if (!bs) return;
-    gf_bs_del(bs);
 }
 
 int LLVMFuzzerTestOneInput_102(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size < 4) return 0;
 
-    GF_TextSample *sample = create_text_sample(Data, Size);
-    if (!sample) return 0;
+    // Prepare dummy ISO file
+    GF_ISOFile *iso_file = open_dummy_iso_file();
+    if (!iso_file) return 0;
 
-    GF_BitStream *bs = create_bitstream();
-    if (!bs) {
-        cleanup_text_sample(sample);
+    // Prepare dummy file for trace
+    FILE *trace_file = fopen("./dummy_file", "w+");
+    if (!trace_file) {
+        close_dummy_iso_file(iso_file);
         return 0;
     }
 
-    // Fuzzing gf_isom_text_reset_styles
-    gf_isom_text_reset_styles(sample);
+    // Extract parameters from input data
+    u32 trackNumber = Data[0];
+    u32 sampleNumber = Data[1];
+    u32 sampleDescriptionIndex = Data[2];
+    u32 average_bitrate = Data[3];
+    u32 max_bitrate = (Size > 4) ? Data[4] : 0;
+    u32 decode_buffer_size = (Size > 5) ? Data[5] : 0;
 
-    // Fuzzing gf_isom_text_sample_write_bs
-    gf_isom_text_sample_write_bs(sample, bs);
+    // Prepare for gf_isom_get_sample_references
+    u32 refID = 0;
+    u32 nb_refs = 0;
+    const u32 *refs = NULL;
 
-    // Fuzzing gf_isom_text_set_wrap
-    gf_isom_text_set_wrap(sample, Data[0] % 2);
+    // Fuzz gf_isom_remove_track
+    gf_isom_remove_track(iso_file, trackNumber);
 
-    // Fuzzing gf_isom_text_set_forced
-    gf_isom_text_set_forced(sample, Data[0] % 2);
+    // Fuzz gf_isom_dump_hint_sample
+    gf_isom_dump_hint_sample(iso_file, trackNumber, sampleNumber, trace_file);
 
-    // Fuzzing gf_isom_text_reset
-    gf_isom_text_reset(sample);
+    // Fuzz gf_isom_update_bitrate
+    gf_isom_update_bitrate(iso_file, trackNumber, sampleDescriptionIndex, average_bitrate, max_bitrate, decode_buffer_size);
 
-    // Fuzzing gf_isom_text_add_karaoke
-    if (Size >= 4) {
-        uint32_t start_time = *(uint32_t *)Data;
-        gf_isom_text_add_karaoke(sample, start_time);
-    }
+    // Fuzz gf_isom_dump_ismacryp_protection
+    gf_isom_dump_ismacryp_protection(iso_file, trackNumber, trace_file);
 
-    cleanup_text_sample(sample);
-    cleanup_bitstream(bs);
+    // Fuzz gf_isom_get_sample_references
+    gf_isom_get_sample_references(iso_file, trackNumber, sampleNumber, &refID, &nb_refs, &refs);
+
+    // Fuzz gf_isom_dump_ismacryp_sample
+    gf_isom_dump_ismacryp_sample(iso_file, trackNumber, sampleNumber, trace_file);
+
+    // Cleanup
+    fclose(trace_file);
+    close_dummy_iso_file(iso_file);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_102(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

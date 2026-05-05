@@ -1,64 +1,83 @@
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_53(const uint8_t *data, size_t size) {
-    // Initialize tjhandle
-    tjhandle handle = tj3Init(TJINIT_COMPRESS);
-    if (handle == nullptr) {
-        return 0; // If initialization fails, exit early
-    }
-
-    // Define YUV planes
-    const unsigned char *yuvPlanes[3];
-    int width = 16; // Example width
-    int height = 8; // Example height
-    int strides[3] = {width, width / 2, width / 2}; // Strides for Y, U, and V planes
-    size_t compressedSize = 0;
-    unsigned char *compressedBuffer = nullptr;
-
-    // Ensure the size is sufficient for the YUV data
-    if (size < width * height * 3 / 2) {
-        tj3Destroy(handle);
+    tjhandle handle = tj3Init(TJINIT_DECOMPRESS);
+    if (!handle) {
         return 0;
     }
 
-    // Assign data to YUV planes
-    yuvPlanes[0] = data; // Y plane
-    yuvPlanes[1] = data + width * height; // U plane
-    yuvPlanes[2] = data + width * height * 5 / 4; // V plane
-
-    // Allocate memory for compressed buffer
-    size_t bufSize = tjBufSize(width, height, TJSAMP_420);
-    compressedBuffer = (unsigned char*)malloc(bufSize);
-    if (compressedBuffer == nullptr) {
-        tj3Destroy(handle);
-        return 0;
+    // Allocate memory for YUV planes
+    unsigned char *yuvPlanes[3];
+    int yuvSizes[3];
+    for (int i = 0; i < 3; ++i) {
+        yuvSizes[i] = (size / 3) + 1; // Ensure non-zero size
+        yuvPlanes[i] = static_cast<unsigned char *>(malloc(yuvSizes[i]));
+        if (!yuvPlanes[i]) {
+            for (int j = 0; j < i; ++j) {
+                free(yuvPlanes[j]);
+            }
+            tj3Destroy(handle);
+            return 0;
+        }
+        memset(yuvPlanes[i], 0, yuvSizes[i]);
     }
 
     // Call the function-under-test
-    if (tj3CompressFromYUVPlanes8(handle, yuvPlanes, width, strides, height, &compressedBuffer, &compressedSize) == -1) {
-        // Handle error
-        tj3Destroy(handle);
-        free(compressedBuffer);
-        return 0;
-    }
+    tj3DecompressToYUVPlanes8(handle, data, size, yuvPlanes, yuvSizes);
 
-    // Simulate some usage of compressed data to ensure code coverage
-    if (compressedSize > 0) {
-        // For example, we can just read the first byte
-        volatile unsigned char firstByte = compressedBuffer[0];
-        (void)firstByte; // Avoid unused variable warning
+    // Free allocated memory
+    for (int i = 0; i < 3; ++i) {
+        free(yuvPlanes[i]);
     }
-
-    // Clean up
     tj3Destroy(handle);
-    free(compressedBuffer);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_53(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

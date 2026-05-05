@@ -1,37 +1,78 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <gpac/isomedia.h> // Include the necessary header for GF_ISOFile
+#include <string.h>
+#include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for extracting parameters
-    if (size < 44) {
+    GF_ISOFile *movie;
+    char *url_string;
+
+    // Ensure that the size is sufficient for a null-terminated string
+    if (size < 1) {
         return 0;
     }
 
-    // Initialize parameters for the function-under-test
-    // Provide a temporary directory for the third argument
-    GF_ISOFile *movie = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, "/tmp"); // Use a library function to create the GF_ISOFile
+    // Initialize a GF_ISOFile object
+    movie = gf_isom_open(NULL, GF_ISOM_OPEN_WRITE, NULL);
     if (movie == NULL) {
-        return 0; // Exit if file creation fails
+        return 0;
     }
 
-    // Extract parameters from the input data
-    uint32_t trackNumber = *((uint32_t *)(data));
-    uint32_t StreamDescriptionIndex = *((uint32_t *)(data + 4));
-    uint32_t cleanApertureWidthN = *((uint32_t *)(data + 8));
-    uint32_t cleanApertureWidthD = *((uint32_t *)(data + 12));
-    uint32_t cleanApertureHeightN = *((uint32_t *)(data + 16));
-    uint32_t cleanApertureHeightD = *((uint32_t *)(data + 20));
-    int32_t horizOffN = *((int32_t *)(data + 24));
-    uint32_t horizOffD = *((uint32_t *)(data + 28));
-    int32_t vertOffN = *((int32_t *)(data + 32));
-    uint32_t vertOffD = *((uint32_t *)(data + 36));
+    // Allocate memory for the URL string and ensure it is null-terminated
+    url_string = (char *)malloc(size + 1);
+    if (url_string == NULL) {
+        gf_isom_close(movie);
+        return 0;
+    }
+    memcpy(url_string, data, size);
+    url_string[size] = '\0';
 
     // Call the function-under-test
-    gf_isom_set_clean_aperture(movie, trackNumber, StreamDescriptionIndex, cleanApertureWidthN, cleanApertureWidthD, cleanApertureHeightN, cleanApertureHeightD, horizOffN, horizOffD, vertOffN, vertOffD);
+    gf_isom_set_root_od_url(movie, url_string);
 
-    // Close the file and free allocated resources
+    // Clean up
+    free(url_string);
     gf_isom_close(movie);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_49(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

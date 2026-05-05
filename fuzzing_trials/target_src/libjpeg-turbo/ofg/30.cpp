@@ -1,57 +1,92 @@
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // For close() and unlink()
-#include <fcntl.h>  // For mkstemp()
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-
-    unsigned short* tj3LoadImage16(tjhandle handle, const char* filename, int* width, int align, int* height, int* pixelFormat);
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
-    int fd = mkstemp(tmpl);
-    if (fd == -1) {
+    if (size < 4) return 0; // Ensure there is enough data for width, height, etc.
+
+    // Initialize the TurboJPEG compressor
+    tjhandle handle = tjInitCompress();
+    if (!handle) return 0;
+
+    // Extract some parameters from the input data
+    int width = data[0] + 1;  // Avoid zero width
+    int height = data[1] + 1; // Avoid zero height
+    int pixelFormat = data[2] % TJ_NUMPF; // Valid pixel format
+    int quality = data[3] % 101; // JPEG quality (0-100)
+
+    // Calculate the number of bytes needed for the image buffer
+    int pixelSize = tjPixelSize[pixelFormat];
+    int imageSize = width * height * pixelSize;
+
+    // Ensure the provided data is sufficient for the image buffer
+    if (size < 4 + imageSize) {
+        tjDestroy(handle);
         return 0;
     }
 
-    // Write data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmpl); // Remove the temporary file
-        return 0;
-    }
-    close(fd);
+    // Set up the image buffer
+    const unsigned char *imageBuffer = data + 4;
 
-    // Initialize parameters
-    tjhandle handle = tjInitDecompress();
-    if (handle == nullptr) {
-        unlink(tmpl); // Remove the temporary file
-        return 0;
-    }
-
-    int width = 0;
-    int height = 0;
-    int pixelFormat = TJPF_RGB; // Assuming RGB as a default pixel format
-    int align = 4; // Typical alignment value
+    // Prepare output buffer
+    unsigned char *jpegBuffer = nullptr;
+    unsigned long jpegSize = 0;
 
     // Call the function-under-test
-    unsigned short* image = tj3LoadImage16(handle, tmpl, &width, align, &height, &pixelFormat);
+    int result = tjCompress2(handle, imageBuffer, width, 0, height, pixelFormat, &jpegBuffer, &jpegSize, TJSAMP_444, quality, TJFLAG_FASTDCT);
 
-    // Clean up
-    if (image != nullptr) {
-        free(image); // Use free() instead of tjFree() for unsigned short* buffer
+    // Free the JPEG buffer if it was allocated
+    if (jpegBuffer) {
+        tjFree(jpegBuffer);
     }
+
+    // Clean up the TurboJPEG handle
     tjDestroy(handle);
-    unlink(tmpl); // Remove the temporary file
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_30(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

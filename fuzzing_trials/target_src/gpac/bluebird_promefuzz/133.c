@@ -1,63 +1,105 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_ISOFile* initialize_iso_file(const uint8_t *Data, size_t Size) {
-    // Create a dummy ISOFile structure
-    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    if (!isom_file) return NULL;
+#define DUMMY_FILE "./dummy_file"
 
-    // Additional initialization can be done here if necessary
-
-    return isom_file;
+static GF_ISOFile* create_dummy_iso_file() {
+    // Since GF_ISOFile is an incomplete type, we cannot allocate or initialize it directly.
+    // Assuming a function gf_isom_open exists to create an ISO file structure.
+    return gf_isom_open(DUMMY_FILE, GF_ISOM_OPEN_WRITE, NULL);
 }
 
-static void cleanup_iso_file(GF_ISOFile *isom_file) {
-    if (isom_file) {
-        gf_isom_close(isom_file);
-    }
+static GF_AC4Config* create_dummy_ac4_config() {
+    GF_AC4Config *cfg = (GF_AC4Config *)malloc(sizeof(GF_AC4Config));
+    if (!cfg) return NULL;
+    memset(cfg, 0, sizeof(GF_AC4Config));
+    return cfg;
 }
 
 int LLVMFuzzerTestOneInput_133(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32)) return 0;
+    if (Size < sizeof(u32) * 9) return 0;
 
-    // Write input data to a dummy file
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) return 0;
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    GF_ISOFile *isom_file = initialize_iso_file(Data, Size);
+    GF_ISOFile *isom_file = create_dummy_iso_file();
     if (!isom_file) return 0;
 
-    // Extract track number and sample description index from the input data
-    u32 trackNumber = *(u32*)Data;
-    u32 sampleDescriptionIndex = (Size >= 2 * sizeof(u32)) ? *(u32*)(Data + sizeof(u32)) : 0;
+    u32 trackNumber = *((u32 *)Data);
+    u32 sampleNumber = *((u32 *)(Data + 4));
+    u32 grouping_type = *((u32 *)(Data + 8));
+    u32 sampleGroupDescriptionIndex = *((u32 *)(Data + 12));
+    u32 grouping_type_parameter = *((u32 *)(Data + 16));
+    u32 sampleDescriptionIndex = *((u32 *)(Data + 20));
+    u32 average_bitrate = *((u32 *)(Data + 24));
+    u32 max_bitrate = *((u32 *)(Data + 28));
+    u32 decode_buffer_size = *((u32 *)(Data + 32));
 
-    // Test gf_isom_vp_config_get
-    GF_VPConfig *vp_config = gf_isom_vp_config_get(isom_file, trackNumber, sampleDescriptionIndex);
-    if (vp_config) {
-        free(vp_config); // Free the returned config if not NULL
+    // Fuzz gf_isom_add_sample_info
+    gf_isom_add_sample_info(isom_file, trackNumber, sampleNumber, grouping_type, sampleGroupDescriptionIndex, grouping_type_parameter);
+
+    // Fuzz gf_isom_ac4_config_get
+    GF_AC4Config *ac4_cfg = gf_isom_ac4_config_get(isom_file, trackNumber, sampleDescriptionIndex);
+
+    // Fuzz gf_isom_ac4_config_update
+    GF_AC4Config *new_ac4_cfg = create_dummy_ac4_config();
+    if (new_ac4_cfg) {
+        gf_isom_ac4_config_update(isom_file, trackNumber, sampleDescriptionIndex, new_ac4_cfg);
+        free(new_ac4_cfg);
     }
 
-    // Test gf_isom_get_max_sample_delta
-    u32 max_sample_delta = gf_isom_get_max_sample_delta(isom_file, trackNumber);
+    // Fuzz gf_isom_update_bitrate
+    gf_isom_update_bitrate(isom_file, trackNumber, sampleDescriptionIndex, average_bitrate, max_bitrate, decode_buffer_size);
 
-    // Test gf_isom_get_sync_point_count
-    u32 sync_point_count = gf_isom_get_sync_point_count(isom_file, trackNumber);
+    // Fuzz gf_isom_ac4_config_new
+    u32 outDescriptionIndex;
+    gf_isom_ac4_config_new(isom_file, trackNumber, ac4_cfg, NULL, NULL, &outDescriptionIndex);
 
-    // Test gf_isom_get_avg_sample_delta
-    u32 avg_sample_delta = gf_isom_get_avg_sample_delta(isom_file, trackNumber);
+    // Fuzz gf_isom_cenc_allocate_storage
+    gf_isom_cenc_allocate_storage(isom_file, trackNumber);
 
-    // Test gf_isom_get_constant_sample_size
-    u32 constant_sample_size = gf_isom_get_constant_sample_size(isom_file, trackNumber);
-
-    // Test gf_isom_get_track_id
-    GF_ISOTrackID track_id = gf_isom_get_track_id(isom_file, trackNumber);
-
-    cleanup_iso_file(isom_file);
+    // Clean up
+    gf_isom_close(isom_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_133(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

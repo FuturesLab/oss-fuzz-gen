@@ -1,77 +1,110 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-static GF_ISOFile* initialize_iso_file(const uint8_t *Data, size_t Size) {
-    // Since GF_ISOFile is an opaque type, we cannot directly allocate it.
-    // Instead, we assume there's a function to create it, or we mock it for fuzzing purposes.
-    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    if (!iso_file) {
-        return NULL;
-    }
-
-    // Initialize with some data from the fuzzer input if necessary
-    // For this example, we'll assume the fileName can be set indirectly
-    // through some API if needed, as direct access isn't possible.
-    
+static GF_ISOFile* create_dummy_iso_file() {
+    // Allocate memory for the GF_ISOFile structure
+    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
     return iso_file;
 }
 
-static void cleanup_iso_file(GF_ISOFile *iso_file) {
-    if (iso_file) {
-        gf_isom_delete(iso_file);
-    }
+static GF_ISOSample* create_dummy_sample() {
+    // Allocate memory for the GF_ISOSample structure
+    GF_ISOSample *sample = (GF_ISOSample *)malloc(sizeof(GF_ISOSample));
+    if (!sample) return NULL;
+    memset(sample, 0, sizeof(GF_ISOSample));
+    return sample;
 }
 
 int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size < sizeof(u32) * 6 + sizeof(Bool)) return 0;
+
+    FILE *file = fopen("./dummy_file", "wb");
+    if (!file) return 0;
+    fwrite(Data, 1, Size, file);
+    fclose(file);
+
+    GF_ISOFile *iso_file = create_dummy_iso_file();
+    if (!iso_file) return 0;
+
+    GF_ISOSample *sample = create_dummy_sample();
+    if (!sample) {
+        gf_isom_close(iso_file);
         return 0;
     }
 
-    // Write dummy data to a file if needed by the library
-    FILE *dummy_file = fopen("./dummy_file", "wb");
-    if (dummy_file) {
-        fwrite(Data, 1, Size, dummy_file);
-        fclose(dummy_file);
-    }
+    u32 trackNumber = *(u32 *)Data;
+    u32 sampleDescriptionIndex = *(u32 *)(Data + sizeof(u32));
+    u32 maxChunkSize = *(u32 *)(Data + 2 * sizeof(u32));
+    u32 sampleNumber = *(u32 *)(Data + 3 * sizeof(u32));
+    u32 HintDescriptionIndex = *(u32 *)(Data + 4 * sizeof(u32));
+    u32 TransmissionTime = *(u32 *)(Data + 5 * sizeof(u32));
+    Bool data_only = *(Bool *)(Data + 6 * sizeof(u32));
 
-    GF_ISOFile *iso_file = initialize_iso_file(Data, Size);
-    if (!iso_file) {
-        return 0;
-    }
+    // Fuzz gf_isom_add_sample_shadow
+    gf_isom_add_sample_shadow(iso_file, trackNumber, sample);
 
-    // Fuzz gf_isom_reset_sample_count
-    gf_isom_reset_sample_count(iso_file);
+    // Fuzz gf_isom_hint_max_chunk_size
+    gf_isom_hint_max_chunk_size(iso_file, trackNumber, maxChunkSize);
 
-    // Fuzz gf_isom_enable_traf_map_templates
-    gf_isom_enable_traf_map_templates(iso_file);
+    // Fuzz gf_isom_add_sample
+    gf_isom_add_sample(iso_file, trackNumber, sampleDescriptionIndex, sample);
 
-    // Fuzz gf_isom_get_next_moof_number
-    u32 moof_number = gf_isom_get_next_moof_number(iso_file);
+    // Fuzz gf_isom_update_edit_list_duration
+    gf_isom_update_edit_list_duration(iso_file, trackNumber);
 
-    // Fuzz gf_isom_set_default_sync_track
-    u32 trackNumber = moof_number % 100; // Some arbitrary track number
-    gf_isom_set_default_sync_track(iso_file, trackNumber);
+    // Fuzz gf_isom_begin_hint_sample
+    gf_isom_begin_hint_sample(iso_file, trackNumber, HintDescriptionIndex, TransmissionTime);
 
-    // Fuzz gf_isom_get_next_alternate_group_id
-    u32 alt_group_id = gf_isom_get_next_alternate_group_id(iso_file);
+    // Fuzz gf_isom_update_sample
+    gf_isom_update_sample(iso_file, trackNumber, sampleNumber, sample, data_only);
 
     // Cleanup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from gf_isom_get_next_alternate_group_id to gf_isom_meta_add_item_ref
-    u32 ret_gf_isom_segment_get_fragment_count_eksjq = gf_isom_segment_get_fragment_count(iso_file);
-    u32 ret_gf_isom_get_next_moof_number_hjfzo = gf_isom_get_next_moof_number(iso_file);
-    u32 ret_gf_isom_text_sample_size_kbyan = gf_isom_text_sample_size(NULL);
-    u64 ret_gf_isom_get_first_mdat_start_mbftm = gf_isom_get_first_mdat_start(iso_file);
-
-    GF_Err ret_gf_isom_meta_add_item_ref_xbble = gf_isom_meta_add_item_ref(iso_file, 0, ret_gf_isom_get_next_moof_number_hjfzo, 0, ret_gf_isom_text_sample_size_kbyan, alt_group_id, &ret_gf_isom_get_first_mdat_start_mbftm);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    cleanup_iso_file(iso_file);
+    free(sample);
+    gf_isom_close(iso_file);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_30(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,3 +1,4 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -5,49 +6,91 @@
 #include <stdio.h>
 #include "/src/gpac/include/gpac/isomedia.h"
 
-// Helper function to write dummy data to a file
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static GF_ISOFile* open_dummy_iso_file() {
+    GF_ISOFile *isom_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_WRITE, NULL);
+    return isom_file;
+}
+
+static void close_dummy_iso_file(GF_ISOFile *isom_file) {
+    if (isom_file) {
+        gf_isom_close(isom_file);
     }
 }
 
 int LLVMFuzzerTestOneInput_53(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32)) {
-        return 0;
-    }
+    if (Size < sizeof(u32) * 6) return 0; // Ensure enough data for trackNumber, sampleNumber, etc.
 
-    // Write the dummy file
-    write_dummy_file(Data, Size);
+    GF_ISOFile *isom_file = open_dummy_iso_file();
+    if (!isom_file) return 0;
 
-    // Extract some parameters from the input data
-    u32 trackNumber = *(u32 *)Data;
-    u32 sampleDescriptionIndex = trackNumber % 10 + 1; // Ensure it's 1-based
+    u32 trackNumber = *((u32*)Data);
+    u32 sampleNumber = *((u32*)(Data + sizeof(u32)));
+    u32 grouping_type = *((u32*)(Data + 2 * sizeof(u32)));
+    u32 grouping_type_parameter = *((u32*)(Data + 3 * sizeof(u32)));
+    u32 index = *((u32*)(Data + 4 * sizeof(u32)));
+    u32 udta_idx = *((u32*)(Data + 5 * sizeof(u32)));
 
-    // Variables for bitrate information
-    u32 average_bitrate = 0, max_bitrate = 0, decode_buffer_size = 0;
+    u32 sampleGroupDescIndex;
+    u32 UserDataType;
+    bin128 UUID;
 
-    // Create a dummy GF_ISOFile object
-    GF_ISOFile *iso_file = gf_isom_open("./dummy_file", GF_ISOM_OPEN_READ, NULL);
-    if (!iso_file) {
-        return 0;
-    }
+    // Fuzz gf_isom_remove_sample
+    gf_isom_remove_sample(isom_file, trackNumber, sampleNumber);
 
-    // Call the target functions with different inputs
-    u32 flags = gf_isom_get_track_flags(iso_file, trackNumber);
-    GF_Err bitrate_err = gf_isom_get_bitrate(iso_file, trackNumber, sampleDescriptionIndex, &average_bitrate, &max_bitrate, &decode_buffer_size);
-    GF_Err dolby_err = gf_isom_set_dolby_vision_profile(iso_file, trackNumber, sampleDescriptionIndex, NULL);
-    GF_DOVIDecoderConfigurationRecord *dovi_config = gf_isom_dovi_config_get(iso_file, trackNumber, sampleDescriptionIndex);
-    u32 sample_description_count = gf_isom_get_sample_description_count(iso_file, trackNumber);
-    u32 nalu_length_field = gf_isom_get_nalu_length_field(iso_file, trackNumber, sampleDescriptionIndex);
+    // Fuzz gf_isom_get_sample_to_group_info
+    gf_isom_get_sample_to_group_info(isom_file, trackNumber, sampleNumber, grouping_type, grouping_type_parameter, &sampleGroupDescIndex);
 
-    // Clean up
-    if (dovi_config) {
-        free(dovi_config);
-    }
-    gf_isom_close(iso_file);
+    // Fuzz gf_isom_remove_sample_group
+    gf_isom_remove_sample_group(isom_file, trackNumber, grouping_type);
 
+    // Fuzz gf_isom_remove_chapter
+    gf_isom_remove_chapter(isom_file, trackNumber, index);
+
+    // Fuzz gf_isom_get_udta_type
+    gf_isom_get_udta_type(isom_file, trackNumber, udta_idx, &UserDataType, UUID);
+
+    // Fuzz gf_isom_remove_cenc_senc_box
+    gf_isom_remove_cenc_senc_box(isom_file, trackNumber);
+
+    close_dummy_iso_file(isom_file);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_53(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

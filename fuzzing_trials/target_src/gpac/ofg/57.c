@@ -1,35 +1,72 @@
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <gpac/isomedia.h>
 
 int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for the parameters
-    if (size < sizeof(u32) + sizeof(u64) * 2 + sizeof(GF_ISOEditType)) {
-        return 0;
-    }
-
-    // Initialize variables for the parameters
-    GF_ISOFile *movie = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL); // Open a dummy file
+    GF_ISOFile *movie = gf_isom_open("dummy.mp4", GF_ISOM_OPEN_WRITE, NULL);
     if (!movie) {
         return 0;
     }
 
-    u32 trackNumber = *((u32 *)data);
-    data += sizeof(u32);
-
-    u64 EditDuration = *((u64 *)data);
-    data += sizeof(u64);
-
-    u64 MediaTime = *((u64 *)data);
-    data += sizeof(u64);
-
-    GF_ISOEditType EditMode = *((GF_ISOEditType *)data);
+    // Initialize parameters with non-zero values
+    u32 trackNumber = 1;
+    u32 StreamDescriptionIndex = 1;
+    u32 cleanApertureWidthN = 1920;
+    u32 cleanApertureWidthD = 1080;
+    u32 cleanApertureHeightN = 1080;
+    u32 cleanApertureHeightD = 1920;
+    s32 horizOffN = 0;
+    u32 horizOffD = 1;
+    s32 vertOffN = 0;
+    u32 vertOffD = 1;
 
     // Call the function-under-test
-    gf_isom_append_edit(movie, trackNumber, EditDuration, MediaTime, EditMode);
+    gf_isom_set_clean_aperture(movie, trackNumber, StreamDescriptionIndex, 
+                               cleanApertureWidthN, cleanApertureWidthD, 
+                               cleanApertureHeightN, cleanApertureHeightD, 
+                               horizOffN, horizOffD, vertOffN, vertOffD);
 
-    // Close the dummy file
+    // Close the movie file
     gf_isom_close(movie);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_57(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

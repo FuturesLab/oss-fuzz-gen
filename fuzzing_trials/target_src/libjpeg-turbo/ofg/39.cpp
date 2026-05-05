@@ -1,48 +1,79 @@
-extern "C" {
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-}
-
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
+extern "C" {
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+}
+
 extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
+    if (size < 1) return 0;
+
     // Initialize the TurboJPEG decompressor
-    tjhandle decompressor = tjInitDecompress();
-    if (decompressor == nullptr) {
+    tjhandle handle = tjInitDecompress();
+    if (!handle) return 0;
+
+    int width, height, jpegSubsamp, jpegColorspace;
+    if (tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace) != 0) {
+        tjDestroy(handle);
         return 0;
     }
 
-    // Set up parameters for the function call
-    unsigned long jpegSize = static_cast<unsigned long>(size);
-    int width = 128;  // Example width, adjust as needed
-    int height = 128; // Example height, adjust as needed
-    int subsamp, colorspace;
-
-    // Allocate memory for YUV planes
-    unsigned char *yuvPlanes[3];
-    int strides[3] = { width, width / 2, width / 2 }; // Assuming 4:2:0 subsampling
-    for (int i = 0; i < 3; i++) {
-        yuvPlanes[i] = static_cast<unsigned char *>(malloc(strides[i] * height / (i == 0 ? 1 : 2)));
-        if (yuvPlanes[i] == nullptr) {
-            for (int j = 0; j < i; j++) {
-                free(yuvPlanes[j]);
-            }
-            tjDestroy(decompressor);
-            return 0;
-        }
+    // Allocate memory for the destination buffer
+    unsigned long dstSize = width * height * tjPixelSize[TJPF_RGB]; // Adjust size based on image dimensions
+    unsigned char *dstBuf = (unsigned char *)malloc(dstSize);
+    if (!dstBuf) {
+        tjDestroy(handle);
+        return 0;
     }
 
-    // Call the function-under-test
-    int result = tjDecompressToYUVPlanes(decompressor, data, jpegSize, yuvPlanes, width, strides, height, 0);
+    // Decompress the JPEG image
+    int result = tjDecompress2(handle, data, size, dstBuf, width, 0, height, TJPF_RGB, 0);
 
     // Clean up
-    for (int i = 0; i < 3; i++) {
-        free(yuvPlanes[i]);
-    }
-    tjDestroy(decompressor);
+    free(dstBuf);
+    tjDestroy(handle);
 
     return result;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_39(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,28 +1,76 @@
-#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>  // Include for memcpy
+#include <cstring>
+#include <iostream>
 
 extern "C" {
-    // Include the necessary header for tj3Alloc if available
-    void * tj3Alloc(size_t);
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_112(const uint8_t *data, size_t size) {
-    // Ensure the size is non-zero to avoid passing zero to tj3Alloc
-    if (size == 0) return 0;
+    // Initialize tjhandle
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
+        return 0; // Return if handle initialization fails
+    }
 
-    // Use the size from the fuzzer input to call tj3Alloc
-    void *allocatedMemory = tj3Alloc(size);
+    // Allocate memory for the decompressed YUV buffer
+    int width = 640;  // Example width
+    int height = 480; // Example height
+    int yuvSize = tjBufSizeYUV2(width, 4, height, TJ_420);
+    unsigned char *yuvBuffer = (unsigned char *)malloc(yuvSize);
+    if (yuvBuffer == nullptr) {
+        tjDestroy(handle);
+        return 0; // Return if memory allocation fails
+    }
 
-    // Check if memory allocation was successful
-    if (allocatedMemory == nullptr) return 0;
+    // Call the function-under-test
+    int result = tjDecompressToYUV(handle, (unsigned char *)data, (unsigned long)size, yuvBuffer, 4);
 
-    // Copy the input data into the allocated memory to simulate usage
-    memcpy(allocatedMemory, data, size);
-
-    // Free the allocated memory to avoid memory leaks
-    free(allocatedMemory);
+    // Clean up
+    free(yuvBuffer);
+    tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_112(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

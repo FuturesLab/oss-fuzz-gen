@@ -1,64 +1,114 @@
 // This fuzz driver is generated for library gpac, aiming to fuzz the following functions:
-// gf_isom_get_max_sample_size at isom_read.c:2021:5 in isomedia.h
-// gf_isom_get_nalu_length_field at isom_read.c:5918:5 in isomedia.h
-// gf_isom_get_mastering_display_colour_info at isom_read.c:6475:44 in isomedia.h
-// gf_isom_get_sample_count at isom_read.c:1767:5 in isomedia.h
-// gf_isom_get_avg_sample_size at isom_read.c:2030:5 in isomedia.h
-// gf_isom_get_edits_count at isom_read.c:2547:5 in isomedia.h
+// gf_isom_open at isom_read.c:527:13 in isomedia.h
+// gf_isom_add_meta_item_sample_ref at meta.c:1806:8 in isomedia.h
+// gf_isom_iff_create_image_identity_item at iff.c:2107:8 in isomedia.h
+// gf_isom_iff_create_image_grid_item at iff.c:1929:8 in isomedia.h
+// gf_isom_add_meta_item at meta.c:1784:8 in isomedia.h
+// gf_isom_add_meta_item2 at meta.c:1792:8 in isomedia.h
+// gf_isom_iff_create_image_overlay_item at iff.c:2063:8 in isomedia.h
+// gf_isom_close at isom_read.c:629:8 in isomedia.h
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "isomedia.h"
 
-static GF_ISOFile* create_dummy_iso_file() {
-    // Since GF_ISOFile is an incomplete type, we cannot allocate or initialize it directly.
-    // Assuming that there is a function to create or open an ISO file in the actual library.
-    // Here, we'll mock this by returning NULL as placeholder.
-    return NULL;
+#define DUMMY_FILE_PATH "./dummy_file"
+
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen(DUMMY_FILE_PATH, "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
-static void cleanup_iso_file(GF_ISOFile *iso_file) {
-    // Assuming there's a function to close or cleanup an ISO file in the actual library.
-    // Placeholder for cleanup logic.
+static GF_ISOFile* create_dummy_isofile() {
+    GF_ISOFile *isom_file = gf_isom_open(DUMMY_FILE_PATH, GF_ISOM_OPEN_WRITE, NULL);
+    return isom_file;
 }
 
 int LLVMFuzzerTestOneInput_197(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(u32) * 3) return 0; // Ensure enough data for three u32 values
+    if (Size < 10) return 0; // Ensure we have enough data to avoid overflow
 
-    GF_ISOFile *iso_file = create_dummy_iso_file();
-    if (!iso_file) return 0;
+    write_dummy_file(Data, Size);
 
-    u32 trackNumber = *((u32*)Data);
-    u32 sampleDescriptionIndex = *((u32*)(Data + sizeof(u32)));
-    u32 anotherValue = *((u32*)(Data + 2 * sizeof(u32)));
+    GF_ISOFile *isom_file = create_dummy_isofile();
+    if (!isom_file) return 0;
 
-    // Test gf_isom_get_max_sample_size
-    u32 max_sample_size = gf_isom_get_max_sample_size(iso_file, trackNumber);
+    Bool root_meta = (Bool)(Data[0] % 2);
+    u32 track_num = *((u32 *)(Data + 1));
+    const char *item_name = "TestItem";
+    u32 item_id = 0;
+    u32 item_type = *((u32 *)(Data + 5));
+    const char *mime_type = "image/jpeg";
+    const char *content_encoding = NULL;
+    GF_ImageItemProperties *image_props = NULL;
+    GF_ISOTrackID tk_id = 1;
+    u32 sample_num = 1;
 
-    // Test gf_isom_get_nalu_length_field
-    u32 nalu_length_field = gf_isom_get_nalu_length_field(iso_file, trackNumber, sampleDescriptionIndex);
+    u32 io_item_id = 0;
+    Bool self_reference = (Bool)(Data[9] % 2);
 
-    // Test gf_isom_get_mastering_display_colour_info
-    const GF_MasteringDisplayColourVolumeInfo *color_info = gf_isom_get_mastering_display_colour_info(iso_file, trackNumber, sampleDescriptionIndex);
+    // Test gf_isom_add_meta_item_sample_ref
+    gf_isom_add_meta_item_sample_ref(isom_file, root_meta, track_num, item_name, &item_id, item_type, mime_type, content_encoding, image_props, tk_id, sample_num);
 
-    // Test gf_isom_get_sample_count
-    u32 sample_count = gf_isom_get_sample_count(iso_file, trackNumber);
+    // Test gf_isom_iff_create_image_identity_item
+    gf_isom_iff_create_image_identity_item(isom_file, root_meta, track_num, item_name, item_id, image_props);
 
-    // Test gf_isom_get_avg_sample_size
-    u32 avg_sample_size = gf_isom_get_avg_sample_size(iso_file, trackNumber);
+    // Test gf_isom_iff_create_image_grid_item
+    gf_isom_iff_create_image_grid_item(isom_file, root_meta, track_num, item_name, item_id, image_props);
 
-    // Test gf_isom_get_edits_count
-    u32 edits_count = gf_isom_get_edits_count(iso_file, trackNumber);
+    // Test gf_isom_add_meta_item
+    gf_isom_add_meta_item(isom_file, root_meta, track_num, self_reference, DUMMY_FILE_PATH, item_name, item_id, item_type, mime_type, content_encoding, NULL, NULL, image_props);
 
-    // Handle results or errors if needed (e.g., logging, assertions)
-    (void)max_sample_size;
-    (void)nalu_length_field;
-    (void)color_info;
-    (void)sample_count;
-    (void)avg_sample_size;
-    (void)edits_count;
+    // Test gf_isom_add_meta_item2
+    gf_isom_add_meta_item2(isom_file, root_meta, track_num, self_reference, DUMMY_FILE_PATH, item_name, &io_item_id, item_type, mime_type, content_encoding, NULL, NULL, image_props);
 
-    cleanup_iso_file(iso_file);
+    // Test gf_isom_iff_create_image_overlay_item
+    gf_isom_iff_create_image_overlay_item(isom_file, root_meta, track_num, item_name, item_id, image_props);
+
+    gf_isom_close(isom_file);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_197(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

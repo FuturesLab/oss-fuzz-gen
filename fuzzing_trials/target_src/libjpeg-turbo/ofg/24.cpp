@@ -1,23 +1,74 @@
 #include <cstdint>
 #include <cstdlib>
-#include <iostream>
+#include <cstring>
 
-// Assuming the function is defined in some library
 extern "C" {
-    int tjPlaneHeight(int componentID, int subsample, int height);
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    // If the above path doesn't exist, you can use one of the alternatives:
+    // #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    // #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
-    // Initialize parameters with non-NULL values
-    int componentID = 0; // Typically, 0 for Y, 1 for U, 2 for V in YUV formats
-    int subsample = 1;   // Common subsampling values: 0 (4:4:4), 1 (4:2:2), 2 (4:2:0)
-    int height = 1;      // Height of the image plane, must be positive
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
+        return 0; // If initialization fails, exit early
+    }
 
-    // Call the function-under-test with initialized parameters
-    int result = tjPlaneHeight(componentID, subsample, height);
+    // Ensure size is non-zero to avoid passing a NULL pointer
+    if (size == 0) {
+        tjDestroy(handle);
+        return 0;
+    }
 
-    // Print the result to ensure the function is called
-    std::cout << "Result: " << result << std::endl;
+    // Allocate memory for width and height
+    int width = 0;
+    int height = 0;
+
+    // Call the function-under-test
+    tjDecompressHeader(handle, (unsigned char *)data, (unsigned long)size, &width, &height);
+
+    // Clean up
+    tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_24(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
