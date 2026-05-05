@@ -1,120 +1,126 @@
 // This fuzz driver is generated for library janet, aiming to fuzz the following functions:
-// janet_init at vm.c:1652:5 in janet.h
-// janet_table_weakv at janet.c:33131:13 in janet.h
-// janet_table_init_raw at janet.c:33106:13 in janet.h
-// janet_table_init_raw at janet.c:33106:13 in janet.h
-// janet_table_merge_table at janet.c:33313:6 in janet.h
-// janet_table_init_raw at janet.c:33106:13 in janet.h
-// janet_table_init_raw at janet.c:33106:13 in janet.h
-// janet_dostring at run.c:139:5 in janet.h
-// janet_opttable at janet.c:4539:1 in janet.h
-// janet_gettable at janet.c:4514:1 in janet.h
+// janet_getstruct at janet.c:4515:1 in janet.h
+// janet_nanbox_from_cpointer at janet.c:37698:7 in janet.h
+// janet_struct_rawget at janet.c:32626:7 in janet.h
+// janet_struct_find at janet.c:32513:16 in janet.h
+// janet_struct_get at janet.c:32632:7 in janet.h
+// janet_nanbox_to_pointer at janet.c:37680:7 in janet.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include "janet.h"
 
-#define MAX_CAPACITY 1024
-
-static void initialize_janet() {
-    static int initialized = 0;
-    if (!initialized) {
-        janet_init();
-        initialized = 1;
+static void initialize_janet_kv(JanetKV *kv, size_t size) {
+    for (size_t i = 0; i < size; i++) {
+        kv[i].key.u64 = rand();
+        kv[i].value.u64 = rand();
     }
 }
 
-static void fuzz_janet_table_weakv(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int32_t)) return;
-    int32_t capacity = *(const int32_t *)Data;
-    JanetTable *table = janet_table_weakv(capacity);
-    // Perform any operations on the table if necessary
+static JanetStruct create_janet_struct(size_t size) {
+    JanetKV *kv = (JanetKV *)malloc(sizeof(JanetKV) * size);
+    if (!kv) return NULL;
+    initialize_janet_kv(kv, size);
+    return kv;
 }
 
-static void fuzz_janet_table_merge_table(const uint8_t *Data, size_t Size) {
-    if (Size < 2 * sizeof(int32_t)) return;
-    int32_t capacity1 = *(const int32_t *)Data;
-    int32_t capacity2 = *(const int32_t *)(Data + sizeof(int32_t));
-
-    JanetTable table1, table2;
-    janet_table_init_raw(&table1, capacity1);
-    janet_table_init_raw(&table2, capacity2);
-
-    janet_table_merge_table(&table1, &table2);
-    // Cleanup if necessary
-}
-
-static void fuzz_janet_table_init_raw(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int32_t)) return;
-    int32_t capacity = *(const int32_t *)Data;
-    if (capacity < 0 || capacity > MAX_CAPACITY) return;
-
-    JanetTable table;
-    janet_table_init_raw(&table, capacity);
-    // Perform operations on the table if necessary
-}
-
-static void fuzz_janet_dostring(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return;
-    char *code = malloc(Size + 1);
-    if (!code) return;
-
-    memcpy(code, Data, Size);
-    code[Size] = '\0'; // Ensure null-terminated
-
-    JanetTable env;
-    janet_table_init_raw(&env, 0);
-    Janet out;
-    janet_dostring(&env, code, "./dummy_file", &out);
-
-    free(code);
-}
-
-static void fuzz_janet_opttable(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int32_t) * 3) return;
-    int32_t argc = *(const int32_t *)Data;
-    int32_t n = *(const int32_t *)(Data + sizeof(int32_t));
-    int32_t dflt_len = *(const int32_t *)(Data + 2 * sizeof(int32_t));
-    
-    if (argc < 0) return;
-
-    Janet *argv = malloc(sizeof(Janet) * argc);
-    if (!argv) return;
-
-    for (int32_t i = 0; i < argc; i++) {
-        argv[i].u64 = (uint64_t)Data[i % Size];
-    }
-
-    JanetTable *table = janet_opttable(argv, argc, n, dflt_len);
-    // Perform operations on the table if necessary
-
-    free(argv);
-}
-
-static void fuzz_janet_gettable(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int32_t) + sizeof(Janet)) return;
-    int32_t index = *(const int32_t *)Data;
-    int32_t argc = (Size - sizeof(int32_t)) / sizeof(Janet);
-    
-    if (index < 0 || index >= argc) return;
-
-    Janet *argv = (Janet *)(Data + sizeof(int32_t));
-    JanetTable *table = janet_gettable(argv, index);
-    // Perform operations on the table if necessary
+static void cleanup_janet_struct(JanetStruct st) {
+    free((void *)st);
 }
 
 int LLVMFuzzerTestOneInput_381(const uint8_t *Data, size_t Size) {
-    initialize_janet();
-    fuzz_janet_table_weakv(Data, Size);
-    fuzz_janet_table_merge_table(Data, Size);
-    fuzz_janet_table_init_raw(Data, Size);
-    fuzz_janet_dostring(Data, Size);
-    fuzz_janet_opttable(Data, Size);
-    fuzz_janet_gettable(Data, Size);
+    if (Size < sizeof(int32_t) * 3) return 0;
+
+    int32_t n = *((int32_t *)Data);
+    size_t struct_size = *((int32_t *)(Data + sizeof(int32_t))) % 100; // Arbitrary limit
+
+    JanetStruct st = create_janet_struct(struct_size);
+    if (!st) return 0;
+
+    // Prepare Janet array
+    Janet *argv = (Janet *)malloc(sizeof(Janet) * (n + 1));
+    if (!argv) {
+        cleanup_janet_struct(st);
+        return 0;
+    }
+    for (int32_t i = 0; i <= n; i++) {
+        argv[i].pointer = (i == n) ? (void *)st : NULL;
+    }
+
+    // Fuzz janet_getstruct
+    if (n >= 0 && n < (int32_t)(Size / sizeof(Janet))) {
+        JanetStruct result_st = janet_getstruct(argv, n);
+        (void)result_st; // Use the result to prevent unused variable warning
+    }
+
+    // Fuzz janet_wrap_struct
+    Janet wrapped_value = janet_wrap_struct(st);
+
+    // Fuzz janet_struct_rawget
+    if (Size >= sizeof(int32_t) * 3 + sizeof(uint64_t)) {
+        Janet key;
+        key.u64 = *((uint64_t *)(Data + sizeof(int32_t) * 2));
+        Janet rawget_result = janet_struct_rawget(st, key);
+
+        // Fuzz janet_struct_find
+        const JanetKV *found_kv = janet_struct_find(st, key);
+
+        // Fuzz janet_struct_get
+        Janet get_result = janet_struct_get(st, key);
+    }
+
+    // Fuzz janet_unwrap_struct
+    JanetStruct unwrapped_st = janet_unwrap_struct(wrapped_value);
+
+    // Cleanup
+    cleanup_janet_struct(st);
+    free(argv);
+
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_381(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

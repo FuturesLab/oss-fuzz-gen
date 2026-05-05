@@ -1,13 +1,11 @@
 // This fuzz driver is generated for library janet, aiming to fuzz the following functions:
-// janet_def at janet.c:34105:6 in janet.h
-// janet_init at vm.c:1652:5 in janet.h
-// janet_deinit at vm.c:1732:6 in janet.h
+// janet_table_init at janet.c:33101:13 in janet.h
+// janet_table_init_raw at janet.c:33106:13 in janet.h
+// janet_table_weakv at janet.c:33131:13 in janet.h
+// janet_table_weakk at janet.c:33126:13 in janet.h
+// janet_table_weakkv at janet.c:33136:13 in janet.h
 // janet_table at janet.c:33121:13 in janet.h
-// janet_var_sm at janet.c:34110:6 in janet.h
-// janet_dobytes at run.c:31:5 in janet.h
-// janet_var at janet.c:34118:6 in janet.h
-// janet_def_sm at janet.c:34099:6 in janet.h
-// janet_dostring at run.c:139:5 in janet.h
+// janet_init at vm.c:1652:5 in janet.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -15,120 +13,104 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
 #include "janet.h"
 
-static JanetTable *initialize_table(void) {
-    janet_init(); // Initialize the Janet VM
-    JanetTable *table = janet_table(0);
-    return table;
+#define MAX_CAPACITY 1024
+
+static void fuzz_janet_table_init(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int32_t)) return;
+    int32_t capacity = *(int32_t *)Data;
+    if (capacity < 0 || capacity > MAX_CAPACITY) return;
+    JanetTable table;
+    janet_table_init(&table, capacity);
 }
 
-static void fuzz_janet_var_sm(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 10) return; // Ensure there's enough data for a string and a uint64_t
-    size_t name_len = Data[0] % (Size - 9); // Ensure name length is within bounds
-    const char *name = (const char *)(Data + 1);
-    Janet val = { .u64 = *(uint64_t *)(Data + 1 + name_len) };
-    const char *documentation = "fuzz documentation";
-    const char *source_file = "./dummy_file";
-    int32_t source_line = 42;
-
-    // Ensure the name is null-terminated
-    char *name_cpy = (char *)malloc(name_len + 1);
-    if (!name_cpy) return;
-    memcpy(name_cpy, name, name_len);
-    name_cpy[name_len] = '\0';
-
-    janet_var_sm(env, name_cpy, val, documentation, source_file, source_line);
-
-    free(name_cpy);
+static void fuzz_janet_table_init_raw(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int32_t)) return;
+    int32_t capacity = *(int32_t *)Data;
+    if (capacity < 0 || capacity > MAX_CAPACITY) return;
+    JanetTable table;
+    janet_table_init_raw(&table, capacity);
 }
 
-static void fuzz_janet_dobytes(JanetTable *env, const uint8_t *Data, size_t Size) {
-    Janet out;
-    janet_dobytes(env, Data, (int32_t)Size, "./dummy_file", &out);
+static void fuzz_janet_table_weakv(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int32_t)) return;
+    int32_t capacity = *(int32_t *)Data;
+    if (capacity < 0 || capacity > MAX_CAPACITY) return;
+    janet_table_weakv(capacity);
 }
 
-static void fuzz_janet_var(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 10) return; // Ensure there's enough data for a string and a uint64_t
-    size_t name_len = Data[0] % (Size - 9); // Ensure name length is within bounds
-    const char *name = (const char *)(Data + 1);
-    Janet val = { .u64 = *(uint64_t *)(Data + 1 + name_len) };
-    const char *documentation = "fuzz documentation";
-
-    // Ensure the name is null-terminated
-    char *name_cpy = (char *)malloc(name_len + 1);
-    if (!name_cpy) return;
-    memcpy(name_cpy, name, name_len);
-    name_cpy[name_len] = '\0';
-
-    janet_var(env, name_cpy, val, documentation);
-
-    free(name_cpy);
+static void fuzz_janet_table_weakk(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int32_t)) return;
+    int32_t capacity = *(int32_t *)Data;
+    if (capacity < 0 || capacity > MAX_CAPACITY) return;
+    janet_table_weakk(capacity);
 }
 
-static void fuzz_janet_def_sm(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 10) return; // Ensure there's enough data for a string and a uint64_t
-    size_t name_len = Data[0] % (Size - 9); // Ensure name length is within bounds
-    const char *name = (const char *)(Data + 1);
-    Janet val = { .u64 = *(uint64_t *)(Data + 1 + name_len) };
-    const char *documentation = "fuzz documentation";
-    const char *source_file = "./dummy_file";
-    int32_t source_line = 42;
-
-    // Ensure the name is null-terminated
-    char *name_cpy = (char *)malloc(name_len + 1);
-    if (!name_cpy) return;
-    memcpy(name_cpy, name, name_len);
-    name_cpy[name_len] = '\0';
-
-    janet_def_sm(env, name_cpy, val, documentation, source_file, source_line);
-
-    free(name_cpy);
+static void fuzz_janet_table_weakkv(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int32_t)) return;
+    int32_t capacity = *(int32_t *)Data;
+    if (capacity < 0 || capacity > MAX_CAPACITY) return;
+    janet_table_weakkv(capacity);
 }
 
-static void fuzz_janet_dostring(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-    
-    // Ensure the input string is null-terminated
-    char *str = (char *)malloc(Size + 1);
-    if (!str) return;
-    memcpy(str, Data, Size);
-    str[Size] = '\0';
-
-    Janet out;
-    janet_dostring(env, str, "./dummy_file", &out);
-
-    free(str); // Free the allocated memory
-}
-
-static void fuzz_janet_def(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 10) return; // Ensure there's enough data for a string and a uint64_t
-    size_t name_len = Data[0] % (Size - 9); // Ensure name length is within bounds
-    const char *name = (const char *)(Data + 1);
-    Janet val = { .u64 = *(uint64_t *)(Data + 1 + name_len) };
-    const char *documentation = "fuzz documentation";
-
-    // Ensure the name is null-terminated
-    char *name_cpy = (char *)malloc(name_len + 1);
-    if (!name_cpy) return;
-    memcpy(name_cpy, name, name_len);
-    name_cpy[name_len] = '\0';
-
-    janet_def(env, name_cpy, val, documentation);
-
-    free(name_cpy);
+static void fuzz_janet_table(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int32_t)) return;
+    int32_t capacity = *(int32_t *)Data;
+    if (capacity < 0 || capacity > MAX_CAPACITY) return;
+    janet_table(capacity);
 }
 
 int LLVMFuzzerTestOneInput_426(const uint8_t *Data, size_t Size) {
-    JanetTable *env = initialize_table();
+    janet_init();
 
-    fuzz_janet_var_sm(env, Data, Size);
-    fuzz_janet_dobytes(env, Data, Size);
-    fuzz_janet_var(env, Data, Size);
-    fuzz_janet_def_sm(env, Data, Size);
-    fuzz_janet_dostring(env, Data, Size);
-    fuzz_janet_def(env, Data, Size);
+    fuzz_janet_table_init(Data, Size);
+    fuzz_janet_table_init_raw(Data, Size);
+    fuzz_janet_table_weakv(Data, Size);
+    fuzz_janet_table_weakk(Data, Size);
+    fuzz_janet_table_weakkv(Data, Size);
+    fuzz_janet_table(Data, Size);
 
-    janet_deinit(); // Properly deinitialize the Janet VM
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_426(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

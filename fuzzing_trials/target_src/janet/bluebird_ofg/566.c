@@ -1,44 +1,69 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "janet.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 int LLVMFuzzerTestOneInput_566(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0; // Not enough data to work with
-    }
-
-    // Initialize Janet
-    janet_init();
-
-    // Prepare the JanetTable parameter
-    JanetTable *env = janet_table(0);
-
-    // Prepare the string parameters
-    char *source = (char *)malloc(size + 1);
-    if (!source) {
-        janet_deinit();
+    if (size == 0) {
         return 0;
     }
-    memcpy(source, data, size);
-    source[size] = '\0'; // Ensure null-terminated
 
-    const char *source_name = "fuzz_source"; // A simple source name
+    // Initialize the Janet runtime
+    janet_init();
 
-    // Prepare the Janet result parameter
-    Janet result;
+    // Initialize a Janet object from the input data
+    Janet janet_obj = janet_wrap_string(janet_string(data, size));
 
     // Call the function-under-test
-    janet_dostring(env, source, source_name, &result);
+    JanetString result = janet_to_string(janet_obj);
 
-    // Clean up
-    free(source);
+    // Use the result to prevent compiler optimizations
+    (void)result;
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function janet_deinit with janet_loop
-    janet_loop();
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    // Clean up the Janet runtime
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_566(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

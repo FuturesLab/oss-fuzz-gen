@@ -1,76 +1,123 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 #include "janet.h"
 
 static void initialize_janet_table(JanetTable *table) {
-    table->gc.flags = 0;
-    table->gc.data.next = NULL;
-    table->count = 0;
-    table->capacity = 16; // Initialize with a default capacity
-    table->deleted = 0;
+    memset(table, 0, sizeof(JanetTable));
+    table->capacity = 8; // Arbitrary initial capacity
     table->data = (JanetKV *)calloc(table->capacity, sizeof(JanetKV));
-    table->proto = NULL;
 }
 
 int LLVMFuzzerTestOneInput_180(const uint8_t *Data, size_t Size) {
-    // Initialize Janet VM
-    janet_init();
+    if (Size < 1) {
+        return 0;
+    } // Ensure there is at least some data
 
-    // Initialize JanetTable
+    // Initialize the Janet environment
+    janet_init();
     JanetTable env;
     initialize_janet_table(&env);
 
-    // Prepare dummy data
-    const char *dummy_name = "dummy_var";
-    const char *dummy_documentation = "This is a dummy documentation.";
-    const char *dummy_source_file = "./dummy_file";
-    int32_t dummy_source_line = 42;
-    Janet dummy_value;
-    dummy_value.u64 = 0;
-
-    // Ensure the input data is null-terminated for functions expecting strings
-    char *null_terminated_data = (char *)malloc(Size + 1);
-    if (!null_terminated_data) {
-        janet_deinit();
-        return 0;
-    }
-    memcpy(null_terminated_data, Data, Size);
-    null_terminated_data[Size] = '\0';
-
-    // Fuzz janet_var_sm
-    if (Size > 0) {
-        janet_var_sm(&env, null_terminated_data, dummy_value, dummy_documentation, dummy_source_file, dummy_source_line);
-    }
+    // Prepare a dummy output
+    Janet out;
+    out.u64 = 0; // Initialize Janet union to avoid undefined behavior
 
     // Fuzz janet_dobytes
-    Janet out;
-    janet_dobytes(&env, Data, (int32_t)Size, dummy_source_file, &out);
-
-    // Fuzz janet_var
-    janet_var(&env, dummy_name, dummy_value, dummy_documentation);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of janet_dobytes
+    janet_dobytes(&env, Data, JANET_FILE_NONIL, "./dummy_file", &out);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
     // Fuzz janet_dostring
-    janet_dostring(&env, null_terminated_data, dummy_source_file, &out);
+    char *nullTerminatedString = (char *)malloc(Size + 1);
+    if (nullTerminatedString) {
+        memcpy(nullTerminatedString, Data, Size);
+        nullTerminatedString[Size] = '\0'; // Ensure null termination
+        janet_dostring(&env, nullTerminatedString, "./dummy_file", &out);
+        free(nullTerminatedString);
+    }
 
     // Fuzz janet_def_sm
-    janet_def_sm(&env, dummy_name, dummy_value, dummy_documentation, dummy_source_file, dummy_source_line);
+    janet_def_sm(&env, "dummySymbol", out, "dummy documentation", "./dummy_file", 1);
+
+    // Fuzz janet_def
+    janet_def(&env, "dummyVar", out, "dummy documentation");
 
     // Fuzz janet_env_lookup_into
     JanetTable renv;
     initialize_janet_table(&renv);
-    const char *prefix = "prefix_";
-    janet_env_lookup_into(&renv, &env, prefix, 1);
+    janet_env_lookup_into(&renv, &env, "prefix_", 1);
 
-    // Free allocated memory
+    // Fuzz janet_var_sm
+    janet_var_sm(&env, "dummyVarSM", out, "dummy documentation", "./dummy_file", 1);
+
+    // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_var_sm to janet_env_lookup_into
+    JanetTable* ret_janet_table_weakv_dutwv = janet_table_weakv(JANET_FILE_READ);
+    if (ret_janet_table_weakv_dutwv == NULL){
+    	return 0;
+    }
+    JanetAbstract ret_janet_abstract_end_qzppc = janet_abstract_end((void *)&renv);
+    uint8_t* ret_janet_string_begin_ysmri = janet_string_begin(JANET_SANDBOX_FS_TEMP);
+    if (ret_janet_string_begin_ysmri == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_janet_table_weakv_dutwv) {
+    	return 0;
+    }
+    janet_env_lookup_into(ret_janet_table_weakv_dutwv, &env, &renv, (int )*ret_janet_string_begin_ysmri);
+    // End mutation: Producer.APPEND_MUTATOR
+    
     free(env.data);
     free(renv.data);
-    free(null_terminated_data);
-
-    // Cleanup Janet VM
     janet_deinit();
-
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_180(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

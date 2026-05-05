@@ -1,52 +1,74 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
-#include "janet.h"
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+
+// Assuming these are defined somewhere in the included headers
+typedef void (*JanetThreadedSubroutine)(void);
+typedef void *JanetEVGenericMessage;
+typedef void (*JanetThreadedCallback)(void);
+
+// Dummy implementations for the function pointers
+void dummy_subroutine(void) {
+    // Implement some dummy behavior
+}
+
+void dummy_callback(void) {
+    // Implement some dummy behavior
+}
+
+void janet_ev_threaded_call(JanetThreadedSubroutine subroutine, JanetEVGenericMessage message, JanetThreadedCallback callback);
 
 int LLVMFuzzerTestOneInput_145(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
-
-    // Initialize the Janet environment
-    janet_init();
-
-    // Create a new environment table
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function janet_table with janet_table_weakkv
-    env = janet_table_weakkv(0);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Allocate memory for the string and copy the data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_core_env
-
-    JanetTable* ret_janet_core_env_ytvcl = janet_core_env(env);
-    if (ret_janet_core_env_ytvcl == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
+    // Ensure size is enough to extract a valid JanetEVGenericMessage
+    if (size < sizeof(JanetEVGenericMessage)) {
         return 0;
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
 
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
+    // Create a dummy message from the input data
+    JanetEVGenericMessage message = (JanetEVGenericMessage)data;
 
-    // Call the function-under-test
-    janet_dostring(env, str, source, &result);
-
-    // Clean up
-    free(str);
-    janet_deinit();
+    // Call the function-under-test with dummy subroutine and callback
+    janet_ev_threaded_call(dummy_subroutine, message, dummy_callback);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_145(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

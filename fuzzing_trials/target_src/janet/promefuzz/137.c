@@ -1,102 +1,100 @@
 // This fuzz driver is generated for library janet, aiming to fuzz the following functions:
-// janet_cstring at string.c:88:16 in janet.h
-// janet_cstring at string.c:88:16 in janet.h
-// janet_cstring at string.c:88:16 in janet.h
-// janet_cstring at string.c:88:16 in janet.h
-// janet_cstring at string.c:88:16 in janet.h
-// janet_symeq at janet.c:4626:5 in janet.h
-// janet_getcstring at janet.c:4553:13 in janet.h
-// janet_cstrcmp at janet.c:34043:5 in janet.h
-// janet_keyeq at janet.c:4618:5 in janet.h
-// janet_streq at janet.c:4622:5 in janet.h
-// janet_init at vm.c:1652:5 in janet.h
-// janet_deinit at vm.c:1732:6 in janet.h
+// janet_parser_init at parse.c:784:6 in janet.h
+// janet_parser_produce at parse.c:756:7 in janet.h
+// janet_parser_eof at parse.c:717:6 in janet.h
+// janet_parser_flush at parse.c:737:6 in janet.h
+// janet_parser_produce_wrapped at parse.c:770:7 in janet.h
+// janet_parser_deinit at parse.c:804:6 in janet.h
+// janet_parser_init at parse.c:784:6 in janet.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <janet.h>
+#include <stdint.h>
+#include <stddef.h>
+#include "janet.h"
 
-static Janet create_random_janet_symbol(const uint8_t *data, size_t size) {
-    Janet symbol;
-    if (size > 0) {
-        char *buffer = (char *)malloc(size + 1);
-        if (buffer) {
-            memcpy(buffer, data, size);
-            buffer[size] = '\0'; // Ensure null-termination
-            symbol.pointer = janet_cstring(buffer);
-            free(buffer);
-        } else {
-            symbol.pointer = janet_cstring("");
-        }
-    } else {
-        symbol.pointer = janet_cstring("");
+static void fuzz_janet_parser(JanetParser *parser) {
+    // Initialize the parser
+    janet_parser_init(parser);
+
+    // Fuzz various parser operations
+    if (parser->pending > 0) {
+        Janet value = janet_parser_produce(parser);
+        (void)value; // Use the produced value
     }
-    return symbol;
-}
 
-static JanetString create_random_janet_string(const uint8_t *data, size_t size) {
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer) {
-        memcpy(buffer, data, size);
-        buffer[size] = '\0'; // Ensure null-termination
-        JanetString janetStr = janet_cstring(buffer);
-        free(buffer);
-        return janetStr;
+    // Signal end of file
+    janet_parser_eof(parser);
+
+    // Flush the parser to reset state
+    janet_parser_flush(parser);
+
+    // Produce wrapped value if possible
+    if (parser->pending > 0) {
+        Janet wrapped_value = janet_parser_produce_wrapped(parser);
+        (void)wrapped_value; // Use the wrapped value
     }
-    return janet_cstring("");
-}
 
-static void fuzz_janet_symeq(const uint8_t *data, size_t size) {
-    Janet symbol = create_random_janet_symbol(data, size);
-    janet_symeq(symbol, (const char *)data);
-}
-
-static void fuzz_janet_getcstring(const uint8_t *data, size_t size) {
-    if (size < sizeof(Janet)) return;
-    Janet argv[1];
-    argv[0].pointer = create_random_janet_string(data, size);
-    janet_getcstring(argv, 0);
-}
-
-static void fuzz_janet_cstrcmp(const uint8_t *data, size_t size) {
-    if (size == 0) return; // Ensure there is data to compare
-    JanetString janetStr = create_random_janet_string(data, size);
-    char *cstr = (char *)malloc(size + 1);
-    if (cstr) {
-        memcpy(cstr, data, size);
-        cstr[size] = '\0'; // Ensure null-termination
-        janet_cstrcmp(janetStr, cstr);
-        free(cstr);
-    }
-}
-
-static void fuzz_janet_keyeq(const uint8_t *data, size_t size) {
-    Janet keyword = create_random_janet_symbol(data, size);
-    janet_keyeq(keyword, (const char *)data);
-}
-
-static void fuzz_janet_streq(const uint8_t *data, size_t size) {
-    Janet janetStr;
-    janetStr.pointer = create_random_janet_string(data, size);
-    janet_streq(janetStr, (const char *)data);
+    // Clean up parser resources
+    janet_parser_deinit(parser);
 }
 
 int LLVMFuzzerTestOneInput_137(const uint8_t *Data, size_t Size) {
-    // Initialize the Janet VM
-    if (!janet_init()) {
-        return 0; // Exit if initialization fails
+    JanetParser parser;
+
+    // Use the input data to manipulate JanetParser fields
+    if (Size >= sizeof(JanetParser)) {
+        // Copy input data to parser structure
+        memcpy(&parser, Data, sizeof(JanetParser));
+    } else {
+        // Initialize parser with default values if input is too small
+        janet_parser_init(&parser);
     }
 
-    fuzz_janet_symeq(Data, Size);
-    fuzz_janet_getcstring(Data, Size);
-    fuzz_janet_cstrcmp(Data, Size);
-    fuzz_janet_keyeq(Data, Size);
-    fuzz_janet_streq(Data, Size);
-
-    // Deinitialize the Janet VM
-    janet_deinit();
+    // Fuzz the parser with the current configuration
+    fuzz_janet_parser(&parser);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_137(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

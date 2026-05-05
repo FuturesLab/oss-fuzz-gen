@@ -1,116 +1,112 @@
 // This fuzz driver is generated for library janet, aiming to fuzz the following functions:
-// janet_init at vm.c:1652:5 in janet.h
-// janet_deinit at vm.c:1732:6 in janet.h
-// janet_core_env at janet.c:7992:13 in janet.h
-// janet_var_sm at janet.c:34110:6 in janet.h
-// janet_def_sm at janet.c:34099:6 in janet.h
-// janet_cfuns_ext at janet.c:34249:6 in janet.h
-// janet_env_lookup_into at marsh.c:104:6 in janet.h
-// janet_cfuns_ext_prefix at janet.c:34272:6 in janet.h
+// janet_gcunlock at gc.c:698:6 in janet.h
+// janet_abstract_decref at janet.c:1492:9 in janet.h
+// janet_gclock at gc.c:695:5 in janet.h
+// janet_abstract_incref at janet.c:1488:9 in janet.h
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
 #include "janet.h"
 
-static void initialize_janet() {
-    janet_init();
+// Mock structure for abstract type with reference counting
+typedef struct {
+    int32_t refcount;
+    // Other fields...
+} MockJanetAbstract;
+
+// Helper function to create a dummy abstract object
+static MockJanetAbstract *create_dummy_abstract() {
+    MockJanetAbstract *abst = (MockJanetAbstract *)malloc(sizeof(MockJanetAbstract));
+    if (abst) {
+        abst->refcount = 1; // Initialize reference count
+    }
+    return abst;
 }
 
-static void cleanup_janet() {
-    janet_deinit();
+static void fuzz_janet_gcunlock(int handle) {
+    janet_gcunlock(handle);
 }
 
-static JanetTable *initialize_table() {
-    JanetTable *table = janet_core_env(NULL);
-    return table;
+static void fuzz_janet_abstract_decref(MockJanetAbstract *abst) {
+    if (abst && abst->refcount > 0) {
+        int32_t new_count = janet_abstract_decref(abst);
+        // Handle the new reference count if necessary
+    }
 }
 
-static void fuzz_janet_var_sm(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-    size_t name_len = strnlen((const char *)Data, Size);
-    char *name = (char *) malloc(name_len + 1);
-    if (!name) return;
-    memcpy(name, Data, name_len);
-    name[name_len] = '\0';
-
-    Janet val = { .u64 = 0 };
-    const char *documentation = "doc";
-    const char *source_file = "./dummy_file";
-    int32_t source_line = 42;
-    janet_var_sm(env, name, val, documentation, source_file, source_line);
-
-    free(name);
+static void fuzz_janet_gclock() {
+    int lock_count = janet_gclock();
+    // Handle the lock count if necessary
 }
 
-static void fuzz_janet_def_sm(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-    size_t name_len = strnlen((const char *)Data, Size);
-    char *name = (char *) malloc(name_len + 1);
-    if (!name) return;
-    memcpy(name, Data, name_len);
-    name[name_len] = '\0';
-
-    Janet val = { .u64 = 0 };
-    const char *documentation = "doc";
-    const char *source_file = "./dummy_file";
-    int32_t source_line = 42;
-    janet_def_sm(env, name, val, documentation, source_file, source_line);
-
-    free(name);
-}
-
-static void fuzz_janet_cfuns_ext(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(JanetRegExt)) return;
-    const char *regprefix = "prefix";
-    JanetRegExt cfuns[] = {
-        { .name = (const char *)Data, .cfun = NULL, .documentation = "doc", .source_file = "./dummy_file", .source_line = 42 },
-        { .name = NULL }
-    };
-    janet_cfuns_ext(env, regprefix, cfuns);
-}
-
-static void fuzz_janet_env_lookup_into(JanetTable *renv, JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-    size_t prefix_len = strnlen((const char *)Data, Size);
-    char *prefix = (char *) malloc(prefix_len + 1);
-    if (!prefix) return;
-    memcpy(prefix, Data, prefix_len);
-    prefix[prefix_len] = '\0';
-    int recurse = 1;
-    janet_env_lookup_into(renv, env, prefix, recurse);
-    free(prefix);
-}
-
-static void fuzz_janet_cfuns_ext_prefix(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(JanetRegExt)) return;
-    const char *regprefix = "prefix";
-    JanetRegExt cfuns[] = {
-        { .name = (const char *)Data, .cfun = NULL, .documentation = "doc", .source_file = "./dummy_file", .source_line = 42 },
-        { .name = NULL }
-    };
-    janet_cfuns_ext_prefix(env, regprefix, cfuns);
+static void fuzz_janet_abstract_incref(MockJanetAbstract *abst) {
+    if (abst) {
+        int32_t new_count = janet_abstract_incref(abst);
+        // Handle the new reference count if necessary
+    }
 }
 
 int LLVMFuzzerTestOneInput_104(const uint8_t *Data, size_t Size) {
-    initialize_janet();
-    
-    JanetTable *env = initialize_table();
-    if (!env) {
-        cleanup_janet();
-        return 0;
+    if (Size < 1) return 0;
+
+    // Fuzz janet_gcunlock
+    int handle = Data[0] % 2; // 0 or 1
+    fuzz_janet_gcunlock(handle);
+
+    // Create a dummy abstract object for testing
+    MockJanetAbstract *mock_abst = create_dummy_abstract();
+
+    // Fuzz janet_abstract_decref and janet_abstract_incref
+    fuzz_janet_abstract_decref(mock_abst);
+    fuzz_janet_abstract_incref(mock_abst);
+
+    // Fuzz janet_gclock
+    fuzz_janet_gclock();
+
+    // Cleanup
+    if (mock_abst) {
+        free(mock_abst);
     }
 
-    fuzz_janet_var_sm(env, Data, Size);
-    fuzz_janet_def_sm(env, Data, Size);
-    fuzz_janet_cfuns_ext(env, Data, Size);
-    fuzz_janet_env_lookup_into(env, env, Data, Size);
-    fuzz_janet_cfuns_ext_prefix(env, Data, Size);
-
-    cleanup_janet();
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_104(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

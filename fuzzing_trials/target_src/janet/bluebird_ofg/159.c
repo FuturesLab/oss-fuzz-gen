@@ -1,84 +1,78 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
+#include <stdlib.h>
 #include "janet.h"
 
 int LLVMFuzzerTestOneInput_159(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
-
     // Initialize the Janet environment
     janet_init();
 
-    // Create a new environment table
-
     // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function janet_table with janet_table_weakk
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function janet_table_weakk with janet_table_weakv
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table_weakv
-    env = janet_table_weakv(JANET_EV_TCTAG_ERR_STRINGF);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    JanetTable *env = janet_table_weakk(0);
     // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Allocate memory for the string and copy the data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_core_env
-
-    JanetTable* ret_janet_core_env_ytvcl = janet_core_env(env);
-    if (ret_janet_core_env_ytvcl == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_core_env to janet_table_get_ex
-    JanetTable* ret_janet_table_weakv_exsom = janet_table_weakv(JANET_FRAME_SIZE);
-    if (ret_janet_table_weakv_exsom == NULL){
-    	return 0;
-    }
-    Janet ret_janet_wrap_s64_gfjyp = janet_wrap_s64(1);
-
-    Janet ret_janet_table_get_ex_yjkfe = janet_table_get_ex(ret_janet_table_weakv_exsom, ret_janet_wrap_s64_gfjyp, &ret_janet_core_env_ytvcl);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
+    Janet result;
+    
+    // Ensure the input data is null-terminated for use as a C string
+    char *source = (char *)malloc(size + 1);
+    if (!source) {
+        janet_deinit();
         return 0;
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
+    memcpy(source, data, size);
+    source[size] = '\0';
 
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
+    // Use a fixed string for the filename parameter
+    const char *filename = "fuzz_input";
 
     // Call the function-under-test
-    janet_dostring(env, str, source, &result);
+    janet_dostring(env, source, filename, &result);
 
     // Clean up
+    free(source);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_dostring to janet_abstract_decref
-
-    int32_t ret_janet_abstract_decref_dywcz = janet_abstract_decref((void *)env);
-    if (ret_janet_abstract_decref_dywcz < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(str);
+    // Deinitialize the Janet environment
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_159(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

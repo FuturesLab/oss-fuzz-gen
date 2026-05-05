@@ -1,78 +1,93 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
 #include "janet.h"
 
+// Ensure Janet runtime is initialized before using any Janet functions
+void initialize_janet_runtime_9() {
+    // Initialize Janet runtime if not already initialized
+    janet_init();
+}
+
+extern int janet_dobytes(JanetTable *, const uint8_t *, int32_t, const char *, Janet *);
+
 int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
+    // Initialize Janet runtime
+    initialize_janet_runtime_9();
+
+    JanetTable *env = janet_table(0);
+    const char *source_name = "fuzz_input";
     Janet result;
 
-    // Initialize the Janet environment
-    janet_init();
-
-    // Create a new environment table
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function janet_table with janet_table_weakv
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table_weakv
-    env = janet_table_weakv(JANET_SANDBOX_UNMARSHAL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Allocate memory for the string and copy the data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_core_env
-
-    JanetTable* ret_janet_core_env_ytvcl = janet_core_env(env);
-    if (ret_janet_core_env_ytvcl == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_core_env to janet_table_init_raw
-    JanetFiber ezyoqvqk;
-    memset(&ezyoqvqk, 0, sizeof(ezyoqvqk));
-    int ret_janet_fiber_can_resume_qxofx = janet_fiber_can_resume(&ezyoqvqk);
-    if (ret_janet_fiber_can_resume_qxofx < 0){
-    	return 0;
-    }
-
-    JanetTable* ret_janet_table_init_raw_olmgk = janet_table_init_raw(ret_janet_core_env_ytvcl, (int32_t )ret_janet_fiber_can_resume_qxofx);
-    if (ret_janet_table_init_raw_olmgk == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
+    // Ensure the size does not exceed int32_t limits
+    if (size > INT32_MAX) {
         return 0;
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
-
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
 
     // Call the function-under-test
+    int status = janet_dobytes(env, data, (int32_t)size, source_name, &result);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_dostring
-    janet_dostring(ret_janet_table_init_raw_olmgk, str, source, &result);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Check the status of the function call
+    if (status != 0) {
+        // Handle error if necessary
+        return 0;
+    }
 
+    // Clean up Janet environment if needed
 
-
-    // Clean up
-    free(str);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_dobytes to janet_struct_get
+    JanetKV* ret_janet_struct_begin_hlsyo = janet_struct_begin(JANET_FRAME_SIZE);
+    if (ret_janet_struct_begin_hlsyo == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_janet_struct_begin_hlsyo) {
+    	return 0;
+    }
+    Janet ret_janet_struct_get_vpryr = janet_struct_get(ret_janet_struct_begin_hlsyo, result);
+    // End mutation: Producer.APPEND_MUTATOR
+    
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_9(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

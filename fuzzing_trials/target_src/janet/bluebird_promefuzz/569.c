@@ -1,116 +1,130 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <string.h>
 #include "janet.h"
 
-static void initialize_janet() {
+static void initialize_janet_env(JanetTable *env) {
+    // Properly initialize a Janet environment
     janet_init();
-}
-
-static JanetTable *initialize_janet_table() {
-    return janet_core_env(NULL);
-}
-
-static void fuzz_janet_var_sm(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-    size_t name_len = strnlen((const char *)Data, Size);
-    char *name = (char *)malloc(name_len + 1);
-    if (!name) return;
-    memcpy(name, Data, name_len);
-    name[name_len] = '\0';
-
-    Janet val = { .u64 = 0 }; // Assuming a default value for simplicity
-    const char *documentation = "Fuzzing janet_var_sm";
-    const char *source_file = "./dummy_file";
-    int32_t source_line = 1;
-    janet_var_sm(env, name, val, documentation, source_file, source_line);
-
-    free(name);
-}
-
-static void fuzz_janet_def_sm(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-    size_t name_len = strnlen((const char *)Data, Size);
-    char *name = (char *)malloc(name_len + 1);
-    if (!name) return;
-    memcpy(name, Data, name_len);
-    name[name_len] = '\0';
-
-    Janet val = { .u64 = 0 }; // Assuming a default value for simplicity
-    const char *documentation = "Fuzzing janet_def_sm";
-    const char *source_file = "./dummy_file";
-    int32_t source_line = 1;
-    janet_def_sm(env, name, val, documentation, source_file, source_line);
-
-    free(name);
-}
-
-static void fuzz_janet_cfuns_ext(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-    size_t prefix_len = strnlen((const char *)Data, Size);
-    char *regprefix = (char *)malloc(prefix_len + 1);
-    if (!regprefix) return;
-    memcpy(regprefix, Data, prefix_len);
-    regprefix[prefix_len] = '\0';
-
-    JanetRegExt cfuns[] = {
-        { "fuzz_function", NULL, "Fuzzing janet_cfuns_ext", "./dummy_file", 1 },
-        { NULL, NULL, NULL, NULL, 0 }
-    };
-    janet_cfuns_ext(env, regprefix, cfuns);
-
-    free(regprefix);
-}
-
-static void fuzz_janet_env_lookup_into(JanetTable *renv, JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-    size_t prefix_len = strnlen((const char *)Data, Size);
-    char *prefix = (char *)malloc(prefix_len + 1);
-    if (!prefix) return;
-    memcpy(prefix, Data, prefix_len);
-    prefix[prefix_len] = '\0';
-
-    int recurse = 1;
-    janet_env_lookup_into(renv, env, prefix, recurse);
-
-    free(prefix);
-}
-
-static void fuzz_janet_cfuns_ext_prefix(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 1) return;
-    size_t prefix_len = strnlen((const char *)Data, Size);
-    char *regprefix = (char *)malloc(prefix_len + 1);
-    if (!regprefix) return;
-    memcpy(regprefix, Data, prefix_len);
-    regprefix[prefix_len] = '\0';
-
-    JanetRegExt cfuns[] = {
-        { "fuzz_function_prefix", NULL, "Fuzzing janet_cfuns_ext_prefix", "./dummy_file", 1 },
-        { NULL, NULL, NULL, NULL, 0 }
-    };
-    janet_cfuns_ext_prefix(env, regprefix, cfuns);
-
-    free(regprefix);
+    janet_table_init(env, 0);
 }
 
 int LLVMFuzzerTestOneInput_569(const uint8_t *Data, size_t Size) {
-    initialize_janet();
-    JanetTable *env = initialize_janet_table();
-    JanetTable *renv = initialize_janet_table();
+    if (Size < 1) {
+        return 0;
+    } // Ensure there is at least some data
 
-    fuzz_janet_var_sm(env, Data, Size);
-    fuzz_janet_def_sm(env, Data, Size);
-    fuzz_janet_cfuns_ext(env, Data, Size);
-    fuzz_janet_env_lookup_into(renv, env, Data, Size);
-    fuzz_janet_cfuns_ext_prefix(env, Data, Size);
+    // Initialize the Janet environment
+    JanetTable env;
+    initialize_janet_env(&env);
 
-    janet_deinit(); // Cleanup Janet environment
+    // Prepare a dummy output variable
+    Janet out;
+
+    // Prepare a source path
+    const char *sourcePath = "./dummy_file";
+
+    // Fuzz janet_dobytes
+    janet_dobytes(&env, Data, (int32_t)Size, sourcePath, &out);
+
+    // Fuzz janet_dostring if data is null-terminated
+    if (Data[Size - 1] == '\0') {
+        janet_dostring(&env, (const char *)Data, sourcePath, &out);
+    }
+
+    // Fuzz janet_def_sm
+    if (Size > sizeof(Janet)) {
+        Janet val;
+        memcpy(&val, Data, sizeof(Janet));
+        janet_def_sm(&env, "fuzz_symbol", val, "Fuzz documentation", sourcePath, 1);
+    }
+
+    // Fuzz janet_def
+    if (Size > sizeof(Janet)) {
+        Janet val;
+        memcpy(&val, Data, sizeof(Janet));
+        janet_def(&env, "fuzz_var", val, "Fuzz documentation");
+    }
+
+    // Fuzz janet_var
+    if (Size > sizeof(Janet)) {
+        Janet val;
+        memcpy(&val, Data, sizeof(Janet));
+        janet_var(&env, "fuzz_var", val, "Fuzz documentation");
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_var to janet_table_merge_table
+        JanetTable* ret_janet_table_weakkv_gybri = janet_table_weakkv(64);
+        if (ret_janet_table_weakkv_gybri == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_janet_table_weakkv_gybri) {
+        	return 0;
+        }
+        janet_table_merge_table(ret_janet_table_weakkv_gybri, &env);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Fuzz janet_var_sm
+    if (Size > sizeof(Janet)) {
+        Janet val;
+        memcpy(&val, Data, sizeof(Janet));
+        janet_var_sm(&env, "fuzz_var_sm", val, "Fuzz documentation", sourcePath, 1);
+    
+        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from janet_var_sm to janet_core_lookup_table using the plateau pool
+        JanetTable* ret_janet_core_lookup_table_gjesw = janet_core_lookup_table(&env);
+        if (ret_janet_core_lookup_table_gjesw == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.SPLICE_MUTATOR
+        
+}
+
+    // Cleanup Janet environment
+    janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_569(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,93 +1,228 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include "janet.h"
 
 int LLVMFuzzerTestOneInput_282(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
-
     // Initialize the Janet environment
     janet_init();
 
-    // Create a new environment table
+    // Create a JanetTable
+    JanetTable *table = janet_table(0);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function janet_table with janet_table_weakv
+    // Use the input data to create a Janet string
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table_weakv
-    env = janet_table_weakv(JANET_SANDBOX_UNMARSHAL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Allocate memory for the string and copy the data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_core_env
-
-    JanetTable* ret_janet_core_env_ytvcl = janet_core_env(env);
-    if (ret_janet_core_env_ytvcl == NULL){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_env_lookup_into
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!table) {
+    	return 0;
+    }
+    JanetTable* ret_janet_core_lookup_table_lwnks = janet_core_lookup_table(table);
+    if (ret_janet_core_lookup_table_lwnks == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!table) {
+    	return 0;
+    }
+    int32_t ret_janet_abstract_decref_focyh = janet_abstract_decref((void *)table);
+    if (ret_janet_abstract_decref_focyh < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!table) {
     	return 0;
     }
 
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_abstract_decref to janet_pretty
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_abstract_decref to janet_var
+    JanetTable* ret_janet_table_weakv_nxucr = janet_table_weakv(JANET_SANDBOX_NET_CONNECT);
+    if (ret_janet_table_weakv_nxucr == NULL){
+    	return 0;
+    }
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table_weakv to janet_env_lookup_into
+    JanetTable* ret_janet_table_wayhq = janet_table(JANET_LINUX);
+    if (ret_janet_table_wayhq == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!table) {
+    	return 0;
+    }
+    void* ret_janet_abstract_end_threaded_jslen = janet_abstract_end_threaded(table);
+    if (ret_janet_abstract_end_threaded_jslen == NULL){
+    	return 0;
+    }
+    size_t ret_janet_os_mutex_size_bwufy = janet_os_mutex_size();
+    if (ret_janet_os_mutex_size_bwufy < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_janet_table_wayhq) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_janet_table_weakv_nxucr) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!table) {
+    	return 0;
+    }
+    janet_env_lookup_into(ret_janet_table_wayhq, ret_janet_table_weakv_nxucr, (const char *)table, (int )ret_janet_os_mutex_size_bwufy);
     // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_core_env to janet_table_init_raw
-    JanetFiber ezyoqvqk;
-    memset(&ezyoqvqk, 0, sizeof(ezyoqvqk));
-    int ret_janet_fiber_can_resume_qxofx = janet_fiber_can_resume(&ezyoqvqk);
-    if (ret_janet_fiber_can_resume_qxofx < 0){
+    
+    Janet ret_janet_asm_decode_instruction_gwaoo = janet_asm_decode_instruction(JANET_FILE_WRITE);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!table) {
     	return 0;
     }
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_fiber_can_resume to janet_bytes_view
-    Janet ret_janet_wrap_number_safe_foktm = janet_wrap_number_safe(JANET_NANBOX_64_POINTER_SHIFT);
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_string_begin
-    uint8_t* ret_janet_string_begin_ruqoy = janet_string_begin(JANET_FILE_NONIL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_janet_string_begin_ruqoy == NULL){
+    int32_t ret_janet_abstract_incref_puyvn = janet_abstract_incref((void *)table);
+    if (ret_janet_abstract_incref_puyvn < 0){
     	return 0;
     }
-
-    int ret_janet_bytes_view_shtqd = janet_bytes_view(ret_janet_wrap_number_safe_foktm, &ret_janet_string_begin_ruqoy, (int32_t *)&ret_janet_fiber_can_resume_qxofx);
-    if (ret_janet_bytes_view_shtqd < 0){
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_janet_table_weakv_nxucr) {
     	return 0;
     }
-
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!table) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!table) {
+    	return 0;
+    }
+    janet_var(ret_janet_table_weakv_nxucr, table, ret_janet_asm_decode_instruction_gwaoo, table);
     // End mutation: Producer.APPEND_MUTATOR
-
-    JanetTable* ret_janet_table_init_raw_olmgk = janet_table_init_raw(ret_janet_core_env_ytvcl, (int32_t )ret_janet_fiber_can_resume_qxofx);
-    if (ret_janet_table_init_raw_olmgk == NULL){
+    
+    JanetBuffer fsbxlaap;
+    memset(&fsbxlaap, 0, sizeof(fsbxlaap));
+    janet_buffer_deinit(&fsbxlaap);
+    JanetAtomicInt jttinosd = size;
+    JanetAtomicInt ret_janet_atomic_inc_frnmf = janet_atomic_inc(&jttinosd);
+    if (ret_janet_atomic_inc_frnmf < 0){
     	return 0;
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
-        return 0;
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_atomic_inc to janet_optsize
+    Janet ret_janet_wrap_number_safe_mixfm = janet_wrap_number_safe(JANET_SANDBOX_FS_WRITE);
+    uint8_t* ret_janet_string_begin_bhubs = janet_string_begin(JANET_HANDLE_NONE);
+    if (ret_janet_string_begin_bhubs == NULL){
+    	return 0;
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
+    JanetAtomicInt ret_janet_atomic_dec_pukta = janet_atomic_dec(&ret_janet_abstract_decref_focyh);
+    if (ret_janet_atomic_dec_pukta < 0){
+    	return 0;
+    }
+    size_t ret_janet_optsize_xtyhg = janet_optsize(&ret_janet_wrap_number_safe_mixfm, ret_janet_atomic_inc_frnmf, (int32_t )*ret_janet_string_begin_bhubs, (size_t )ret_janet_abstract_decref_focyh);
+    if (ret_janet_optsize_xtyhg < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    Janet ret_janet_wrap_u64_svymz = janet_wrap_u64(JANET_SANDBOX_UNMARSHAL);
+    JanetBuffer* ret_janet_pretty_qcjif = janet_pretty(&fsbxlaap, (int )ret_janet_abstract_decref_focyh, (int )ret_janet_atomic_inc_frnmf, ret_janet_wrap_u64_svymz);
+    if (ret_janet_pretty_qcjif == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    int32_t ret_janet_abstract_decref_pcmlq = janet_abstract_decref((void *)table);
+    if (ret_janet_abstract_decref_pcmlq < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_janet_core_lookup_table_lwnks) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!table) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!table) {
+    	return 0;
+    }
+    janet_env_lookup_into(ret_janet_core_lookup_table_lwnks, table, table, (int )ret_janet_abstract_decref_pcmlq);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    Janet key = janet_wrap_string(janet_string(data, size));
 
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
+    // Insert the Janet string into the table with a dummy value
+    janet_table_put(table, key, janet_wrap_nil());
 
     // Call the function-under-test
-    janet_dostring(env, str, source, &result);
+    JanetTable *result = janet_core_env(table);
 
-    // Clean up
-    free(str);
+    // Cleanup Janet environment
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_core_env to janet_compile_lint
+    Janet ret_janet_asm_decode_instruction_borsl = janet_asm_decode_instruction(1);
+    JanetRNG tnwqadol;
+    memset(&tnwqadol, 0, sizeof(tnwqadol));
+    double ret_janet_rng_double_qaxqx = janet_rng_double(&tnwqadol);
+    if (ret_janet_rng_double_qaxqx < 0){
+    	return 0;
+    }
+    JanetArray* ret_janet_array_weak_sezqf = janet_array_weak(JANET_RECURSION_GUARD);
+    if (ret_janet_array_weak_sezqf == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!result) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_janet_array_weak_sezqf) {
+    	return 0;
+    }
+    JanetCompileResult ret_janet_compile_lint_cbhna = janet_compile_lint(ret_janet_asm_decode_instruction_borsl, result, (const uint8_t *)&ret_janet_rng_double_qaxqx, ret_janet_array_weak_sezqf);
+    // End mutation: Producer.APPEND_MUTATOR
+    
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_282(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

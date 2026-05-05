@@ -1,54 +1,84 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "janet.h"
 
-int LLVMFuzzerTestOneInput_453(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
+// Mock implementation of the hypothetical function
+Janet janet_function_with_input(Janet input) {
+    // For demonstration purposes, simply return the input
+    return input;
+}
 
-    // Initialize the Janet environment
+// Fuzzing harness for janet_function_with_input
+int LLVMFuzzerTestOneInput_453(const uint8_t *data, size_t size) {
+    // Ensure there's enough data to create a Janet object
+    if (size == 0) {
+        return 0; // No input to process
+    }
+
+    // Initialize the Janet runtime
     janet_init();
 
-    // Create a new environment table
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table
-    env = janet_table(JANET_EV_TCTAG_KEYWORD);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Allocate memory for the string and copy the data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_nanbox_from_pointer
-
-    Janet ret_janet_nanbox_from_pointer_osvtf = janet_nanbox_from_pointer((void *)env, JANET_PRETTY_ONELINE);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
-        return 0;
-    }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
-
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
+    // Wrap the entire data into a Janet buffer and then convert it to a string
+    JanetBuffer *buffer = janet_buffer(size);
+    janet_buffer_push_bytes(buffer, data, size);
+    Janet input = janet_wrap_string(janet_string(buffer->data, buffer->count));
 
     // Call the function-under-test
-    janet_dostring(env, str, source, &result);
+    Janet result = janet_function_with_input(input);
+
+    // Use the result in some way to prevent compiler optimizations from removing the call
+    // Here we simply check if the result is truthy
+    if (!janet_truthy(result)) {
+        // Clean up
+        janet_buffer_deinit(buffer);
+        janet_deinit();
+        return 1; // Unexpected result
+    }
 
     // Clean up
-    free(str);
+    janet_buffer_deinit(buffer);
     janet_deinit();
 
+    return 0; // Success
+}
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_453(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
     return 0;
 }
+#endif

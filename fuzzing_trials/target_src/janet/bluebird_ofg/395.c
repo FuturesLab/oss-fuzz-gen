@@ -1,49 +1,83 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
+
+// Include the correct header file for janet_loop
 #include "janet.h"
 
-int LLVMFuzzerTestOneInput_395(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
+// Remove the janet_initialize function declaration since it's causing an undefined reference error
+// The janet_initialize function does not exist in the Janet library, so we should not declare it
 
+int LLVMFuzzerTestOneInput_395(const uint8_t *data, size_t size) {
     // Initialize the Janet environment
     janet_init();
 
-    // Create a new environment table
-    env = janet_table(0);
-
-    // Allocate memory for the string and copy the data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_wrap_table
-
-    Janet ret_janet_wrap_table_tvkpp = janet_wrap_table(env);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
-        return 0;
-    }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
-
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
+    // Create a new Janet environment
+    JanetTable *env = janet_core_env(NULL);
 
     // Call the function-under-test
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of janet_dostring
-    janet_dostring(env, str, (const char *)"w", &result);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_core_env to janet_compile
+    Janet ret_janet_nanbox_from_bits_zqmge = janet_nanbox_from_bits(JANET_EV_TCTAG_ERR_KEYWORD);
+    uint8_t* ret_janet_string_begin_jqhse = janet_string_begin(JANET_EV_TCTAG_STRING);
+    if (ret_janet_string_begin_jqhse == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!env) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_janet_string_begin_jqhse) {
+    	return 0;
+    }
+    JanetCompileResult ret_janet_compile_mouiz = janet_compile(ret_janet_nanbox_from_bits_zqmge, env, ret_janet_string_begin_jqhse);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    janet_loop();
 
-
-
-    // Clean up
-    free(str);
+    // Clean up the Janet environment
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_395(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

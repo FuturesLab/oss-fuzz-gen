@@ -1,49 +1,86 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include "janet.h"
+#include "janet.h" // Ensure the correct Janet library is included
+
+extern JanetTable *janet_core_env(JanetTable *);
 
 int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
-
     // Initialize the Janet environment
     janet_init();
 
-    // Create a new environment table
-    env = janet_table(0);
+    JanetTable *inputTable = janet_table(10); // Create a new JanetTable with an initial capacity
+    JanetTable *resultTable;
 
-    // Allocate memory for the string and copy the data
+    if (size > 0) {
+        // Use the data to fill the table with some dummy values
+        for (size_t i = 0; i < size; i++) {
+            Janet key = janet_wrap_integer(i);
+            Janet value = janet_wrap_integer(data[i]);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_nanbox_from_pointer
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of janet_nanbox_from_pointer
-    Janet ret_janet_nanbox_from_pointer_osvtf = janet_nanbox_from_pointer((void *)env, JANET_SANDBOX_SIGNAL);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
-        return 0;
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_wrap_integer to janet_continue_signal
+            JanetFiber aarkwrfh;
+            memset(&aarkwrfh, 0, sizeof(aarkwrfh));
+            int ret_janet_loop_fiber_kpgyz = janet_loop_fiber(&aarkwrfh);
+            if (ret_janet_loop_fiber_kpgyz < 0){
+            	return 0;
+            }
+            Janet ret_janet_nanbox_from_double_xxrxx = janet_nanbox_from_double(JANET_MAX_PROTO_DEPTH);
+            JanetSignal ret_janet_continue_signal_xcbdp = janet_continue_signal(&aarkwrfh, key, &ret_janet_nanbox_from_double_xxrxx, 0);
+            // End mutation: Producer.APPEND_MUTATOR
+            
+            janet_table_put(inputTable, key, value);
+        }
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
-
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
 
     // Call the function-under-test
-    janet_dostring(env, str, source, &result);
+    resultTable = janet_core_env(inputTable);
 
     // Clean up
-    free(str);
+    janet_gcunroot(janet_wrap_table(inputTable));
+
+    // Deinitialize the Janet environment
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_65(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

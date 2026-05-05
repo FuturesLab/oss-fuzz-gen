@@ -1,16 +1,11 @@
 // This fuzz driver is generated for library janet, aiming to fuzz the following functions:
-// janet_local_vm at janet.c:31200:10 in janet.h
-// janet_interpreter_interrupt at janet.c:31227:6 in janet.h
-// janet_interpreter_interrupt at janet.c:31227:6 in janet.h
-// janet_vm_alloc at janet.c:31204:10 in janet.h
-// janet_interpreter_interrupt at janet.c:31227:6 in janet.h
-// janet_vm_free at janet.c:31212:6 in janet.h
-// janet_vm_alloc at janet.c:31204:10 in janet.h
-// janet_vm_save at janet.c:31216:6 in janet.h
-// janet_vm_load at janet.c:31220:6 in janet.h
-// janet_vm_free at janet.c:31212:6 in janet.h
-// janet_vm_alloc at janet.c:31204:10 in janet.h
-// janet_vm_free at janet.c:31212:6 in janet.h
+// janet_init at vm.c:1652:5 in janet.h
+// janet_getstruct at janet.c:4515:1 in janet.h
+// janet_nanbox_from_cpointer at janet.c:37698:7 in janet.h
+// janet_struct_begin at janet.c:32494:10 in janet.h
+// janet_struct_end at janet.c:32603:16 in janet.h
+// janet_struct_find at janet.c:32513:16 in janet.h
+// janet_optstruct at janet.c:4528:1 in janet.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -18,58 +13,113 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <setjmp.h>
+#include <stdlib.h>
+#include <string.h>
 #include "janet.h"
 
-static void fuzz_janet_local_vm() {
-    JanetVM *vm = janet_local_vm();
-    if (vm != NULL) {
-        janet_interpreter_interrupt(vm);
+static int is_janet_initialized = 0;
+
+static void initialize_janet() {
+    if (!is_janet_initialized) {
+        janet_init();
+        is_janet_initialized = 1;
     }
 }
 
-static void fuzz_janet_interpreter_interrupt(JanetVM *vm) {
-    janet_interpreter_interrupt(vm);
+static void fuzz_janet_getstruct(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(Janet) + sizeof(int32_t)) return;
+    const Janet *argv = (const Janet *)Data;
+    int32_t n = *((int32_t *)(Data + sizeof(Janet)));
+    JanetStruct js = janet_getstruct(argv, n);
+    (void)js; // Suppress unused variable warning
 }
 
-static void fuzz_janet_vm_alloc_and_free() {
-    JanetVM *vm = janet_vm_alloc();
-    if (vm != NULL) {
-        janet_interpreter_interrupt(vm);
-        janet_vm_free(vm);
-    }
+static void fuzz_janet_wrap_struct(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(JanetStruct)) return;
+    JanetStruct x = (JanetStruct)Data;
+    Janet wrapped = janet_wrap_struct(x);
+    (void)wrapped; // Suppress unused variable warning
 }
 
-static void fuzz_janet_vm_load_and_save(JanetVM *vm) {
-    JanetVM *new_vm = janet_vm_alloc();
-    if (new_vm != NULL) {
-        janet_vm_save(new_vm);
-        janet_vm_load(new_vm);
-        janet_vm_free(new_vm);
-    }
+static void fuzz_janet_struct_begin(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int32_t)) return;
+    int32_t count = *((int32_t *)Data);
+    JanetKV *kv = janet_struct_begin(count);
+    if (kv) free(kv); // Assuming janet_struct_begin allocates memory
+}
+
+static void fuzz_janet_struct_end(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(JanetKV)) return;
+    JanetKV *st = (JanetKV *)Data;
+    JanetStruct js = janet_struct_end(st);
+    (void)js; // Suppress unused variable warning
+}
+
+static void fuzz_janet_struct_find(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(JanetStruct) + sizeof(Janet)) return;
+    JanetStruct st = (JanetStruct)Data;
+    Janet key = *((Janet *)(Data + sizeof(JanetStruct)));
+    const JanetKV *result = janet_struct_find(st, key);
+    (void)result; // Suppress unused variable warning
+}
+
+static void fuzz_janet_optstruct(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(Janet) + 2 * sizeof(int32_t) + sizeof(JanetStruct)) return;
+    const Janet *argv = (const Janet *)Data;
+    int32_t argc = *((int32_t *)(Data + sizeof(Janet)));
+    int32_t n = *((int32_t *)(Data + sizeof(Janet) + sizeof(int32_t)));
+    JanetStruct dflt = (JanetStruct)(Data + sizeof(Janet) + 2 * sizeof(int32_t));
+    JanetStruct js = janet_optstruct(argv, argc, n, dflt);
+    (void)js; // Suppress unused variable warning
 }
 
 int LLVMFuzzerTestOneInput_527(const uint8_t *Data, size_t Size) {
-    (void)Data;
-    (void)Size;
-
-    // Fuzz janet_local_vm
-    fuzz_janet_local_vm();
-
-    // Allocate a new VM instance and fuzz janet_interpreter_interrupt
-    JanetVM *vm = janet_vm_alloc();
-    if (vm != NULL) {
-        fuzz_janet_interpreter_interrupt(vm);
-
-        // Fuzz janet_vm_load and janet_vm_save
-        fuzz_janet_vm_load_and_save(vm);
-
-        // Free the VM instance
-        janet_vm_free(vm);
-    }
-
-    // Directly fuzz janet_vm_alloc and janet_vm_free
-    fuzz_janet_vm_alloc_and_free();
-
+    initialize_janet();
+    fuzz_janet_getstruct(Data, Size);
+    fuzz_janet_wrap_struct(Data, Size);
+    fuzz_janet_struct_begin(Data, Size);
+    fuzz_janet_struct_end(Data, Size);
+    fuzz_janet_struct_find(Data, Size);
+    fuzz_janet_optstruct(Data, Size);
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_527(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

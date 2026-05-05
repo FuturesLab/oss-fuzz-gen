@@ -1,52 +1,73 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "janet.h"
 
 int LLVMFuzzerTestOneInput_575(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
-
-    // Initialize the Janet environment
+    // Initialize Janet runtime
     janet_init();
 
-    // Create a new environment table
-    env = janet_table(0);
-
-    // Allocate memory for the string and copy the data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_core_env
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function janet_core_env with janet_table_clone
-    JanetTable* ret_janet_core_env_ytvcl = janet_table_clone(env);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_janet_core_env_ytvcl == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
+    // Ensure the data is large enough to create a Janet string
+    if (size < 1) {
+        janet_deinit();
         return 0;
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
 
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
+    // Create a Janet string from the input data
+    Janet janet_str = janet_stringv((const uint8_t *)data, size);
 
-    // Call the function-under-test
-    janet_dostring(env, str, source, &result);
+    // Wrap the Janet string in a Janet value
+    Janet janet_value = janet_wrap_string(janet_unwrap_string(janet_str));
 
-    // Clean up
-    free(str);
+    // Attempt to unwrap the Janet value as a function
+    // Note: This may not be valid if the input data does not represent a function
+    if (janet_checktype(janet_value, JANET_FUNCTION)) {
+        JanetFunction *result = janet_unwrap_function(janet_value);
+        // Use the result if needed
+    }
+
+    // Clean up Janet runtime
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_575(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

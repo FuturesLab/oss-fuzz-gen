@@ -1,47 +1,90 @@
+#include <sys/stat.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include "janet.h"
 
-int LLVMFuzzerTestOneInput_336(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
+// Function-under-test
+int janet_dostring(JanetTable *env, const char *str, const char *source, Janet *out);
 
-    // Initialize the Janet environment
+int LLVMFuzzerTestOneInput_336(const uint8_t *data, size_t size) {
+    // Initialize Janet environment
     janet_init();
 
-    // Create a new environment table
+    // Create a JanetTable for the environment
+    JanetTable *env = janet_table(0);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table
-    env = janet_table(JANET_SANDBOX_DYNAMIC_MODULES);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Allocate memory for the string and copy the data
-    str = (char *)malloc(size + 1);
+    // Ensure the input data is null-terminated for the string parameters
+    char *str = (char *)malloc(size + 1);
     if (str == NULL) {
         return 0;
     }
     memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
+    str[size] = '\0';
 
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
+    // Use a static source name for simplicity
+    const char *source = "fuzz_source";
+
+    // Prepare a Janet variable to capture the output
+    Janet out;
 
     // Call the function-under-test
-    janet_dostring(env, str, source, &result);
+    janet_dostring(env, str, source, &out);
 
     // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_dostring to janet_stacktrace
+    JanetFiber uxuhqyie;
+    memset(&uxuhqyie, 0, sizeof(uxuhqyie));
+    int ret_janet_loop_fiber_iilpl = janet_loop_fiber(&uxuhqyie);
+    if (ret_janet_loop_fiber_iilpl < 0){
+    	return 0;
+    }
+    janet_stacktrace(&uxuhqyie, out);
+    // End mutation: Producer.APPEND_MUTATOR
+    
     free(str);
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_336(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,50 +1,95 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
-#include "janet.h"
+#include "janet.h" // Ensure the correct Janet library is included
+
+extern JanetTable *janet_core_env(JanetTable *);
 
 int LLVMFuzzerTestOneInput_352(const uint8_t *data, size_t size) {
-    if (size < 2) {
-        return 0; // Not enough data to work with
-    }
-
-    // Initialize Janet
+    // Initialize the Janet environment
     janet_init();
 
-    // Prepare the JanetTable parameter
-    JanetTable *env = janet_table(0);
+    JanetTable *inputTable = janet_table(10); // Create a new JanetTable with an initial capacity
+    JanetTable *resultTable;
 
-    // Prepare the string parameters
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_env_lookup_into
-    void* ret_janet_malloc_sbksl = janet_malloc(JANET_SANDBOX_DYNAMIC_MODULES);
-    if (ret_janet_malloc_sbksl == NULL){
-    	return 0;
+    if (size > 0) {
+        // Use the data to fill the table with some dummy values
+        for (size_t i = 0; i < size; i++) {
+            Janet key = janet_wrap_integer(i);
+            Janet value = janet_wrap_integer(data[i]);
+            janet_table_put(inputTable, key, value);
+        }
     }
-
-    janet_env_lookup_into(env, env, (const char *)ret_janet_malloc_sbksl, JANET_SANDBOX_FFI_USE);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    char *source = (char *)malloc(size + 1);
-    if (!source) {
-        janet_deinit();
-        return 0;
-    }
-    memcpy(source, data, size);
-    source[size] = '\0'; // Ensure null-terminated
-
-    const char *source_name = "fuzz_source"; // A simple source name
-
-    // Prepare the Janet result parameter
-    Janet result;
 
     // Call the function-under-test
-    janet_dostring(env, source, source_name, &result);
+    resultTable = janet_core_env(inputTable);
 
     // Clean up
-    free(source);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_core_env to janet_table_merge_table
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!inputTable) {
+    	return 0;
+    }
+    JanetTable* ret_janet_core_lookup_table_ukntv = janet_core_lookup_table(inputTable);
+    if (ret_janet_core_lookup_table_ukntv == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!inputTable) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!resultTable) {
+    	return 0;
+    }
+    janet_table_merge_table(inputTable, resultTable);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    janet_gcunroot(janet_wrap_table(inputTable));
+
+    // Deinitialize the Janet environment
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_352(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

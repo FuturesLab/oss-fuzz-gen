@@ -1,78 +1,94 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include "janet.h"
 
+// Ensure the Janet library is initialized
+static void initialize_janet_315() {
+    static int initialized = 0;
+    if (!initialized) {
+        janet_init();
+        initialized = 1;
+    }
+}
+
 int LLVMFuzzerTestOneInput_315(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
+    // Initialize Janet if not already initialized
+    initialize_janet_315();
 
-    // Initialize the Janet environment
-    janet_init();
-
-    // Create a new environment table
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function janet_table with janet_table_weakv
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table_weakv
-    env = janet_table_weakv(JANET_SANDBOX_FS_WRITE);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Allocate memory for the string and copy the data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_core_env
-
-    JanetTable* ret_janet_core_env_ytvcl = janet_core_env(env);
-    if (ret_janet_core_env_ytvcl == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_core_env to janet_table_init_raw
-    JanetFiber ezyoqvqk;
-    memset(&ezyoqvqk, 0, sizeof(ezyoqvqk));
-    int ret_janet_fiber_can_resume_qxofx = janet_fiber_can_resume(&ezyoqvqk);
-    if (ret_janet_fiber_can_resume_qxofx < 0){
-    	return 0;
-    }
-
-    JanetTable* ret_janet_table_init_raw_olmgk = janet_table_init_raw(ret_janet_core_env_ytvcl, (int32_t )ret_janet_fiber_can_resume_qxofx);
-    if (ret_janet_table_init_raw_olmgk == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
+    // Ensure that the size is at least the size of a Janet array
+    if (size < sizeof(int32_t)) {
         return 0;
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
 
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
+    // Calculate the number of elements we can safely allocate
+    size_t num_elements = size / sizeof(int32_t);
+
+    // Attempt to create a Janet array from the data
+    JanetArray *array = janet_array(num_elements);
+    for (size_t i = 0; i < num_elements && i < array->capacity; i++) {
+        array->data[i] = janet_wrap_integer(((int32_t *)data)[i]);
+    }
+    array->count = num_elements;
+
+    // Create a Janet struct from the array
+    Janet *values = janet_tuple_begin(num_elements);
+    for (size_t i = 0; i < num_elements; i++) {
+        values[i] = array->data[i];
+    }
+    JanetTuple tuple = janet_tuple_end(values);
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_dostring
-    janet_dostring(ret_janet_table_init_raw_olmgk, str, source, &result);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    for (size_t i = 0; i < num_elements; i++) {
+        Janet result = janet_get(janet_wrap_tuple(tuple), janet_wrap_integer(i));
+        if (janet_checktype(result, JANET_NIL)) {
+            // Perform some operation if needed
+        }
+    }
 
     // Clean up
-    free(str);
-    janet_deinit();
+    // No need to explicitly destroy the array, as Janet's garbage collector will handle it.
+    // However, if we had manually rooted the array, we would unroot it here.
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_315(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

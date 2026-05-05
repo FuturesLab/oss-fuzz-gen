@@ -1,137 +1,98 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
 #include "janet.h"
 
-static void initialize_janet_environment(JanetTable *env) {
-    env->gc.flags = 0;
-    env->gc.data.next = NULL;
-    env->count = 0;
-    env->capacity = 0;
-    env->deleted = 0;
-    env->data = NULL;
-    env->proto = NULL;
-}
-
-static void ensure_janet_table_initialized(JanetTable *env) {
-    if (env->capacity == 0) {
-        env->capacity = 8;  // Set a default capacity
-        env->data = malloc(sizeof(JanetKV) * env->capacity);
-        memset(env->data, 0, sizeof(JanetKV) * env->capacity);
+static Janet create_random_janet(const uint8_t *Data, size_t Size, size_t *offset) {
+    Janet x;
+    if (*offset + sizeof(uint64_t) <= Size) {
+        x.u64 = *(uint64_t *)(Data + *offset);
+        *offset += sizeof(uint64_t);
+    } else {
+        x.u64 = 0;
     }
-}
-
-static void fuzz_janet_var_sm(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
-        return;
-    }
-    ensure_janet_table_initialized(env);
-    char *name = (char *)malloc(Size + 1);
-    memcpy(name, Data, Size);
-    name[Size] = '\0';
-    Janet val = { .u64 = 0 };
-    const char *documentation = "Documentation";
-    const char *source_file = "source.janet";
-    int32_t source_line = 42;
-    janet_var_sm(env, name, val, documentation, source_file, source_line);
-    free(name);
-}
-
-static void fuzz_janet_dobytes(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return;
-    }
-    ensure_janet_table_initialized(env);
-    Janet out;
-    janet_dobytes(env, Data, (int32_t)Size, "./dummy_file", &out);
-}
-
-static void fuzz_janet_var(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
-        return;
-    }
-    ensure_janet_table_initialized(env);
-    char *name = (char *)malloc(Size + 1);
-    memcpy(name, Data, Size);
-    name[Size] = '\0';
-    Janet val = { .u64 = 0 };
-    const char *documentation = "Documentation";
-    janet_var(env, name, val, documentation);
-    free(name);
-}
-
-static void fuzz_janet_def_sm(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
-        return;
-    }
-    ensure_janet_table_initialized(env);
-    char *name = (char *)malloc(Size + 1);
-    memcpy(name, Data, Size);
-    name[Size] = '\0';
-    Janet val = { .u64 = 0 };
-    const char *documentation = "Documentation";
-    const char *source_file = "source.janet";
-    int32_t source_line = 42;
-    janet_def_sm(env, name, val, documentation, source_file, source_line);
-    free(name);
-}
-
-static void fuzz_janet_dostring(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return;
-    }
-    ensure_janet_table_initialized(env);
-    char *str = (char *)malloc(Size + 1);
-    memcpy(str, Data, Size);
-    str[Size] = '\0';
-    Janet out;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 2 of janet_dostring
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of janet_dostring
-    janet_dostring(env, (const char *)"r", (const char *)"r", &out);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    free(str);
-}
-
-static void fuzz_janet_def(JanetTable *env, const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
-        return;
-    }
-    ensure_janet_table_initialized(env);
-    char *name = (char *)malloc(Size + 1);
-    memcpy(name, Data, Size);
-    name[Size] = '\0';
-    Janet val = { .u64 = 0 };
-    const char *documentation = "Documentation";
-    janet_def(env, name, val, documentation);
-    free(name);
+    return x;
 }
 
 int LLVMFuzzerTestOneInput_418(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(uint64_t)) return 0;
+
+    // Initialize Janet VM
     janet_init();
-    JanetTable env;
-    initialize_janet_environment(&env);
 
-    fuzz_janet_var_sm(&env, Data, Size);
-    fuzz_janet_dobytes(&env, Data, Size);
-    fuzz_janet_var(&env, Data, Size);
-    fuzz_janet_def_sm(&env, Data, Size);
-    fuzz_janet_dostring(&env, Data, Size);
-    fuzz_janet_def(&env, Data, Size);
+    size_t offset = 0;
+    Janet x = create_random_janet(Data, Size, &offset);
 
-    free(env.data);
+    int result1 = janet_checkint64(x);
+    int result2 = janet_checkint(x);
+    int result3 = janet_checkuint(x);
+    int result4 = janet_checksize(x);
+
+    Janet argv[10];
+    for (int i = 0; i < 10 && offset + sizeof(uint64_t) <= Size; i++) {
+        argv[i] = create_random_janet(Data, Size, &offset);
+    }
+
+    if (offset + sizeof(int32_t) <= Size) {
+        int32_t n = *(int32_t *)(Data + offset) % 10;
+        offset += sizeof(int32_t);
+
+        if (n >= 0 && n < 10) {
+            if (janet_checkint(argv[n])) {
+                double numberResult = janet_getnumber(argv, n);
+            }
+            if (janet_checkint(argv[n]) && janet_checkuint(argv[n])) {
+                int32_t natResult = janet_getnat(argv, n);
+            }
+        }
+    }
+
+    // Cleanup Janet VM
     janet_deinit();
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_418(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

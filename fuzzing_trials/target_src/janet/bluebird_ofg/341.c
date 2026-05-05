@@ -1,63 +1,75 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <string.h> // Include string.h for memcpy
 #include "janet.h"
 
 int LLVMFuzzerTestOneInput_341(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
-
-    // Initialize the Janet environment
-    janet_init();
-
-    // Create a new environment table
-    env = janet_table(0);
-
-    // Allocate memory for the string and copy the data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_core_env
-
-    JanetTable* ret_janet_core_env_ytvcl = janet_core_env(env);
-    if (ret_janet_core_env_ytvcl == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_core_env to janet_table_init_raw
-    JanetFiber ezyoqvqk;
-    memset(&ezyoqvqk, 0, sizeof(ezyoqvqk));
-    int ret_janet_fiber_can_resume_qxofx = janet_fiber_can_resume(&ezyoqvqk);
-    if (ret_janet_fiber_can_resume_qxofx < 0){
-    	return 0;
-    }
-
-    JanetTable* ret_janet_table_init_raw_olmgk = janet_table_init_raw(ret_janet_core_env_ytvcl, (int32_t )ret_janet_fiber_can_resume_qxofx);
-    if (ret_janet_table_init_raw_olmgk == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
+    if (size < sizeof(JanetFiber) + sizeof(Janet)) {
         return 0;
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
 
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
+    // Initialize Janet
+    janet_init();
+
+    // Allocate memory for JanetFiber and Janet
+    JanetFiber *fiber = (JanetFiber *)malloc(sizeof(JanetFiber));
+    if (!fiber) {
+        janet_deinit();
+        return 0;
+    }
+
+    Janet janet_value;
+
+    // Copy data into the JanetFiber and Janet
+    memcpy(fiber, data, sizeof(JanetFiber));
+    memcpy(&janet_value, data + sizeof(JanetFiber), sizeof(Janet));
 
     // Call the function-under-test
-    janet_dostring(env, str, source, &result);
+    janet_schedule(fiber, janet_value);
 
     // Clean up
-    free(str);
+    free(fiber);
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_341(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

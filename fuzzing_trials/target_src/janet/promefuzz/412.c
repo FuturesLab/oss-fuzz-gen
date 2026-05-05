@@ -1,14 +1,9 @@
 // This fuzz driver is generated for library janet, aiming to fuzz the following functions:
-// janet_deinit at vm.c:1732:6 in janet.h
-// janet_array_weak at janet.c:1569:13 in janet.h
-// janet_array at janet.c:1562:13 in janet.h
-// janet_getarray at janet.c:4512:1 in janet.h
-// janet_array_setcount at janet.c:1606:6 in janet.h
-// janet_optarray at janet.c:4540:1 in janet.h
-// janet_init at vm.c:1652:5 in janet.h
-// janet_array at janet.c:1562:13 in janet.h
-// janet_deinit at vm.c:1732:6 in janet.h
-// janet_array_ensure at janet.c:1589:6 in janet.h
+// janet_nanbox_from_double at janet.c:37710:7 in janet.h
+// janet_sleep_await at janet.c:12093:22 in janet.h
+// janet_addtimeout at janet.c:9521:6 in janet.h
+// janet_current_fiber at fiber.c:446:13 in janet.h
+// janet_addtimeout_nil at janet.c:9534:6 in janet.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -16,102 +11,82 @@
 #include <stdio.h>
 #include "janet.h"
 
-static void fuzz_janet_array_ensure(JanetArray *array, int32_t capacity, int32_t growth) {
-    janet_array_ensure(array, capacity, growth);
+static void fuzz_janet_addtimeout_nil(double sec) {
+    janet_addtimeout_nil(sec);
 }
 
-static void fuzz_janet_array_weak(int32_t capacity) {
-    JanetArray *array = janet_array_weak(capacity);
-    if (array) {
-        // Do not free array, as it is managed by Janet's GC
-    }
+static Janet fuzz_janet_wrap_number(double x) {
+    return janet_wrap_number(x);
 }
 
-static void fuzz_janet_array(int32_t capacity) {
-    JanetArray *array = janet_array(capacity);
-    if (array) {
-        // Do not free array, as it is managed by Janet's GC
-    }
+static void fuzz_janet_sleep_await(double sec) {
+    janet_sleep_await(sec);
 }
 
-static void fuzz_janet_getarray(const Janet *argv, int32_t n) {
-    JanetArray *array = janet_getarray(argv, n);
-    if (array) {
-        // Use the array in some way
-    }
-}
-
-static void fuzz_janet_array_setcount(JanetArray *array, int32_t count) {
-    janet_array_setcount(array, count);
-}
-
-static void fuzz_janet_optarray(const Janet *argv, int32_t argc, int32_t n, int32_t dflt_len) {
-    JanetArray *array = janet_optarray(argv, argc, n, dflt_len);
-    if (array) {
-        // Use the array in some way
-    }
+static void fuzz_janet_addtimeout(double sec) {
+    janet_addtimeout(sec);
 }
 
 int LLVMFuzzerTestOneInput_412(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int32_t)) return 0;
-
-    // Initialize Janet VM before using any Janet functions
-    janet_init();
-
-    int32_t capacity = *((int32_t *)Data);
-    Data += sizeof(int32_t);
-    Size -= sizeof(int32_t);
-
-    JanetArray *array = janet_array(capacity);
-    if (!array) {
-        janet_deinit();
+    if (Size < sizeof(double)) {
         return 0;
     }
 
-    if (Size >= sizeof(int32_t)) {
-        int32_t growth = *((int32_t *)Data);
-        Data += sizeof(int32_t);
-        Size -= sizeof(int32_t);
-        fuzz_janet_array_ensure(array, capacity, growth);
+    double sec;
+    memcpy(&sec, Data, sizeof(double));
+
+    // Ensure the Janet environment is initialized before calling any Janet functions
+    JanetFiber *fiber = janet_current_fiber();
+    if (!fiber) {
+        return 0; // Exit if no current fiber is available
     }
 
-    if (Size >= sizeof(int32_t)) {
-        int32_t count = *((int32_t *)Data);
-        Data += sizeof(int32_t);
-        Size -= sizeof(int32_t);
-        fuzz_janet_array_setcount(array, count);
-    }
+    fuzz_janet_addtimeout_nil(sec);
+    Janet wrapped_number = fuzz_janet_wrap_number(sec);
+    (void)wrapped_number; // Avoid unused variable warning
 
-    if (Size >= sizeof(int32_t)) {
-        int32_t weak_capacity = *((int32_t *)Data);
-        Data += sizeof(int32_t);
-        Size -= sizeof(int32_t);
-        fuzz_janet_array_weak(weak_capacity);
-    }
-
-    if (Size >= sizeof(int32_t)) {
-        int32_t n = *((int32_t *)Data);
-        Data += sizeof(int32_t);
-        Size -= sizeof(int32_t);
-        Janet argv[1] = {{.pointer = array}};
-        fuzz_janet_getarray(argv, n);
-    }
-
-    if (Size >= sizeof(int32_t) * 3) {
-        int32_t argc = *((int32_t *)Data);
-        Data += sizeof(int32_t);
-        int32_t opt_n = *((int32_t *)Data);
-        Data += sizeof(int32_t);
-        int32_t dflt_len = *((int32_t *)Data);
-        Data += sizeof(int32_t);
-        Janet opt_argv[1] = {{.pointer = array}};
-        fuzz_janet_optarray(opt_argv, argc, opt_n, dflt_len);
-    }
-
-    // Do not free array, as it is managed by Janet's GC
-
-    // Deinitialize Janet VM after all operations
-    janet_deinit();
+    fuzz_janet_sleep_await(sec);
+    fuzz_janet_addtimeout(sec);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_412(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

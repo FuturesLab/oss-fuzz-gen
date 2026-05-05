@@ -1,53 +1,116 @@
 // This fuzz driver is generated for library janet, aiming to fuzz the following functions:
-// janet_nanbox_from_cpointer at janet.c:37698:7 in janet.h
-// janet_nanbox_from_pointer at janet.c:37686:7 in janet.h
-// janet_nanbox_to_pointer at janet.c:37680:7 in janet.h
-// janet_nanbox_to_pointer at janet.c:37680:7 in janet.h
-// janet_nanbox_from_pointer at janet.c:37686:7 in janet.h
+// janet_parser_deinit at parse.c:804:6 in janet.h
+// janet_parser_consume at parse.c:697:6 in janet.h
+// janet_parser_eof at parse.c:717:6 in janet.h
+// janet_parser_error at parse.c:744:13 in janet.h
+// janet_parser_flush at parse.c:737:6 in janet.h
+// janet_init at vm.c:1652:5 in janet.h
+// janet_deinit at vm.c:1732:6 in janet.h
+// janet_parser_init at parse.c:784:6 in janet.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include "janet.h"
 
-static void prepare_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static void initialize_parser(JanetParser *parser) {
+    janet_parser_init(parser);
+}
+
+static void deinitialize_parser(JanetParser *parser) {
+    janet_parser_deinit(parser);
+}
+
+static void consume_data(JanetParser *parser, const uint8_t *data, size_t size) {
+    for (size_t i = 0; i < size; i++) {
+        janet_parser_consume(parser, data[i]);
     }
+}
+
+static void handle_eof(JanetParser *parser) {
+    janet_parser_eof(parser);
+}
+
+static void handle_error(JanetParser *parser) {
+    const char *error = janet_parser_error(parser);
+    if (error) {
+        fprintf(stderr, "Parser error: %s\n", error);
+    }
+}
+
+static void flush_parser(JanetParser *parser) {
+    janet_parser_flush(parser);
 }
 
 int LLVMFuzzerTestOneInput_353(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(void *) + sizeof(uint64_t)) {
-        return 0;
+    // Initialize Janet VM before using any parser functions
+    if (!janet_init()) {
+        return 0; // If initialization fails, exit early
     }
 
-    prepare_dummy_file(Data, Size);
+    JanetParser parser;
 
-    const void *ptr = (const void *)(Data);
-    uint64_t tagmask = *(uint64_t *)(Data + sizeof(void *));
+    // Initialize the parser
+    initialize_parser(&parser);
 
-    // Fuzz janet_nanbox_from_cpointer
-    Janet janet_value_from_cpointer = janet_nanbox_from_cpointer(ptr, tagmask);
+    // Consume the input data
+    consume_data(&parser, Data, Size);
 
-    // Fuzz janet_wrap_pointer
-    Janet janet_value_wrap_pointer = janet_wrap_pointer((void *)ptr);
+    // Simulate end of file
+    handle_eof(&parser);
 
-    // Fuzz janet_unwrap_pointer
-    void *unwrapped_pointer = janet_unwrap_pointer(janet_value_wrap_pointer);
+    // Check for errors and handle them
+    handle_error(&parser);
 
-    // Fuzz janet_nanbox_to_pointer
-    void *nanbox_to_pointer = janet_nanbox_to_pointer(janet_value_from_cpointer);
+    // Flush the parser to reset its state
+    flush_parser(&parser);
 
-    // Fuzz janet_nanbox_from_pointer
-    Janet janet_value_from_pointer = janet_nanbox_from_pointer((void *)ptr, tagmask);
+    // Deinitialize the parser
+    deinitialize_parser(&parser);
+
+    // Cleanup Janet VM
+    janet_deinit();
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_353(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

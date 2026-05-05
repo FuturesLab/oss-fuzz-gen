@@ -1,49 +1,90 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include "janet.h"
 
+extern int32_t janet_length(Janet);
+
 int LLVMFuzzerTestOneInput_320(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
+    Janet janet_value;
+    JanetArray *array;
+    JanetTable *table;
+    JanetString string;
 
-    // Initialize the Janet environment
-    janet_init();
-
-    // Create a new environment table
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table
-    env = janet_table(JANET_NANBOX_POINTER_SHIFT_BITS);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Allocate memory for the string and copy the data
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from janet_table to janet_nanbox_from_pointer
-
-    Janet ret_janet_nanbox_from_pointer_osvtf = janet_nanbox_from_pointer((void *)env, JANET_PRETTY_ONELINE);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
+    if (size == 0) {
         return 0;
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
 
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
+    // Initialize Janet VM
+    janet_init();
 
-    // Call the function-under-test
-    janet_dostring(env, str, source, &result);
+    // Create different types of Janet values to test janet_length function
+    array = janet_array(size);
+    table = janet_table(size);
+    string = janet_string(data, size);
 
-    // Clean up
-    free(str);
+    // Populate array with some values
+    for (size_t i = 0; i < size; i++) {
+        janet_array_push(array, janet_wrap_integer((int32_t)data[i]));
+    }
+
+    // Populate table with some key-value pairs
+    for (size_t i = 0; i < size; i++) {
+        janet_table_put(table, janet_wrap_integer((int32_t)i), janet_wrap_integer((int32_t)data[i]));
+    }
+
+    // Test janet_length with different types
+    janet_value = janet_wrap_array(array);
+    janet_length(janet_value);
+
+    janet_value = janet_wrap_table(table);
+    janet_length(janet_value);
+
+    janet_value = janet_wrap_string(string);
+    janet_length(janet_value);
+
+    // Cleanup
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_320(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

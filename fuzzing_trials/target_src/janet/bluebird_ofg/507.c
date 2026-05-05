@@ -1,47 +1,74 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
 #include "janet.h"
 
-int LLVMFuzzerTestOneInput_507(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
+extern void janet_table_merge_table(JanetTable *dest, JanetTable *src);
 
-    // Initialize the Janet environment
+int LLVMFuzzerTestOneInput_507(const uint8_t *data, size_t size) {
+    // Initialize Janet
     janet_init();
 
-    // Create a new environment table
+    // Create two JanetTable objects
+    JanetTable *table1 = janet_table(10);
+    JanetTable *table2 = janet_table(10);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function janet_table with janet_table_weakkv
-    env = janet_table_weakkv(JANET_EV_TCTAG_INTEGER);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Allocate memory for the string and copy the data
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
-        return 0;
+    // Populate the tables with some data
+    if (size > 0) {
+        // Use the data to populate the tables
+        for (size_t i = 0; i < size; i++) {
+            Janet key = janet_wrap_integer(i);
+            Janet value = janet_wrap_integer(data[i]);
+            janet_table_put(table1, key, value);
+            janet_table_put(table2, key, value);
+        }
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
-
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
 
     // Call the function-under-test
-    janet_dostring(env, str, source, &result);
+    janet_table_merge_table(table1, table2);
 
     // Clean up
-    free(str);
     janet_deinit();
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_507(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

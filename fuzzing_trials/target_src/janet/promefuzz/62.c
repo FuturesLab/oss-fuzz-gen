@@ -1,66 +1,133 @@
 // This fuzz driver is generated for library janet, aiming to fuzz the following functions:
-// janet_nanbox_from_pointer at janet.c:37686:7 in janet.h
-// janet_nanbox_from_pointer at janet.c:37686:7 in janet.h
-// janet_register at janet.c:34286:6 in janet.h
-// janet_nanbox_from_pointer at janet.c:37686:7 in janet.h
-// janet_nanbox_to_pointer at janet.c:37680:7 in janet.h
-// janet_getcfunction at janet.c:4522:1 in janet.h
-// janet_optcfunction at janet.c:4534:1 in janet.h
-// janet_nanbox_from_pointer at janet.c:37686:7 in janet.h
+// janet_checkint at janet.c:34521:5 in janet.h
+// janet_checkuint64 at janet.c:34542:5 in janet.h
+// janet_checkuint16 at janet.c:34556:5 in janet.h
+// janet_hash at value.c:309:9 in janet.h
+// janet_checkint at janet.c:34521:5 in janet.h
+// janet_checkuint64 at janet.c:34542:5 in janet.h
+// janet_checkuint16 at janet.c:34556:5 in janet.h
+// janet_nanbox_from_double at janet.c:37710:7 in janet.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <stdint.h>
-#include <stddef.h>
 #include "janet.h"
 
-// Dummy JanetCFunction for testing
-static Janet cfunction_example(int32_t argc, Janet *argv) {
-    return janet_wrap_cfunction(cfunction_example);
+// Function to ensure the Janet value is of a hashable type
+static int is_hashable_type(Janet x) {
+    // Check for valid types (this is a simplified example, adjust based on actual valid types)
+    return janet_checkint(x) || janet_checkuint64(x) || janet_checkuint16(x);
 }
 
-// Helper function to create a dummy Janet array
-static void create_dummy_janet_array(Janet *array, size_t size) {
-    for (size_t i = 0; i < size; i++) {
-        array[i] = janet_wrap_cfunction(cfunction_example);
+static void fuzz_janet_hash(Janet x) {
+    if (is_hashable_type(x)) {
+        int32_t hash = janet_hash(x);
+        // Handle the hash value for further validation if needed
+        (void)hash;
     }
+}
+
+static void fuzz_janet_checkint(Janet x) {
+    int is_int = janet_checkint(x);
+    // Handle the is_int result for further validation if needed
+    (void)is_int;
+}
+
+static void fuzz_janet_checkuint64(Janet x) {
+    int is_uint64 = janet_checkuint64(x);
+    // Handle the is_uint64 result for further validation if needed
+    (void)is_uint64;
+}
+
+static void fuzz_janet_checkuint16(Janet x) {
+    int is_uint16 = janet_checkuint16(x);
+    // Handle the is_uint16 result for further validation if needed
+    (void)is_uint16;
+}
+
+static void fuzz_janet_checktypes(Janet x, int typeflags) {
+    int matches_type = janet_checktypes(x, typeflags);
+    // Handle the matches_type result for further validation if needed
+    (void)matches_type;
+}
+
+static void fuzz_janet_wrap_integer(int32_t x) {
+    Janet wrapped = janet_wrap_integer(x);
+    // Handle the wrapped Janet value for further validation if needed
+    (void)wrapped;
 }
 
 int LLVMFuzzerTestOneInput_62(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < sizeof(Janet)) return 0;
 
-    // Test janet_register
-    const char *name = "dummy_function";
-    janet_register(name, cfunction_example);
+    // Prepare a Janet value from input data
+    Janet x;
+    x.u64 = *((uint64_t *)Data);
 
-    // Prepare a dummy Janet value
-    Janet janet_value = janet_wrap_cfunction(cfunction_example);
+    // Fuzz janet_hash
+    fuzz_janet_hash(x);
 
-    // Test janet_unwrap_cfunction
-    JanetCFunction unwrapped_cfun = janet_unwrap_cfunction(janet_value);
+    // Fuzz janet_checkint
+    fuzz_janet_checkint(x);
 
-    // Prepare a dummy Janet array
-    size_t array_size = Size < 10 ? Size : 10;
-    Janet janet_array[array_size];
-    create_dummy_janet_array(janet_array, array_size);
+    // Fuzz janet_checkuint64
+    fuzz_janet_checkuint64(x);
 
-    // Test janet_getcfunction
-    if (array_size > 0) {
-        int32_t index = Data[0] % array_size;
-        JanetCFunction get_cfun = janet_getcfunction(janet_array, index);
+    // Fuzz janet_checkuint16
+    fuzz_janet_checkuint16(x);
+
+    // Use some part of the data as typeflags for janet_checktypes
+    if (Size >= sizeof(Janet) + sizeof(int)) {
+        int typeflags = *((int *)(Data + sizeof(Janet)));
+        fuzz_janet_checktypes(x, typeflags);
     }
 
-    // Test janet_optcfunction
-    JanetCFunction default_cfun = cfunction_example;
-    if (array_size > 0) {
-        int32_t index = Data[0] % array_size;
-        JanetCFunction opt_cfun = janet_optcfunction(janet_array, array_size, index, default_cfun);
+    // Use some part of the data as integer for janet_wrap_integer
+    if (Size >= sizeof(Janet) + sizeof(int32_t)) {
+        int32_t int_value = *((int32_t *)(Data + sizeof(Janet)));
+        fuzz_janet_wrap_integer(int_value);
     }
-
-    // Test janet_wrap_cfunction
-    Janet wrapped_value = janet_wrap_cfunction(cfunction_example);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_62(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

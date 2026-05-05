@@ -1,15 +1,10 @@
 // This fuzz driver is generated for library janet, aiming to fuzz the following functions:
-// janet_init at vm.c:1652:5 in janet.h
-// janet_nanbox_from_bits at janet.c:37716:7 in janet.h
-// janet_string at string.c:49:16 in janet.h
-// janet_string at string.c:49:16 in janet.h
-// janet_get_abstract_type at janet.c:34303:26 in janet.h
-// janet_register_abstract_type at janet.c:34292:6 in janet.h
-// janet_abstract at janet.c:1343:7 in janet.h
-// janet_abstract_threaded at janet.c:1374:7 in janet.h
-// janet_abstract_begin at janet.c:1330:7 in janet.h
-// janet_abstract_begin_threaded at janet.c:1353:7 in janet.h
-// janet_deinit at vm.c:1732:6 in janet.h
+// janet_table_get_ex at janet.c:33200:7 in janet.h
+// janet_table_remove at janet.c:33222:7 in janet.h
+// janet_table_get at janet.c:33179:7 in janet.h
+// janet_table_rawget at janet.c:33212:7 in janet.h
+// janet_nanbox_from_pointer at janet.c:37686:7 in janet.h
+// janet_nanbox_to_pointer at janet.c:37680:7 in janet.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -17,65 +12,107 @@
 #include <stdio.h>
 #include "janet.h"
 
-static const JanetAbstractType dummyType = {
-    .name = "dummy",
-    .gc = NULL,
-    .gcmark = NULL,
-    .get = NULL,
-    .put = NULL,
-    .marshal = NULL,
-    .unmarshal = NULL,
-    .tostring = NULL,
-    .compare = NULL,
-    .hash = NULL,
-    .next = NULL,
-    .call = NULL,
-    .length = NULL,
-    .bytes = NULL,
-    .gcperthread = NULL
-};
+static JanetTable *create_dummy_table() {
+    JanetTable *table = (JanetTable *)malloc(sizeof(JanetTable));
+    if (!table) return NULL;
+    table->count = 0;
+    table->capacity = 8;
+    table->deleted = 0;
+    table->data = (JanetKV *)calloc(table->capacity, sizeof(JanetKV));
+    table->proto = NULL;
+    return table;
+}
+
+static void destroy_dummy_table(JanetTable *table) {
+    if (table) {
+        free(table->data);
+        free(table);
+    }
+}
+
+static Janet create_valid_janet_key(const uint8_t *Data, size_t Size) {
+    Janet key;
+    if (Size >= sizeof(void *)) {
+        key.pointer = (void *)Data; // Use data as pointer
+    } else {
+        key.u64 = 0; // Default value if insufficient data
+    }
+    return key;
+}
 
 int LLVMFuzzerTestOneInput_533(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(Janet)) {
-        return 0;
-    }
+    if (Size < sizeof(Janet)) return 0;
 
-    // Initialize Janet VM
-    janet_init();
+    // Create a dummy JanetTable
+    JanetTable *table = create_dummy_table();
+    if (!table) return 0;
 
-    // Initialize key with a valid Janet type
-    Janet key = janet_wrap_nil();
-    
-    // Ensure the key is a valid string if possible
-    if (Size > sizeof(Janet) && janet_checktype(janet_wrap_string(janet_string(Data, Size)), JANET_STRING)) {
-        key = janet_wrap_string(janet_string(Data, Size));
-    }
+    // Create a valid Janet key from input data
+    Janet key = create_valid_janet_key(Data, Size);
 
-    // Call janet_get_abstract_type
-    const JanetAbstractType *abstractType = janet_get_abstract_type(key);
-    if (abstractType) {
-        // If found, register the abstract type
-        janet_register_abstract_type(abstractType);
-    }
+    // Prepare a dummy table pointer for janet_table_get_ex
+    JanetTable *which = NULL;
 
-    // Use the second part of Data to determine size for abstract creation
-    size_t size = (Size - sizeof(Janet)) / 2;
-    if (size > 0) {
-        // Call janet_abstract
-        JanetAbstract abstractInstance = janet_abstract(&dummyType, size);
+    // Fuzz janet_table_get_ex
+    janet_table_get_ex(table, key, &which);
 
-        // Call janet_abstract_threaded
-        void *threadedInstance = janet_abstract_threaded(&dummyType, size);
+    // Fuzz janet_table_remove
+    janet_table_remove(table, key);
 
-        // Call janet_abstract_begin
-        void *beginInstance = janet_abstract_begin(&dummyType, size);
+    // Fuzz janet_table_get
+    janet_table_get(table, key);
 
-        // Call janet_abstract_begin_threaded
-        void *beginThreadedInstance = janet_abstract_begin_threaded(&dummyType, size);
-    }
+    // Fuzz janet_table_rawget
+    janet_table_rawget(table, key);
 
-    // Deinitialize Janet VM
-    janet_deinit();
+    // Fuzz janet_wrap_table
+    Janet wrapped = janet_wrap_table(table);
+
+    // Fuzz janet_unwrap_table
+    JanetTable *unwrapped = janet_unwrap_table(wrapped);
+
+    // Clean up
+    destroy_dummy_table(table);
 
     return 0;
 }
+    #ifdef INC_MAIN
+    #include <stdio.h>
+    #include <stdlib.h>
+    #include <stdint.h>
+    int main(int argc, char *argv[])
+    {
+        FILE *f;
+        uint8_t *data = NULL;
+        long size;
+
+        if(argc < 2)
+            exit(0);
+
+        f = fopen(argv[1], "rb");
+        if(f == NULL)
+            exit(0);
+
+        fseek(f, 0, SEEK_END);
+
+        size = ftell(f);
+        rewind(f);
+
+        if(size < 1 + 1)
+            exit(0);
+
+        data = (uint8_t *)malloc((size_t)size);
+        if(data == NULL)
+            exit(0);
+
+        if(fread(data, (size_t)size, 1, f) != 1)
+            exit(0);
+
+        LLVMFuzzerTestOneInput_533(data + 1, (size_t)(size - 1));
+
+        free(data);
+        fclose(f);
+        return 0;
+    }
+    #endif
+    

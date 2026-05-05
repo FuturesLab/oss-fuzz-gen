@@ -1,47 +1,89 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
 #include "janet.h"
 
 int LLVMFuzzerTestOneInput_578(const uint8_t *data, size_t size) {
-    JanetTable *env;
-    char *str;
-    char *source;
-    Janet result;
-
-    // Initialize the Janet environment
-    janet_init();
-
-    // Create a new environment table
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of janet_table
-    env = janet_table(JANET_SANDBOX_HRTIME);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Allocate memory for the string and copy the data
-    str = (char *)malloc(size + 1);
-    if (str == NULL) {
+    // Ensure size is sufficient to extract an int32_t value
+    if (size < sizeof(int32_t)) {
         return 0;
     }
-    memcpy(str, data, size);
-    str[size] = '\0'; // Null-terminate the string
 
-    // Set a dummy source name
-    source = (char *)"fuzz_input";
+    // Initialize a JanetTable
+    JanetTable table;
+    JanetTable *tablePtr = &table;
+
+    // Extract an int32_t value from the input data
+    int32_t capacity = *(int32_t *)data;
+
+    // Ensure capacity is within a reasonable range
+    if (capacity < 0) {
+        capacity = -capacity; // Make it positive
+    }
+    if (capacity > 1024) {
+        capacity = 1024; // Limit capacity to a maximum value
+    }
 
     // Call the function-under-test
-    janet_dostring(env, str, source, &result);
+    JanetTable *result = janet_table_init(tablePtr, capacity);
 
-    // Clean up
-    free(str);
-    janet_deinit();
+    // Check if the result is not NULL
+    if (result == NULL) {
+        return 0;
+    }
+
+    // Perform additional operations on the JanetTable
+    // For example, inserting a key-value pair
+    Janet key = janet_wrap_integer(1);
+    Janet value = janet_wrap_integer(42);
+    janet_table_put(result, key, value);
+
+    // Retrieve the value to ensure the table is functioning
+    Janet retrieved = janet_table_get(result, key);
+    if (janet_unwrap_integer(retrieved) != 42) {
+        abort(); // Trigger an abort if the retrieved value is incorrect
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 2 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_578(data + 2, (size_t)(size - 2));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
