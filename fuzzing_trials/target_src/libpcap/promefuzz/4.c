@@ -1,81 +1,147 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_strerror at pcap.c:3786:1 in pcap.h
-// pcap_open_offline at savefile.c:388:1 in pcap.h
-// pcap_datalink_name_to_val at pcap.c:3417:1 in pcap.h
-// pcap_open_dead at pcap.c:4620:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_compile at gencode.c:1186:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_findalldevs at pcap.c:673:1 in pcap.h
+// pcap_freealldevs at pcap.c:1412:1 in pcap.h
+// pcap_create at pcap.c:2304:1 in pcap.h
+// pcap_setnonblock at pcap.c:3662:1 in pcap.h
+// pcap_getnonblock at pcap.c:3618:1 in pcap.h
+// pcap_activate at pcap.c:2757:1 in pcap.h
+// pcap_geterr at pcap.c:3612:1 in pcap.h
+// pcap_close at pcap.c:4323:1 in pcap.h
+// pcap_getnonblock at pcap.c:3618:1 in pcap.h
+// pcap_setnonblock at pcap.c:3662:1 in pcap.h
+// pcap_getnonblock at pcap.c:3618:1 in pcap.h
+// pcap_setnonblock at pcap.c:3662:1 in pcap.h
+// pcap_getnonblock at pcap.c:3618:1 in pcap.h
+// pcap_loop at pcap.c:2961:1 in pcap.h
+// pcap_geterr at pcap.c:3612:1 in pcap.h
+// pcap_setnonblock at pcap.c:3662:1 in pcap.h
+// pcap_setnonblock at pcap.c:3662:1 in pcap.h
+// pcap_close at pcap.c:4323:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <pcap.h>
-#include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
-#include <stdio.h>
+#include <stdlib.h>
 
-#define DUMMY_FILE "./dummy_file"
-#define ERRBUF_SIZE PCAP_ERRBUF_SIZE
-
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen(DUMMY_FILE, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+static void dummy_packet_handler(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
+    // This is a dummy packet handler for pcap_loop
 }
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_if_t *alldevs = NULL;
+    pcap_t *handle = NULL;
+    int retval;
 
-    // Step 1: Prepare environment
-    char errbuf[ERRBUF_SIZE];
-    int error_code = Data[0]; // Use the first byte as an error code for pcap_strerror
-    const char *error_message = pcap_strerror(error_code);
-
-    // Step 2: Invoke pcap_open_offline
-    write_dummy_file(Data, Size);
-    pcap_t *pcap_offline = pcap_open_offline(DUMMY_FILE, errbuf);
-    if (!pcap_offline) {
-        return 0; // If failed, return early
+    // Step 1: Find all devices
+    if (pcap_findalldevs(&alldevs, errbuf) == -1) {
+        return 0; // If no devices found, exit
     }
 
-    // Step 3: Invoke pcap_datalink_name_to_val
-    int dlt_val = pcap_datalink_name_to_val((const char *)Data);
+    // Step 2: Free all devices
+    pcap_freealldevs(alldevs);
 
-    // Step 4: Invoke pcap_open_dead
-    int linktype = dlt_val != -1 ? dlt_val : DLT_EN10MB;
-    int snapshot_length = 65535;
-    pcap_t *pcap_dead = pcap_open_dead(linktype, snapshot_length);
-    if (!pcap_dead) {
-        pcap_close(pcap_offline);
-        return 0; // If failed, return early
+    // Step 3: Ensure the input data is null-terminated before using it as a device name
+    char *device = (char *)malloc(Size + 1);
+    if (device == NULL) {
+        return 0;
+    }
+    memcpy(device, Data, Size);
+    device[Size] = '\0';
+
+    // Step 4: Create a pcap handle
+    handle = pcap_create(device, errbuf);
+    free(device);
+    if (handle == NULL) {
+        return 0; // If handle creation fails, exit
     }
 
-    // Step 5: Invoke pcap_compile
-    struct bpf_program fp;
-    int optimize = 1;
-    bpf_u_int32 netmask = 0xFFFFFF00; // Default netmask
+    // Step 5: Set non-blocking mode
+    pcap_setnonblock(handle, 1, errbuf);
 
-    // Ensure Data is null-terminated before passing to pcap_compile
-    char *filter_exp = malloc(Size + 1);
-    if (filter_exp) {
-        memcpy(filter_exp, Data, Size);
-        filter_exp[Size] = '\0';
+    // Step 6: Get non-blocking mode state
+    pcap_getnonblock(handle, errbuf);
 
-        // Compile the filter expression
-        pcap_compile(pcap_dead, &fp, filter_exp, optimize, netmask);
-
-        // Clean up
-        free(filter_exp);
+    // Step 7: Activate the handle
+    retval = pcap_activate(handle);
+    if (retval < 0) {
+        pcap_geterr(handle); // Get error if activation fails
+        pcap_close(handle);
+        return 0;
     }
 
-    // Step 6: Cleanup
-    pcap_close(pcap_dead);
-    pcap_close(pcap_offline);
+    // Step 8: Get non-blocking mode state
+    pcap_getnonblock(handle, errbuf);
 
+    // Step 9: Set non-blocking mode again
+    pcap_setnonblock(handle, 0, errbuf);
+
+    // Step 10: Get non-blocking mode state again
+    pcap_getnonblock(handle, errbuf);
+
+    // Step 11: Set non-blocking mode once more
+    pcap_setnonblock(handle, 1, errbuf);
+
+    // Step 12: Get non-blocking mode state once more
+    pcap_getnonblock(handle, errbuf);
+
+    // Step 13: Loop through packets (dummy handler)
+    pcap_loop(handle, 1, dummy_packet_handler, NULL);
+
+    // Step 14: Get error message if any
+    pcap_geterr(handle);
+
+    // Step 15: Set non-blocking mode again
+    pcap_setnonblock(handle, 0, errbuf);
+
+    // Step 16: Set non-blocking mode one last time
+    pcap_setnonblock(handle, 1, errbuf);
+
+    // Cleanup: Close the handle
+    pcap_close(handle);
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

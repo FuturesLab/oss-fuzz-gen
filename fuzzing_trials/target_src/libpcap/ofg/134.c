@@ -1,31 +1,64 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <string.h> // Include for memcpy
 #include <pcap.h>
 
 int LLVMFuzzerTestOneInput_134(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to construct the necessary structures
-    if (size < sizeof(struct bpf_program) + sizeof(struct pcap_pkthdr)) {
+    // Ensure the size is at least the size of an int
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Initialize a bpf_program structure
-    struct bpf_program bpf;
-    bpf.bf_len = 1; // Set a minimal length for the filter
-    bpf.bf_insns = (struct bpf_insn *)data; // Use the input data as instructions
+    // Extract an integer from the input data
+    int error_code;
+    memcpy(&error_code, data, sizeof(int));
 
-    // Initialize a pcap_pkthdr structure
-    struct pcap_pkthdr pkthdr;
-    pkthdr.ts.tv_sec = 0;
-    pkthdr.ts.tv_usec = 0;
-    pkthdr.caplen = size;
-    pkthdr.len = size;
+    // Call the function under test
+    const char *error_message = pcap_strerror(error_code);
 
-    // Use the remaining data as packet data
-    const u_char *packet = data + sizeof(struct bpf_program);
+    // Use the error_message to avoid unused variable warning
+    if (error_message) {
+        // Do something with error_message if necessary
+    }
 
-    // Call the function-under-test
-    int result = pcap_offline_filter(&bpf, &pkthdr, packet);
-
-    // Return the result
-    return result;
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_134(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,84 +1,134 @@
+#include <sys/stat.h>
 #include "pcap/pcap.h"
 #include <stdint.h>
-#include "stdlib.h"
-#include "string.h"
-#include "stdio.h"
+#include <stdlib.h>
+#include <string.h>
 
+// Remove the extern "C" linkage specification since this is C code
 int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    // Initialize variables
+    pcap_t *pcap_handle;
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle;
-    struct bpf_program fp;
-    char filter_exp[] = "tcp"; // Example filter expression
-    int result;
+    struct pcap_pkthdr header;
+    const u_char *packet;
+    int status;
 
-    // Open a dummy pcap handle
-    handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (handle == NULL) {
-        return 0; // Failed to open a pcap handle
-    }
-
-    // Ensure the data is null-terminated for safety
-    char *data_copy = (char *)malloc(size + 1);
-    if (data_copy == NULL) {
-        pcap_close(handle);
+    // Open a dead pcap handle with Ethernet link-layer type and snaplen
+    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (pcap_handle == NULL) {
         return 0;
     }
-    memcpy(data_copy, data, size);
-    data_copy[size] = '\0';
 
-    // Compile the filter expression
-    if (pcap_compile(handle, &fp, data_copy, 0, PCAP_NETMASK_UNKNOWN) == -1) {
-        free(data_copy);
-        pcap_close(handle);
-        return 0; // Failed to compile the filter
+    // Ensure the data is not NULL and size is greater than 0
+    if (data != NULL && size > 0) {
+        // Create a temporary file to store the input data
+        char tmp_filename[] = "/tmp/pcap_input_XXXXXX";
+        int fd = mkstemp(tmp_filename);
+        if (fd == -1) {
+            pcap_close(pcap_handle);
+            return 0;
+        }
+
+        // Write the data to the temporary file
+        if (write(fd, data, size) != size) {
+            close(fd);
+            unlink(tmp_filename);
+            pcap_close(pcap_handle);
+            return 0;
+        }
+
+        // Close the file descriptor
+        close(fd);
+
+        // Create a pcap memory source from the temporary file
+        pcap_handle = pcap_open_offline_with_tstamp_precision(tmp_filename, PCAP_TSTAMP_PRECISION_MICRO, errbuf);
+        if (pcap_handle == NULL) {
+            unlink(tmp_filename);
+            return 0;
+        }
+
+        // Remove the temporary file
+
+        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from pcap_open_offline_with_tstamp_precision to pcap_compile using the plateau pool
+        struct bpf_program fp;
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!pcap_handle) {
+        	return 0;
+        }
+        int ret_pcap_compile_yqghv = pcap_compile(pcap_handle, &fp, "tcp", 0, PCAP_NETMASK_UNKNOWN);
+        if (ret_pcap_compile_yqghv < 0){
+        	return 0;
+        }
+        // End mutation: Producer.SPLICE_MUTATOR
+        
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_compile to pcap_setfilter
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!pcap_handle) {
+        	return 0;
+        }
+        int ret_pcap_is_swapped_ybruq = pcap_is_swapped(pcap_handle);
+        if (ret_pcap_is_swapped_ybruq < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!pcap_handle) {
+        	return 0;
+        }
+        int ret_pcap_setfilter_espcr = pcap_setfilter(pcap_handle, &fp);
+        if (ret_pcap_setfilter_espcr < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        unlink(tmp_filename);
+
+        // Attempt to read packets from the data
+        while ((status = pcap_next_ex(pcap_handle, &header, &packet)) >= 0) {
+            // Packet processing logic can be added here
+        }
     }
 
-    // Call the function-under-test
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_compile to pcap_dump_open_append
-
-    pcap_dumper_t* ret_pcap_dump_open_append_llyxp = pcap_dump_open_append(handle, NULL);
-    if (ret_pcap_dump_open_append_llyxp == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    result = pcap_setfilter(handle, &fp);
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_setfilter to pcap_open_live
-    const char jjqenfud[1024] = "xdjqd";
-    int ret_pcap_datalink_name_to_val_qrvzz = pcap_datalink_name_to_val(jjqenfud);
-    if (ret_pcap_datalink_name_to_val_qrvzz < 0){
-    	return 0;
-    }
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_datalink with pcap_datalink_ext
-    int ret_pcap_datalink_jdjoj = pcap_datalink_ext(NULL);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_pcap_datalink_jdjoj < 0){
-    	return 0;
-    }
-    char* ret_pcap_lookupdev_kdncg = pcap_lookupdev(NULL);
-    if (ret_pcap_lookupdev_kdncg == NULL){
-    	return 0;
-    }
-
-    pcap_t* ret_pcap_open_live_cluad = pcap_open_live((const char *)"w", ret_pcap_datalink_name_to_val_qrvzz, result, ret_pcap_datalink_jdjoj, ret_pcap_lookupdev_kdncg);
-    if (ret_pcap_open_live_cluad == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    pcap_freecode(&fp);
-    pcap_close(handle);
-    free(data_copy);
+    // Close the pcap handle
+    pcap_close(pcap_handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_8(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

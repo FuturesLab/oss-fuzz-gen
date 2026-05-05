@@ -1,38 +1,93 @@
+#include <sys/stat.h>
 #include "pcap/pcap.h"
 #include <stdint.h>
 #include <stddef.h>
-#include "stdlib.h"
-#include "string.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>  // Include for close() and write() functions
+#include "fcntl.h"   // Include for mkstemp() function
+
+// Define the callback function for packet processing outside of LLVMFuzzerTestOneInput
+void packet_handler_41(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packet) {
+    // Process the packet (this is where you would add the logic to test)
+    (void)user;
+    (void)pkthdr;
+    (void)packet;
+}
 
 int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    pcap_t *pcap;
-    pcap_dumper_t *dumper;
-    char errbuf[PCAP_ERRBUF_SIZE];
-    char filename[256];
-
-    // Initialize pcap with a dummy value
-    pcap = pcap_open_dead(DLT_RAW, 65535);
-    if (pcap == NULL) {
+    // Create a temporary file to simulate a pcap file
+    char tmpl[] = "/tmp/fuzzpcapXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Ensure the filename is null-terminated and non-empty
-    if (size > 0 && size < sizeof(filename)) {
-        memcpy(filename, data, size);
-        filename[size] = '\0';
-    } else {
-        strncpy(filename, "default_filename.pcap", sizeof(filename));
-        filename[sizeof(filename) - 1] = '\0';
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
     }
 
-    // Call the function-under-test
-    dumper = pcap_dump_open_append(pcap, filename);
+    // Close the file descriptor
+    close(fd);
+
+    // Open the temporary file for reading as a pcap file
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *pcap = pcap_open_offline(tmpl, errbuf);
+    if (pcap == NULL) {
+        remove(tmpl);
+        return 0;
+    }
+
+    // Process packets using pcap_loop
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of pcap_loop
+    pcap_loop(pcap, 64, packet_handler_41, NULL);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
 
     // Clean up
-    if (dumper != NULL) {
-        pcap_dump_close(dumper);
-    }
     pcap_close(pcap);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_41(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

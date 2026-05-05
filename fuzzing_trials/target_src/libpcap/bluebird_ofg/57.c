@@ -1,70 +1,64 @@
-#include "pcap/pcap.h"
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include "stdlib.h"
-#include "string.h"
-#include "stdio.h"
+#include <stddef.h>
+#include "pcap/pcap.h"
 
 int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
-    // Initialize variables
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle;
-    struct bpf_program fp;
-    char filter_exp[] = "tcp"; // Example filter expression
-    int result;
-
-    // Open a dummy pcap handle
-    handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (handle == NULL) {
-        return 0; // Failed to open a pcap handle
-    }
-
-    // Ensure the data is null-terminated for safety
-    char *data_copy = (char *)malloc(size + 1);
-    if (data_copy == NULL) {
-        pcap_close(handle);
+    if (size < sizeof(int)) {
         return 0;
     }
-    memcpy(data_copy, data, size);
-    data_copy[size] = '\0';
 
-    // Compile the filter expression
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of pcap_compile
-    if (pcap_compile(handle, &fp, data_copy, size, PCAP_NETMASK_UNKNOWN) == -1) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        free(data_copy);
-        pcap_close(handle);
-        return 0; // Failed to compile the filter
-    }
+    // Interpret the first few bytes of data as an integer for the status code
+    int status_code = *(const int *)data;
 
     // Call the function-under-test
-    result = pcap_setfilter(handle, &fp);
+    const char *status_str = pcap_statustostr(status_code);
 
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_setfilter to pcap_sendpacket
-    int ret_pcap_datalink_ext_iditi = pcap_datalink_ext(handle);
-    if (ret_pcap_datalink_ext_iditi < 0){
-    	return 0;
+    // Use the result in some way to prevent it from being optimized out
+    if (status_str != NULL) {
+        // For example, we could print it, but in fuzzing, we typically don't need to do anything
+        // with the result other than ensuring the function is called.
     }
-
-    int ret_pcap_sendpacket_vjiae = pcap_sendpacket(handle, NULL, ret_pcap_datalink_ext_iditi);
-    if (ret_pcap_sendpacket_vjiae < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    pcap_freecode(&fp);
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_close with pcap_breakloop
-    pcap_breakloop(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    free(data_copy);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_57(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

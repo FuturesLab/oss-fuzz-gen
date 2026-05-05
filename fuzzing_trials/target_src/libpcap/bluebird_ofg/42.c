@@ -1,84 +1,77 @@
+#include <sys/stat.h>
 #include "pcap/pcap.h"
 #include <stdint.h>
-#include "stdlib.h"
-#include "string.h"
-#include "stdio.h"
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
 int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    // Initialize variables
+    pcap_t *pcap_handle;
+    int *datalinks;
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle;
-    struct bpf_program fp;
-    char filter_exp[] = "tcp"; // Example filter expression
-    int result;
 
-    // Open a dummy pcap handle
-    handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (handle == NULL) {
-        return 0; // Failed to open a pcap handle
-    }
-
-    // Ensure the data is null-terminated for safety
-    char *data_copy = (char *)malloc(size + 1);
-    if (data_copy == NULL) {
-        pcap_close(handle);
+    // Ensure the data is null-terminated to prevent buffer overflow
+    char *temp_data = (char *)malloc(size + 1);
+    if (temp_data == NULL) {
         return 0;
     }
-    memcpy(data_copy, data, size);
-    data_copy[size] = '\0';
+    memcpy(temp_data, data, size);
+    temp_data[size] = '\0';
 
-    // Compile the filter expression
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of pcap_compile
-    if (pcap_compile(handle, &fp, data_copy, -1, PCAP_NETMASK_UNKNOWN) == -1) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        free(data_copy);
-        pcap_close(handle);
-        return 0; // Failed to compile the filter
+    // Create a pcap_t structure from the provided data
+    pcap_handle = pcap_open_offline_with_tstamp_precision(temp_data, PCAP_TSTAMP_PRECISION_MICRO, errbuf);
+    free(temp_data);
+    if (pcap_handle == NULL) {
+        return 0;
     }
 
     // Call the function-under-test
-    result = pcap_setfilter(handle, &fp);
+    int result = pcap_list_datalinks(pcap_handle, &datalinks);
 
-    // Clean up
-    pcap_freecode(&fp);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_freecode to pcap_compile_nopcap
-    char* ret_pcap_geterr_inkvh = pcap_geterr(handle);
-    if (ret_pcap_geterr_inkvh == NULL){
-    	return 0;
+    // Free allocated resources
+    if (result >= 0) {
+        pcap_free_datalinks(datalinks);
     }
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_bufsize with pcap_get_tstamp_precision
-    int ret_pcap_bufsize_ewjgk = pcap_get_tstamp_precision(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_pcap_bufsize_ewjgk < 0){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of pcap_compile_nopcap
-    int ret_pcap_compile_nopcap_zelwi = pcap_compile_nopcap(size, 64, &fp, ret_pcap_geterr_inkvh, -1, 0);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_pcap_compile_nopcap_zelwi < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_close with pcap_breakloop
-    pcap_breakloop(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    free(data_copy);
+    pcap_close(pcap_handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_42(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

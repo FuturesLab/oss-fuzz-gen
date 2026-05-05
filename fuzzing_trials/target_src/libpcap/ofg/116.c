@@ -1,43 +1,62 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <pcap.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_116(const uint8_t *data, size_t size) {
-    // Declare and initialize a pcap_if_t pointer
-    pcap_if_t *alldevs = NULL;
-    pcap_if_t *dev = NULL;
+    // Ensure the data size is sufficient to create a null-terminated string
+    if (size < 1) return 0;
 
-    // Allocate memory for a single pcap_if_t structure
-    dev = (pcap_if_t *)malloc(sizeof(pcap_if_t));
-    if (dev == NULL) {
-        return 0;
-    }
+    // Allocate memory for the device name and ensure null-termination
+    char device[size + 1];
+    memcpy(device, data, size);
+    device[size] = '\0';
 
-    // Ensure that the name and description are not NULL
-    dev->name = (char *)malloc(10);
-    dev->description = (char *)malloc(20);
-    if (dev->name == NULL || dev->description == NULL) {
-        free(dev);
-        return 0;
-    }
+    // Call the function-under-test
+    char *result = pcap_lookupdev(device);
 
-    // Assign some non-NULL values to the name and description
-    snprintf(dev->name, 10, "eth0");
-    snprintf(dev->description, 20, "Ethernet Interface");
-
-    // Set the next pointer to NULL to indicate the end of the list
-    dev->next = NULL;
-
-    // Point alldevs to the allocated device
-    alldevs = dev;
-
-    // Call the function under test
-    pcap_freealldevs(alldevs);
-
-    // Free allocated memory
-    free(dev->name);
-    free(dev->description);
-    free(dev);
+    // Use the result (if needed) or just return
+    // For fuzzing, we don't need to do anything with the result
+    (void)result;
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_116(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

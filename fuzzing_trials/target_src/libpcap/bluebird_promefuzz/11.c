@@ -1,12 +1,13 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "string.h"
-#include "stdlib.h"
-#include "stdio.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "pcap/pcap.h"
-#include "stdlib.h"
-#include "string.h"
-#include "stdio.h"
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
 
 static void write_dummy_file(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
@@ -18,75 +19,80 @@ static void write_dummy_file(const uint8_t *Data, size_t Size) {
 
 int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 65535);
-    struct bpf_program fp;
-    bpf_u_int32 netmask = 0xffffff;
-    int optimize = 0;
-    int compile_result;
+    bpf_u_int32 net, mask;
+    int ret;
+    pcap_t *handle = NULL;
 
-    if (!handle) {
-        return 0;
+    if (Size < 1) return 0;
+
+    // Step 1: Use pcap_lookupnet
+    ret = pcap_lookupnet("lo", &net, &mask, errbuf);
+    if (ret == -1) {
+        // Handle error, retrieve error message
+        printf("pcap_lookupnet error: %s\n", errbuf);
     }
 
+    // Step 2: Use pcap_datalink_name_to_val
+    char dlt_name[16];
+    snprintf(dlt_name, sizeof(dlt_name), "EN10MB");
+    int dlt_val = pcap_datalink_name_to_val(dlt_name);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_open_dead to pcap_list_tstamp_types
-    int *eqlajkab = Size;
-
-    int ret_pcap_list_tstamp_types_csfdd = pcap_list_tstamp_types(handle, &eqlajkab);
-    if (ret_pcap_list_tstamp_types_csfdd < 0){
-    	return 0;
+    // Step 3: Use pcap_set_datalink
+    if (handle) {
+        ret = pcap_set_datalink(handle, dlt_val);
+        if (ret != 0) {
+            // Handle error, retrieve error message
+            const char *error = pcap_geterr(handle);
+            printf("pcap_set_datalink error: %s\n", error);
+        }
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-    char *filter_exp = (char *)malloc(Size + 1);
-    if (!filter_exp) {
+    // Step 4: Use pcap_close
+    if (handle) {
         pcap_close(handle);
-        return 0;
-    }
-    memcpy(filter_exp, Data, Size);
-    filter_exp[Size] = '\0';
-
-    compile_result = pcap_compile(handle, &fp, filter_exp, optimize, netmask);
-    if (compile_result != 0) {
-        pcap_geterr(handle);
-        free(filter_exp);
-        pcap_close(handle);
-        return 0;
     }
 
-    if (pcap_setfilter(handle, &fp) != 0) {
-        pcap_geterr(handle);
-        pcap_freecode(&fp);
-        free(filter_exp);
-        pcap_close(handle);
-        return 0;
-    }
-
+    // Write dummy file with input data
     write_dummy_file(Data, Size);
-
-    pcap_dumper_t *dumper = pcap_dump_open(handle, "./dummy_file");
-    if (!dumper) {
-        pcap_geterr(handle);
-        pcap_freecode(&fp);
-        free(filter_exp);
-        pcap_close(handle);
-        return 0;
-    }
-
-    pcap_geterr(handle);
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_datalink with pcap_get_selectable_fd
-    int link_type = pcap_get_selectable_fd(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    pcap_dump_close(dumper);
-    pcap_freecode(&fp);
-    free(filter_exp);
-    pcap_close(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

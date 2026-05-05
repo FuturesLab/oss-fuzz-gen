@@ -1,84 +1,155 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "string.h"
-#include "stdlib.h"
-#include "stdio.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "pcap/pcap.h"
-#include "stdlib.h"
-#include "string.h"
-#include "stdio.h"
+#include <stdint.h>
+#include <string.h>
+#include <stdlib.h>
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file != NULL) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+static void dummy_packet_handler(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
+    // This is a dummy packet handler for pcap_loop
 }
 
 int LLVMFuzzerTestOneInput_23(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(struct pcap_pkthdr)) {
-        return 0;
-    }
-
-    // Prepare necessary variables
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle;
-    struct pcap_pkthdr header;
-    const u_char *packet_data;
-    struct pcap_stat stats;
-    u_char *user_data = NULL;
+    pcap_if_t *alldevs = NULL;
+    pcap_t *handle = NULL;
+    int retval;
 
-    // Write dummy file with provided data
-    write_dummy_file(Data, Size);
+    // Step 1: Find all devices
+    if (pcap_findalldevs(&alldevs, errbuf) == -1) {
+        return 0; // If no devices found, exit
+    }
 
-    // Open the dummy file as a pcap "savefile"
-    handle = pcap_open_offline("./dummy_file", errbuf);
-    if (!handle) {
+    // Step 2: Free all devices
+    pcap_freealldevs(alldevs);
+
+    // Step 3: Ensure the input data is null-terminated before using it as a device name
+    char *device = (char *)malloc(Size + 1);
+    if (device == NULL) {
+        return 0;
+    }
+    memcpy(device, Data, Size);
+    device[Size] = '\0';
+
+    // Step 4: Create a pcap handle
+    handle = pcap_create(device, errbuf);
+    free(device);
+    if (handle == NULL) {
+        return 0; // If handle creation fails, exit
+    }
+
+    // Step 5: Set non-blocking mode
+    pcap_setnonblock(handle, 1, errbuf);
+
+    // Step 6: Get non-blocking mode state
+    pcap_getnonblock(handle, errbuf);
+
+    // Step 7: Activate the handle
+    retval = pcap_activate(handle);
+    if (retval < 0) {
+        pcap_geterr(handle); // Get error if activation fails
+        pcap_close(handle);
         return 0;
     }
 
-    // Fuzz pcap_next function
-    packet_data = pcap_next(handle, &header);
-    if (packet_data) {
-        // Do something with packet_data if needed
-    }
+    // Step 8: Get non-blocking mode state
+    pcap_getnonblock(handle, errbuf);
 
-    // Fuzz pcap_next_ex function
-    struct pcap_pkthdr *ex_header;
-    const u_char *ex_packet_data;
-    int next_ex_result = pcap_next_ex(handle, &ex_header, &ex_packet_data);
-    if (next_ex_result == 1 && ex_packet_data) {
-        // Do something with ex_packet_data if needed
-    }
+    // Step 9: Set non-blocking mode again
+    pcap_setnonblock(handle, 0, errbuf);
 
-    // Fuzz pcap_stats function
-    if (pcap_stats(handle, &stats) == 0) {
-        // Do something with stats if needed
-    }
+    // Step 10: Get non-blocking mode state again
+    pcap_getnonblock(handle, errbuf);
 
-    // Fuzz pcap_loop function
+    // Step 11: Set non-blocking mode once more
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_stats to pcap_loop
-    int ret_pcap_tstamp_type_name_to_val_afrrc = pcap_tstamp_type_name_to_val((const char *)Data);
-    if (ret_pcap_tstamp_type_name_to_val_afrrc < 0){
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from pcap_getnonblock to pcap_list_datalinks using the plateau pool
+    int *datalinks;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!handle) {
     	return 0;
     }
-
-    int ret_pcap_loop_lweio = pcap_loop(handle, ret_pcap_tstamp_type_name_to_val_afrrc, 0, NULL);
-    if (ret_pcap_loop_lweio < 0){
+    int ret_pcap_list_datalinks_banva = pcap_list_datalinks(handle, &datalinks);
+    if (ret_pcap_list_datalinks_banva < 0){
     	return 0;
     }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    pcap_setnonblock(handle, 1, errbuf);
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Step 12: Get non-blocking mode state once more
+    pcap_getnonblock(handle, errbuf);
 
-    pcap_loop(handle, 1, (pcap_handler)pcap_dump, user_data);
+    // Step 13: Loop through packets (dummy handler)
+    pcap_loop(handle, 1, dummy_packet_handler, NULL);
 
-    // Fuzz pcap_dispatch function
-    pcap_dispatch(handle, 1, (pcap_handler)pcap_dump, user_data);
+    // Step 14: Get error message if any
+    pcap_geterr(handle);
 
-    // Cleanup
+    // Step 15: Set non-blocking mode again
+    pcap_setnonblock(handle, 0, errbuf);
+
+    // Step 16: Set non-blocking mode one last time
+    pcap_setnonblock(handle, 1, errbuf);
+
+    // Cleanup: Close the handle
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from pcap_setnonblock to pcap_setfilter using the plateau pool
+    struct bpf_program fp;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!handle) {
+    	return 0;
+    }
+    int ret_pcap_setfilter_oqdhd = pcap_setfilter(handle, &fp);
+    if (ret_pcap_setfilter_oqdhd < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
     pcap_close(handle);
-
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_23(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

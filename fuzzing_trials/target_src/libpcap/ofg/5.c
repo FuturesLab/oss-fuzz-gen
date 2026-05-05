@@ -1,31 +1,66 @@
-#include <pcap.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <pcap/pcap.h>
 
 int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    pcap_t *pcap;
-    char errbuf[PCAP_ERRBUF_SIZE];
-    const char *prefix = "Error: ";
-
-    // Initialize pcap with a dummy interface
-    pcap = pcap_open_dead(DLT_EN10MB, 65535);
-
-    // Ensure that the prefix is null-terminated and not NULL
-    if (size > 0) {
-        size_t len = size < PCAP_ERRBUF_SIZE - 1 ? size : PCAP_ERRBUF_SIZE - 1;
-        memcpy(errbuf, data, len);
-        errbuf[len] = '\0';
-    } else {
-        strcpy(errbuf, "No data");
+    // Ensure that size is at least the size of an int
+    if (size < sizeof(int)) {
+        return 0;
     }
 
-    // Call the function under test
-    pcap_perror(pcap, prefix);
+    // Extract an integer from the input data
+    int tstamp_type_val = *((const int *)data);
 
-    // Close the pcap handle
-    pcap_close(pcap);
+    // Call the function-under-test
+    const char *description = pcap_tstamp_type_val_to_description(tstamp_type_val);
+
+    // Do something with the result to prevent compiler optimizations from removing the call
+    if (description != NULL) {
+        // Just a simple operation to use the description
+        volatile size_t desc_length = 0;
+        while (description[desc_length] != '\0') {
+            desc_length++;
+        }
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_5(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

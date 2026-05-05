@@ -1,69 +1,162 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "string.h"
-#include "stdlib.h"
-#include "stdio.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "pcap/pcap.h"
 #include <stdint.h>
-#include "stdio.h"
-#include "stdlib.h"
-#include "string.h"
+#include <string.h>
+#include <stdlib.h>
 
-static pcap_t *initialize_pcap() {
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 65535); // Ethernet, snapshot length
-    if (!handle) {
-        fprintf(stderr, "Failed to open pcap handle: %s\n", errbuf);
-        return NULL;
-    }
-    return handle;
+static void dummy_packet_handler(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
+    // This is a dummy packet handler for pcap_loop
 }
 
 int LLVMFuzzerTestOneInput_39(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_if_t *alldevs = NULL;
+    pcap_t *handle = NULL;
+    int retval;
 
-    pcap_t *pcap_handle = initialize_pcap();
-    if (!pcap_handle) return 0;
+    // Step 1: Find all devices
+    if (pcap_findalldevs(&alldevs, errbuf) == -1) {
+        return 0; // If no devices found, exit
+    }
 
-    const char *filename = "./dummy_file";
-    FILE *file = fopen(filename, "wb");
-    if (!file) {
-        pcap_close(pcap_handle);
+    // Step 2: Free all devices
+    pcap_freealldevs(alldevs);
+
+    // Step 3: Ensure the input data is null-terminated before using it as a device name
+    char *device = (char *)malloc(Size + 1);
+    if (device == NULL) {
         return 0;
     }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
+    memcpy(device, Data, Size);
+    device[Size] = '\0';
 
-    pcap_dumper_t *dumper = pcap_dump_open(pcap_handle, filename);
-    if (!dumper) {
-        pcap_close(pcap_handle);
+    // Step 4: Create a pcap handle
+    handle = pcap_create(device, errbuf);
+    free(device);
+    if (handle == NULL) {
+        return 0; // If handle creation fails, exit
+    }
+
+    // Step 5: Set non-blocking mode
+    pcap_setnonblock(handle, 1, errbuf);
+
+    // Step 6: Get non-blocking mode state
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_setnonblock to pcap_init
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errbuf) {
+    	return 0;
+    }
+    int ret_pcap_init_clxeg = pcap_init(0, errbuf);
+    if (ret_pcap_init_clxeg < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    pcap_getnonblock(handle, errbuf);
+
+    // Step 7: Activate the handle
+    retval = pcap_activate(handle);
+    if (retval < 0) {
+        pcap_geterr(handle); // Get error if activation fails
+        pcap_close(handle);
         return 0;
     }
 
-    // Test pcap_dump_flush
-    pcap_dump_flush(dumper);
+    // Step 8: Get non-blocking mode state
+    pcap_getnonblock(handle, errbuf);
 
-    // Test pcap_dump_ftell64
-    int64_t pos64 = pcap_dump_ftell64(dumper);
-    if (pos64 == PCAP_ERROR) {
-        // Handle error if necessary
+    // Step 9: Set non-blocking mode again
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_getnonblock to pcap_open_offline
+    char ggberdft[1024] = "nupro";
+    char* ret_pcap_lookupdev_orxpm = pcap_lookupdev(ggberdft);
+    if (ret_pcap_lookupdev_orxpm == NULL){
+    	return 0;
     }
-
-    // Test pcap_dump_ftell
-    long pos = pcap_dump_ftell(dumper);
-    if (pos == -1) {
-        // Handle error if necessary
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ggberdft) {
+    	return 0;
     }
-
-    // Test pcap_dump_file
-    FILE *dumper_file = pcap_dump_file(dumper);
-    if (dumper_file) {
-        // Perform operations on the FILE* if needed
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errbuf) {
+    	return 0;
     }
+    pcap_t* ret_pcap_open_offline_yxhqo = pcap_open_offline(ggberdft, errbuf);
+    if (ret_pcap_open_offline_yxhqo == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    pcap_setnonblock(handle, 0, errbuf);
 
-    // Clean up
-    pcap_dump_close(dumper);
-    pcap_close(pcap_handle);
+    // Step 10: Get non-blocking mode state again
+    pcap_getnonblock(handle, errbuf);
 
+    // Step 11: Set non-blocking mode once more
+    pcap_setnonblock(handle, 1, errbuf);
+
+    // Step 12: Get non-blocking mode state once more
+    pcap_getnonblock(handle, errbuf);
+
+    // Step 13: Loop through packets (dummy handler)
+    pcap_loop(handle, 1, dummy_packet_handler, NULL);
+
+    // Step 14: Get error message if any
+    pcap_geterr(handle);
+
+    // Step 15: Set non-blocking mode again
+    pcap_setnonblock(handle, 0, errbuf);
+
+    // Step 16: Set non-blocking mode one last time
+    pcap_setnonblock(handle, 1, errbuf);
+
+    // Cleanup: Close the handle
+    pcap_close(handle);
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_39(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,41 +1,62 @@
-#include <pcap.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pcap.h>
 
-// Fuzzing harness for pcap_activate
 int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    // Initialize a pcap_t structure
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 65535);
-
-    if (handle == NULL) {
-        return 0;
+    // Ensure the input data is null-terminated to safely use it as a C-string
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        return 0; // Exit if memory allocation fails
     }
-
-    // Simulate a pcap file in memory using the input data
-    pcap_dumper_t *dumper = pcap_dump_open(handle, "/dev/null");
-    if (dumper == NULL) {
-        pcap_close(handle);
-        return 0;
-    }
-
-    struct pcap_pkthdr header;
-    header.caplen = size;
-    header.len = size;
-    header.ts.tv_sec = 0;
-    header.ts.tv_usec = 0;
-
-    if (size > 0) {
-        pcap_dump((u_char *)dumper, &header, data);
-    }
+    memcpy(input, data, size);
+    input[size] = '\0'; // Null-terminate the string
 
     // Call the function-under-test
-    int result = pcap_activate(handle);
+    int result = pcap_datalink_name_to_val(input);
 
-    // Clean up
-    pcap_dump_close(dumper);
-    pcap_close(handle);
+    // Free the allocated memory
+    free(input);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

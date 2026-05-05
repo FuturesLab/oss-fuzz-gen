@@ -1,62 +1,106 @@
-#include <stdint.h>
-#include "stdlib.h"
+#include <sys/stat.h>
 #include "pcap/pcap.h"
-#include "string.h"
-#include "unistd.h" // For close() and unlink()
-#include "fcntl.h"  // For mkstemp()
-#include <sys/types.h> // For ssize_t
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    // Initialize variables
-    pcap_t *pcap_handle;
-    struct pcap_pkthdr header;
+    pcap_t *pcap;
     char errbuf[PCAP_ERRBUF_SIZE];
-    const u_char *packet;
+    struct bpf_program fp;
 
-    // Create a temporary file to store the input data
-    char tmp_filename[] = "/tmp/fuzz_pcap_XXXXXX";
-    int fd = mkstemp(tmp_filename);
-    if (fd == -1) {
+    // Initialize pcap with a dummy device
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of pcap_open_dead
+    pcap = pcap_open_dead(size, 65535);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (pcap == NULL) {
         return 0;
     }
 
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmp_filename);
-        return 0;
-    }
-    close(fd);
+    // Ensure the errbuf is not NULL and is properly initialized
 
-    // Open the temporary file as a pcap file
-    pcap_handle = pcap_open_offline(tmp_filename, errbuf);
-    if (pcap_handle == NULL) {
-        unlink(tmp_filename);
-        return 0;
-    }
-
-    // Call the function-under-test
-    packet = pcap_next(pcap_handle, &header);
-
-    // Clean up
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_close with pcap_breakloop
-    pcap_breakloop(pcap_handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_breakloop to pcap_list_datalinks
-    int *duxyogyg = -1;
-
-    int ret_pcap_list_datalinks_wgsmj = pcap_list_datalinks(pcap_handle, &duxyogyg);
-    if (ret_pcap_list_datalinks_wgsmj < 0){
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from pcap_open_dead to pcap_dump_fopen using the plateau pool
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    FILE *file = fdopen(fd, "wb");
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!pcap) {
     	return 0;
     }
+    pcap_dumper_t* ret_pcap_dump_fopen_zobrw = pcap_dump_fopen(pcap, file);
+    if (ret_pcap_dump_fopen_zobrw == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    memset(errbuf, 0, sizeof(errbuf));
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Use the fuzz input data to compile a BPF filter
+    if (size > 0) {
+        // Convert the input data to a null-terminated string
+        char *filter_exp = (char *)malloc(size + 1);
+        if (filter_exp == NULL) {
+            pcap_close(pcap);
+            return 0;
+        }
+        memcpy(filter_exp, data, size);
+        filter_exp[size] = '\0';
 
-    unlink(tmp_filename);
+        // Compile the filter expression
+        if (pcap_compile(pcap, &fp, filter_exp, 0, PCAP_NETMASK_UNKNOWN) == 0) {
+            // Set the compiled filter
+            if (pcap_setfilter(pcap, &fp) == 0) {
+                // Successfully set the filter
+            }
+            // Free the compiled program
+            pcap_freecode(&fp);
+        }
+
+        free(filter_exp);
+    }
+
+    // Clean up
+    pcap_close(pcap);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_3(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

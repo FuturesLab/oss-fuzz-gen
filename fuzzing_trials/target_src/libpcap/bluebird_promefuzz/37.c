@@ -1,140 +1,161 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "string.h"
-#include "stdlib.h"
-#include "stdio.h"
-#include "stdio.h"
-#include "stdlib.h"
-#include "string.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "pcap/pcap.h"
-#include "/src/libpcap/pcap/bpf.h"
+#include <stdint.h>
+#include <string.h>
+#include <stdlib.h>
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+static void dummy_packet_handler(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
+    // This is a dummy packet handler for pcap_loop
 }
 
 int LLVMFuzzerTestOneInput_37(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_if_t *alldevs = NULL;
+    pcap_t *handle = NULL;
+    int retval;
+
+    // Step 1: Find all devices
+    if (pcap_findalldevs(&alldevs, errbuf) == -1) {
+        return 0; // If no devices found, exit
     }
 
-    // Prepare pcap_t using pcap_open_dead
-    pcap_t *pcap = pcap_open_dead(DLT_EN10MB, 65535);
-    if (!pcap) {
-        return 0;
-    }
+    // Step 2: Free all devices
 
-    // Prepare bpf_program
-    struct bpf_program bpf;
-    memset(&bpf, 0, sizeof(bpf));
-
-    // Null-terminate Data for filter string
-    char *filter_exp = (char *)malloc(Size + 1);
-    if (!filter_exp) {
-        pcap_close(pcap);
-        return 0;
-    }
-    memcpy(filter_exp, Data, Size);
-    filter_exp[Size] = '\0';
-
-    // Compile filter
-    int compile_result = pcap_compile(pcap, &bpf, filter_exp, 0, PCAP_NETMASK_UNKNOWN);
-
-    // Validate BPF program
-    int valid = bpf_validate(bpf.bf_insns, bpf.bf_len);
-
-    // Prepare packet header and data
-    struct pcap_pkthdr header;
-    header.caplen = Size;
-    header.len = Size;
-    header.ts.tv_sec = 0;
-    header.ts.tv_usec = 0;
-
-    // Use pcap_offline_filter
-    int match = pcap_offline_filter(&bpf, &header, Data);
-
-    // Use bpf_filter
-    u_int result = bpf_filter(bpf.bf_insns, Data, header.len, header.caplen);
-
-    // Use pcap_compile_nopcap
-    struct bpf_program bpf_nopcap;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of pcap_compile_nopcap
-    int compile_nopcap_result = pcap_compile_nopcap(65535, DLT_EN10MB, &bpf_nopcap, filter_exp, Size, PCAP_NETMASK_UNKNOWN);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Cleanup
-    if (compile_result == 0) {
-        pcap_freecode(&bpf);
-    }
-    if (compile_nopcap_result == 0) {
-        pcap_freecode(&bpf_nopcap);
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_compile_nopcap to pcap_set_buffer_size
-    int ret_pcap_minor_version_nkrkn = pcap_minor_version(pcap);
-    if (ret_pcap_minor_version_nkrkn < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_findalldevs to pcap_create
+    char* ret_pcap_lookupdev_xnjwk = pcap_lookupdev(NULL);
+    if (ret_pcap_lookupdev_xnjwk == NULL){
     	return 0;
     }
-
-    int ret_pcap_set_buffer_size_luomy = pcap_set_buffer_size(pcap, compile_nopcap_result);
-    if (ret_pcap_set_buffer_size_luomy < 0){
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_pcap_lookupdev_xnjwk) {
     	return 0;
     }
-
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errbuf) {
+    	return 0;
+    }
+    pcap_t* ret_pcap_create_yacws = pcap_create(ret_pcap_lookupdev_xnjwk, errbuf);
+    if (ret_pcap_create_yacws == NULL){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
+    
+    pcap_freealldevs(alldevs);
 
-    free(filter_exp);
+    // Step 3: Ensure the input data is null-terminated before using it as a device name
+    char *device = (char *)malloc(Size + 1);
+    if (device == NULL) {
+        return 0;
+    }
+    memcpy(device, Data, Size);
+    device[Size] = '\0';
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_freecode to pcap_setfilter
+    // Step 4: Create a pcap handle
+    handle = pcap_create(device, errbuf);
+    free(device);
+    if (handle == NULL) {
+        return 0; // If handle creation fails, exit
+    }
 
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_bufsize with pcap_snapshot
-        int ret_pcap_bufsize_bfiks = pcap_snapshot(pcap);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Step 5: Set non-blocking mode
+    pcap_setnonblock(handle, 1, errbuf);
 
+    // Step 6: Get non-blocking mode state
+    pcap_getnonblock(handle, errbuf);
 
-        if (ret_pcap_bufsize_bfiks < 0){
-        	return 0;
-        }
+    // Step 7: Activate the handle
+    retval = pcap_activate(handle);
+    if (retval < 0) {
+        pcap_geterr(handle); // Get error if activation fails
+        pcap_close(handle);
+        return 0;
+    }
 
-        int ret_pcap_setfilter_bzeog = pcap_setfilter(pcap, &bpf);
-        if (ret_pcap_setfilter_bzeog < 0){
-        	return 0;
-        }
+    // Step 8: Get non-blocking mode state
+    pcap_getnonblock(handle, errbuf);
 
-        // End mutation: Producer.APPEND_MUTATOR
+    // Step 9: Set non-blocking mode again
+    pcap_setnonblock(handle, 0, errbuf);
 
+    // Step 10: Get non-blocking mode state again
+    pcap_getnonblock(handle, errbuf);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_close with pcap_breakloop
+    // Step 11: Set non-blocking mode once more
+    pcap_setnonblock(handle, 1, errbuf);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_close to pcap_inject
-        char ymjynjzm[1024] = "lrezm";
-        char* ret_pcap_lookupdev_rwaug = pcap_lookupdev(ymjynjzm);
-        if (ret_pcap_lookupdev_rwaug == NULL){
-        	return 0;
-        }
-        int ret_pcap_major_version_rimvt = pcap_major_version(NULL);
-        if (ret_pcap_major_version_rimvt < 0){
-        	return 0;
-        }
+    // Step 12: Get non-blocking mode state once more
 
-        int ret_pcap_inject_xnhuv = pcap_inject(pcap, (const void *)ymjynjzm, (size_t )ret_pcap_major_version_rimvt);
-        if (ret_pcap_inject_xnhuv < 0){
-        	return 0;
-        }
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_setnonblock to pcap_fopen_offline
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errbuf) {
+    	return 0;
+    }
+    pcap_t* ret_pcap_fopen_offline_bdpss = pcap_fopen_offline(NULL, errbuf);
+    if (ret_pcap_fopen_offline_bdpss == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    pcap_getnonblock(handle, errbuf);
 
-        // End mutation: Producer.APPEND_MUTATOR
+    // Step 13: Loop through packets (dummy handler)
+    pcap_loop(handle, 1, dummy_packet_handler, NULL);
 
-    pcap_breakloop(pcap);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Step 14: Get error message if any
+    pcap_geterr(handle);
 
+    // Step 15: Set non-blocking mode again
+    pcap_setnonblock(handle, 0, errbuf);
 
+    // Step 16: Set non-blocking mode one last time
+    pcap_setnonblock(handle, 1, errbuf);
 
+    // Cleanup: Close the handle
+    pcap_close(handle);
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_37(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

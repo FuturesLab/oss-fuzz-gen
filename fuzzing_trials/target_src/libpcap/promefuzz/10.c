@@ -1,16 +1,12 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_statustostr at pcap.c:3719:1 in pcap.h
-// pcap_open_live at pcap.c:2813:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_fileno at pcap.c:3587:1 in pcap.h
-// pcap_compile at gencode.c:1186:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_setfilter at pcap.c:3872:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_freecode at gencode.c:1371:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_open_dead at pcap.c:4696:1 in pcap.h
+// pcap_compile at gencode.c:1302:1 in pcap.h
+// pcap_perror at pcap.c:3606:1 in pcap.h
+// pcap_close at pcap.c:4323:1 in pcap.h
+// pcap_setfilter at pcap.c:3948:1 in pcap.h
+// pcap_perror at pcap.c:3606:1 in pcap.h
+// pcap_freecode at gencode.c:1493:1 in pcap.h
+// pcap_close at pcap.c:4323:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -19,7 +15,6 @@
 #include <pcap.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 static void write_dummy_file(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
@@ -30,55 +25,84 @@ static void write_dummy_file(const uint8_t *Data, size_t Size) {
 }
 
 int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size == 0) return 0;
 
-    // Prepare error buffer
-    char errbuf[PCAP_ERRBUF_SIZE];
+    // Prepare a null-terminated string from the input data
+    char *filter_exp = (char *)malloc(Size + 1);
+    if (!filter_exp) return 0;
+    memcpy(filter_exp, Data, Size);
+    filter_exp[Size] = '\0';
 
-    // Convert status to string
-    int status = Data[0];
-    const char *status_str = pcap_statustostr(status);
-
-    // Open live capture
-    pcap_t *handle = pcap_open_live(NULL, 65535, 1, 1000, errbuf);
-    if (!handle) {
-        const char *err = pcap_geterr(handle);
-        (void)err; // Suppress unused variable warning
+    // Open a fake pcap_t handle
+    pcap_t *pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (!pcap_handle) {
+        free(filter_exp);
         return 0;
     }
 
-    // Get file descriptor
-    int fd = pcap_fileno(handle);
-    (void)fd; // Suppress unused variable warning
-
-    // Compile a BPF filter
+    // Compile the filter expression
     struct bpf_program fp;
-    if (Size > 1) {
-        char filter_exp[Size];
-        memcpy(filter_exp, Data + 1, Size - 1);
-        filter_exp[Size - 1] = '\0'; // Null-terminate the filter expression
-
-        if (pcap_compile(handle, &fp, filter_exp, 0, PCAP_NETMASK_UNKNOWN) == -1) {
-            const char *err = pcap_geterr(handle);
-            (void)err; // Suppress unused variable warning
-            pcap_close(handle);
-            return 0;
-        }
-
-        // Set the compiled filter
-        if (pcap_setfilter(handle, &fp) == -1) {
-            const char *err = pcap_geterr(handle);
-            (void)err; // Suppress unused variable warning
-            pcap_close(handle);
-            return 0;
-        }
-
-        // Free the compiled filter
-        pcap_freecode(&fp);
+    bpf_u_int32 netmask = 0xFFFFFF;  // Assume a default netmask
+    int compile_ret = pcap_compile(pcap_handle, &fp, filter_exp, 0, netmask);
+    if (compile_ret == -1) {
+        pcap_perror(pcap_handle, "pcap_compile error");
+        pcap_close(pcap_handle);
+        free(filter_exp);
+        return 0;
     }
 
-    // Close the pcap handle
-    pcap_close(handle);
+    // Set the compiled filter
+    int setfilter_ret = pcap_setfilter(pcap_handle, &fp);
+    if (setfilter_ret == -1) {
+        pcap_perror(pcap_handle, "pcap_setfilter error");
+    }
+
+    // Write dummy data to a file for completeness
+    write_dummy_file(Data, Size);
+
+    // Cleanup
+    pcap_freecode(&fp);
+    pcap_close(pcap_handle);
+    free(filter_exp);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_10(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

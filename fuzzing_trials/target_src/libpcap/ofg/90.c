@@ -3,19 +3,62 @@
 #include <pcap.h>
 
 int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
-    // Initialize variables
-    pcap_t *p = (pcap_t *)data;  // Casting data to pcap_t* for fuzzing
-    char errbuf[PCAP_ERRBUF_SIZE]; // Buffer to store error messages
+    // Declare and initialize variables
+    pcap_t *pcap_handle = pcap_open_dead(DLT_RAW, 65535);  // Open a fake pcap handle
+    pcap_direction_t direction;
 
-    // Ensure the errbuf is not NULL by initializing it with some data
-    for (size_t i = 0; i < sizeof(errbuf) - 1 && i < size; ++i) {
-        errbuf[i] = data[i];
+    // Ensure the size is adequate to derive a direction
+    if (size > 0) {
+        // Use the first byte of data to set the direction
+        direction = (pcap_direction_t)(data[0] % 3); // Modulo 3 to get a valid direction
+    } else {
+        direction = PCAP_D_INOUT; // Default direction if size is 0
     }
-    errbuf[sizeof(errbuf) - 1] = '\0'; // Null-terminate the buffer
 
     // Call the function-under-test
-    int result = pcap_getnonblock(p, errbuf);
+    int result = pcap_setdirection(pcap_handle, direction);
 
-    // Return 0 to indicate the fuzzer should continue
+    // Clean up
+    pcap_close(pcap_handle);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_90(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

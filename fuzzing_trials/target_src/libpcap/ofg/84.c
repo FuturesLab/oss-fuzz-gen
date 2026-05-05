@@ -1,32 +1,66 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <pcap.h>
 
 int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
-    pcap_t *handle;
-    char errbuf[PCAP_ERRBUF_SIZE];
-    int datalink_type;
-
-    // Initialize a pcap handle with a non-NULL value
-    handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (handle == NULL) {
-        return 0;
-    }
-
-    // Ensure data is not empty and size is sufficient for an int
     if (size < sizeof(int)) {
-        pcap_close(handle);
-        return 0;
+        return 0; // Not enough data to extract an integer for snaplen
     }
 
-    // Use the first 4 bytes of data as the datalink type
-    datalink_type = *((int *)data);
+    // Initialize a pcap_t structure
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *pcap = pcap_open_dead(DLT_EN10MB, 65535);
+    if (pcap == NULL) {
+        return 0; // Failed to create pcap_t, return early
+    }
+
+    // Extract an integer from the input data for snaplen
+    int snaplen = *(const int *)data;
 
     // Call the function-under-test
-    pcap_set_datalink(handle, datalink_type);
+    pcap_set_snaplen(pcap, snaplen);
 
     // Clean up
-    pcap_close(handle);
+    pcap_close(pcap);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_84(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,20 +1,73 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include <stddef.h>
-#include "stdlib.h"
-#include "string.h"
+#include <stdlib.h>
 #include "pcap/pcap.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    // Initialize parameters for pcap_init
-    unsigned int init_value = 1; // A non-zero value for initialization
+    pcap_t *pcap_handle;
     char errbuf[PCAP_ERRBUF_SIZE];
-    memset(errbuf, 0, sizeof(errbuf)); // Ensure errbuf is initialized
+    int nonblock;
+    
+    // Initialize pcap_handle with a dummy pcap_open_dead for testing
+    pcap_handle = pcap_open_dead(DLT_RAW, 65535);
+    if (pcap_handle == NULL) {
+        return 0;
+    }
+
+    // Ensure that the size is large enough to extract an integer for nonblock
+    if (size < sizeof(int)) {
+        pcap_close(pcap_handle);
+        return 0;
+    }
+
+    // Extract an integer from the data for the nonblock parameter
+    memcpy(&nonblock, data, sizeof(int));
 
     // Call the function-under-test
-    int result = pcap_init(init_value, errbuf);
+    pcap_setnonblock(pcap_handle, nonblock, errbuf);
 
-    // Use the result to avoid unused variable warning
-    (void)result;
+    // Clean up
+    pcap_close(pcap_handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_29(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

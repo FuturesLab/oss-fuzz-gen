@@ -1,36 +1,71 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <stdio.h>
+#include <stddef.h>
 #include <pcap.h>
 
-// Function-under-test
-FILE *pcap_dump_file(pcap_dumper_t *dumper);
-
 int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    // Ensure the size is large enough to simulate a file path
-    if (size < 10) {
+    pcap_t *pcap_handle;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    int tstamp_type;
+
+    // Initialize pcap handle with a dummy device
+    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (pcap_handle == NULL) {
         return 0;
     }
 
-    // Create a temporary file to simulate a pcap dump file
-    FILE *tempFile = tmpfile();
-    if (tempFile == NULL) {
+    // Ensure size is sufficient to derive a timestamp type
+    if (size < sizeof(int)) {
+        pcap_close(pcap_handle);
         return 0;
     }
 
-    // Initialize a pcap_dumper_t object
-    pcap_dumper_t *dumper = pcap_dump_open(NULL, "/dev/null");
-    if (dumper == NULL) {
-        fclose(tempFile);
-        return 0;
-    }
+    // Use the first bytes of data to determine a timestamp type
+    tstamp_type = *((int *)data);
 
     // Call the function-under-test
-    FILE *resultFile = pcap_dump_file(dumper);
+    pcap_set_tstamp_type(pcap_handle, tstamp_type);
 
     // Clean up
-    pcap_dump_close(dumper);
-    fclose(tempFile);
+    pcap_close(pcap_handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

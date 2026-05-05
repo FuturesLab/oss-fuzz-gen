@@ -1,32 +1,88 @@
+#include <pcap.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>  // Include for close() and unlink()
+#include <fcntl.h>   // Include for mkstemp()
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
-// Function signature to be fuzzed
-int pcap_parsesrcstr(const char *source, int *type, char *host, char *port, char *name, char *interface);
-
-// Fuzzer entry point
+// Remove the extern "C" linkage specification for C++
+// since this is a C program
 int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for the test
-    if (size < 10) {
+    pcap_t *handle;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    struct pcap_pkthdr header;
+    const u_char *packet;
+
+    // Create a temporary file to store the fuzz input
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Allocate buffers for the parameters
-    char source[256];
-    int type;
-    char host[256];
-    char port[256];
-    char name[256];
-    char interface[256];
+    // Write the fuzz data to the temporary file
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
+        return 0;
+    }
+    close(fd);
 
-    // Initialize the buffers with the data provided
-    size_t copy_size = size < 255 ? size : 255;
-    memcpy(source, data, copy_size);
-    source[copy_size] = '\0'; // Null-terminate the string
+    // Open the temporary file as a pcap file
+    handle = pcap_open_offline(tmpl, errbuf);
+    if (handle == NULL) {
+        unlink(tmpl);
+        return 0;
+    }
 
     // Call the function-under-test
-    pcap_parsesrcstr(source, &type, host, port, name, interface);
+    packet = pcap_next(handle, &header);
+
+    // Cleanup
+    pcap_close(handle);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_30(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

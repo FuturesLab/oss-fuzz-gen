@@ -1,34 +1,88 @@
 #include <stdint.h>
-#include <stdlib.h>
 #include <pcap.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
-// Remove the 'extern "C"' as it is not needed in a C file
+// Define a callback function to process packets
+void packet_handler_120(u_char *user, const struct pcap_pkthdr *pkthdr, const u_char *packet) {
+    // For fuzzing purposes, we can print the packet length
+    // and examine the first few bytes of the packet
+    (void)user; // Unused parameter
+    printf("Packet length: %u\n", pkthdr->len);
+
+    // Print the first few bytes of the packet for examination
+    size_t print_len = pkthdr->len < 16 ? pkthdr->len : 16;
+    printf("Packet data (first %zu bytes): ", print_len);
+    for (size_t i = 0; i < print_len; ++i) {
+        printf("%02x ", packet[i]);
+    }
+    printf("\n");
+}
+
 int LLVMFuzzerTestOneInput_120(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to avoid accessing out of bounds
-    if (size < 4) {
-        return 0;
-    }
-
-    // Declare and initialize the bpf_program structure
-    struct bpf_program prog;
-    prog.bf_len = 1;
-    prog.bf_insns = (struct bpf_insn *)malloc(sizeof(struct bpf_insn));
-
-    if (prog.bf_insns == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
-
-    // Initialize the bpf_insn structure with some values
-    prog.bf_insns[0].code = (uint16_t)(data[0] % 256);
-    prog.bf_insns[0].jt = (uint8_t)(data[1] % 256);
-    prog.bf_insns[0].jf = (uint8_t)(data[2] % 256);
-    prog.bf_insns[0].k = (uint32_t)(data[3] % 256);
+    // Define and initialize variables for the function parameters
+    int linktype = DLT_EN10MB; // Ethernet, commonly used link-layer type
+    int snaplen = 65535; // Maximum number of bytes to capture per packet
 
     // Call the function-under-test
-    pcap_freecode(&prog);
+    pcap_t *pcap_handle = pcap_open_dead(linktype, snaplen);
 
-    // Free allocated memory
-    free(prog.bf_insns);
+    // Check if the pcap handle is not NULL
+    if (pcap_handle != NULL) {
+        // Create a pcap_pkthdr structure to pass to the packet handler
+        struct pcap_pkthdr header;
+        header.caplen = size;
+        header.len = size;
+
+        // Use the input data to simulate a packet capture
+        if (size > 0) {
+            // Directly call the packet handler with the input data
+            packet_handler_120(NULL, &header, data);
+        }
+
+        // Close the pcap handle
+        pcap_close(pcap_handle);
+    }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_120(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

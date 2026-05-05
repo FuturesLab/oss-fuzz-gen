@@ -1,95 +1,114 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "string.h"
-#include "stdlib.h"
-#include "stdio.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "pcap/pcap.h"
 #include <stdint.h>
-#include "stdlib.h"
-#include "string.h"
-#include "stdio.h"
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
-#define ERRBUF_SIZE 256
-
-static void fuzz_pcap_findalldevs_ex() {
-    char errbuf[ERRBUF_SIZE];
-    pcap_if_t *alldevs = NULL;
-    struct pcap_rmtauth auth = {0};
-
-    int result = pcap_findalldevs_ex(NULL, &auth, &alldevs, errbuf);
-    if (result == -1) {
-        // Handle the error if necessary
-    }
-    if (alldevs != NULL) {
-        pcap_freealldevs(alldevs);
-    }
-}
-
-static void fuzz_pcap_open_live(const char *device) {
-    char errbuf[ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_live(device, 65535, 1, 1000, errbuf);
-    if (handle) {
-        pcap_close(handle);
-    }
-}
-
-static void fuzz_pcap_lookupnet(const char *device) {
-    char errbuf[ERRBUF_SIZE];
-    bpf_u_int32 net, mask;
-    int result = pcap_lookupnet(device, &net, &mask, errbuf);
-    if (result == -1) {
-        // Handle the error if necessary
-    }
-}
-
-static void fuzz_pcap_createsrcstr() {
-    char errbuf[ERRBUF_SIZE];
-    char source[ERRBUF_SIZE];
-
-    int result = pcap_createsrcstr(source, 0, NULL, NULL, NULL, errbuf);
-    if (result == -1) {
-        // Handle the error if necessary
-    }
-}
-
-static void fuzz_pcap_findalldevs() {
-    char errbuf[ERRBUF_SIZE];
-    pcap_if_t *alldevs = NULL;
-
-    int result = pcap_findalldevs(&alldevs, errbuf);
-    if (result == -1) {
-        // Handle the error if necessary
-    }
-    if (alldevs != NULL) {
-        pcap_freealldevs(alldevs);
-    }
-}
-
-static void fuzz_pcap_parsesrcstr() {
-    char errbuf[ERRBUF_SIZE];
-    int type;
-    char host[ERRBUF_SIZE];
-    char port[ERRBUF_SIZE];
-    char name[ERRBUF_SIZE];
-
-    int result = pcap_parsesrcstr(NULL, &type, host, port, name, errbuf);
-    if (result == -1) {
-        // Handle the error if necessary
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
 }
 
 int LLVMFuzzerTestOneInput_43(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size == 0) {
+        return 0;
+    }
 
-    char device[ERRBUF_SIZE];
-    snprintf(device, sizeof(device), "%.*s", (int)Size, Data);
+    pcap_t *pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (!pcap_handle) {
+        return 0;
+    }
 
-    fuzz_pcap_findalldevs_ex();
-    fuzz_pcap_open_live(device);
-    fuzz_pcap_lookupnet(device);
-    fuzz_pcap_createsrcstr();
-    fuzz_pcap_findalldevs();
-    fuzz_pcap_parsesrcstr();
+    struct bpf_program fp;
+    memset(&fp, 0, sizeof(fp));
+
+    char *filter_expr = (char *)malloc(Size + 1);
+    if (!filter_expr) {
+        pcap_close(pcap_handle);
+        return 0;
+    }
+
+    memcpy(filter_expr, Data, Size);
+    filter_expr[Size] = '\0';
+
+    bpf_u_int32 netmask = 0xffffff00;
+    int compile_result = pcap_compile(pcap_handle, &fp, filter_expr, 0, netmask);
+    if (compile_result == PCAP_ERROR) {
+        pcap_geterr(pcap_handle);
+    }
+
+    if (compile_result == 0) {
+        int setfilter_result = pcap_setfilter(pcap_handle, &fp);
+        if (setfilter_result == PCAP_ERROR) {
+            pcap_geterr(pcap_handle);
+        }
+    }
+
+    free(fp.bf_insns);
+
+    write_dummy_file(Data, Size);
+    pcap_dumper_t *dumper = pcap_dump_open(pcap_handle, "./dummy_file");
+    if (!dumper) {
+        pcap_geterr(pcap_handle);
+    }
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_datalink with pcap_minor_version
+    pcap_minor_version(pcap_handle);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+    free(filter_expr);
+    if (dumper) {
+        pcap_dump_close(dumper);
+    }
+    pcap_close(pcap_handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_43(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

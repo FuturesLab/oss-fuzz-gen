@@ -1,18 +1,9 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_create at pcap.c:2306:1 in pcap.h
-// pcap_set_immediate_mode at pcap.c:2680:1 in pcap.h
-// pcap_statustostr at pcap.c:3719:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_statustostr at pcap.c:3719:1 in pcap.h
-// pcap_set_timeout at pcap.c:2626:1 in pcap.h
-// pcap_statustostr at pcap.c:3719:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_statustostr at pcap.c:3719:1 in pcap.h
-// pcap_activate at pcap.c:2759:1 in pcap.h
-// pcap_statustostr at pcap.c:3719:1 in pcap.h
-// pcap_statustostr at pcap.c:3719:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_findalldevs_ex at pcap-new.c:541:1 in pcap.h
+// pcap_findalldevs_ex at pcap-new.c:541:1 in pcap.h
+// pcap_findalldevs at pcap.c:673:1 in pcap.h
+// pcap_lookupnet at pcap.c:1545:1 in pcap.h
+// pcap_freealldevs at pcap.c:1412:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -20,91 +11,84 @@
 #include <stdio.h>
 #include <pcap.h>
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 
-#define DUMMY_FILE "./dummy_file"
-
-static pcap_t *initialize_pcap_handle() {
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_create("any", errbuf);
-    if (handle == NULL) {
-        return NULL;
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file != NULL) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
     }
-    return handle;
 }
 
 int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int) * 3) {
-        return 0; // Not enough data
-    }
+    pcap_if_t *alldevs = NULL;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    bpf_u_int32 net, mask;
 
-    // Prepare environment
-    pcap_t *handle = initialize_pcap_handle();
-    if (handle == NULL) {
-        return 0;
-    }
+    // Prepare a dummy file if needed by the API
+    write_dummy_file(Data, Size);
 
-    int immediate_mode = Data[0] % 2; // Just use the first byte for immediate mode
-    int timeout = ((int *)Data)[1];   // Use the next integer for timeout
-    int activate_status = ((int *)Data)[2]; // Use another integer for activate status
+    // Attempt to call pcap_findalldevs_ex
+    struct pcap_rmtauth auth = {0, NULL, NULL};
+    int result = pcap_findalldevs_ex("./dummy_file", &auth, &alldevs, errbuf);
 
-    // 1. Call pcap_set_immediate_mode
-    int result = pcap_set_immediate_mode(handle, immediate_mode);
-    if (result != 0) {
-        const char *err_str = pcap_statustostr(result);
-        if (err_str) {
-            // Handle error string
-        }
-        pcap_close(handle);
-        return 0;
-    }
+    // Call pcap_findalldevs_ex again to explore behavior
+    result = pcap_findalldevs_ex("./dummy_file", NULL, &alldevs, errbuf);
 
-    // 2. Call pcap_statustostr
-    const char *status_str = pcap_statustostr(result);
-    if (status_str) {
-        // Handle status string
-    }
+    // Call pcap_findalldevs
+    result = pcap_findalldevs(&alldevs, errbuf);
 
-    // 3. Call pcap_set_timeout
-    result = pcap_set_timeout(handle, timeout);
-    if (result != 0) {
-        status_str = pcap_statustostr(result);
-        if (status_str) {
-            // Handle error string
-        }
-        pcap_close(handle);
-        return 0;
-    }
-
-    // 4. Call pcap_statustostr again
-    status_str = pcap_statustostr(result);
-    if (status_str) {
-        // Handle status string
-    }
-
-    // 5. Call pcap_activate
-    result = pcap_activate(handle);
-    if (result != activate_status) {
-        status_str = pcap_statustostr(result);
-        if (status_str) {
-            // Handle error string
-        }
-    }
-
-    // 6. Call pcap_statustostr again
-    status_str = pcap_statustostr(result);
-    if (status_str) {
-        // Handle status string
-    }
-
-    // 7. Call pcap_geterr
-    const char *error_msg = pcap_geterr(handle);
-    if (error_msg) {
-        // Handle error message
+    // Use the first device name for pcap_lookupnet if available
+    if (alldevs && alldevs->name) {
+        result = pcap_lookupnet(alldevs->name, &net, &mask, errbuf);
     }
 
     // Cleanup
-    pcap_close(handle);
+    if (alldevs) {
+        pcap_freealldevs(alldevs);
+    }
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_15(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

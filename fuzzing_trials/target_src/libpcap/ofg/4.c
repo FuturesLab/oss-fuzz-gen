@@ -1,38 +1,62 @@
-#include <pcap.h>
+#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stdlib.h>  // Required for malloc and free
+#include <string.h>  // Required for memcpy
+#include <pcap/pcap.h>
 
 int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    pcap_t *handle;
-    char errbuf[PCAP_ERRBUF_SIZE];
-
-    // Ensure the data is large enough to be a valid device name
-    if (size < 1 || size >= PCAP_ERRBUF_SIZE) {
+    // Ensure the data is null-terminated to safely use it as a string
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
         return 0;
     }
-
-    // Copy the data into a null-terminated string for the device name
-    char device[PCAP_ERRBUF_SIZE];
-    memcpy(device, data, size);
-    device[size] = '\0';
-
-    // Create a pcap handle with the provided device name
-    handle = pcap_create(device, errbuf);
-    if (handle == NULL) {
-        return 0;
-    }
-
-    // Set some options on the handle to ensure it's in a valid state
-    pcap_set_snaplen(handle, 65535);
-    pcap_set_promisc(handle, 1);
-    pcap_set_timeout(handle, 1000);
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
     // Call the function-under-test
-    pcap_activate(handle);
+    int result = pcap_datalink_name_to_val(null_terminated_data);
 
     // Clean up
-    pcap_close(handle);
+    free(null_terminated_data);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_4(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

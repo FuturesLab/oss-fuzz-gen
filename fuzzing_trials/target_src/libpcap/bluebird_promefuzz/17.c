@@ -1,18 +1,21 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "string.h"
-#include "stdlib.h"
-#include "stdio.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "pcap/pcap.h"
-#include "stdlib.h"
-#include "string.h"
-#include "unistd.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define ERRBUF_SIZE PCAP_ERRBUF_SIZE
 
 static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+    FILE *fp = fopen("./dummy_file", "wb");
+    if (fp != NULL) {
+        fwrite(Data, 1, Size, fp);
+        fclose(fp);
     }
 }
 
@@ -21,78 +24,143 @@ int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    char errbuf[PCAP_ERRBUF_SIZE];
-    bpf_u_int32 net = 0, mask = 0;
-    struct bpf_program fp;
-    pcap_t *handle = NULL;
+    char errbuf[ERRBUF_SIZE];
+    memset(errbuf, 0, ERRBUF_SIZE);
 
-    // Prepare a dummy file
+    // Invoke pcap_strerror
+    const char *error_message = pcap_strerror(Data[0]);
+    if (error_message == NULL) {
+        return 0;
+    }
+
+    // Write data to a dummy file for pcap_open_offline
     write_dummy_file(Data, Size);
 
-    // Explore pcap_statustostr
-    int status_code = Data[0];
-    const char *status_str = pcap_statustostr(status_code);
+    // Invoke pcap_open_offline
+    pcap_t *pcap_handle = pcap_open_offline("./dummy_file", errbuf);
+    if (pcap_handle == NULL) {
+        return 0;
+    }
 
-    // Explore pcap_geterr
-    char *error_msg = pcap_geterr(handle);
+    // Prepare a null-terminated string for pcap_datalink_name_to_val
 
-    // Re-explore pcap_statustostr
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_statustostr with pcap_tstamp_type_val_to_name
-    status_str = pcap_tstamp_type_val_to_name(status_code);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Re-explore pcap_geterr
-    error_msg = pcap_geterr(handle);
-
-    // Explore pcap_lookupnet
-    int lookup_result = pcap_lookupnet("any", &net, &mask, errbuf);
-
-    // Explore pcap_compile
-    handle = pcap_open_offline("./dummy_file", errbuf);
-    if (handle) {
-        char filter_exp[] = "tcp";
-        int optimize = 1;
-        if (pcap_compile(handle, &fp, filter_exp, optimize, mask) == 0) {
-            // Explore pcap_setfilter
-            int setfilter_result = pcap_setfilter(handle, &fp);
-
-            // Explore pcap_geterr
-            error_msg = pcap_geterr(handle);
-
-            // Explore pcap_breakloop
-            pcap_breakloop(handle);
-
-            // Clean up
-
-            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_breakloop to pcap_dump_open_append
-            char pnqznlgh[1024] = "wswko";
-            char* ret_pcap_lookupdev_pdyfs = pcap_lookupdev(pnqznlgh);
-            if (ret_pcap_lookupdev_pdyfs == NULL){
-            	return 0;
-            }
-
-            pcap_dumper_t* ret_pcap_dump_open_append_bocmb = pcap_dump_open_append(handle, ret_pcap_lookupdev_pdyfs);
-            if (ret_pcap_dump_open_append_bocmb == NULL){
-            	return 0;
-            }
-
-            // End mutation: Producer.APPEND_MUTATOR
-
-            pcap_freecode(&fp);
-        }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_open_offline to pcap_inject
-
-    int ret_pcap_inject_qeohq = pcap_inject(handle, (const void *)errbuf, 64);
-    if (ret_pcap_inject_qeohq < 0){
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_open_offline to pcap_getnonblock
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!pcap_handle) {
+    	return 0;
+    }
+    FILE* ret_pcap_file_retns = pcap_file(pcap_handle);
+    if (ret_pcap_file_retns == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!pcap_handle) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errbuf) {
     	return 0;
     }
 
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_file to pcap_dump_fopen
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!pcap_handle) {
+    	return 0;
+    }
+    pcap_breakloop(pcap_handle);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!pcap_handle) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_pcap_file_retns) {
+    	return 0;
+    }
+    pcap_dumper_t* ret_pcap_dump_fopen_qepem = pcap_dump_fopen(pcap_handle, ret_pcap_file_retns);
+    if (ret_pcap_dump_fopen_qepem == NULL){
+    	return 0;
+    }
     // End mutation: Producer.APPEND_MUTATOR
+    
+    int ret_pcap_getnonblock_cndgj = pcap_getnonblock(pcap_handle, errbuf);
+    if (ret_pcap_getnonblock_cndgj < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    char dlt_name[Size + 1];
+    memcpy(dlt_name, Data, Size);
+    dlt_name[Size] = '\0';
 
-        pcap_close(handle);
-    }   return 0;
+    // Invoke pcap_datalink_name_to_val
+    int dlt_val = pcap_datalink_name_to_val(dlt_name);
+
+    // Invoke pcap_open_dead
+    pcap_t *dead_handle = pcap_open_dead(dlt_val, 65535);
+    if (dead_handle == NULL) {
+        pcap_close(pcap_handle);
+        return 0;
+    }
+
+    // Prepare a BPF program structure
+    struct bpf_program fp;
+    memset(&fp, 0, sizeof(fp));
+
+    // Ensure the input buffer is null-terminated for pcap_compile
+    char filter_exp[Size + 1];
+    memcpy(filter_exp, Data, Size);
+    filter_exp[Size] = '\0';
+
+    // Invoke pcap_compile
+    if (pcap_compile(dead_handle, &fp, filter_exp, 0, PCAP_NETMASK_UNKNOWN) == 0) {
+        // Free the allocated memory for the BPF program
+        if (fp.bf_insns != NULL) {
+            free(fp.bf_insns);
+        }
+    }
+
+    // Clean up
+    pcap_close(pcap_handle);
+    pcap_close(dead_handle);
+
+    return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_17(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,18 +1,19 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_open_offline at savefile.c:388:1 in pcap.h
-// pcap_setfilter at pcap.c:3872:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_get_selectable_fd at pcap.c:3595:1 in pcap.h
-// pcap_get_required_select_timeout at pcap.c:3601:1 in pcap.h
-// pcap_setnonblock at pcap.c:3664:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_get_required_select_timeout at pcap.c:3601:1 in pcap.h
-// pcap_dispatch at pcap.c:2957:1 in pcap.h
-// pcap_get_required_select_timeout at pcap.c:3601:1 in pcap.h
-// pcap_dispatch at pcap.c:2957:1 in pcap.h
-// pcap_dispatch at pcap.c:2957:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_open_dead at pcap.c:4696:1 in pcap.h
+// pcap_setfilter at pcap.c:3948:1 in pcap.h
+// pcap_close at pcap.c:4323:1 in pcap.h
+// pcap_geterr at pcap.c:3612:1 in pcap.h
+// pcap_get_selectable_fd at pcap.c:3593:1 in pcap.h
+// pcap_get_required_select_timeout at pcap.c:3599:1 in pcap.h
+// pcap_setnonblock at pcap.c:3662:1 in pcap.h
+// pcap_close at pcap.c:4323:1 in pcap.h
+// pcap_get_required_select_timeout at pcap.c:3599:1 in pcap.h
+// pcap_dispatch at pcap.c:2955:1 in pcap.h
+// pcap_get_required_select_timeout at pcap.c:3599:1 in pcap.h
+// pcap_dispatch at pcap.c:2955:1 in pcap.h
+// pcap_dispatch at pcap.c:2955:1 in pcap.h
+// pcap_geterr at pcap.c:3612:1 in pcap.h
+// pcap_close at pcap.c:4323:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -23,9 +24,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <sys/time.h>
 
-static void packet_handler(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
-    // Dummy packet handler
+static void dummy_packet_handler(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
+    // This is a dummy packet handler for pcap_dispatch
 }
 
 int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
@@ -33,62 +36,95 @@ int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    // Create a dummy file to use with pcap_open_offline
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_offline("./dummy_file", errbuf);
+    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 65535);
     if (!handle) {
         return 0;
     }
 
-    struct bpf_program fp;
-    memset(&fp, 0, sizeof(fp));
+    struct bpf_program filter;
+    memcpy(&filter, Data, sizeof(struct bpf_program));
 
-    // Fuzz pcap_setfilter
-    if (pcap_setfilter(handle, &fp) != 0) {
-        pcap_geterr(handle);
+    // pcap_setfilter
+    if (pcap_setfilter(handle, &filter) != 0) {
+        pcap_close(handle);
+        return 0;
     }
 
-    // Fuzz pcap_get_selectable_fd
+    // pcap_geterr
+    char *error_msg = pcap_geterr(handle);
+
+    // pcap_get_selectable_fd
     int fd = pcap_get_selectable_fd(handle);
-    if (fd == -1) {
-        pcap_get_required_select_timeout(handle);
-    }
 
-    // Fuzz pcap_setnonblock
-    if (pcap_setnonblock(handle, 1, errbuf) != 0) {
-        pcap_geterr(handle);
-    }
-
-    // Fuzz pcap_get_required_select_timeout
+    // pcap_get_required_select_timeout
     const struct timeval *timeout = pcap_get_required_select_timeout(handle);
-    (void)timeout; // Avoid unused variable warning
 
-    // Fuzz pcap_dispatch with a dummy packet handler
-    pcap_dispatch(handle, -1, packet_handler, NULL);
+    // pcap_setnonblock
+    if (pcap_setnonblock(handle, 1, errbuf) != 0) {
+        pcap_close(handle);
+        return 0;
+    }
 
-    // Fuzz pcap_get_required_select_timeout again
+    // pcap_get_required_select_timeout again after setting non-blocking
     timeout = pcap_get_required_select_timeout(handle);
-    (void)timeout;
 
-    // Fuzz pcap_dispatch multiple times
-    pcap_dispatch(handle, 0, packet_handler, NULL);
-    pcap_dispatch(handle, 1, packet_handler, NULL);
+    // pcap_dispatch
+    int dispatch_result = pcap_dispatch(handle, 10, dummy_packet_handler, NULL);
 
-    // Fuzz pcap_geterr
-    pcap_geterr(handle);
+    // pcap_get_required_select_timeout
+    timeout = pcap_get_required_select_timeout(handle);
 
-    // Close the pcap handle
+    // pcap_dispatch again
+    dispatch_result = pcap_dispatch(handle, 10, dummy_packet_handler, NULL);
+
+    // pcap_dispatch again
+    dispatch_result = pcap_dispatch(handle, 10, dummy_packet_handler, NULL);
+
+    // pcap_geterr
+    error_msg = pcap_geterr(handle);
+
+    // pcap_close
     pcap_close(handle);
-
-    // Remove the dummy file
-    unlink("./dummy_file");
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_6(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

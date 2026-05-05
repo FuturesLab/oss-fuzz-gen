@@ -1,31 +1,70 @@
-#include "pcap/pcap.h"
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include <stddef.h>
-#include "stdlib.h"
-#include "string.h"
+#include <stdlib.h>
+#include "pcap/pcap.h"
 
 int LLVMFuzzerTestOneInput_93(const uint8_t *data, size_t size) {
-    pcap_t *pcap;
-    char errbuf[PCAP_ERRBUF_SIZE];
-    const char *prefix = "Error: ";
-
-    // Initialize pcap with a dummy interface
-    pcap = pcap_open_dead(DLT_EN10MB, 65535);
-
-    // Ensure that the prefix is null-terminated and not NULL
-    if (size > 0) {
-        size_t len = size < PCAP_ERRBUF_SIZE - 1 ? size : PCAP_ERRBUF_SIZE - 1;
-        memcpy(errbuf, data, len);
-        errbuf[len] = '\0';
-    } else {
-        strcpy(errbuf, "No data");
+    // Ensure that size is sufficient to extract an integer for buffer size
+    if (size < sizeof(int)) {
+        return 0;
     }
 
-    // Call the function under test
-    pcap_perror(pcap, prefix);
+    // Initialize a pcap_t structure
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *pcap = pcap_open_dead(DLT_RAW, 65535); // Open a dummy pcap handle
 
-    // Close the pcap handle
+    if (pcap == NULL) {
+        return 0;
+    }
+
+    // Extract an integer from the input data to use as buffer size
+    int buffer_size = *((int*)data);
+
+    // Call the function-under-test
+    pcap_set_buffer_size(pcap, buffer_size);
+
+    // Clean up
     pcap_close(pcap);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_93(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

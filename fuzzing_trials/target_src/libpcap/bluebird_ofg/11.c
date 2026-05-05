@@ -1,69 +1,93 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include "stdlib.h"
-#include "unistd.h"
+#include <stdlib.h>
+#include <string.h>
 #include "pcap/pcap.h"
-#include "stdio.h"
 
 int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
     pcap_t *pcap_handle;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    // Create a temporary file to store the input data
-    char filename[] = "/tmp/fuzz_pcap_XXXXXX";
-    int fd = mkstemp(filename);
-    if (fd == -1) {
-        return 0;
-    }
-
-    // Write the input data to the temporary file
-    write(fd, data, size);
-    close(fd);
-
-    // Open the pcap file
-    pcap_handle = pcap_open_offline(filename, errbuf);
+    // Initialize a pcap_t structure using pcap_open_dead for fuzzing
+    pcap_handle = pcap_open_dead(DLT_RAW, 65535);
     if (pcap_handle == NULL) {
-        // Cleanup the temporary file
-        remove(filename);
         return 0;
     }
 
-    // Call the function-under-test
+    // Ensure that the input data is null-terminated to prevent buffer overflow
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_minor_version with pcap_activate
-    int minor_version = pcap_activate(pcap_handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Cleanup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_minor_version to pcap_dump_open
-    char* ret_pcap_geterr_bxkxz = pcap_geterr(pcap_handle);
-    if (ret_pcap_geterr_bxkxz == NULL){
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from pcap_open_dead to pcap_geterr using the plateau pool
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!pcap_handle) {
     	return 0;
     }
-
-    pcap_dumper_t* ret_pcap_dump_open_avfgy = pcap_dump_open(pcap_handle, ret_pcap_geterr_bxkxz);
-    if (ret_pcap_dump_open_avfgy == NULL){
+    char* ret_pcap_geterr_adrga = pcap_geterr(pcap_handle);
+    if (ret_pcap_geterr_adrga == NULL){
     	return 0;
     }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        pcap_close(pcap_handle);
+        return 0;
+    }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // End mutation: Producer.APPEND_MUTATOR
+    // Use the input data in some meaningful way
+    // For example, let's assume we are testing pcap_offline_filter
+    struct bpf_program fp;
+    if (pcap_compile(pcap_handle, &fp, null_terminated_data, 0, PCAP_NETMASK_UNKNOWN) == 0) {
+        // Apply the compiled filter to a dummy packet
+        struct pcap_pkthdr header;
+        const u_char *packet = data;
+        pcap_offline_filter(&fp, &header, packet);
+        pcap_freecode(&fp);
+    }
 
+    // Clean up
+    free(null_terminated_data);
     pcap_close(pcap_handle);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_close to pcap_setfilter
-    struct bpf_program koztjiup;
-    memset(&koztjiup, 0, sizeof(koztjiup));
-
-    int ret_pcap_setfilter_qnitp = pcap_setfilter(pcap_handle, &koztjiup);
-    if (ret_pcap_setfilter_qnitp < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    remove(filename);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_11(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

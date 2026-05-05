@@ -1,40 +1,73 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include "stdlib.h"
+#include <stdlib.h>
 #include "pcap/pcap.h"
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_16(const uint8_t *data, size_t size) {
-    pcap_t *pcap_handle;
-    char errbuf[PCAP_ERRBUF_SIZE];
-    struct bpf_program fp;
-    struct pcap_pkthdr header;
-    const u_char *packet;
+    char *filter_exp;
+    struct bpf_program program;
+    pcap_t *handle;
 
-    // Initialize the pcap handle with a dummy device and error buffer
-    pcap_handle = pcap_open_dead(DLT_RAW, 65535);
-    if (pcap_handle == NULL) {
-        return 0;
+    // Ensure the data is null-terminated for use as a string
+    filter_exp = (char *)malloc(size + 1);
+    if (!filter_exp) {
+        return 0; // Exit if memory allocation fails
     }
+    memcpy(filter_exp, data, size);
+    filter_exp[size] = '\0';
 
-    // Compile a dummy filter
-    if (pcap_compile(pcap_handle, &fp, "tcp", 0, PCAP_NETMASK_UNKNOWN) == -1) {
-        pcap_close(pcap_handle);
-        return 0;
+    // Open a fake pcap handle (offline mode with no file)
+    handle = pcap_open_dead(DLT_RAW, 65535);
+
+    // Compile the filter expression
+    if (pcap_compile(handle, &program, filter_exp, 0, PCAP_NETMASK_UNKNOWN) == 0) {
+        // Successfully compiled, now free the compiled program
+        pcap_freecode(&program);
     }
-
-    // Apply the filter to the input data
-    packet = data;
-    header.len = size;
-    header.caplen = size;
-    pcap_offline_filter(&fp, &header, packet);
-
-    // Free the compiled filter
-    pcap_freecode(&fp);
-
-    // Call the function-under-test
-    pcap_breakloop(pcap_handle);
 
     // Clean up
-    pcap_close(pcap_handle);
+    pcap_close(handle);
+    free(filter_exp);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_16(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

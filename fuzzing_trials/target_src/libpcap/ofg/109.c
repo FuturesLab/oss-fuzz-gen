@@ -1,27 +1,86 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <pcap/pcap.h>  // Include the pcap library header
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <string.h>
+#include <pcap.h>
 
+// Remove the 'extern "C"' linkage specification, which is not valid in C
 int LLVMFuzzerTestOneInput_109(const uint8_t *data, size_t size) {
-    // Ensure that we have enough data to form an integer
-    if (size < sizeof(int)) {
+    // Declare and initialize variables
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *pcap = NULL;
+
+    // Check if the size is sufficient to create a pcap handle
+    if (size < 24) {  // Minimum size for a valid pcap header
         return 0;
     }
 
-    // Interpret the first few bytes of data as an integer
-    int status_code = *(const int *)data;
+    // Create a temporary file to store the data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+
+    // Write the data to the file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
+
+    // Open the pcap file
+    pcap = pcap_open_offline(tmpl, errbuf);
+    if (pcap == NULL) {
+        return 0;
+    }
 
     // Call the function-under-test
-    const char *result = pcap_statustostr(status_code);
+    int result = pcap_datalink_ext(pcap);
 
-    // Use the result to avoid any compiler optimizations that might skip the call
-    if (result != NULL) {
-        // Do something trivial with the result, like checking its length
-        size_t length = 0;
-        while (result[length] != '\0') {
-            length++;
-        }
-    }
+    // Clean up
+    pcap_close(pcap);
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_109(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

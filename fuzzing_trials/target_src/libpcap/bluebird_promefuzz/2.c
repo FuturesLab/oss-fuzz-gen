@@ -1,83 +1,193 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "string.h"
-#include "stdlib.h"
-#include "stdio.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "pcap/pcap.h"
 #include <stdint.h>
-#include "stdlib.h"
-#include "string.h"
+#include <string.h>
+#include <stdlib.h>
 
-#define DUMMY_FILE "./dummy_file"
-#define ERRBUF_SIZE PCAP_ERRBUF_SIZE
-
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen(DUMMY_FILE, "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
-    }
+static void dummy_packet_handler(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
+    // This is a dummy packet handler for pcap_loop
 }
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_if_t *alldevs = NULL;
+    pcap_t *handle = NULL;
+    int retval;
+
+    // Step 1: Find all devices
+    if (pcap_findalldevs(&alldevs, errbuf) == -1) {
+        return 0; // If no devices found, exit
     }
 
-    char errbuf[ERRBUF_SIZE];
-    bpf_u_int32 net, mask;
-    pcap_t *handle;
-    pcap_if_t *alldevs;
+    // Step 2: Free all devices
 
-    // Ensure the device name is a valid null-terminated string
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_findalldevs to pcap_create
+    char* ret_pcap_lookupdev_xnjwk = pcap_lookupdev(NULL);
+    if (ret_pcap_lookupdev_xnjwk == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_pcap_lookupdev_xnjwk) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errbuf) {
+    	return 0;
+    }
+    pcap_t* ret_pcap_create_yacws = pcap_create(ret_pcap_lookupdev_xnjwk, errbuf);
+    if (ret_pcap_create_yacws == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    pcap_freealldevs(alldevs);
+
+    // Step 3: Ensure the input data is null-terminated before using it as a device name
     char *device = (char *)malloc(Size + 1);
-    if (!device) {
+    if (device == NULL) {
         return 0;
     }
     memcpy(device, Data, Size);
     device[Size] = '\0';
 
-    // Fuzz pcap_open_live
-    handle = pcap_open_live(device, 65535, 1, 1000, errbuf);
-    if (handle) {
+    // Step 4: Create a pcap handle
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of pcap_create
+    handle = pcap_create(device, (char *)"r");
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    free(device);
+    if (handle == NULL) {
+        return 0; // If handle creation fails, exit
+    }
+
+    // Step 5: Set non-blocking mode
+    pcap_setnonblock(handle, 1, errbuf);
+
+    // Step 6: Get non-blocking mode state
+    pcap_getnonblock(handle, errbuf);
+
+    // Step 7: Activate the handle
+    retval = pcap_activate(handle);
+    if (retval < 0) {
+        pcap_geterr(handle); // Get error if activation fails
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_geterr to pcap_inject
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_pcap_create_yacws) {
+        	return 0;
+        }
+        int ret_pcap_activate_fpgve = pcap_activate(ret_pcap_create_yacws);
+        if (ret_pcap_activate_fpgve < 0){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_pcap_create_yacws) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!handle) {
+        	return 0;
+        }
+        int ret_pcap_inject_qelfb = pcap_inject(ret_pcap_create_yacws, (const void *)handle, 1);
+        if (ret_pcap_inject_qelfb < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
         pcap_close(handle);
+        return 0;
     }
 
-    // Fuzz pcap_lookupnet
-    if (pcap_lookupnet(device, &net, &mask, errbuf) == 0) {
-        // Successfully retrieved network and mask
+    // Step 8: Get non-blocking mode state
+    pcap_getnonblock(handle, errbuf);
+
+    // Step 9: Set non-blocking mode again
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from pcap_getnonblock to pcap_open_live using the plateau pool
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_pcap_lookupdev_xnjwk) {
+    	return 0;
     }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errbuf) {
+    	return 0;
+    }
+    pcap_t* ret_pcap_open_live_agrqq = pcap_open_live(ret_pcap_lookupdev_xnjwk, 65536, 1, 1000, errbuf);
+    if (ret_pcap_open_live_agrqq == NULL){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    pcap_setnonblock(handle, 0, errbuf);
 
-    // Fuzz pcap_create
+    // Step 10: Get non-blocking mode state again
+    pcap_getnonblock(handle, errbuf);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_create with pcap_open_offline
+    // Step 11: Set non-blocking mode once more
+    pcap_setnonblock(handle, 1, errbuf);
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of pcap_open_offline
-    handle = pcap_open_offline(NULL, errbuf);
+    // Step 12: Get non-blocking mode state once more
+    pcap_getnonblock(handle, errbuf);
+
+    // Step 13: Loop through packets (dummy handler)
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of pcap_loop
+    pcap_loop(ret_pcap_open_live_agrqq, 1, dummy_packet_handler, NULL);
     // End mutation: Producer.REPLACE_ARG_MUTATOR
 
+    // Step 14: Get error message if any
+    pcap_geterr(handle);
 
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Step 15: Set non-blocking mode again
+    pcap_setnonblock(handle, 0, errbuf);
 
+    // Step 16: Set non-blocking mode one last time
+    pcap_setnonblock(handle, 1, errbuf);
 
-    if (handle) {
-        pcap_close(handle);
-    }
-
-    // Fuzz pcap_findalldevs
-    if (pcap_findalldevs(&alldevs, errbuf) == 0) {
-        pcap_freealldevs(alldevs);
-    }
-
-    // Fuzz pcap_lookupdev
-    char *default_dev = pcap_lookupdev(errbuf);
-    if (default_dev) {
-        // Successfully found a default device
-    }
-
-    // Write to a dummy file if needed by any function
-    write_dummy_file(Data, Size);
-
-    free(device);
+    // Cleanup: Close the handle
+    pcap_close(handle);
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

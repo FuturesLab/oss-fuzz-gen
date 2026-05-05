@@ -1,31 +1,87 @@
+#include <pcap.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <pcap/pcap.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 
+// Define the fuzzing function without extern "C" since this is C code
 int LLVMFuzzerTestOneInput_125(const uint8_t *data, size_t size) {
-    pcap_t *pcap_handle;
+    pcap_t *handle;
     char errbuf[PCAP_ERRBUF_SIZE];
-    int promisc_mode;
 
-    // Ensure the data size is sufficient to extract the promisc_mode
-    if (size < sizeof(int)) {
+    // Ensure the data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize the pcap handle with a non-NULL value
-    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (pcap_handle == NULL) {
+    // Create a temporary file name
+    char tmpl[] = "/tmp/fuzzpcapXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Extract the promisc_mode from the input data
-    promisc_mode = *((int *)data);
+    // Write the fuzz data to the file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        return 0;
+    }
+    close(fd);
 
-    // Call the function under test
-    int result = pcap_set_promisc(pcap_handle, promisc_mode);
+    // Open the file as a pcap
+    handle = pcap_open_offline(tmpl, errbuf);
+    if (handle == NULL) {
+        // Clean up the temporary file
+        remove(tmpl);
+        return 0;
+    }
+
+    // Call the function-under-test
+    int result = pcap_datalink(handle);
 
     // Clean up
-    pcap_close(pcap_handle);
+    pcap_close(handle);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_125(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

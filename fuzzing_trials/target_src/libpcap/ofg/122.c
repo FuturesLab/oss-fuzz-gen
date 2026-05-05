@@ -1,48 +1,77 @@
-#include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
+#include <unistd.h>
 #include <pcap.h>
-#include <string.h>
-
-// Define a buffer size for error messages
-#define ERRBUF_SIZE 256
+#include <stdio.h>
+#include <fcntl.h>
 
 int LLVMFuzzerTestOneInput_122(const uint8_t *data, size_t size) {
-    // Declare and initialize variables
-    FILE *file = NULL;
-    u_int precision;
-    char errbuf[ERRBUF_SIZE];
-    pcap_t *pcap_handle = NULL;
+    pcap_t *pcap;
+    struct pcap_pkthdr *header;
+    const u_char *packet;
 
-    // Ensure the data size is sufficient for testing
-    if (size < 4) {
+    // Create a temporary file to write the fuzz data
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
+        return 0;
+    }
+    write(fd, data, size);
+    close(fd);
+
+    // Open the temporary file with pcap
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap = pcap_open_offline(tmpl, errbuf);
+    if (pcap == NULL) {
+        remove(tmpl);
         return 0;
     }
 
-    // Create a temporary file to hold the input data
-    file = tmpfile();
-    if (file == NULL) {
-        return 0;
-    }
-
-    // Write the data to the temporary file
-    fwrite(data, 1, size, file);
-    rewind(file);
-
-    // Set a non-zero precision value for testing
-    precision = 1; // Assume 1 is a valid precision value
-
-    // Initialize the error buffer with a non-NULL value
-    memset(errbuf, 'A', ERRBUF_SIZE - 1);
-    errbuf[ERRBUF_SIZE - 1] = '\0';
-
-    // Call the function-under-test
-    pcap_handle = pcap_fopen_offline_with_tstamp_precision(file, precision, errbuf);
+    // Call the function under test
+    int result = pcap_next_ex(pcap, &header, &packet);
 
     // Clean up
-    if (pcap_handle != NULL) {
-        pcap_close(pcap_handle);
-    }
-    fclose(file);
+    pcap_close(pcap);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_122(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

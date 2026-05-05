@@ -1,76 +1,74 @@
-#include "pcap/pcap.h"
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include "stdlib.h"
-#include "string.h"
-#include "stdio.h"
+#include <stdlib.h>
+#include "pcap/pcap.h"
+
+extern int pcap_set_protocol_linux(pcap_t *, int);
 
 int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-    // Initialize variables
+    pcap_t *pcap_handle;
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle;
-    struct bpf_program fp;
-    char filter_exp[] = "tcp"; // Example filter expression
-    int result;
+    int protocol;
 
-    // Open a dummy pcap handle
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of pcap_open_dead
-    handle = pcap_open_dead(1, 65535);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (handle == NULL) {
-        return 0; // Failed to open a pcap handle
-    }
-
-    // Ensure the data is null-terminated for safety
-    char *data_copy = (char *)malloc(size + 1);
-    if (data_copy == NULL) {
-        pcap_close(handle);
+    // Ensure data size is sufficient for extracting an integer
+    if (size < sizeof(int)) {
         return 0;
     }
-    memcpy(data_copy, data, size);
-    data_copy[size] = '\0';
 
-    // Compile the filter expression
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of pcap_compile
-    if (pcap_compile(handle, &fp, data_copy, -1, PCAP_NETMASK_UNKNOWN) == -1) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-        free(data_copy);
-        pcap_close(handle);
-        return 0; // Failed to compile the filter
+    // Initialize pcap handle
+    pcap_handle = pcap_create("any", errbuf);
+    if (pcap_handle == NULL) {
+        return 0;
     }
+
+    // Set the protocol using the first 4 bytes of the input data
+    protocol = *(int *)data;
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_compile to pcap_geterr
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_compile to pcap_datalink_ext
-
-    int ret_pcap_datalink_ext_mwofb = pcap_datalink_ext(handle);
-    if (ret_pcap_datalink_ext_mwofb < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    char* ret_pcap_geterr_gnpky = pcap_geterr(handle);
-    if (ret_pcap_geterr_gnpky == NULL){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    result = pcap_setfilter(handle, &fp);
+    pcap_set_protocol_linux(pcap_handle, protocol);
 
     // Clean up
-    pcap_freecode(&fp);
-    pcap_close(handle);
-    free(data_copy);
+    pcap_close(pcap_handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_52(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

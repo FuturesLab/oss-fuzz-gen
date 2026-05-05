@@ -1,105 +1,114 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "string.h"
-#include "stdlib.h"
-#include "stdio.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "pcap/pcap.h"
-#include "stdio.h"
-#include "stdlib.h"
-#include "string.h"
-
-#define ERRBUF_SIZE 256
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 static pcap_t *initialize_pcap_handle() {
-    char errbuf[ERRBUF_SIZE];
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of pcap_open_dead
-    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 1);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *handle = pcap_create("any", errbuf);
     if (!handle) {
-        fprintf(stderr, "Failed to open dead pcap handle: %s\n", errbuf);
+        fprintf(stderr, "pcap_create failed: %s\n", errbuf);
+        return NULL;
     }
     return handle;
 }
 
-static void cleanup_pcap_handle(pcap_t *handle) {
-    if (handle) {
-        pcap_close(handle);
-    }
-}
-
 int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
-    char errbuf[ERRBUF_SIZE];
+    if (Size < sizeof(int) * 3) {
+        return 0;
+    }
+
     pcap_t *handle = initialize_pcap_handle();
     if (!handle) {
         return 0;
     }
 
-    // Fuzz pcap_list_datalinks
-    int *dlt_buf = NULL;
-    int dlt_count = pcap_list_datalinks(handle, &dlt_buf);
-    if (dlt_count >= 0) {
-        // Fuzz pcap_set_datalink only if dlt_buf is valid
-        if (dlt_count > 0) {
-            int random_dlt = dlt_buf[0];
-            pcap_set_datalink(handle, random_dlt);
-        }
-        pcap_free_datalinks(dlt_buf);
+    int immediate_mode = Data[0] % 2;
+    int timeout = ((int *)Data)[1];
+    int activation_status;
+
+    // 1. Set immediate mode
+    int result = pcap_set_immediate_mode(handle, immediate_mode);
+    const char *status_str = pcap_statustostr(result);
+    if (result != 0) {
+        fprintf(stderr, "pcap_set_immediate_mode failed: %s\n", status_str);
+        pcap_close(handle);
+        return 0;
     }
 
-    // Fuzz pcap_init
-    unsigned int init_opts = 0;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of pcap_init
-    int init_result = pcap_init(64, errbuf);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Fuzz pcap_setfilter
-    struct bpf_program fp;
-    if (Size > 0) {
-        // Ensure null-termination of the data used as a string
-        char *null_terminated_data = (char *)malloc(Size + 1);
-        if (null_terminated_data) {
-            memcpy(null_terminated_data, Data, Size);
-            null_terminated_data[Size] = '\0';
-
-
-            // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of pcap_compile_nopcap
-            if (pcap_compile_nopcap(65535, Size, &fp, null_terminated_data, 0, PCAP_NETMASK_UNKNOWN) == 0) {
-            // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-                pcap_setfilter(handle, &fp);
-                pcap_freecode(&fp);
-            }
-
-            free(null_terminated_data);
-        }
+    // 2. Set timeout
+    result = pcap_set_timeout(handle, timeout);
+    status_str = pcap_statustostr(result);
+    if (result != 0) {
+        fprintf(stderr, "pcap_set_timeout failed: %s\n", status_str);
+        pcap_close(handle);
+        return 0;
     }
 
+    // 3. Activate the handle
+    activation_status = pcap_activate(handle);
+    status_str = pcap_statustostr(activation_status);
+    if (activation_status < 0) {
+        fprintf(stderr, "pcap_activate failed: %s\n", status_str);
+        const char *err_msg = pcap_geterr(handle);
+        fprintf(stderr, "Error: %s\n", err_msg);
+        pcap_close(handle);
+        return 0;
+    }
 
-                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_freecode to pcap_setfilter
+    // Get error if any
+    if (activation_status != 0) {
+        const char *err_msg = pcap_geterr(handle);
+        fprintf(stderr, "Activation status warning: %s\n", err_msg);
+    }
 
-                // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_major_version with pcap_get_tstamp_precision
-                int ret_pcap_major_version_qkrpm = pcap_get_tstamp_precision(handle);
-                // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-                if (ret_pcap_major_version_qkrpm < 0){
-                	return 0;
-                }
-
-                int ret_pcap_setfilter_jqydn = pcap_setfilter(handle, &fp);
-                if (ret_pcap_setfilter_jqydn < 0){
-                	return 0;
-                }
-
-                // End mutation: Producer.APPEND_MUTATOR
-
-    cleanup_pcap_handle(handle);
+    pcap_close(handle);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_9(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

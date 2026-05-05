@@ -1,37 +1,78 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <pcap.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    pcap_t *pcap_handle;
+    pcap_t *handle;
     char errbuf[PCAP_ERRBUF_SIZE];
 
-    // Since pcap_open_offline() requires a file, we use pcap_open_dead() for fuzzing
-    // as it does not require a real file and can be used for testing purposes.
-    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (pcap_handle == NULL) {
+    // Ensure we have enough data to set a device name
+    if (size < 1) {
         return 0;
     }
 
-    // Create a dummy packet to simulate input data
-    const uint8_t dummy_packet[42] = {
-        0x00, 0x1A, 0x2B, 0x3C, 0x4D, 0x5E, // Destination MAC
-        0x5E, 0x4D, 0x3C, 0x2B, 0x1A, 0x00, // Source MAC
-        0x08, 0x00,                         // EtherType (IPv4)
-        // IP Header (20 bytes)
-        0x45, 0x00, 0x00, 0x28, 0x1c, 0x46, 0x40, 0x00,
-        0x40, 0x06, 0xb1, 0xe6, 0xc0, 0xa8, 0x00, 0x68,
-        0xc0, 0xa8, 0x00, 0x01,
-        // TCP Header (20 bytes)
-        0x00, 0x50, 0x00, 0x50, 0x00, 0x00, 0x00, 0x00,
-        0x50, 0x02, 0x20, 0x00, 0x91, 0x7c, 0x00, 0x00
-    };
+    // Use the input data to create a device name
+    char device[256];
+    size_t device_len = size < sizeof(device) ? size : sizeof(device) - 1;
+    memcpy(device, data, device_len);
+    device[device_len] = '\0'; // Null-terminate the string
+
+    // Initialize a pcap_t structure with pcap_create
+    handle = pcap_create(device, errbuf);
+    if (handle == NULL) {
+        return 0;
+    }
+
+    // Set some non-NULL options to the pcap_t structure
+    pcap_set_snaplen(handle, 65535); // Set the snapshot length
+    pcap_set_promisc(handle, 1);     // Set promiscuous mode
+    pcap_set_timeout(handle, 1000);  // Set read timeout
 
     // Call the function-under-test
-    int result = pcap_datalink(pcap_handle);
+    int result = pcap_activate(handle);
 
     // Clean up
-    pcap_close(pcap_handle);
+    pcap_close(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_46(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

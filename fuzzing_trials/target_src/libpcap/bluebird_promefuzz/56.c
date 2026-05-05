@@ -1,18 +1,17 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "string.h"
-#include "stdlib.h"
-#include "stdio.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "pcap/pcap.h"
 #include <stdint.h>
-#include "stdlib.h"
-#include "string.h"
-
-#define DUMMY_FILE "./dummy_file"
-#define ERRBUF_SIZE PCAP_ERRBUF_SIZE
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
 static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen(DUMMY_FILE, "wb");
+    FILE *file = fopen("./dummy_file", "wb");
     if (file) {
         fwrite(Data, 1, Size, file);
         fclose(file);
@@ -24,55 +23,116 @@ int LLVMFuzzerTestOneInput_56(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    char errbuf[ERRBUF_SIZE];
-    bpf_u_int32 net, mask;
-    pcap_t *handle;
-    pcap_if_t *alldevs;
-
-    // Ensure the device name is a valid null-terminated string
-    char *device = (char *)malloc(Size + 1);
-    if (!device) {
+    pcap_t *pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (!pcap_handle) {
         return 0;
     }
-    memcpy(device, Data, Size);
-    device[Size] = '\0';
 
-    // Fuzz pcap_open_live
-    handle = pcap_open_live(device, 65535, 1, 1000, errbuf);
-    if (handle) {
-        pcap_close(handle);
+    struct bpf_program fp;
+    memset(&fp, 0, sizeof(fp));
+
+    char *filter_expr = (char *)malloc(Size + 1);
+    if (!filter_expr) {
+        pcap_close(pcap_handle);
+        return 0;
     }
 
-    // Fuzz pcap_lookupnet
-    if (pcap_lookupnet(device, &net, &mask, errbuf) == 0) {
-        // Successfully retrieved network and mask
+    memcpy(filter_expr, Data, Size);
+    filter_expr[Size] = '\0';
+
+    bpf_u_int32 netmask = 0xffffff00;
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of pcap_compile
+    int compile_result = pcap_compile(pcap_handle, &fp, filter_expr, 64, netmask);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (compile_result == PCAP_ERROR) {
+        pcap_geterr(pcap_handle);
     }
 
-    // Fuzz pcap_create
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_create with pcap_open_offline
-    handle = pcap_open_offline(device, errbuf);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (handle) {
-        pcap_close(handle);
+    if (compile_result == 0) {
+        int setfilter_result = pcap_setfilter(pcap_handle, &fp);
+        if (setfilter_result == PCAP_ERROR) {
+            pcap_geterr(pcap_handle);
+        }
     }
 
-    // Fuzz pcap_findalldevs
-    if (pcap_findalldevs(&alldevs, errbuf) == 0) {
-        pcap_freealldevs(alldevs);
-    }
+    free(fp.bf_insns);
 
-    // Fuzz pcap_lookupdev
-    char *default_dev = pcap_lookupdev(errbuf);
-    if (default_dev) {
-        // Successfully found a default device
-    }
-
-    // Write to a dummy file if needed by any function
     write_dummy_file(Data, Size);
+    pcap_dumper_t *dumper = pcap_dump_open(pcap_handle, "./dummy_file");
+    if (!dumper) {
+        pcap_geterr(pcap_handle);
+    }
 
-    free(device);
+    pcap_datalink(pcap_handle);
+
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_datalink to pcap_inject
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!pcap_handle) {
+    	return 0;
+    }
+    int ret_pcap_bufsize_vkcum = pcap_bufsize(pcap_handle);
+    if (ret_pcap_bufsize_vkcum < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!pcap_handle) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!pcap_handle) {
+    	return 0;
+    }
+    int ret_pcap_inject_eetlh = pcap_inject(pcap_handle, (const void *)pcap_handle, 0);
+    if (ret_pcap_inject_eetlh < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(filter_expr);
+    if (dumper) {
+        pcap_dump_close(dumper);
+    }
+    pcap_close(pcap_handle);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_56(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

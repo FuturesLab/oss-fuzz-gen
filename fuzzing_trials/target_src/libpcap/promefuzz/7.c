@@ -1,76 +1,122 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_findalldevs at pcap.c:672:1 in pcap.h
-// pcap_freealldevs at pcap.c:1414:1 in pcap.h
-// pcap_create at pcap.c:2306:1 in pcap.h
-// pcap_set_snaplen at pcap.c:2599:1 in pcap.h
-// pcap_statustostr at pcap.c:3719:1 in pcap.h
-// pcap_set_promisc at pcap.c:2608:1 in pcap.h
-// pcap_statustostr at pcap.c:3719:1 in pcap.h
-// pcap_set_rfmon at pcap.c:2617:1 in pcap.h
-// pcap_statustostr at pcap.c:3719:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_findalldevs at pcap.c:673:1 in pcap.h
+// pcap_freealldevs at pcap.c:1412:1 in pcap.h
+// pcap_create at pcap.c:2304:1 in pcap.h
+// pcap_set_snaplen at pcap.c:2597:1 in pcap.h
+// pcap_statustostr at pcap.c:3717:1 in pcap.h
+// pcap_set_promisc at pcap.c:2606:1 in pcap.h
+// pcap_statustostr at pcap.c:3717:1 in pcap.h
+// pcap_set_rfmon at pcap.c:2615:1 in pcap.h
+// pcap_statustostr at pcap.c:3717:1 in pcap.h
+// pcap_close at pcap.c:4323:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <pcap.h>
 
 int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Ensure there's data to process
-
+    pcap_if_t *alldevs;
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_if_t *alldevs = NULL;
-    pcap_t *handle = NULL;
-
+    int status;
+    
     // Step 1: Find all devices
-    if (pcap_findalldevs(&alldevs, errbuf) == -1) {
-        fprintf(stderr, "Error in pcap_findalldevs: %s\n", errbuf);
+    status = pcap_findalldevs(&alldevs, errbuf);
+    if (status == -1) {
+        fprintf(stderr, "pcap_findalldevs failed: %s\n", errbuf);
         return 0;
     }
 
     // Step 2: Free all devices
     pcap_freealldevs(alldevs);
 
-    // Step 3: Create a pcap handle
-    // Ensure the data is null-terminated before passing it as a string
-    char *device = (char *)malloc(Size + 1);
-    if (!device) {
-        fprintf(stderr, "Memory allocation failed\n");
+    // Check if we have enough data to create a null-terminated string
+    if (Size < 1) {
         return 0;
     }
+
+    // Step 3: Create a new buffer for device name
+    char *device = (char *)malloc(Size + 1);
+    if (!device) {
+        return 0;
+    }
+
+    // Copy data and ensure null termination
     memcpy(device, Data, Size);
     device[Size] = '\0';
 
-    handle = pcap_create(device, errbuf);
+    // Step 4: Create a pcap handle
+    pcap_t *handle = pcap_create(device, errbuf);
     free(device);
+
     if (!handle) {
-        fprintf(stderr, "Error in pcap_create: %s\n", errbuf);
+        fprintf(stderr, "pcap_create failed: %s\n", errbuf);
         return 0;
     }
 
-    // Step 4: Set snapshot length
-    int snaplen = Data[0] % 65535; // Limit snaplen to a reasonable value
-    int result = pcap_set_snaplen(handle, snaplen);
-    if (result != 0) {
-        fprintf(stderr, "Error in pcap_set_snaplen: %s\n", pcap_statustostr(result));
+    // Step 5: Set snapshot length
+    status = pcap_set_snaplen(handle, 65535);
+    if (status != 0) {
+        fprintf(stderr, "pcap_set_snaplen failed: %s\n", pcap_statustostr(status));
     }
 
-    // Step 5: Set promiscuous mode
-    int promisc = Data[0] % 2; // Randomly set promisc mode
-    result = pcap_set_promisc(handle, promisc);
-    if (result != 0) {
-        fprintf(stderr, "Error in pcap_set_promisc: %s\n", pcap_statustostr(result));
+    // Step 6: Set promiscuous mode
+    status = pcap_set_promisc(handle, 1);
+    if (status != 0) {
+        fprintf(stderr, "pcap_set_promisc failed: %s\n", pcap_statustostr(status));
     }
 
-    // Step 6: Set RF monitor mode
-    int rfmon = Data[0] % 2; // Randomly set rfmon mode
-    result = pcap_set_rfmon(handle, rfmon);
-    if (result != 0) {
-        fprintf(stderr, "Error in pcap_set_rfmon: %s\n", pcap_statustostr(result));
+    // Step 7: Set monitor mode
+    status = pcap_set_rfmon(handle, 1);
+    if (status != 0) {
+        fprintf(stderr, "pcap_set_rfmon failed: %s\n", pcap_statustostr(status));
     }
 
-    // Clean up
+    // Cleanup: Close the handle
     pcap_close(handle);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_7(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

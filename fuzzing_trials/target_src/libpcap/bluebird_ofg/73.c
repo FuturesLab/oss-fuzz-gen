@@ -1,82 +1,87 @@
-#include <stdint.h>
-#include "stdlib.h"
-#include "unistd.h"
+#include <sys/stat.h>
 #include "pcap/pcap.h"
-#include "stdio.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
+#include "fcntl.h"
 
 int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size) {
-    pcap_t *pcap_handle;
     char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *handle = NULL;
+    int fd = -1;
 
     // Create a temporary file to store the input data
-    char filename[] = "/tmp/fuzz_pcap_XXXXXX";
-    int fd = mkstemp(filename);
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
 
     // Write the input data to the temporary file
-    write(fd, data, size);
-    close(fd);
-
-    // Open the pcap file
-    pcap_handle = pcap_open_offline(filename, errbuf);
-    if (pcap_handle == NULL) {
-        // Cleanup the temporary file
-        remove(filename);
+    if (write(fd, data, size) != (ssize_t)size) {
+        close(fd);
+        unlink(tmpl);
         return 0;
     }
 
-    // Call the function-under-test
-    int minor_version = pcap_minor_version(pcap_handle);
+    // Close the file descriptor so pcap can open it
+    close(fd);
 
-    // Cleanup
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_minor_version to pcap_dump_open
-    char* ret_pcap_lookupdev_vrojc = pcap_lookupdev(errbuf);
-    if (ret_pcap_lookupdev_vrojc == NULL){
-    	return 0;
-    }
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_dump_open with pcap_dump_open_append
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_lookupdev to pcap_setnonblock
-    int ret_pcap_snapshot_lzefi = pcap_snapshot(pcap_handle);
-    if (ret_pcap_snapshot_lzefi < 0){
-    	return 0;
-    }
-
-    int ret_pcap_setnonblock_vxwap = pcap_setnonblock(pcap_handle, 0, errbuf);
-    if (ret_pcap_setnonblock_vxwap < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    pcap_dumper_t* ret_pcap_dump_open_rhnzb = pcap_dump_open_append(pcap_handle, ret_pcap_lookupdev_vrojc);
+    // Open the temporary file with pcap
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_open_offline with pcap_create
+    handle = pcap_create(tmpl, errbuf);
     // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    if (handle != NULL) {
+        // Call the function-under-test
+        int fileno_result = pcap_fileno(handle);
 
-
-    if (ret_pcap_dump_open_rhnzb == NULL){
-    	return 0;
+        // Clean up
+        pcap_close(handle);
     }
 
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_dump_open_append to pcap_perror
-    char* ret_pcap_lookupdev_dmden = pcap_lookupdev(errbuf);
-    if (ret_pcap_lookupdev_dmden == NULL){
-    	return 0;
-    }
-
-    pcap_perror(pcap_handle, ret_pcap_lookupdev_dmden);
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    pcap_close(pcap_handle);
-    remove(filename);
+    // Remove the temporary file
+    unlink(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_73(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

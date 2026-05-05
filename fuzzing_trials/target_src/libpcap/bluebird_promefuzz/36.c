@@ -1,13 +1,14 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "string.h"
-#include "stdlib.h"
-#include "stdio.h"
-#include "stdio.h"
-#include "stdlib.h"
-#include "string.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "pcap/pcap.h"
-#include "/src/libpcap/pcap/bpf.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
 static void write_dummy_file(const uint8_t *Data, size_t Size) {
     FILE *file = fopen("./dummy_file", "wb");
@@ -18,109 +19,96 @@ static void write_dummy_file(const uint8_t *Data, size_t Size) {
 }
 
 int LLVMFuzzerTestOneInput_36(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size == 0) {
         return 0;
     }
 
-    // Prepare pcap_t using pcap_open_dead
-    pcap_t *pcap = pcap_open_dead(DLT_EN10MB, 65535);
-    if (!pcap) {
+    pcap_t *pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (!pcap_handle) {
         return 0;
     }
 
-    // Prepare bpf_program
-    struct bpf_program bpf;
-    memset(&bpf, 0, sizeof(bpf));
+    struct bpf_program fp;
+    memset(&fp, 0, sizeof(fp));
 
-    // Null-terminate Data for filter string
-    char *filter_exp = (char *)malloc(Size + 1);
-    if (!filter_exp) {
-        pcap_close(pcap);
+    char *filter_expr = (char *)malloc(Size + 1);
+    if (!filter_expr) {
+        pcap_close(pcap_handle);
         return 0;
     }
-    memcpy(filter_exp, Data, Size);
-    filter_exp[Size] = '\0';
 
-    // Compile filter
-    int compile_result = pcap_compile(pcap, &bpf, filter_exp, 0, PCAP_NETMASK_UNKNOWN);
+    memcpy(filter_expr, Data, Size);
+    filter_expr[Size] = '\0';
 
-    // Validate BPF program
-    int valid = bpf_validate(bpf.bf_insns, bpf.bf_len);
+    bpf_u_int32 netmask = 0xffffff00;
+    int compile_result = pcap_compile(pcap_handle, &fp, filter_expr, 0, netmask);
+    if (compile_result == PCAP_ERROR) {
+        pcap_geterr(pcap_handle);
+    }
 
-    // Prepare packet header and data
-    struct pcap_pkthdr header;
-    header.caplen = Size;
-    header.len = Size;
-    header.ts.tv_sec = 0;
-    header.ts.tv_usec = 0;
-
-    // Use pcap_offline_filter
-    int match = pcap_offline_filter(&bpf, &header, Data);
-
-    // Use bpf_filter
-    u_int result = bpf_filter(bpf.bf_insns, Data, header.len, header.caplen);
-
-    // Use pcap_compile_nopcap
-    struct bpf_program bpf_nopcap;
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 4 of pcap_compile_nopcap
-    int compile_nopcap_result = pcap_compile_nopcap(65535, DLT_EN10MB, &bpf_nopcap, filter_exp, Size, PCAP_NETMASK_UNKNOWN);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Cleanup
     if (compile_result == 0) {
-        pcap_freecode(&bpf);
-    }
-    if (compile_nopcap_result == 0) {
-        pcap_freecode(&bpf_nopcap);
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_compile_nopcap to pcap_set_buffer_size
-    int ret_pcap_minor_version_nkrkn = pcap_minor_version(pcap);
-    if (ret_pcap_minor_version_nkrkn < 0){
-    	return 0;
+        int setfilter_result = pcap_setfilter(pcap_handle, &fp);
+        if (setfilter_result == PCAP_ERROR) {
+            pcap_geterr(pcap_handle);
+        }
     }
 
+    free(fp.bf_insns);
 
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_set_buffer_size with pcap_set_datalink
-    int ret_pcap_set_buffer_size_luomy = pcap_set_datalink(pcap, compile_nopcap_result);
+    write_dummy_file(Data, Size);
+    pcap_dumper_t *dumper = pcap_dump_open(pcap_handle, "./dummy_file");
+    if (!dumper) {
+        pcap_geterr(pcap_handle);
+    }
+
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_datalink with pcap_can_set_rfmon
+    pcap_can_set_rfmon(pcap_handle);
     // End mutation: Producer.REPLACE_FUNC_MUTATOR
 
-
-    if (ret_pcap_set_buffer_size_luomy < 0){
-    	return 0;
+    free(filter_expr);
+    if (dumper) {
+        pcap_dump_close(dumper);
     }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    free(filter_exp);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_freecode to pcap_setfilter
-
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_bufsize with pcap_snapshot
-        int ret_pcap_bufsize_bfiks = pcap_snapshot(pcap);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-        if (ret_pcap_bufsize_bfiks < 0){
-        	return 0;
-        }
-
-        int ret_pcap_setfilter_bzeog = pcap_setfilter(pcap, &bpf);
-        if (ret_pcap_setfilter_bzeog < 0){
-        	return 0;
-        }
-
-        // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_close with pcap_breakloop
-    pcap_breakloop(pcap);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
+    pcap_close(pcap_handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_36(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

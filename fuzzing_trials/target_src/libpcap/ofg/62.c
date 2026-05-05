@@ -1,46 +1,92 @@
-#include <pcap.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <string.h>
+#include <pcap.h>
 #include <stdio.h>
 
 int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
-    // Initialize variables
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle;
-    struct bpf_program fp;
-    char filter_exp[] = "tcp"; // Example filter expression
-    int result;
-
-    // Open a dummy pcap handle
-    handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (handle == NULL) {
-        return 0; // Failed to open a pcap handle
-    }
-
-    // Ensure the data is null-terminated for safety
-    char *data_copy = (char *)malloc(size + 1);
-    if (data_copy == NULL) {
-        pcap_close(handle);
+    // Ensure the input data is not null and has a reasonable size
+    if (data == NULL || size == 0) {
         return 0;
     }
-    memcpy(data_copy, data, size);
-    data_copy[size] = '\0';
 
-    // Compile the filter expression
-    if (pcap_compile(handle, &fp, data_copy, 0, PCAP_NETMASK_UNKNOWN) == -1) {
-        free(data_copy);
-        pcap_close(handle);
-        return 0; // Failed to compile the filter
+    // Create a temporary file to simulate a pcap file
+    FILE *temp_file = tmpfile();
+    if (temp_file == NULL) {
+        return 0;
     }
 
-    // Call the function-under-test
-    result = pcap_setfilter(handle, &fp);
+    // Write the input data to the temporary file
+    if (fwrite(data, 1, size, temp_file) != size) {
+        fclose(temp_file);
+        return 0;
+    }
 
-    // Clean up
-    pcap_freecode(&fp);
-    pcap_close(handle);
-    free(data_copy);
+    // Rewind the file to the beginning
+    rewind(temp_file);
+
+    // Open the pcap file from the temporary file descriptor
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *pcap_handle = pcap_fopen_offline(temp_file, errbuf);
+    if (pcap_handle == NULL) {
+        fclose(temp_file);
+        return 0;
+    }
+
+    // Declare the timestamp types array
+    int *tstamp_types = NULL;
+
+    // Call the function-under-test
+    int result = pcap_list_tstamp_types(pcap_handle, &tstamp_types);
+
+    // Free the timestamp types array if it was allocated
+    if (tstamp_types != NULL) {
+        free(tstamp_types);
+    }
+
+    // Close the pcap handle
+    pcap_close(pcap_handle);
+
+    // Close the temporary file
+    fclose(temp_file);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_62(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

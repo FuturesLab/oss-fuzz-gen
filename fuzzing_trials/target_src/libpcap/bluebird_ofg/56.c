@@ -1,39 +1,110 @@
-#include "pcap/pcap.h"
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "string.h"
+#include "pcap/pcap.h"
+#include <stdlib.h>
+#include <string.h>
 
 int LLVMFuzzerTestOneInput_56(const uint8_t *data, size_t size) {
-    // Ensure the input data is large enough to split into two non-empty strings
-    if (size < 2) {
+    pcap_t *pcap_handle;
+    struct bpf_program bpf_prog;
+    char errbuf[PCAP_ERRBUF_SIZE];
+
+    // Ensure that the size is large enough to contain a valid filter expression
+    if (size < 1) {
         return 0;
     }
 
-    // Split the input data into two parts for the two string parameters
-    size_t first_len = size / 2;
-    size_t second_len = size - first_len;
-
-    // Allocate memory for the strings and ensure they are null-terminated
-    char first_param[first_len + 1];
-    char second_param[second_len + 1];
-
-    memcpy(first_param, data, first_len);
-    memcpy(second_param, data + first_len, second_len);
-
-    first_param[first_len] = '\0';
-    second_param[second_len] = '\0';
-
-    // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of pcap_create
-    pcap_t *handle = pcap_create(first_param, (char *)"r");
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-
-    // Normally, you would do something with 'handle', but for fuzzing purposes, we just ensure it is not NULL
-    if (handle != NULL) {
-        pcap_close(handle);
+    // Initialize pcap handle
+    pcap_handle = pcap_open_dead(DLT_RAW, 65535);
+    if (pcap_handle == NULL) {
+        return 0;
     }
+
+    // Create a filter expression from the input data
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_open_dead to pcap_inject
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!pcap_handle) {
+    	return 0;
+    }
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_is_swapped with pcap_datalink_ext
+    int ret_pcap_is_swapped_yjjgt = pcap_datalink_ext(pcap_handle);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    if (ret_pcap_is_swapped_yjjgt < 0){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!pcap_handle) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!pcap_handle) {
+    	return 0;
+    }
+    int ret_pcap_inject_mijne = pcap_inject(pcap_handle, (const void *)pcap_handle, size);
+    if (ret_pcap_inject_mijne < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    char *filter_exp = (char *)malloc(size + 1);
+    if (filter_exp == NULL) {
+        pcap_close(pcap_handle);
+        return 0;
+    }
+    memcpy(filter_exp, data, size);
+    filter_exp[size] = '\0'; // Null-terminate the filter expression
+
+    // Compile the filter expression
+    if (pcap_compile(pcap_handle, &bpf_prog, filter_exp, 0, PCAP_NETMASK_UNKNOWN) == 0) {
+        // Apply the compiled filter
+        pcap_setfilter(pcap_handle, &bpf_prog);
+        pcap_freecode(&bpf_prog);
+    }
+
+    // Clean up
+    free(filter_exp);
+    pcap_close(pcap_handle);
+
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_56(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

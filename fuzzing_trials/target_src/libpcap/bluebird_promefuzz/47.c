@@ -1,94 +1,134 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "string.h"
-#include "stdlib.h"
-#include "stdio.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "pcap/pcap.h"
-#include "stdio.h"
-#include "stdlib.h"
-#include "string.h"
-#include "unistd.h"
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
 
-static void packet_handler(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
-    // Dummy packet handler
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_47(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(struct bpf_program)) {
+    if (Size == 0) {
         return 0;
     }
 
-    // Create a dummy file to use with pcap_open_offline
-    FILE *file = fopen("./dummy_file", "wb");
-    if (!file) {
-        return 0;
-    }
-    fwrite(Data, 1, Size, file);
-    fclose(file);
-
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_open_offline("./dummy_file", errbuf);
-    if (!handle) {
+    pcap_t *pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (!pcap_handle) {
         return 0;
     }
 
     struct bpf_program fp;
     memset(&fp, 0, sizeof(fp));
 
-    // Fuzz pcap_setfilter
-    if (pcap_setfilter(handle, &fp) != 0) {
-        pcap_geterr(handle);
+    char *filter_expr = (char *)malloc(Size + 1);
+    if (!filter_expr) {
+        pcap_close(pcap_handle);
+        return 0;
     }
 
-    // Fuzz pcap_get_selectable_fd
-    int fd = pcap_get_selectable_fd(handle);
-    if (fd == -1) {
-        pcap_get_required_select_timeout(handle);
+    memcpy(filter_expr, Data, Size);
+    filter_expr[Size] = '\0';
+
+    bpf_u_int32 netmask = 0xffffff00;
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of pcap_compile
+    int compile_result = pcap_compile(pcap_handle, &fp, filter_expr, 64, netmask);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (compile_result == PCAP_ERROR) {
+        pcap_geterr(pcap_handle);
     }
 
-    // Fuzz pcap_setnonblock
-    if (pcap_setnonblock(handle, 1, errbuf) != 0) {
-        pcap_geterr(handle);
+    if (compile_result == 0) {
+        int setfilter_result = pcap_setfilter(pcap_handle, &fp);
+        if (setfilter_result == PCAP_ERROR) {
+            pcap_geterr(pcap_handle);
+        }
     }
 
-    // Fuzz pcap_get_required_select_timeout
-    const struct timeval *timeout = pcap_get_required_select_timeout(handle);
-    (void)timeout; // Avoid unused variable warning
+    free(fp.bf_insns);
 
-    // Fuzz pcap_dispatch with a dummy packet handler
-    pcap_dispatch(handle, -1, packet_handler, NULL);
+    write_dummy_file(Data, Size);
+    pcap_dumper_t *dumper = pcap_dump_open(pcap_handle, "./dummy_file");
+    if (!dumper) {
+        pcap_geterr(pcap_handle);
+    }
 
-    // Fuzz pcap_get_required_select_timeout again
-    timeout = pcap_get_required_select_timeout(handle);
-    (void)timeout;
 
-    // Fuzz pcap_dispatch multiple times
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_dispatch with pcap_loop
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_get_required_select_timeout to pcap_minor_version
-
-    int ret_pcap_minor_version_mvrut = pcap_minor_version(handle);
-    if (ret_pcap_minor_version_mvrut < 0){
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from pcap_dump_open to pcap_set_datalink using the plateau pool
+    char dlt_name[16];
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_datalink_name_to_val with pcap_tstamp_type_name_to_val
+    int dlt_val = pcap_tstamp_type_name_to_val(dlt_name);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!pcap_handle) {
     	return 0;
     }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    pcap_loop(handle, 0, packet_handler, NULL);
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 1 of pcap_set_datalink
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_set_datalink with pcap_set_tstamp_type
+    int ret_pcap_set_datalink_dsmjb = pcap_set_tstamp_type(pcap_handle, 64);
     // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (ret_pcap_set_datalink_dsmjb < 0){
+    	return 0;
+    }
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    pcap_datalink(pcap_handle);
 
-
-    pcap_dispatch(handle, 1, packet_handler, NULL);
-
-    // Fuzz pcap_geterr
-    pcap_geterr(handle);
-
-    // Close the pcap handle
-    pcap_close(handle);
-
-    // Remove the dummy file
-    unlink("./dummy_file");
+    free(filter_expr);
+    if (dumper) {
+        pcap_dump_close(dumper);
+    }
+    pcap_close(pcap_handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_47(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,42 +1,65 @@
+#include <sys/stat.h>
+#include <string.h>
 #include <stdint.h>
-#include "stdlib.h"
-#include "stdio.h"
 #include "pcap/pcap.h"
-
-// Function to create a dummy pcap_dumper_t object
-pcap_dumper_t* create_dummy_dumper() {
-    pcap_t *pcap = pcap_open_dead(DLT_RAW, 65535); // Open a dummy pcap_t
-    if (pcap == NULL) {
-        return NULL;
-    }
-    pcap_dumper_t *dumper = pcap_dump_open(pcap, "/dev/null"); // Open a dumper to /dev/null
-    pcap_close(pcap); // Close the dummy pcap_t
-    return dumper;
-}
-
-// Function to clean up the dummy pcap_dumper_t object
-void destroy_dummy_dumper(pcap_dumper_t *dumper) {
-    if (dumper != NULL) {
-        pcap_dump_close(dumper);
-    }
-}
+#include <stddef.h>
 
 int LLVMFuzzerTestOneInput_81(const uint8_t *data, size_t size) {
-    pcap_dumper_t *dumper = create_dummy_dumper();
-    if (dumper == NULL) {
+    if (size < sizeof(int) * 2 + sizeof(u_int)) {
         return 0;
     }
 
-    // Call the function-under-test
-    long position = pcap_dump_ftell(dumper);
+    // Extract the parameters from the input data
+    int linktype = *((int *)data);
+    int snaplen = *((int *)(data + sizeof(int)));
+    u_int precision = *((u_int *)(data + sizeof(int) * 2));
 
-    // Use the position in some way to avoid compiler optimizations removing the call
-    if (position == -1) {
-        // Handle error case
-    } else {
-        // Handle success case
+    // Call the function-under-test
+    pcap_t *handle = pcap_open_dead_with_tstamp_precision(linktype, snaplen, precision);
+
+    // Clean up if necessary
+    if (handle != NULL) {
+        pcap_close(handle);
     }
 
-    destroy_dummy_dumper(dumper);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_81(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

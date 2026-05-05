@@ -1,47 +1,141 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "string.h"
-#include "stdlib.h"
-#include "stdio.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "pcap/pcap.h"
 #include <stdint.h>
-#include "stdlib.h"
-#include "string.h"
+#include <string.h>
+#include <stdlib.h>
 
-static pcap_t *create_and_activate_pcap() {
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle = pcap_create("any", errbuf);
-    if (!handle) return NULL;
-
-    if (pcap_activate(handle) != 0) {
-        pcap_close(handle);
-        return NULL;
-    }
-    return handle;
+static void dummy_packet_handler(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
+    // This is a dummy packet handler for pcap_loop
 }
 
 int LLVMFuzzerTestOneInput_33(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return 0;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_if_t *alldevs = NULL;
+    pcap_t *handle = NULL;
+    int retval;
 
-    pcap_t *handle = create_and_activate_pcap();
-    if (!handle) return 0;
-
-    int *dlt_list = NULL;
-    int result = pcap_list_datalinks(handle, &dlt_list);
-    if (result >= 0) {
-        for (int i = 0; i < result; i++) {
-            pcap_set_datalink(handle, dlt_list[i]);
-            pcap_datalink(handle);
-        }
-        pcap_free_datalinks(dlt_list);
+    // Step 1: Find all devices
+    if (pcap_findalldevs(&alldevs, errbuf) == -1) {
+        return 0; // If no devices found, exit
     }
 
-    int *tstamp_type_list = NULL;
-    result = pcap_list_tstamp_types(handle, &tstamp_type_list);
-    if (result > 0) {
-        pcap_free_tstamp_types(tstamp_type_list);
+    // Step 2: Free all devices
+    pcap_freealldevs(alldevs);
+
+    // Step 3: Ensure the input data is null-terminated before using it as a device name
+    char *device = (char *)malloc(Size + 1);
+    if (device == NULL) {
+        return 0;
+    }
+    memcpy(device, Data, Size);
+    device[Size] = '\0';
+
+    // Step 4: Create a pcap handle
+    handle = pcap_create(device, errbuf);
+    free(device);
+    if (handle == NULL) {
+        return 0; // If handle creation fails, exit
     }
 
+    // Step 5: Set non-blocking mode
+    pcap_setnonblock(handle, 1, errbuf);
+
+    // Step 6: Get non-blocking mode state
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_setnonblock to pcap_init
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!errbuf) {
+    	return 0;
+    }
+    int ret_pcap_init_pqfzb = pcap_init(Size, errbuf);
+    if (ret_pcap_init_pqfzb < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    pcap_getnonblock(handle, errbuf);
+
+    // Step 7: Activate the handle
+    retval = pcap_activate(handle);
+    if (retval < 0) {
+        pcap_geterr(handle); // Get error if activation fails
+        pcap_close(handle);
+        return 0;
+    }
+
+    // Step 8: Get non-blocking mode state
+    pcap_getnonblock(handle, errbuf);
+
+    // Step 9: Set non-blocking mode again
+    pcap_setnonblock(handle, 0, errbuf);
+
+    // Step 10: Get non-blocking mode state again
+    pcap_getnonblock(handle, errbuf);
+
+    // Step 11: Set non-blocking mode once more
+    pcap_setnonblock(handle, 1, errbuf);
+
+    // Step 12: Get non-blocking mode state once more
+    pcap_getnonblock(handle, errbuf);
+
+    // Step 13: Loop through packets (dummy handler)
+    pcap_loop(handle, 1, dummy_packet_handler, NULL);
+
+    // Step 14: Get error message if any
+    pcap_geterr(handle);
+
+    // Step 15: Set non-blocking mode again
+    pcap_setnonblock(handle, 0, errbuf);
+
+    // Step 16: Set non-blocking mode one last time
+    pcap_setnonblock(handle, 1, errbuf);
+
+    // Cleanup: Close the handle
     pcap_close(handle);
+    
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_33(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,35 +1,65 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <pcap.h>
-#include <string.h>
 
 int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for our needs
-    if (size < 2) {
+    int dlt_value;
+
+    // Ensure the size is sufficient to extract an integer
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Create a buffer for the file name
-    char filename[256];
-    size_t filename_length = size < 255 ? size : 255;
-    memcpy(filename, data, filename_length);
-    filename[filename_length] = '\0'; // Ensure null-termination
-
-    // Use the first byte of data as the timestamp precision
-    u_int tstamp_precision = data[0];
-
-    // Create a buffer for the error message
-    char errbuf[PCAP_ERRBUF_SIZE];
-    memset(errbuf, 0, sizeof(errbuf));
+    // Copy the first sizeof(int) bytes from data to dlt_value
+    dlt_value = *(const int*)data;
 
     // Call the function-under-test
-    pcap_t *pcap_handle = pcap_open_offline_with_tstamp_precision(filename, tstamp_precision, errbuf);
+    const char *description = pcap_datalink_val_to_description_or_dlt(dlt_value);
 
-    // Check if the pcap handle was successfully created
-    if (pcap_handle != NULL) {
-        // Close the pcap handle if it was opened successfully
-        pcap_close(pcap_handle);
+    // Use the result to avoid any compiler optimization removing the call
+    if (description != NULL) {
+        // Do something trivial with the description
+        (void)description;
     }
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_73(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

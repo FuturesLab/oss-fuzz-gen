@@ -1,44 +1,100 @@
+#include <pcap.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <pcap.h>
+#include <string.h>
 
+// Remove the extern "C" linkage specification since this is C code
 int LLVMFuzzerTestOneInput_14(const uint8_t *data, size_t size) {
-    pcap_t *pcap;
-    pcap_dumper_t *dumper;
+    pcap_t *pcap_handle;
     char errbuf[PCAP_ERRBUF_SIZE];
+    struct pcap_pkthdr header;
+    const u_char *packet;
+    int status;
 
-    // Initialize pcap with a dummy file
-    pcap = pcap_open_dead(DLT_RAW, 65535);
-    if (pcap == NULL) {
+    // Open a dead pcap handle with Ethernet link-layer type and snaplen
+    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (pcap_handle == NULL) {
         return 0;
     }
 
-    // Create a temporary file for dumping
-    dumper = pcap_dump_open(pcap, "/dev/null");
-    if (dumper == NULL) {
-        pcap_close(pcap);
-        return 0;
+    // Ensure the data is not NULL and size is greater than 0
+    if (data != NULL && size > 0) {
+        // Create a temporary file to store the input data
+        char tmp_filename[] = "/tmp/pcap_input_XXXXXX";
+        int fd = mkstemp(tmp_filename);
+        if (fd == -1) {
+            pcap_close(pcap_handle);
+            return 0;
+        }
+
+        // Write the data to the temporary file
+        if (write(fd, data, size) != size) {
+            close(fd);
+            unlink(tmp_filename);
+            pcap_close(pcap_handle);
+            return 0;
+        }
+
+        // Close the file descriptor
+        close(fd);
+
+        // Create a pcap memory source from the temporary file
+        pcap_handle = pcap_open_offline_with_tstamp_precision(tmp_filename, PCAP_TSTAMP_PRECISION_MICRO, errbuf);
+        if (pcap_handle == NULL) {
+            unlink(tmp_filename);
+            return 0;
+        }
+
+        // Remove the temporary file
+        unlink(tmp_filename);
+
+        // Attempt to read packets from the data
+        while ((status = pcap_next_ex(pcap_handle, &header, &packet)) >= 0) {
+            // Packet processing logic can be added here
+        }
     }
 
-    // Check if there is data to dump
-    if (size > 0 && data != NULL) {
-        // Create a dummy pcap_pkthdr
-        struct pcap_pkthdr header;
-        header.ts.tv_sec = 0;
-        header.ts.tv_usec = 0;
-        header.caplen = size;
-        header.len = size;
-
-        // Dump the data
-        pcap_dump((u_char *)dumper, &header, data);
-    }
-
-    // Call the function-under-test
-    long position = pcap_dump_ftell(dumper);
-
-    // Clean up
-    pcap_dump_close(dumper);
-    pcap_close(pcap);
+    // Close the pcap handle
+    pcap_close(pcap_handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_14(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

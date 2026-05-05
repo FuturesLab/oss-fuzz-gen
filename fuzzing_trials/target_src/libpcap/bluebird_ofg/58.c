@@ -1,84 +1,145 @@
+#include <sys/stat.h>
 #include "pcap/pcap.h"
 #include <stdint.h>
-#include "stdlib.h"
-#include "string.h"
-#include "stdio.h"
+#include <stdlib.h>
+#include <string.h>
 
+// Remove the extern "C" linkage specification since this is C code
 int LLVMFuzzerTestOneInput_58(const uint8_t *data, size_t size) {
-    // Initialize variables
+    pcap_t *pcap_handle;
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_t *handle;
-    struct bpf_program fp;
-    char filter_exp[] = "tcp"; // Example filter expression
-    int result;
+    struct pcap_pkthdr header;
+    const u_char *packet;
+    int status;
 
-    // Open a dummy pcap handle
-    handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (handle == NULL) {
-        return 0; // Failed to open a pcap handle
-    }
-
-    // Ensure the data is null-terminated for safety
-    char *data_copy = (char *)malloc(size + 1);
-    if (data_copy == NULL) {
-        pcap_close(handle);
+    // Open a dead pcap handle with Ethernet link-layer type and snaplen
+    pcap_handle = pcap_open_dead(DLT_EN10MB, 65535);
+    if (pcap_handle == NULL) {
         return 0;
     }
-    memcpy(data_copy, data, size);
-    data_copy[size] = '\0';
 
-    // Compile the filter expression
+    // Ensure the data is not NULL and size is greater than 0
+    if (data != NULL && size > 0) {
+        // Create a temporary file to store the input data
+        char tmp_filename[] = "/tmp/pcap_input_XXXXXX";
+        int fd = mkstemp(tmp_filename);
+        if (fd == -1) {
+            pcap_close(pcap_handle);
+            return 0;
+        }
 
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 3 of pcap_compile
-    if (pcap_compile(handle, &fp, data_copy, -1, PCAP_NETMASK_UNKNOWN) == -1) {
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
+        // Write the data to the temporary file
+        if (write(fd, data, size) != size) {
+            close(fd);
+            unlink(tmp_filename);
+            pcap_close(pcap_handle);
+            return 0;
+        }
 
+        // Close the file descriptor
+        close(fd);
 
-        free(data_copy);
-        pcap_close(handle);
-        return 0; // Failed to compile the filter
+        // Create a pcap memory source from the temporary file
+        pcap_handle = pcap_open_offline_with_tstamp_precision(tmp_filename, PCAP_TSTAMP_PRECISION_MICRO, errbuf);
+        if (pcap_handle == NULL) {
+            unlink(tmp_filename);
+            return 0;
+        }
+
+        // Remove the temporary file
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_open_offline_with_tstamp_precision to pcap_create
+        char* ret_pcap_lookupdev_qmkvz = pcap_lookupdev((char *)"r");
+        if (ret_pcap_lookupdev_qmkvz == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_pcap_lookupdev_qmkvz) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errbuf) {
+        	return 0;
+        }
+        pcap_t* ret_pcap_create_wetka = pcap_create(ret_pcap_lookupdev_qmkvz, errbuf);
+        if (ret_pcap_create_wetka == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_create to pcap_getnonblock
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_pcap_create_wetka) {
+        	return 0;
+        }
+        char* ret_pcap_geterr_fntgm = pcap_geterr(ret_pcap_create_wetka);
+        if (ret_pcap_geterr_fntgm == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_pcap_create_wetka) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!errbuf) {
+        	return 0;
+        }
+        int ret_pcap_getnonblock_ughcx = pcap_getnonblock(ret_pcap_create_wetka, errbuf);
+        if (ret_pcap_getnonblock_ughcx < 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        unlink(tmp_filename);
+
+        // Attempt to read packets from the data
+        while ((status = pcap_next_ex(pcap_handle, &header, &packet)) >= 0) {
+            // Packet processing logic can be added here
+        }
     }
 
-    // Call the function-under-test
-    result = pcap_setfilter(handle, &fp);
-
-    // Clean up
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_setfilter to pcap_compile_nopcap
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_minor_version with pcap_bufsize
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_bufsize with pcap_datalink
-    int ret_pcap_minor_version_aukjf = pcap_datalink(handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-    if (ret_pcap_minor_version_aukjf < 0){
-    	return 0;
-    }
-    int ret_pcap_major_version_bslcd = pcap_major_version(handle);
-    if (ret_pcap_major_version_bslcd < 0){
-    	return 0;
-    }
-    int ret_pcap_datalink_name_to_val_jconv = pcap_datalink_name_to_val((const char *)"w");
-    if (ret_pcap_datalink_name_to_val_jconv < 0){
-    	return 0;
-    }
-    const char uphpvkgg[1024] = "bflnd";
-
-    int ret_pcap_compile_nopcap_cipnu = pcap_compile_nopcap(ret_pcap_minor_version_aukjf, ret_pcap_major_version_bslcd, &fp, uphpvkgg, ret_pcap_datalink_name_to_val_jconv, 0);
-    if (ret_pcap_compile_nopcap_cipnu < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    pcap_freecode(&fp);
-    pcap_close(handle);
-    free(data_copy);
+    // Close the pcap handle
+    pcap_close(pcap_handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_58(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

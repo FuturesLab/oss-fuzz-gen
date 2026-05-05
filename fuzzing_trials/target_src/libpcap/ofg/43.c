@@ -1,46 +1,86 @@
 #include <pcap.h>
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <fcntl.h>
 
+// Remove 'extern "C"' to fix the C++ linkage error
 int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for the function parameters
-    if (size < 2) {
+    pcap_t *pcap_handle;
+    char errbuf[PCAP_ERRBUF_SIZE];
+    FILE *file;
+
+    // Create a temporary file to simulate a pcap file
+    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    int fd = mkstemp(tmpl);
+    if (fd == -1) {
         return 0;
     }
 
-    // Split the input data into two parts for the two string parameters
-    size_t first_len = size / 2;
-    size_t second_len = size - first_len;
-
-    // Allocate memory for the strings and ensure they are null-terminated
-    char *first_param = (char *)malloc(first_len + 1);
-    char *second_param = (char *)malloc(second_len + 1);
-
-    if (first_param == NULL || second_param == NULL) {
-        free(first_param);
-        free(second_param);
+    // Write the input data to the temporary file
+    if (write(fd, data, size) != size) {
+        close(fd);
+        remove(tmpl);
         return 0;
     }
 
-    memcpy(first_param, data, first_len);
-    first_param[first_len] = '\0';
+    // Close the file descriptor
+    close(fd);
 
-    memcpy(second_param, data + first_len, second_len);
-    second_param[second_len] = '\0';
+    // Open the pcap file
+    pcap_handle = pcap_open_offline(tmpl, errbuf);
+    if (pcap_handle == NULL) {
+        remove(tmpl);
+        return 0;
+    }
 
-    // Call the function-under-test
-    pcap_t *handle = pcap_create(first_param, second_param);
+    // Call the function under test
+    file = pcap_file(pcap_handle);
 
     // Clean up
-    free(first_param);
-    free(second_param);
-
-    // If a handle was created, close it
-    if (handle != NULL) {
-        pcap_close(handle);
-    }
+    pcap_close(pcap_handle);
+    remove(tmpl);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_43(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

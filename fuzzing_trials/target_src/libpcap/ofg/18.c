@@ -1,43 +1,69 @@
-#include <pcap.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-
-// Define the callback function separately
-void packet_handler_18(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
-    // Simple callback that does nothing
-}
+#include <pcap/pcap.h> // Corrected to include pcap.h from the pcap directory
 
 int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    pcap_t *pcap;
-    char errbuf[PCAP_ERRBUF_SIZE];
-    u_char *user_data;
-    int cnt = 10; // Number of packets to process, can be adjusted
-
-    // Initialize pcap with a dummy file
-    pcap = pcap_open_dead(DLT_EN10MB, 65535);
-    if (pcap == NULL) {
+    // Ensure that the input data is null-terminated and non-empty
+    if (size == 0) {
         return 0;
     }
 
-    // Allocate user data
-    user_data = (u_char *)malloc(size);
-    if (user_data == NULL) {
-        pcap_close(pcap);
+    // Allocate memory for a null-terminated string
+    char *input_str = (char *)malloc(size + 1);
+    if (input_str == NULL) {
         return 0;
     }
 
-    // Copy the fuzzing data to user_data
-    memcpy(user_data, data, size);
+    // Copy the input data to the string and null-terminate it
+    memcpy(input_str, data, size);
+    input_str[size] = '\0';
 
     // Call the function-under-test
-    // Check the return value to ensure it is used
-    int dispatch_result = pcap_dispatch(pcap, cnt, packet_handler_18, user_data);
-    (void)dispatch_result; // Explicitly ignore the result to avoid warnings
+    pcap_tstamp_type_name_to_val(input_str);
 
-    // Clean up
-    free(user_data);
-    pcap_close(pcap);
+    // Free the allocated memory
+    free(input_str);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_18(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

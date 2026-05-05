@@ -1,65 +1,63 @@
+#include <sys/stat.h>
 #include <stdint.h>
-#include "stdlib.h"
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "pcap/pcap.h"
-#include "string.h"
-#include "unistd.h" // For close() and unlink()
-#include "fcntl.h"  // For mkstemp()
-#include <sys/types.h> // For ssize_t
 
 int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    // Initialize variables
-    pcap_t *pcap_handle;
-    struct pcap_pkthdr header;
-    char errbuf[PCAP_ERRBUF_SIZE];
-    const u_char *packet;
-
-    // Create a temporary file to store the input data
-    char tmp_filename[] = "/tmp/fuzz_pcap_XXXXXX";
-    int fd = mkstemp(tmp_filename);
-    if (fd == -1) {
-        return 0;
+    // Ensure the data is null-terminated to be used as a string
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        return 0; // Exit if memory allocation fails
     }
-
-    // Write the input data to the temporary file
-    if (write(fd, data, size) != (ssize_t)size) {
-        close(fd);
-        unlink(tmp_filename);
-        return 0;
-    }
-    close(fd);
-
-    // Open the temporary file as a pcap file
-    pcap_handle = pcap_open_offline(tmp_filename, errbuf);
-    if (pcap_handle == NULL) {
-        unlink(tmp_filename);
-        return 0;
-    }
+    memcpy(input, data, size);
+    input[size] = '\0'; // Null-terminate the string
 
     // Call the function-under-test
-    packet = pcap_next(pcap_handle, &header);
+    pcap_tstamp_type_name_to_val(input);
 
     // Clean up
-
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function pcap_close with pcap_breakloop
-    pcap_breakloop(pcap_handle);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-
-
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from pcap_breakloop to pcap_set_snaplen
-    int ret_pcap_get_tstamp_precision_uguus = pcap_get_tstamp_precision(pcap_handle);
-    if (ret_pcap_get_tstamp_precision_uguus < 0){
-    	return 0;
-    }
-
-    int ret_pcap_set_snaplen_jfwhk = pcap_set_snaplen(pcap_handle, ret_pcap_get_tstamp_precision_uguus);
-    if (ret_pcap_set_snaplen_jfwhk < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    unlink(tmp_filename);
+    free(input);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_25(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

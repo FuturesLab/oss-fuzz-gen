@@ -1,10 +1,17 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_lookupnet at pcap.c:1547:1 in pcap.h
-// pcap_datalink_name_to_val at pcap.c:3417:1 in pcap.h
-// pcap_open_dead at pcap.c:4620:1 in pcap.h
-// pcap_set_datalink at pcap.c:3068:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_create at pcap.c:2304:1 in pcap.h
+// pcap_set_immediate_mode at pcap.c:2678:1 in pcap.h
+// pcap_statustostr at pcap.c:3717:1 in pcap.h
+// pcap_close at pcap.c:4323:1 in pcap.h
+// pcap_set_timeout at pcap.c:2624:1 in pcap.h
+// pcap_statustostr at pcap.c:3717:1 in pcap.h
+// pcap_close at pcap.c:4323:1 in pcap.h
+// pcap_activate at pcap.c:2757:1 in pcap.h
+// pcap_statustostr at pcap.c:3717:1 in pcap.h
+// pcap_geterr at pcap.c:3612:1 in pcap.h
+// pcap_close at pcap.c:4323:1 in pcap.h
+// pcap_geterr at pcap.c:3612:1 in pcap.h
+// pcap_close at pcap.c:4323:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -12,51 +19,109 @@
 #include <stdio.h>
 #include <pcap.h>
 #include <stdint.h>
-#include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
-static void write_dummy_file(const uint8_t *Data, size_t Size) {
-    FILE *file = fopen("./dummy_file", "wb");
-    if (file) {
-        fwrite(Data, 1, Size, file);
-        fclose(file);
+static pcap_t *initialize_pcap_handle() {
+    char errbuf[PCAP_ERRBUF_SIZE];
+    pcap_t *handle = pcap_create("any", errbuf);
+    if (!handle) {
+        fprintf(stderr, "pcap_create failed: %s\n", errbuf);
+        return NULL;
     }
+    return handle;
 }
 
 int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Prepare environment
-    char errbuf[PCAP_ERRBUF_SIZE];
-    bpf_u_int32 net, mask;
-    const char *device = "any";
-
-    // Step 1: pcap_lookupnet
-    if (pcap_lookupnet(device, &net, &mask, errbuf) == -1) {
-        // Handle error, could log errbuf if needed
+    if (Size < sizeof(int) * 3) {
+        return 0;
     }
 
-    // Step 2: pcap_datalink_name_to_val
-    char dlt_name[256];
-    snprintf(dlt_name, sizeof(dlt_name), "%.*s", (int)Size, Data);
-    int dlt_val = pcap_datalink_name_to_val(dlt_name);
-
-    // Create a dummy pcap_t structure
-    pcap_t *handle = pcap_open_dead(DLT_EN10MB, 65535);
-    if (!handle) return 0;
-
-    // Step 3: pcap_set_datalink
-    if (dlt_val != -1) {
-        if (pcap_set_datalink(handle, dlt_val) != 0) {
-            // Handle error with pcap_geterr
-            const char *err = pcap_geterr(handle);
-            // Could log err if needed
-        }
+    pcap_t *handle = initialize_pcap_handle();
+    if (!handle) {
+        return 0;
     }
 
-    // Step 4: pcap_close
+    int immediate_mode = Data[0] % 2;
+    int timeout = ((int *)Data)[1];
+    int activation_status;
+
+    // 1. Set immediate mode
+    int result = pcap_set_immediate_mode(handle, immediate_mode);
+    const char *status_str = pcap_statustostr(result);
+    if (result != 0) {
+        fprintf(stderr, "pcap_set_immediate_mode failed: %s\n", status_str);
+        pcap_close(handle);
+        return 0;
+    }
+
+    // 2. Set timeout
+    result = pcap_set_timeout(handle, timeout);
+    status_str = pcap_statustostr(result);
+    if (result != 0) {
+        fprintf(stderr, "pcap_set_timeout failed: %s\n", status_str);
+        pcap_close(handle);
+        return 0;
+    }
+
+    // 3. Activate the handle
+    activation_status = pcap_activate(handle);
+    status_str = pcap_statustostr(activation_status);
+    if (activation_status < 0) {
+        fprintf(stderr, "pcap_activate failed: %s\n", status_str);
+        const char *err_msg = pcap_geterr(handle);
+        fprintf(stderr, "Error: %s\n", err_msg);
+        pcap_close(handle);
+        return 0;
+    }
+
+    // Get error if any
+    if (activation_status != 0) {
+        const char *err_msg = pcap_geterr(handle);
+        fprintf(stderr, "Activation status warning: %s\n", err_msg);
+    }
+
     pcap_close(handle);
-
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_13(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

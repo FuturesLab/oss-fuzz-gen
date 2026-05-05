@@ -1,31 +1,19 @@
 // This fuzz driver is generated for library libpcap, aiming to fuzz the following functions:
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_findalldevs at pcap.c:672:1 in pcap.h
-// pcap_freealldevs at pcap.c:1414:1 in pcap.h
-// pcap_create at pcap.c:2306:1 in pcap.h
-// pcap_setnonblock at pcap.c:3664:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_getnonblock at pcap.c:3620:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_activate at pcap.c:2759:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_getnonblock at pcap.c:3620:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_setnonblock at pcap.c:3664:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_getnonblock at pcap.c:3620:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_setnonblock at pcap.c:3664:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_getnonblock at pcap.c:3620:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_loop at pcap.c:2963:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_geterr at pcap.c:3614:1 in pcap.h
-// pcap_setnonblock at pcap.c:3664:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
-// pcap_setnonblock at pcap.c:3664:1 in pcap.h
-// pcap_close at pcap.c:4247:1 in pcap.h
+// pcap_create at pcap.c:2304:1 in pcap.h
+// pcap_set_timeout at pcap.c:2624:1 in pcap.h
+// pcap_statustostr at pcap.c:3717:1 in pcap.h
+// pcap_close at pcap.c:4323:1 in pcap.h
+// pcap_set_buffer_size at pcap.c:2687:1 in pcap.h
+// pcap_statustostr at pcap.c:3717:1 in pcap.h
+// pcap_activate at pcap.c:2757:1 in pcap.h
+// pcap_statustostr at pcap.c:3717:1 in pcap.h
+// pcap_geterr at pcap.c:3612:1 in pcap.h
+// pcap_statustostr at pcap.c:3717:1 in pcap.h
+// pcap_open at pcap-new.c:550:1 in pcap.h
+// pcap_close at pcap.c:4323:1 in pcap.h
+// pcap_open_live at pcap.c:2811:1 in pcap.h
+// pcap_close at pcap.c:4323:1 in pcap.h
+// pcap_close at pcap.c:4323:1 in pcap.h
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
@@ -34,101 +22,100 @@
 #include <pcap.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
 
-static void packet_handler(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
-    // Dummy packet handler for pcap_loop
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *file = fopen("./dummy_file", "wb");
+    if (file) {
+        fwrite(Data, 1, Size, file);
+        fclose(file);
+    }
 }
 
 int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return 0; // Ensure there is at least some data
+
     char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_if_t *alldevs = NULL;
-    pcap_t *handle = NULL;
-    int nonblock = 0;
+    pcap_t *handle = pcap_create("any", errbuf);
+    if (!handle) return 0;
 
-    // Step 1: Find all devices
-    if (pcap_findalldevs(&alldevs, errbuf) == -1) {
-        return 0;
-    }
+    // Fuzz pcap_set_timeout
+    int timeout = Data[0];
+    int status = pcap_set_timeout(handle, timeout);
+    pcap_statustostr(status);
 
-    // Step 2: Free all devices
-    pcap_freealldevs(alldevs);
-
-    // Step 3: Create a pcap handle
-    handle = pcap_create("any", errbuf);
-    if (handle == NULL) {
-        return 0;
-    }
-
-    // Step 4: Set non-blocking mode
-    if (pcap_setnonblock(handle, 1, errbuf) != 0) {
+    // Fuzz pcap_set_buffer_size
+    if (Size < 2) {
         pcap_close(handle);
         return 0;
     }
+    int buffer_size = Data[1];
+    status = pcap_set_buffer_size(handle, buffer_size);
+    pcap_statustostr(status);
 
-    // Step 5: Get non-blocking mode
-    if (pcap_getnonblock(handle, errbuf) == PCAP_ERROR_NOT_ACTIVATED) {
-        pcap_close(handle);
-        return 0;
+    // Fuzz pcap_activate
+    status = pcap_activate(handle);
+    pcap_statustostr(status);
+
+    // Fuzz pcap_geterr
+    char *error_message = pcap_geterr(handle);
+    if (error_message) {
+        pcap_statustostr(status);
     }
 
-    // Step 6: Activate the handle
-    if (pcap_activate(handle) != 0) {
-        pcap_close(handle);
-        return 0;
+    // Fuzz pcap_open
+    write_dummy_file(Data, Size);
+    pcap_t *offline_handle = pcap_open("./dummy_file", 65536, 0, 1000, NULL, errbuf);
+    if (offline_handle) {
+        pcap_close(offline_handle);
     }
 
-    // Step 7: Get non-blocking mode
-    if (pcap_getnonblock(handle, errbuf) == PCAP_ERROR) {
-        pcap_close(handle);
-        return 0;
-    }
-
-    // Step 8: Set non-blocking mode
-    if (pcap_setnonblock(handle, 0, errbuf) != 0) {
-        pcap_close(handle);
-        return 0;
-    }
-
-    // Step 9: Get non-blocking mode
-    if (pcap_getnonblock(handle, errbuf) == PCAP_ERROR) {
-        pcap_close(handle);
-        return 0;
-    }
-
-    // Step 10: Set non-blocking mode
-    if (pcap_setnonblock(handle, 1, errbuf) != 0) {
-        pcap_close(handle);
-        return 0;
-    }
-
-    // Step 11: Get non-blocking mode
-    if (pcap_getnonblock(handle, errbuf) == PCAP_ERROR) {
-        pcap_close(handle);
-        return 0;
-    }
-
-    // Step 12: Run pcap_loop
-    if (pcap_loop(handle, 1, packet_handler, NULL) == PCAP_ERROR) {
-        pcap_close(handle);
-        return 0;
-    }
-
-    // Step 13: Get error message
-    char *error_msg = pcap_geterr(handle);
-
-    // Step 14: Set non-blocking mode
-    if (pcap_setnonblock(handle, 0, errbuf) != 0) {
-        pcap_close(handle);
-        return 0;
-    }
-
-    // Step 15: Set non-blocking mode again
-    if (pcap_setnonblock(handle, 1, errbuf) != 0) {
-        pcap_close(handle);
-        return 0;
+    // Fuzz pcap_open_live
+    pcap_t *live_handle = pcap_open_live("any", 65536, 1, 1000, errbuf);
+    if (live_handle) {
+        pcap_close(live_handle);
     }
 
     // Cleanup
     pcap_close(handle);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

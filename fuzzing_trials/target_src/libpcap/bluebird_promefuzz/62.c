@@ -1,106 +1,123 @@
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stddef.h>
-#include "string.h"
-#include "stdlib.h"
-#include "stdio.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 #include "pcap/pcap.h"
-#include "stdlib.h"
-#include "string.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-static void packet_handler(u_char *user, const struct pcap_pkthdr *h, const u_char *bytes) {
-    // Dummy packet handler for pcap_loop
+#define ERRBUF_SIZE PCAP_ERRBUF_SIZE
+
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    FILE *fp = fopen("./dummy_file", "wb");
+    if (fp != NULL) {
+        fwrite(Data, 1, Size, fp);
+        fclose(fp);
+    }
 }
 
 int LLVMFuzzerTestOneInput_62(const uint8_t *Data, size_t Size) {
-    char errbuf[PCAP_ERRBUF_SIZE];
-    pcap_if_t *alldevs = NULL;
-    pcap_t *handle = NULL;
-    int nonblock = 0;
-
-    // Step 1: Find all devices
-    if (pcap_findalldevs(&alldevs, errbuf) == -1) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Step 2: Free all devices
-    pcap_freealldevs(alldevs);
+    char errbuf[ERRBUF_SIZE];
+    memset(errbuf, 0, ERRBUF_SIZE);
 
-    // Step 3: Create a pcap handle
-    handle = pcap_create("any", errbuf);
-    if (handle == NULL) {
+    // Invoke pcap_strerror
+    const char *error_message = pcap_strerror(Data[0]);
+    if (error_message == NULL) {
         return 0;
     }
 
-    // Step 4: Set non-blocking mode
-    if (pcap_setnonblock(handle, 1, errbuf) != 0) {
-        pcap_close(handle);
+    // Write data to a dummy file for pcap_open_offline
+    write_dummy_file(Data, Size);
+
+    // Invoke pcap_open_offline
+    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of pcap_open_offline
+    pcap_t *pcap_handle = pcap_open_offline(NULL, errbuf);
+    // End mutation: Producer.REPLACE_ARG_MUTATOR
+    if (pcap_handle == NULL) {
         return 0;
     }
 
-    // Step 5: Get non-blocking mode
-    if (pcap_getnonblock(handle, errbuf) == PCAP_ERROR_NOT_ACTIVATED) {
-        pcap_close(handle);
+    // Prepare a null-terminated string for pcap_datalink_name_to_val
+    char dlt_name[Size + 1];
+    memcpy(dlt_name, Data, Size);
+    dlt_name[Size] = '\0';
+
+    // Invoke pcap_datalink_name_to_val
+    int dlt_val = pcap_datalink_name_to_val(dlt_name);
+
+    // Invoke pcap_open_dead
+    pcap_t *dead_handle = pcap_open_dead(dlt_val, 65535);
+    if (dead_handle == NULL) {
+        pcap_close(pcap_handle);
         return 0;
     }
 
-    // Step 6: Activate the handle
-    if (pcap_activate(handle) != 0) {
-        pcap_close(handle);
-        return 0;
+    // Prepare a BPF program structure
+    struct bpf_program fp;
+    memset(&fp, 0, sizeof(fp));
+
+    // Ensure the input buffer is null-terminated for pcap_compile
+    char filter_exp[Size + 1];
+    memcpy(filter_exp, Data, Size);
+    filter_exp[Size] = '\0';
+
+    // Invoke pcap_compile
+    if (pcap_compile(dead_handle, &fp, filter_exp, 0, PCAP_NETMASK_UNKNOWN) == 0) {
+        // Free the allocated memory for the BPF program
+        if (fp.bf_insns != NULL) {
+            free(fp.bf_insns);
+        }
     }
 
-    // Step 7: Get non-blocking mode
-    if (pcap_getnonblock(handle, errbuf) == PCAP_ERROR) {
-        pcap_close(handle);
-        return 0;
-    }
+    // Clean up
+    pcap_close(pcap_handle);
+    pcap_close(dead_handle);
 
-    // Step 8: Set non-blocking mode
-    if (pcap_setnonblock(handle, 0, errbuf) != 0) {
-        pcap_close(handle);
-        return 0;
-    }
-
-    // Step 9: Get non-blocking mode
-    if (pcap_getnonblock(handle, errbuf) == PCAP_ERROR) {
-        pcap_close(handle);
-        return 0;
-    }
-
-    // Step 10: Set non-blocking mode
-    if (pcap_setnonblock(handle, 1, errbuf) != 0) {
-        pcap_close(handle);
-        return 0;
-    }
-
-    // Step 11: Get non-blocking mode
-    if (pcap_getnonblock(handle, errbuf) == PCAP_ERROR) {
-        pcap_close(handle);
-        return 0;
-    }
-
-    // Step 12: Run pcap_loop
-    if (pcap_loop(handle, 1, packet_handler, NULL) == PCAP_ERROR) {
-        pcap_close(handle);
-        return 0;
-    }
-
-    // Step 13: Get error message
-    char *error_msg = pcap_geterr(handle);
-
-    // Step 14: Set non-blocking mode
-    if (pcap_setnonblock(handle, 0, errbuf) != 0) {
-        pcap_close(handle);
-        return 0;
-    }
-
-    // Step 15: Set non-blocking mode again
-    if (pcap_setnonblock(handle, 1, errbuf) != 0) {
-        pcap_close(handle);
-        return 0;
-    }
-
-    // Cleanup
-    pcap_close(handle);
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_62(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
