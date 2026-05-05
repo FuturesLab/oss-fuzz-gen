@@ -1,45 +1,92 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
     #include "../src/turbojpeg.h"
-    // Removed the non-existent tjtypes.h include
 }
 
 extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *data, size_t size) {
-    // Initialize necessary variables
-    tjhandle handle = tj3Init(TJINIT_COMPRESS);
-    if (handle == NULL) {
-        return 0; // If initialization fails, exit early
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
+        return 0;
     }
 
-    // Define image dimensions and pixel format
-    int width = 256; // Example width
+    // Allocate a buffer for the decompressed image
+    int width = 256;  // Example width
     int height = 256; // Example height
-    int pitch = width * sizeof(uint16_t); // Calculate pitch using uint16_t for 16-bit samples
-    int pixelFormat = TJPF_RGB; // Example pixel format
+    int pixelFormat = TJPF_RGB;
+    unsigned char *decompressedImage = static_cast<unsigned char *>(malloc(width * height * tjPixelSize[pixelFormat]));
 
-    // Allocate memory for the compressed image
-    unsigned char *compressedImage = NULL;
-    size_t compressedSize = 0;
-
-    // Ensure the input data is large enough to represent an image
-    if (size < width * height * sizeof(uint16_t)) {
-        tj3Destroy(handle);
+    if (decompressedImage == nullptr) {
+        tjDestroy(handle);
         return 0;
     }
 
     // Call the function-under-test
-    int result = tj3Compress16(handle, (const uint16_t *)data, width, pitch, height, pixelFormat, &compressedImage, &compressedSize);
+    tjDecompress2(handle, data, size, decompressedImage, width, 0, height, pixelFormat, 0);
 
-    // Free the compressed image buffer if it was allocated
-    if (compressedImage != NULL) {
-        tj3Free(compressedImage);
+    // Clean up
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjDecompress2 to tj3Compress12
+    tjhandle ret_tjInitCompress_uapiw = tjInitCompress();
+    size_t qlykyvwv = 1;
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!decompressedImage) {
+    	return 0;
     }
-
-    // Clean up and destroy the TurboJPEG handle
-    tj3Destroy(handle);
+    int ret_tj3Compress12_peoyl = tj3Compress12(ret_tjInitCompress_uapiw, NULL, TJFLAG_FORCESSE2, TJXOPT_TRIM, TJXOPT_PERFECT, 0, &decompressedImage, &qlykyvwv);
+    if (ret_tj3Compress12_peoyl < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    free(decompressedImage);
+    tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_27(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

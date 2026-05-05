@@ -1,79 +1,90 @@
-#include <stdint.h>
-#include <stddef.h>
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "unistd.h" // Include for close()
+#include <unistd.h>  // Include for mkstemp and close
+#include <stdint.h>  // Include for uint8_t
+#include <sys/types.h>  // Include for size_t
 
 extern "C" {
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
-
-    unsigned short * tj3LoadImage16(tjhandle handle, const char *filename, int *width, int align, int *height, int *pixelFormat);
-
-    // Correctly declare tjFree for unsigned char *
-    void tjFree(unsigned char *buffer);
+    int tjSaveImage(const char *, unsigned char *, int, int, int, int, int);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Create a temporary file to write the fuzz data
-    char tmpl[] = "/tmp/fuzzfileXXXXXX";
+    // Check if the size is large enough for the image dimensions
+    int width = 100;  // Arbitrary non-zero width
+    int height = 100; // Arbitrary non-zero height
+    int pitch = width * 3; // Assuming 3 bytes per pixel for RGB
+    if (size < pitch * height) {
+        return 0; // Not enough data to fill the image buffer
+    }
+
+    // Create a temporary file to store image data
+    char tmpl[] = "/tmp/fuzzimageXXXXXX";
     int fd = mkstemp(tmpl);
     if (fd == -1) {
         return 0;
     }
-    FILE *file = fdopen(fd, "wb");
-    if (!file) {
-        close(fd);
+    close(fd);
+
+    // Initialize parameters for tjSaveImage
+    const char *filename = tmpl;
+    unsigned char *imageBuffer = (unsigned char *)malloc(pitch * height);
+    if (imageBuffer == NULL) {
         return 0;
     }
-    fwrite(data, 1, size, file);
-    fclose(file);
+    memcpy(imageBuffer, data, pitch * height);
 
-    // Initialize parameters for tj3LoadImage16
-    tjhandle handle = tjInitDecompress();
-    if (!handle) {
-        remove(tmpl);
-        return 0;
-    }
-
-    int width = 0;
-    int height = 0;
-    int pixelFormat = TJPF_RGB; // Use a valid pixel format
-    int align = 1; // Default alignment
+    // Set arbitrary values for pixelFormat and flags
+    int pixelFormat = TJPF_RGB; // Arbitrary pixel format
+    int flags = 0; // No specific flags
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 5 of tj3LoadImage16
-    int ypcqeini = -1;
-    unsigned short *image = tj3LoadImage16(handle, tmpl, &width, align, &height, &ypcqeini);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    tjSaveImage(filename, imageBuffer, width, pitch, height, pixelFormat, flags);
 
     // Clean up
-    if (image) {
-        // Cast image to unsigned char* for tjFree
-        tjFree(reinterpret_cast<unsigned char *>(image));
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3LoadImage16 to tjBufSize
-    int bozrqfpn = 0;
-    tjscalingfactor* ret_tj3GetScalingFactors_bfyxi = tj3GetScalingFactors(&bozrqfpn);
-    if (ret_tj3GetScalingFactors_bfyxi == NULL){
-    	return 0;
-    }
-
-    unsigned long ret_tjBufSize_ekjxc = tjBufSize(bozrqfpn, height, TJFLAG_FASTDCT);
-    if (ret_tjBufSize_ekjxc < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-    tjDestroy(handle);
-    remove(tmpl);
+    free(imageBuffer);
+    remove(filename);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_18(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

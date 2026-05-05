@@ -1,38 +1,73 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_94(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract necessary values
-    if (size < sizeof(int) * 2) {
+    if (size < 3) {
         return 0;
     }
 
-    // Initialize tjhandle and tjscalingfactor
     tjhandle handle = tjInitDecompress();
     if (handle == NULL) {
         return 0;
     }
 
-    // Extract scaling factor numerator and denominator from data
-    int num = ((int*)data)[0] % 17 + 1;  // Ensure numerator is between 1 and 16
-    int denom = ((int*)data)[1] % 17 + 1; // Ensure denominator is between 1 and 16
+    int width, height, jpegSubsamp, jpegColorspace;
+    int headerResult = tjDecompressHeader3(handle, data, size, &width, &height, &jpegSubsamp, &jpegColorspace);
+    if (headerResult == 0 && width > 0 && height > 0) {
+        unsigned char *buffer = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]);
+        if (buffer) {
+            tjDecompress2(handle, data, size, buffer, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT);
+            free(buffer);
+        }
+    }
 
-    // Create a tjscalingfactor struct
-    tjscalingfactor scalingFactor;
-    scalingFactor.num = num;
-    scalingFactor.denom = denom;
-
-    // Call the function-under-test
-    tj3SetScalingFactor(handle, scalingFactor);
-
-    // Clean up
     tjDestroy(handle);
-
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_94(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

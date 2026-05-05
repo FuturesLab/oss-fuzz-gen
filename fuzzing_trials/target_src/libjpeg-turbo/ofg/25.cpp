@@ -1,50 +1,91 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <iostream>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h" // Ensure the correct header is included
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    if (size < sizeof(uint16_t)) { // Assuming J16SAMPLE is a 16-bit sample, use uint16_t
-        return 0; // Not enough data to form a valid sample
+    if (size < 2 || data == nullptr) {
+        return 0;
     }
 
-    // Initialize parameters for tj3Compress16
-    tjhandle handle = tj3Init(TJINIT_COMPRESS);
-    if (!handle) {
-        return 0; // Failed to initialize
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
+        std::cerr << "Failed to initialize decompressor" << std::endl;
+        return 0;
     }
 
-    // Allocate memory for input
-    uint16_t *j16Sample = (uint16_t *)malloc(size);
-    if (!j16Sample) {
-        tj3Destroy(handle);
-        return 0; // Memory allocation failed
+    unsigned char *jpegBuf = (unsigned char *)malloc(size);
+    if (jpegBuf == nullptr) {
+        tjDestroy(handle);
+        return 0;
     }
-    memcpy(j16Sample, data, size);
+    memcpy(jpegBuf, data, size);
 
-    int width = 1; // Minimum valid width
-    int height = 1; // Minimum valid height
-    int pitch = width * sizeof(uint16_t); // Assuming pitch is width * sizeof(uint16_t)
-    int pixelFormat = TJPF_RGB; // Assuming RGB format
+    int width = 0, height = 0, jpegSubsamp = 0, jpegColorspace = 0;
+    int result = tjDecompressHeader3(handle, jpegBuf, (unsigned long)size, &width, &height, &jpegSubsamp, &jpegColorspace);
 
-    unsigned char *compressedImage = nullptr;
-    size_t compressedSize = 0;
-
-    // Call the function under test
-    int result = tj3Compress16(handle, j16Sample, width, pitch, height, pixelFormat, &compressedImage, &compressedSize);
-
-    // Clean up
-    if (compressedImage) {
-        tj3Free(compressedImage);
+    if (result == 0 && width > 0 && height > 0) {
+        unsigned char *dstBuf = (unsigned char *)malloc(width * height * tjPixelSize[TJPF_RGB]);
+        if (dstBuf != nullptr) {
+            result = tjDecompress2(handle, jpegBuf, (unsigned long)size, dstBuf, width, 0 /* pitch */, height, TJPF_RGB, TJFLAG_FASTDCT);
+            if (result == 0) {
+                std::cout << "Decompression successful: " << width << "x" << height << std::endl;
+            } else {
+                std::cerr << "Decompression failed" << std::endl;
+            }
+            free(dstBuf);
+        }
+    } else {
+        std::cerr << "Invalid JPEG header or dimensions" << std::endl;
     }
-    free(j16Sample);
-    tj3Destroy(handle);
+
+    free(jpegBuf);
+    tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_25(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

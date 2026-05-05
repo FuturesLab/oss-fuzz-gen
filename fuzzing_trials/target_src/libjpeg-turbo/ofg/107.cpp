@@ -1,35 +1,66 @@
-#include <stddef.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 #include <cstdlib>
 
 extern "C" {
-    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
-    #include "/src/libjpeg-turbo.dev/src/turbojpeg.h"
     #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.0.x/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    // Assuming J16SAMPLE is a 16-bit sample, using uint16_t as a substitute
-    if (size < sizeof(uint16_t)) return 0;
+    tjhandle handle = tjInitDecompress();
+    if (handle == nullptr) {
+        return 0; // Initialization failed, exit early
+    }
 
-    // Initialize variables
-    tjhandle handle = tjInitCompress();
-    if (handle == nullptr) return 0;
+    // Ensure that the data is not null and size is non-zero before calling the function
+    if (data != nullptr && size > 0) {
+        // Call the function-under-test
+        tj3DecompressHeader(handle, data, size);
+    }
 
-    const uint16_t *srcBuf = reinterpret_cast<const uint16_t *>(data);
-    int width = 1;  // Minimum width
-    int height = 1; // Minimum height
-    int pitch = width * sizeof(uint16_t);
-    int pixelFormat = TJPF_RGB; // Assuming RGB format
-    unsigned char *jpegBuf = nullptr;
-    size_t jpegSize = 0;
-
-    // Call the function-under-test
-    tj3Compress16(handle, srcBuf, width, pitch, height, pixelFormat, &jpegBuf, &jpegSize);
-
-    // Clean up
-    tjFree(jpegBuf);
+    // Clean up the TurboJPEG handle
     tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_107(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif

@@ -1,96 +1,81 @@
+#include <string.h>
+#include <sys/stat.h>
 #include <stdint.h>
 #include <stdlib.h>
 
 extern "C" {
+    #include "/src/libjpeg-turbo.main/src/turbojpeg.h"
+    #include "/src/libjpeg-turbo.3.1.x/src/turbojpeg.h"
     #include "../src/turbojpeg.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    tjhandle handle = tjInitTransform();
-    if (!handle) {
+    // Initialize tjhandle
+    tjhandle handle = tjInitDecompress();
+    if (handle == NULL) {
         return 0;
     }
 
-    unsigned char *jpegBuf = nullptr;
-    unsigned long jpegSize = 0;
-    tjtransform transform;
-    transform.op = TJXOP_NONE; // No transform operation
-    transform.options = 0;
-    transform.r = {0, 0, 0, 0}; // No cropping
-    transform.customFilter = nullptr;
-
-    int flags = 0; // No flags
-
-    // Allocate memory for the destination buffer
-    unsigned char *dstBuf = nullptr;
-    unsigned long dstSize = 0;
+    // Create a buffer for the decompressed image
+    int width = 128;  // Example width
+    int height = 128; // Example height
+    int pixelFormat = TJPF_RGB; // Example pixel format
+    int pitch = width * tjPixelSize[pixelFormat];
+    unsigned char *dest = (unsigned char *)malloc(pitch * height);
+    if (dest == NULL) {
+        tjDestroy(handle);
+        return 0;
+    }
 
     // Call the function-under-test
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 7 of tjTransform
-    int result = tjTransform(handle, data, (unsigned long)size, 1, &dstBuf, &dstSize, &transform, TJFLAG_PROGRESSIVE);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
+    if (tjDecompress2(handle, data, size, dest, width, pitch, height, pixelFormat, 0) == -1) {
+        free(dest);
+        tjDestroy(handle);
+        return 0;
+    }
 
     // Clean up
-    if (dstBuf) {
-        tjFree(dstBuf);
-    }
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tjTransform to tj3Decompress8
-    tjhandle ret_tj3Init_cycpy = tj3Init(TJ_ALPHAFIRST);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from tj3Init to tjCompress
-    char* ret_tj3GetErrorStr_mhsla = tj3GetErrorStr(handle);
-    if (ret_tj3GetErrorStr_mhsla == NULL){
-    	return 0;
-    }
-    int glwxuofx = 1;
-    tjscalingfactor* ret_tj3GetScalingFactors_zoanm = tj3GetScalingFactors(&glwxuofx);
-    if (ret_tj3GetScalingFactors_zoanm == NULL){
-    	return 0;
-    }
-    int unzyhhak = 0;
-    tjscalingfactor* ret_tj3GetScalingFactors_yyggz = tj3GetScalingFactors(&unzyhhak);
-    if (ret_tj3GetScalingFactors_yyggz == NULL){
-    	return 0;
-    }
-    char* ret_tjGetErrorStr_exmen = tjGetErrorStr();
-    if (ret_tjGetErrorStr_exmen == NULL){
-    	return 0;
-    }
-    int ret_tjGetErrorCode_evzoh = tjGetErrorCode(handle);
-    if (ret_tjGetErrorCode_evzoh < 0){
-    	return 0;
-    }
-    unsigned long uhlfmdsp = 64;
-
-    int ret_tjCompress_zxbwu = tjCompress(ret_tj3Init_cycpy, (unsigned char *)ret_tj3GetErrorStr_mhsla, TJXOPT_NOOUTPUT, glwxuofx, unzyhhak, TJ_NUMCS, (unsigned char *)ret_tjGetErrorStr_exmen, &uhlfmdsp, result, ret_tjGetErrorCode_evzoh, TJ_NUMINIT);
-    if (ret_tjCompress_zxbwu < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
-
-    // Begin mutation: Producer.REPLACE_ARG_MUTATOR - Replaced argument 0 of tjAlloc
-    unsigned char* ret_tjAlloc_isirt = tjAlloc(TJXOPT_TRIM);
-    // End mutation: Producer.REPLACE_ARG_MUTATOR
-
-
-    if (ret_tjAlloc_isirt == NULL){
-    	return 0;
-    }
-
-    int ret_tj3Decompress8_cwjxf = tj3Decompress8(ret_tj3Init_cycpy, ret_tjAlloc_isirt, 0, NULL, TJFLAG_PROGRESSIVE, (int )dstSize);
-    if (ret_tj3Decompress8_cwjxf < 0){
-    	return 0;
-    }
-
-    // End mutation: Producer.APPEND_MUTATOR
-
+    free(dest);
     tjDestroy(handle);
 
     return 0;
 }
+#ifdef INC_MAIN
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(int argc, char *argv[])
+{
+    FILE *f;
+    uint8_t *data = NULL;
+    long size;
+
+    if(argc < 2)
+        exit(0);
+
+    f = fopen(argv[1], "rb");
+    if(f == NULL)
+        exit(0);
+
+    fseek(f, 0, SEEK_END);
+
+    size = ftell(f);
+    rewind(f);
+
+    if(size < 1 + 1)
+        exit(0);
+
+    data = (uint8_t *)malloc((size_t)size);
+    if(data == NULL)
+        exit(0);
+
+    if(fread(data, (size_t)size, 1, f) != 1)
+        exit(0);
+
+    LLVMFuzzerTestOneInput_2(data + 1, (size_t)(size - 1));
+
+    free(data);
+    fclose(f);
+    return 0;
+}
+#endif
