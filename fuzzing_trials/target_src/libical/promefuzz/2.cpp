@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_kind_to_string at icalcomponent.c:1306:13 in icalcomponent.h
-// icalcomponent_string_to_kind at icalcomponent.c:1319:20 in icalcomponent.h
-// icalcomponent_isa at icalcomponent.c:304:20 in icalcomponent.h
-// icalcomponent_kind_is_valid at icalcomponent.c:1293:6 in icalcomponent.h
-// icalcomponent_new at icalcomponent.c:100:16 in icalcomponent.h
-// icalcomponent_set_description at icalcomponent.c:1885:6 in icalcomponent.h
+// icalcomponent_get_current_component at icalcomponent.c:643:16 in icalcomponent.h
+// icalcomponent_new_vtimezone at icalcomponent.c:2119:16 in icalcomponent.h
+// icalcomponent_set_parent at icalcomponent.c:1275:6 in icalcomponent.h
+// icalcomponent_add_component at icalcomponent.c:552:6 in icalcomponent.h
+// icalproperty_get_parent at icalproperty.c:939:16 in icalcomponent.h
+// icalcomponent_set_uid at icalcomponent.c:1868:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,7 +14,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
+#include <iostream>
 #include <cstdlib>
 #include <cstring>
 #include "ical.h"
@@ -23,44 +23,40 @@
 #include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Use the first byte to determine the icalcomponent_kind
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-
-    // Test icalcomponent_new
-    icalcomponent *comp = icalcomponent_new(kind);
-    if (!comp) return 0;
-
-    // Test icalcomponent_kind_to_string
-    const char *kind_str = icalcomponent_kind_to_string(kind);
-
-    // Test icalcomponent_isa
-    icalcomponent_kind comp_kind = icalcomponent_isa(comp);
-
-    // Test icalcomponent_set_description
-    if (Size > 1) {
-        // Ensure the description is null-terminated
-        size_t desc_len = Size - 1;
-        char *description = static_cast<char *>(malloc(desc_len + 1));
-        if (description) {
-            memcpy(description, Data + 1, desc_len);
-            description[desc_len] = '\0';
-            icalcomponent_set_description(comp, description);
-            free(description);
-        }
+    if (Size < 1) {
+        return 0;
     }
 
-    // Test icalcomponent_string_to_kind
-    if (kind_str) {
-        icalcomponent_kind kind_from_str = icalcomponent_string_to_kind(kind_str);
-    }
+    // Prepare a UID string from input data
+    char uid[256];
+    size_t uid_length = (Size < 255) ? Size : 255;
+    std::memcpy(uid, Data, uid_length);
+    uid[uid_length] = '\0';
 
-    // Test icalcomponent_kind_is_valid
-    bool is_valid = icalcomponent_kind_is_valid(kind);
+    // Create a new VTIMEZONE component
+    icalcomponent *vtimezone = icalcomponent_new_vtimezone();
 
-    // Clean up
-    icalcomponent_free(comp);
+    // Set UID for the VTIMEZONE component
+    icalcomponent_set_uid(vtimezone, uid);
+
+    // Create a parent component (VCALENDAR)
+    icalcomponent *vcalendar = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+
+    // Add the VTIMEZONE component to the VCALENDAR
+    icalcomponent_add_component(vcalendar, vtimezone);
+
+    // Retrieve the parent of the VTIMEZONE component
+    icalcomponent *parent = icalproperty_get_parent((icalproperty *)vtimezone);
+
+    // Set the parent explicitly
+    icalcomponent_set_parent(vtimezone, vcalendar);
+
+    // Get the current component from the parent
+    icalcomponent *current = icalcomponent_get_current_component(vcalendar);
+
+    // Cleanup
+    icalcomponent_free(vcalendar);
+    // vtimezone is freed as part of vcalendar
 
     return 0;
 }

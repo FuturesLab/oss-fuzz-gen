@@ -1,38 +1,48 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
 extern "C" {
-    #include <libical/ical.h>
+    #include <libical/icalcomponent.h>
+    #include <libical/icalproperty.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    // Ensure the data size is not zero to create a valid string
-    if (size == 0) {
+    // Ensure that the data is long enough to create a meaningful summary
+    if (size < 5) { // Arbitrary minimum size for meaningful input
         return 0;
     }
 
-    // Initialize an icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        return 0;
-    }
-
-    // Create a null-terminated string from the data
     char *summary = (char *)malloc(size + 1);
     if (summary == NULL) {
-        icalcomponent_free(component);
-        return 0;
+        return 0; // Exit if memory allocation fails
     }
     memcpy(summary, data, size);
     summary[size] = '\0';
 
+    // Create a new icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
+        free(summary);
+        return 0; // Exit if component creation fails
+    }
+
     // Call the function-under-test
     icalcomponent_set_summary(component, summary);
 
+    // Check if the summary was set correctly
+    const char *retrieved_summary = icalcomponent_get_summary(component);
+    if (retrieved_summary != NULL && strcmp(retrieved_summary, summary) != 0) {
+        // Log or handle the error if the summary does not match
+    }
+
+    // Set additional properties to increase code coverage
+    icalcomponent_set_dtstart(component, icaltime_from_timet_with_zone(time(NULL), 0, NULL));
+
     // Clean up
-    free(summary);
     icalcomponent_free(component);
+    free(summary);
 
     return 0;
 }

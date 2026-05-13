@@ -11,111 +11,78 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
-#include <cstring>
-#include <cstdlib>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icaltime.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalerror.h"
 
-extern "C" int LLVMFuzzerTestOneInput_42(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+static icalcomponent* create_component_from_data(const uint8_t *Data, size_t Size) {
+    // Create a dummy VTODO component
+    icalcomponent *comp = icalcomponent_new(ICAL_VTODO_COMPONENT);
+    if (!comp) {
+        return nullptr;
     }
 
-    // Create a string from the input data
-    std::string icalStr(reinterpret_cast<const char*>(Data), Size);
-
-    // Use the icalcomponent_new_from_string function
-    icalcomponent *component = icalcomponent_new_from_string(icalStr.c_str());
-
-    if (component) {
-        // Use the icalcomponent_get_location function
-        const char *location = icalcomponent_get_location(component);
-
-        // Use the icalcomponent_isa function
-        icalcomponent_kind kind = icalcomponent_isa(component);
-
-        // Use the icalcomponent_get_recurrenceid function
-        struct icaltimetype recurrenceId = icalcomponent_get_recurrenceid(component);
-
-        // Loop through different component kinds for icalcomponent_get_first_component
-        for (int kindIndex = ICAL_NO_COMPONENT; kindIndex < ICAL_NUM_COMPONENT_TYPES; ++kindIndex) {
-            icalcomponent *firstComponent = icalcomponent_get_first_component(component, static_cast<icalcomponent_kind>(kindIndex));
-            // Just to simulate usage
-            if (firstComponent) {
-                const char *comment = icalcomponent_get_comment(firstComponent);
-            
-                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_comment to icalcomponent_set_duration
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!firstComponent) {
-                	return 0;
-                }
-                struct icaldurationtype ret_icalcomponent_get_duration_qchvp = icalcomponent_get_duration(firstComponent);
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!firstComponent) {
-                	return 0;
-                }
-                icalcomponent_set_duration(firstComponent, ret_icalcomponent_get_duration_qchvp);
-                // End mutation: Producer.APPEND_MUTATOR
-                
-
-                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_duration to icalcomponent_add_component
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!firstComponent) {
-                	return 0;
-                }
-                icalcomponent* ret_icalcomponent_get_current_component_yzvzm = icalcomponent_get_current_component(firstComponent);
-                if (ret_icalcomponent_get_current_component_yzvzm == NULL){
-                	return 0;
-                }
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!firstComponent) {
-                	return 0;
-                }
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!ret_icalcomponent_get_current_component_yzvzm) {
-                	return 0;
-                }
-                icalcomponent_add_component(firstComponent, ret_icalcomponent_get_current_component_yzvzm);
-                // End mutation: Producer.APPEND_MUTATOR
-                
-}
-        }
-
-        // Use the icalcomponent_get_comment function
-        const char *comment = icalcomponent_get_comment(component);
-
-        // Free the component
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
-        icalcomponent_normalize(component);
+    // Set some basic properties using the provided data
+    if (Size >= sizeof(time_t)) {
+        struct icaltimetype dtstart = icaltime_from_timet_with_zone(
+            *(const time_t*)Data, 0, nullptr);
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_dtstart with icalcomponent_set_due
+        icalcomponent_set_due(comp, dtstart);
         // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
 
+    return comp;
+}
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new_from_string to icalcomponent_get_timezone
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
+extern "C" int LLVMFuzzerTestOneInput_42(const uint8_t *Data, size_t Size) {
+    // Create a component from the input data
+    icalcomponent *comp = create_component_from_data(Data, Size);
+    if (!comp) {
+        return 0;
     }
-    char* ret_icalcomponent_as_ical_string_vtbic = icalcomponent_as_ical_string(component);
-    if (ret_icalcomponent_as_ical_string_vtbic == NULL){
-    	return 0;
+
+    // Use the icalcomponent_get_due function
+    struct icaltimetype due = icalcomponent_get_due(comp);
+
+    // Use the icalcomponent_set_dtend function
+    if (Size >= sizeof(time_t)) {
+        struct icaltimetype dtend = icaltime_from_timet_with_zone(
+            *(const time_t*)Data, 0, nullptr);
+        icalcomponent_set_dtend(comp, dtend);
     }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
+
+    // Use the icalcomponent_get_dtend function
+    struct icaltimetype retrieved_dtend = icalcomponent_get_dtend(comp);
+
+    // Use the icalcomponent_get_recurrenceid function
+    struct icaltimetype recurrenceid = icalcomponent_get_recurrenceid(comp);
+
+    // Use the icalcomponent_set_dtstart function
+    if (Size >= sizeof(time_t)) {
+        struct icaltimetype dtstart = icaltime_from_timet_with_zone(
+            *(const time_t*)Data, 0, nullptr);
+        icalcomponent_set_dtstart(comp, dtstart);
     }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!ret_icalcomponent_as_ical_string_vtbic) {
-    	return 0;
+
+    // Use the icalcomponent_set_due function
+    if (Size >= sizeof(time_t)) {
+        struct icaltimetype due_time = icaltime_from_timet_with_zone(
+            *(const time_t*)Data, 0, nullptr);
+        icalcomponent_set_due(comp, due_time);
     }
-    icaltimezone* ret_icalcomponent_get_timezone_pqykh = icalcomponent_get_timezone(component, ret_icalcomponent_as_ical_string_vtbic);
-    if (ret_icalcomponent_get_timezone_pqykh == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
+
+    // Clean up
+    icalcomponent_free(comp);
+
     return 0;
 }
 #ifdef INC_MAIN

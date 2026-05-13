@@ -1,39 +1,39 @@
 #include <libical/ical.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Include the header for memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create a property
-    if (size < 1) {
+    // Ensure that the input size is sufficient for creating a valid string
+    if (size == 0) {
         return 0;
     }
 
-    // Create a string from the input data
-    char *inputString = (char *)malloc(size + 1);
-    if (inputString == NULL) {
+    // Create a null-terminated string from the input data
+    char *str = static_cast<char*>(malloc(size + 1));
+    if (str == NULL) {
         return 0;
     }
-    memcpy(inputString, data, size);
-    inputString[size] = '\0';
+    memcpy(str, data, size);
+    str[size] = '\0';
 
-    // Create a new icalproperty from the input data
-    icalproperty *property = icalproperty_new_from_string(inputString);
+    // Parse the string to create an icalproperty
+    icalproperty *prop = icalproperty_new_from_string(str);
 
-    if (property != NULL) {
+    // Ensure the property is not NULL before passing it to the function-under-test
+    if (prop != NULL) {
         // Call the function-under-test
-        icalcomponent *parentComponent = icalproperty_get_parent(property);
+        icalcomponent *parent = icalproperty_get_parent(prop);
 
-        // Perform any necessary cleanup
-        icalproperty_free(property);
+        // Clean up
+        icalproperty_free(prop);
     }
 
-    free(inputString);
+    free(str);
     return 0;
 }
 #ifdef INC_MAIN

@@ -1,46 +1,33 @@
 #include <libical/ical.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>  // Include this header for memcpy
-
-extern "C" {
-    // Ensure all C headers and functions are wrapped in extern "C"
-    #include <libical/ical.h>
-}
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_108(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to create a valid icalcomponent
-    if (size < 1) {
-        return 0;
+    // Ensure the input data is null-terminated for safe string operations
+    char *ical_data = static_cast<char*>(malloc(size + 1));
+    if (ical_data == nullptr) {
+        return 0; // Out of memory, exit early
+    }
+    memcpy(ical_data, data, size);
+    ical_data[size] = '\0';
+
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(ical_data);
+
+    // Ensure the component is not NULL
+    if (component != nullptr) {
+        // Call the function-under-test
+        int error_count = icalcomponent_count_errors(component);
+        
+        // Optionally, you can use the error_count in some way, e.g., logging
+        // printf("Error count: %d\n", error_count);
+
+        // Clean up
+        icalcomponent_free(component);
     }
 
-    // Create a temporary buffer to hold the data
-    char *tempData = (char *)malloc(size + 1);
-    if (tempData == NULL) {
-        return 0;
-    }
-
-    // Copy data into the temporary buffer and null-terminate it
-    memcpy(tempData, data, size);
-    tempData[size] = '\0';
-
-    // Create an icalcomponent from the data
-    icalcomponent *component = icalparser_parse_string(tempData);
-
-    // Free the temporary buffer
-    free(tempData);
-
-    if (component == NULL) {
-        return 0;
-    }
-
-    // Call the function-under-test
-    icalcomponent *innerComponent = icalcomponent_get_inner(component);
-
-    // Clean up
-    icalcomponent_free(component);
-
+    free(ical_data);
     return 0;
 }
 #ifdef INC_MAIN

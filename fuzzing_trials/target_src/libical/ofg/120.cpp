@@ -1,42 +1,36 @@
-#include <libical/ical.h>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>  // Include for memcpy
+
+extern "C" {
+    #include <libical/ical.h>  // Assuming the correct path for libical headers
+}
 
 extern "C" int LLVMFuzzerTestOneInput_120(const uint8_t *data, size_t size) {
-    // Ensure that the input data is not empty
-    if (size == 0) {
-        return 0;
-    }
-
     // Create a temporary buffer to hold the input data
-    char *buffer = static_cast<char *>(malloc(size + 1));
-    if (buffer == nullptr) {
-        return 0;
+    char *temp_data = (char *)malloc(size + 1);
+    if (temp_data == NULL) {
+        return 0; // Exit if memory allocation fails
     }
 
-    // Copy the input data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
+    // Copy the input data to the temporary buffer and null-terminate it
+    memcpy(temp_data, data, size);
+    temp_data[size] = '\0';
 
-    // Parse the buffer into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(buffer);
+    // Parse the input data into an icalcomponent
+    icalcomponent *comp = icalparser_parse_string(temp_data);
 
-    // If parsing was successful, call the function-under-test
-    if (component != nullptr) {
-        char *icalString = icalcomponent_as_ical_string_r(component);
+    // Ensure the component is not NULL before passing it to the function
+    if (comp != NULL) {
+        // Call the function-under-test
+        icalcomponent_strip_errors(comp);
 
-        // Free the returned string if it's not null
-        if (icalString != nullptr) {
-            free(icalString);
-        }
-
-        // Free the icalcomponent
-        icalcomponent_free(component);
+        // Clean up the component
+        icalcomponent_free(comp);
     }
 
-    // Free the buffer
-    free(buffer);
+    // Free the temporary buffer
+    free(temp_data);
 
     return 0;
 }

@@ -1,24 +1,19 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
+#include <stdlib.h>
 
 extern "C" {
     #include <libical/ical.h>
-    
-    void icalcomponent_set_summary(icalcomponent *, const char *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a valid string
-    if (size < 1) {
-        return 0;
-    }
+    // Ensure that the data size is non-zero for a valid string
+    if (size == 0) return 0;
 
-    // Initialize an icalcomponent
+    // Initialize the icalcomponent
     icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        return 0;
-    }
+    if (component == NULL) return 0;
 
     // Create a null-terminated string from the input data
     char *summary = (char *)malloc(size + 1);
@@ -29,11 +24,8 @@ extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t *data, size_t size) {
     memcpy(summary, data, size);
     summary[size] = '\0';
 
-    // Check if the summary is not empty to ensure function utilization
-    if (strlen(summary) > 0) {
-        // Call the function-under-test
-        icalcomponent_set_summary(component, summary);
-    }
+    // Call the function-under-test
+    icalcomponent_set_summary(component, summary);
 
     // Clean up
     free(summary);

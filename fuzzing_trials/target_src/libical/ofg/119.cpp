@@ -1,26 +1,30 @@
-#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
 
+extern "C" {
+    #include <libical/ical.h>
+}
+
 extern "C" int LLVMFuzzerTestOneInput_119(const uint8_t *data, size_t size) {
-    // Create a dummy icalcomponent to ensure we have a valid non-NULL input
-    icalcomponent *original_component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-
-    // Add some properties to the component
-    icalproperty *summary = icalproperty_new_summary("Sample Event");
-    icalcomponent_add_property(original_component, summary);
-
-    icalproperty *dtstart = icalproperty_new_dtstart(icaltime_from_string("20231010T100000Z"));
-    icalcomponent_add_property(original_component, dtstart);
-
-    // Clone the component
-    icalcomponent *cloned_component = icalcomponent_clone(original_component);
-
-    // Clean up
-    icalcomponent_free(original_component);
-    if (cloned_component != NULL) {
-        icalcomponent_free(cloned_component);
+    // Ensure that the input size is sufficient to create the necessary objects.
+    if (size < 2) {
+        return 0;
     }
+
+    // Create a memory context for the ical component and property.
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalproperty *property = icalproperty_new(ICAL_DTSTART_PROPERTY);
+
+    // Set some values to the component and property to ensure they are not NULL.
+    icalcomponent_set_method(component, ICAL_METHOD_REQUEST);
+    icalproperty_set_dtstart(property, icaltime_from_string("20230101T120000Z"));
+
+    // Call the function-under-test.
+    icaltimetype result = icalproperty_get_datetime_with_component(property, component);
+
+    // Clean up by freeing the allocated icalcomponent and icalproperty.
+    icalproperty_free(property);
+    icalcomponent_free(component);
 
     return 0;
 }

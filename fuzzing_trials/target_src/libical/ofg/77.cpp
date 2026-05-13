@@ -1,22 +1,28 @@
-#include <cstddef>
-#include <cstdint>
+#include <cstdint> // Include standard library for uint8_t
+#include <cstddef> // Include standard library for size_t
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_77(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_vpatch();
-
-    // Check if the component was created successfully
-    if (component != NULL) {
-        // Perform any additional operations on the component if needed
-        // For example, you could add properties, check properties, etc.
-
-        // Free the component after use
-        icalcomponent_free(component);
+    if (size < 1) {
+        return 0;
     }
+
+    // Initialize an icalcomponent and icalproperty_kind
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalproperty_kind kind = static_cast<icalproperty_kind>(data[0] % ICAL_NO_PROPERTY);
+
+    // Add a property to the component to ensure it's not empty
+    icalproperty *property = icalproperty_new_version("2.0");
+    icalcomponent_add_property(component, property);
+
+    // Fuzz the function-under-test
+    icalproperty *result = icalcomponent_get_first_property(component, kind);
+
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }

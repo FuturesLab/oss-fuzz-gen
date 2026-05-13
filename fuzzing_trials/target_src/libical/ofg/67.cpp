@@ -1,28 +1,25 @@
-#include <cstdint>
-#include <cstdio>
-#include <cstddef>
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <stdint.h>
+#include <stddef.h>
+#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_67(const uint8_t *data, size_t size) {
+    // Declare and initialize variables
+    icalcomponent_kind kind;
+
+    // Ensure the size is sufficient to extract a valid icalcomponent_kind
+    if (size < sizeof(icalcomponent_kind)) {
+        return 0;
+    }
+
+    // Cast the data to icalcomponent_kind
+    kind = static_cast<icalcomponent_kind>(data[0]);
+
     // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_xvote();
+    const char *result = icalcomponent_kind_to_string(kind);
 
-    // Check if the component was created successfully
-    if (component != NULL) {
-        // Perform operations on the component if needed
-        // For example, convert the component to a string and print it
-        char *component_str = icalcomponent_as_ical_string(component);
-        if (component_str != NULL) {
-            // Print the component string
-            // This is just for demonstration purposes, you can remove it
-            printf("%s\n", component_str);
-        }
-
-        // Free the component
-        icalcomponent_free(component);
+    // Use the result to avoid compiler optimizations removing the call
+    if (result != NULL) {
+        // Do something with the result, like printing it (in a real fuzzing scenario, this might not be necessary)
     }
 
     return 0;

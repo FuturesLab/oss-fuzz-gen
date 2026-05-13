@@ -1,41 +1,30 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <libical/ical.h>
-#include <string.h>
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_88(const uint8_t *data, size_t size) {
-    // Check if the size is sufficient to create a string
-    if (size == 0) {
+    // Ensure there is enough data to proceed
+    if (size < 2) {
         return 0;
     }
 
-    // Create a string from the input data
-    char *ical_str = (char *)malloc(size + 1);
-    if (!ical_str) {
-        return 0;
-    }
-    memcpy(ical_str, data, size);
-    ical_str[size] = '\0';
-
-    // Parse the string into an icalcomponent
-    icalcomponent *comp = icalparser_parse_string(ical_str);
-    free(ical_str);
-
-    if (comp == NULL) {
+    // Initialize an icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
         return 0;
     }
 
-    // Map the first byte of data to a valid icalproperty_method
-    icalproperty_method method = ICAL_METHOD_NONE;
-    if (size > 0) {
-        method = static_cast<icalproperty_method>(data[0] % ICAL_METHOD_NONE);
-    }
+    // Extract a method from the data
+    // Assuming the first byte of data can be used to determine a method
+    icalproperty_method method = static_cast<icalproperty_method>(data[0] % ICAL_METHOD_NONE);
 
-    // Call the function-under-test
-    icalcomponent_set_method(comp, method);
+    // Call the function under test
+    icalcomponent_set_method(component, method);
 
     // Clean up
-    icalcomponent_free(comp);
+    icalcomponent_free(component);
 
     return 0;
 }

@@ -11,56 +11,61 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
+#include <cstring>
+#include <cassert>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
-    // Ensure we have data to work with
-    if (Size == 0) return 0;
+    if (Size < 1) return 0;
 
-    // Write the data to a dummy file if needed
-    std::ofstream dummyFile("./dummy_file", std::ios::binary);
-    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-    dummyFile.close();
+    // Initialize an icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    assert(component != nullptr);
 
-    // Call each target function and handle the returned component
-    icalcomponent *component = nullptr;
+    // Use the data to set the description
+    char *description = new char[Size + 1];
+    std::memcpy(description, Data, Size);
+    description[Size] = '\0';
+    icalcomponent_set_description(component, description);
 
-    try {
-        component = icalcomponent_new_vquery();
-        if (component) {
-            icalcomponent_free(component);
-        }
-
-        component = icalcomponent_new_vresource();
-        if (component) {
-            icalcomponent_free(component);
-        }
-
-        component = icalcomponent_new_vjournal();
-        if (component) {
-            icalcomponent_free(component);
-        }
-
-        component = icalcomponent_new_vagenda();
-        if (component) {
-            icalcomponent_free(component);
-        }
-
-        component = icalcomponent_new_vcalendar();
-        if (component) {
-            icalcomponent_free(component);
-        }
-
-        component = icalcomponent_new_xpatch();
-        if (component) {
-            icalcomponent_free(component);
-        }
-    } catch (...) {
-        // Handle any exceptions to prevent the fuzzer from crashing
+    // Retrieve the comment (which should be initially NULL)
+    const char *comment = icalcomponent_get_comment(component);
+    if (comment != nullptr) {
+        std::cout << "Comment: " << comment << std::endl;
     }
+
+    // Use the data to set the comment
+    icalcomponent_set_comment(component, description);
+
+    // Retrieve the comment again
+    comment = icalcomponent_get_comment(component);
+    if (comment != nullptr) {
+        std::cout << "Updated Comment: " << comment << std::endl;
+    }
+
+    // Use the data to set the RELCALID
+    icalcomponent_set_relcalid(component, description);
+
+    // Attempt to retrieve a timezone using part of the data as TZID
+    char *tzid = new char[Size + 1];
+    std::memcpy(tzid, Data, Size);
+    tzid[Size] = '\0';
+    icaltimezone *timezone = icalcomponent_get_timezone(component, tzid);
+
+    // Convert the component to an iCal string
+    char *ical_string = icalcomponent_as_ical_string(component);
+    if (ical_string != nullptr) {
+        std::cout << "iCal String: " << ical_string << std::endl;
+        // Do not free ical_string as it is managed by the libical library
+    }
+
+    // Cleanup
+    icalcomponent_free(component);
+    delete[] description;
+    delete[] tzid;
 
     return 0;
 }

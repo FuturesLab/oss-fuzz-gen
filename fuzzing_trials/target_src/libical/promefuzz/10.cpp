@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_isa_component at icalcomponent.c:311:6 in icalcomponent.h
-// icalcomponent_kind_is_valid at icalcomponent.c:1293:6 in icalcomponent.h
-// icalcomponent_is_valid at icalcomponent.c:295:6 in icalcomponent.h
-// icalcomponent_new_from_string at icalcomponent.c:124:16 in icalcomponent.h
-// icalcomponent_set_description at icalcomponent.c:1885:6 in icalcomponent.h
-// icalproperty_recurrence_is_excluded at icalcomponent.c:738:6 in icalcomponent.h
+// icalcomponent_new_vjournal at icalcomponent.c:2104:16 in icalcomponent.h
+// icalcomponent_new_valarm at icalcomponent.c:2109:16 in icalcomponent.h
+// icalcomponent_new_xavailable at icalcomponent.c:2154:16 in icalcomponent.h
+// icalcomponent_free at icalcomponent.c:191:6 in icalcomponent.h
+// icalcomponent_new_xvote at icalcomponent.c:2169:16 in icalcomponent.h
+// icalcomponent_new_participant at icalcomponent.c:2184:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,50 +14,47 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <iostream>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
+    if (Size == 0) {
+        return 0;
+    }
 
-    // Ensure null-terminated string for icalcomponent_new_from_string
-    char *icalStr = static_cast<char*>(malloc(Size + 1));
-    if (!icalStr) return 0;
-    memcpy(icalStr, Data, Size);
-    icalStr[Size] = '\0';
+    // Create a vJournal component and free it
+    icalcomponent *vjournal = icalcomponent_new_vjournal();
+    if (vjournal) {
+        icalcomponent_free(vjournal);
+    }
 
-    // Create icalcomponent from string
-    icalcomponent *comp = icalcomponent_new_from_string(icalStr);
-    free(icalStr);
+    // Create an xAvailable component and free it
+    icalcomponent *xavailable = icalcomponent_new_xavailable();
+    if (xavailable) {
+        icalcomponent_free(xavailable);
+    }
 
-    if (comp) {
-        // Test icalcomponent_isa_component
-        icalcomponent_isa_component(comp);
+    // Create an xVote component and free it
+    icalcomponent *xvote = icalcomponent_new_xvote();
+    if (xvote) {
+        icalcomponent_free(xvote);
+    }
 
-        // Setup a dummy icaltimetype for testing
-        struct icaltimetype dtstart = {0};
-        struct icaltimetype recurtime = {0};
+    // Create a participant component and free it
+    icalcomponent *participant = icalcomponent_new_participant();
+    if (participant) {
+        icalcomponent_free(participant);
+    }
 
-        // Test icalproperty_recurrence_is_excluded
-        icalproperty_recurrence_is_excluded(comp, &dtstart, &recurtime);
-
-        // Test icalcomponent_set_description
-        icalcomponent_set_description(comp, "Sample Description");
-
-        // Test icalcomponent_kind_is_valid
-        icalcomponent_kind kind = icalcomponent_isa(comp);
-        icalcomponent_kind_is_valid(kind);
-
-        // Test icalcomponent_is_valid
-        icalcomponent_is_valid(comp);
-
-        // Cleanup the component
-        icalcomponent_free(comp);
+    // Create a vAlarm component and free it
+    icalcomponent *valarm = icalcomponent_new_valarm();
+    if (valarm) {
+        icalcomponent_free(valarm);
     }
 
     return 0;

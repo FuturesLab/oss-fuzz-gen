@@ -1,33 +1,44 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Added for memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_135(const uint8_t *data, size_t size) {
-    // Ensure the data is null-terminated
+    // Initialize a memory context
+    icalcomponent *component = nullptr;
+
+    // Ensure size is non-zero to create a valid string
     if (size == 0) {
         return 0;
     }
 
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
+    // Create a temporary buffer to hold the input data as a string
+    char *buffer = (char *)malloc(size + 1);
+    if (buffer == nullptr) {
         return 0;
     }
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
 
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_from_string(null_terminated_data);
+    // Copy the input data to the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
 
-    // Clean up
-    if (component != NULL) {
+    // Parse the buffer into an icalcomponent
+    component = icalparser_parse_string(buffer);
+
+    // Free the buffer as it is no longer needed
+    free(buffer);
+
+    if (component != nullptr) {
+        // Call the function-under-test
+        struct icaltimetype recurrence_id = icalcomponent_get_recurrenceid(component);
+
+        // Free the component
         icalcomponent_free(component);
     }
-    free(null_terminated_data);
 
     return 0;
 }

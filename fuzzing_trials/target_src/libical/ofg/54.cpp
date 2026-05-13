@@ -1,27 +1,22 @@
 #include <libical/ical.h>
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_54(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated and not empty
-    if (size == 0) {
-        return 0;
-    }
-
-    // Allocate memory for a null-terminated string
-    char *inputString = new char[size + 1];
-    memcpy(inputString, data, size);
-    inputString[size] = '\0'; // Null-terminate the string
+    // Ensure the input data is null-terminated to be used as a C string
+    char *input = new char[size + 1];
+    memcpy(input, data, size);
+    input[size] = '\0';
 
     // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_from_string(inputString);
+    icalcomponent *component = icalcomponent_new_from_string(input);
 
     // Clean up
     if (component != NULL) {
         icalcomponent_free(component);
     }
-    delete[] inputString;
+    delete[] input;
 
     return 0;
 }

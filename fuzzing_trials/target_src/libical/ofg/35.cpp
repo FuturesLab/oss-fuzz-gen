@@ -9,31 +9,36 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
-    // Create a temporary buffer to hold the input data
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == NULL) {
+    // Check if the size is sufficient to create an icalcomponent
+    if (size < 1) {
         return 0;
     }
 
-    // Copy the input data to the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
+    // Initialize a string buffer with the input data
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
+        return 0;
+    }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0'; // Null-terminate the string
 
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(buffer);
+    // Parse the input data to create an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputData);
 
-    // Free the buffer
-    free(buffer);
-
-    // If parsing was successful, call the function-under-test
+    // Ensure the component is not NULL before calling the function-under-test
     if (component != NULL) {
-        icalcomponent *current_component = icalcomponent_get_current_component(component);
+        // Call the function-under-test
+        icalcomponent *currentComponent = icalcomponent_get_current_component(component);
 
-        // Perform any additional operations or checks with current_component if needed
+        // Perform any necessary operations with currentComponent
+        // (for fuzzing purposes, we don't need to do anything further)
 
-        // Free the icalcomponent
+        // Free the component
         icalcomponent_free(component);
     }
+
+    // Free the allocated input data
+    free(inputData);
 
     return 0;
 }

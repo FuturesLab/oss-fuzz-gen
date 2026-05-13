@@ -1,41 +1,37 @@
-extern "C" {
-#include <libical/ical.h>
-}
-
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
+#include <cstring> // Include for memcpy
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_121(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for creating an icalcomponent
+    // Ensure the size is sufficient to create a valid string
     if (size == 0) {
         return 0;
     }
 
-    // Create a temporary buffer to store the input data as a string
-    char *inputData = static_cast<char *>(malloc(size + 1));
-    if (inputData == nullptr) {
+    // Create a null-terminated string from the input data
+    char *ical_str = static_cast<char*>(malloc(size + 1));
+    if (ical_str == nullptr) {
         return 0;
     }
 
-    // Copy the data into the buffer and null-terminate it
-    memcpy(inputData, data, size);
-    inputData[size] = '\0';
+    memcpy(ical_str, data, size);
+    ical_str[size] = '\0';
 
-    // Create an icalcomponent from the input data
-    icalcomponent *component = icalparser_parse_string(inputData);
-    free(inputData);
+    // Parse the string into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(ical_str);
 
+    // Free the string as it's no longer needed
+    free(ical_str);
+
+    // If parsing was successful, call the function-under-test
     if (component != nullptr) {
-        // Call the function-under-test
-        char *icalString = icalcomponent_as_ical_string_r(component);
+        icalcomponent_strip_errors(component);
 
-        // Free the returned string if it's not nullptr
-        if (icalString != nullptr) {
-            free(icalString);
-        }
-
-        // Free the icalcomponent
+        // Clean up the icalcomponent
         icalcomponent_free(component);
     }
 

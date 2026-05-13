@@ -1,50 +1,38 @@
-#include <libical/ical.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>  // Include the header for memcpy
+#include <cstdint>  // For uint8_t
+#include <cstddef>  // For size_t
+#include <cstring>  // For memcpy
 
-// Ensure C linkage for the function-under-test
 extern "C" {
-    struct icaltimetype icalproperty_get_datetime_with_component(icalproperty *, icalcomponent *);
+#include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_115(const uint8_t *data, size_t size) {
-    // Initialize necessary variables
-    icalproperty *property = nullptr;
-    icalcomponent *component = nullptr;
-    struct icaltimetype datetime;
+    // Create a new VJOURNAL component
+    icalcomponent *vjournal = icalcomponent_new_vjournal();
 
-    // Create an icalproperty from the input data if size is sufficient
+    // If the data is large enough, attempt to parse it as a string
     if (size > 0) {
-        // Create a string from the input data
-        char *str = (char *)malloc(size + 1);
-        if (str == nullptr) {
-            return 0; // Memory allocation failed
+        // Create a null-terminated string from the input data
+        char *ical_string = (char *)malloc(size + 1);
+        if (ical_string == NULL) {
+            return 0;
         }
-        memcpy(str, data, size);
-        str[size] = '\0';
+        memcpy(ical_string, data, size);
+        ical_string[size] = '\0';
 
-        // Attempt to parse the input string into an icalproperty
-        property = icalproperty_new_from_string(str);
-        free(str);
-
-        // Create a basic icalcomponent for testing
-        component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-
-        // Ensure neither property nor component is NULL before calling the function
-        if (property != nullptr && component != nullptr) {
-            // Call the function-under-test
-            datetime = icalproperty_get_datetime_with_component(property, component);
+        // Parse the string into an icalcomponent
+        icalcomponent *parsed_component = icalparser_parse_string(ical_string);
+        if (parsed_component != NULL) {
+            // Do something with the parsed component if needed
+            icalcomponent_free(parsed_component);
         }
 
-        // Clean up allocated resources
-        if (property != nullptr) {
-            icalproperty_free(property);
-        }
-        if (component != nullptr) {
-            icalcomponent_free(component);
-        }
+        free(ical_string);
+    }
+
+    // Clean up the created component to prevent memory leaks
+    if (vjournal != NULL) {
+        icalcomponent_free(vjournal);
     }
 
     return 0;

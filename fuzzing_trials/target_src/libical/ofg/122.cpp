@@ -1,39 +1,48 @@
-#include <libical/ical.h>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <cstdint> // Include for uint8_t
+#include <cstdlib> // Include for malloc and free
+#include <cstring> // Include for memcpy
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_122(const uint8_t *data, size_t size) {
+    icalcomponent *component = nullptr;
+    icalcomponent *cloned_component = nullptr;
+
     // Ensure the input size is sufficient to create a valid icalcomponent
-    if (size == 0) {
+    if (size < 1) {
         return 0;
     }
 
-    // Create a null-terminated string from the input data
-    char *ical_string = static_cast<char *>(malloc(size + 1));
-    if (ical_string == nullptr) {
+    // Create a temporary buffer to hold the input data
+    char *buffer = (char *)malloc(size + 1);
+    if (buffer == nullptr) {
         return 0;
     }
-    memcpy(ical_string, data, size);
-    ical_string[size] = '\0';
 
-    // Convert the string into an icalcomponent
-    icalcomponent *comp = icalparser_parse_string(ical_string);
-    free(ical_string);
+    // Copy the input data to the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
 
-    if (comp != nullptr) {
-        // Call the function under test
-        const char *relcalid = icalcomponent_get_relcalid(comp);
+    // Parse the input data into an icalcomponent
+    component = icalparser_parse_string(buffer);
 
-        // Use the result in some way to prevent optimizations from removing the call
-        if (relcalid) {
-            // For example, print it if needed or perform other operations
-            // printf("%s\n", relcalid);
+    // If the component was successfully created, clone it
+    if (component != nullptr) {
+        cloned_component = icalcomponent_clone(component);
+
+        // Free the cloned component if it was created
+        if (cloned_component != nullptr) {
+            icalcomponent_free(cloned_component);
         }
 
-        // Clean up
-        icalcomponent_free(comp);
+        // Free the original component
+        icalcomponent_free(component);
     }
+
+    // Free the temporary buffer
+    free(buffer);
 
     return 0;
 }

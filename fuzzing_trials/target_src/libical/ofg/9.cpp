@@ -1,30 +1,41 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstddef>  // Include for size_t
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Include for memcpy
 
 extern "C" {
-#include <libical/ical.h>  // Include the libical header for icalcomponent
+    #include <libical/ical.h> // Correctly include the necessary header for libical
 }
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_vtodo();
+    // Ensure that the size is sufficient to create a valid icalcomponent
+    if (size == 0) {
+        return 0;
+    }
 
-    // Check if the component is created successfully
-    if (component != NULL) {
-        // Perform some operations on the component
-        // For example, convert the component to a string and print it
-        char *component_str = icalcomponent_as_ical_string(component);
-        if (component_str != NULL) {
-            // Normally you would do something with component_str here
-            // For fuzzing, we're just ensuring the function is called
-            icalmemory_free_buffer(component_str);
-        }
+    // Create a temporary string from the input data
+    char *ical_str = static_cast<char *>(malloc(size + 1));
+    if (ical_str == nullptr) {
+        return 0;
+    }
+    memcpy(ical_str, data, size);
+    ical_str[size] = '\0';
 
-        // Free the component after use
+    // Parse the string to create an icalcomponent
+    icalcomponent *component = icalparser_parse_string(ical_str);
+
+    // Ensure the component is not NULL before calling the function
+    if (component != nullptr) {
+        // Call the function-under-test
+        icalproperty_status status = icalcomponent_get_status(component);
+
+        // Clean up the component after usage
         icalcomponent_free(component);
     }
 
-    return 0;  // Return 0 to indicate successful execution
+    // Free the allocated memory for the string
+    free(ical_str);
+
+    return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

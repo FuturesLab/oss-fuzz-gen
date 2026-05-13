@@ -9,87 +9,82 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
+#include <iostream>
+#include <fstream>
 #include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
+static icalcomponent* create_icalcomponent_from_data(const uint8_t *Data, size_t Size) {
+    // For simplicity, assume the data is a string representation of an icalcomponent
+    char *dataStr = static_cast<char*>(malloc(Size + 1));
+    if (!dataStr) {
+        return nullptr;
+    }
+    memcpy(dataStr, Data, Size);
+    dataStr[Size] = '\0';
+
+    icalcomponent *comp = icalcomponent_new_from_string(dataStr);
+    free(dataStr);
+    return comp;
+}
+
 extern "C" int LLVMFuzzerTestOneInput_44(const uint8_t *Data, size_t Size) {
     if (Size == 0) {
         return 0;
     }
 
-    // Ensure null-terminated string for icalcomponent_new_from_string
-    char *icalStr = static_cast<char*>(malloc(Size + 1));
-    if (!icalStr) {
+    icalcomponent *comp = create_icalcomponent_from_data(Data, Size);
+    if (!comp) {
         return 0;
     }
-    memcpy(icalStr, Data, Size);
-    icalStr[Size] = '\0';
 
-    // Create icalcomponent from string
-    icalcomponent *comp = icalcomponent_new_from_string(icalStr);
-    free(icalStr);
-
-    if (comp) {
-        // Test icalcomponent_isa_component
-        icalcomponent_isa_component(comp);
-
-        // Setup a dummy icaltimetype for testing
-        struct icaltimetype dtstart = {0};
-        struct icaltimetype recurtime = {0};
-
-        // Test icalproperty_recurrence_is_excluded
-        icalproperty_recurrence_is_excluded(comp, &dtstart, &recurtime);
-
-        // Test icalcomponent_set_description
-        icalcomponent_set_description(comp, "Sample Description");
-
-        // Test icalcomponent_kind_is_valid
-        icalcomponent_kind kind = icalcomponent_isa(comp);
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_isa to icalcomponent_get_next_component
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!comp) {
-        	return 0;
-        }
-        struct icaldurationtype ret_icalcomponent_get_duration_snzqz = icalcomponent_get_duration(comp);
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!comp) {
-        	return 0;
-        }
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_duration to icalcomponent_set_recurrenceid
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!comp) {
-        	return 0;
-        }
-        struct icaltimetype ret_icalcomponent_get_dtend_qnnkb = icalcomponent_get_dtend(comp);
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!comp) {
-        	return 0;
-        }
-        icalcomponent_set_recurrenceid(comp, ret_icalcomponent_get_dtend_qnnkb);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        icalcomponent* ret_icalcomponent_get_next_component_coxgh = icalcomponent_get_next_component(comp, kind);
-        if (ret_icalcomponent_get_next_component_coxgh == NULL){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        icalcomponent_kind_is_valid(kind);
-
-        // Test icalcomponent_is_valid
-        icalcomponent_is_valid(comp);
-
-        // Cleanup the component
-        icalcomponent_free(comp);
+    // Fuzz icalcomponent_get_uid
+    const char *uid = icalcomponent_get_uid(comp);
+    if (uid) {
+        std::cout << "UID: " << uid << std::endl;
     }
 
+    // Fuzz icalcomponent_get_x_name (assuming this is the correct function)
+    const char *x_name = icalcomponent_get_x_name(comp);
+    if (x_name) {
+        std::cout << "X Name: " << x_name << std::endl;
+    }
+
+    // Fuzz icalcomponent_get_relcalid
+    const char *relcalid = icalcomponent_get_relcalid(comp);
+    if (relcalid) {
+        std::cout << "RELCALID: " << relcalid << std::endl;
+    }
+
+    // Fuzz icalcomponent_as_ical_string_r
+    char *ical_str = icalcomponent_as_ical_string_r(comp);
+    if (ical_str) {
+        std::cout << "ICAL String: " << ical_str << std::endl;
+        free(ical_str);
+    }
+
+    // Fuzz icalcomponent_get_description
+    const char *description = icalcomponent_get_description(comp);
+    if (description) {
+        std::cout << "Description: " << description << std::endl;
+    }
+
+    // Fuzz icalcomponent_normalize
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_description to icalcomponent_get_method
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
+    }
+    icalproperty_method ret_icalcomponent_get_method_cndnn = icalcomponent_get_method(comp);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    icalcomponent_normalize(comp);
+
+    icalcomponent_free(comp);
     return 0;
 }
 #ifdef INC_MAIN

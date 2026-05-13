@@ -1,67 +1,29 @@
-#include <sys/stat.h>
 #include <string.h>
-#include "libical/ical.h"
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <sys/stat.h>
+#include <cstdint> // Include for uint8_t
+#include <cstddef> // Include for size_t
 
-extern "C" int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
-    // Ensure that the input data is not empty
-    if (size == 0) {
-        return 0;
-    }
-
-    // Create a temporary buffer to hold the input data
-    char *buffer = static_cast<char *>(malloc(size + 1));
-    if (buffer == nullptr) {
-        return 0;
-    }
-
-    // Copy the input data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
-
-    // Parse the buffer into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(buffer);
-
-    // If parsing was successful, call the function-under-test
-    if (component != nullptr) {
-        char *icalString = icalcomponent_as_ical_string_r(component);
-
-        // Free the returned string if it's not null
-        if (icalString != nullptr) {
-            free(icalString);
-        }
-
-        // Free the icalcomponent
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
-        icalcomponent_normalize(component);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_set_description
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
-        	return 0;
-        }
-        char* ret_icalcomponent_get_component_name_r_houxe = icalcomponent_get_component_name_r(component);
-        if (ret_icalcomponent_get_component_name_r_houxe == NULL){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalcomponent_get_component_name_r_houxe) {
-        	return 0;
-        }
-        icalcomponent_set_description(component, ret_icalcomponent_get_component_name_r_houxe);
-        // End mutation: Producer.APPEND_MUTATOR
-        
+extern "C" {
+    #include "libical/ical.h"
 }
 
-    // Free the buffer
-    free(buffer);
+extern "C" int LLVMFuzzerTestOneInput_72(const uint8_t *data, size_t size) {
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_vfreebusy();
+
+    // Check if the component was created successfully
+    if (component != NULL) {
+        // Perform operations on the component if needed
+        // For example, you can convert it to a string and print it
+        char *componentStr = icalcomponent_as_ical_string(component);
+        if (componentStr != NULL) {
+            // Print the component string (for debugging purposes)
+            // printf("%s\n", componentStr);
+        }
+
+        // Free the component after use
+        icalcomponent_free(component);
+    }
 
     return 0;
 }

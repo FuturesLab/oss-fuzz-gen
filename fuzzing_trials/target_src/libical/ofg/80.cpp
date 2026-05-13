@@ -1,21 +1,25 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
-#include <libical/ical.h>
+#include <stdlib.h>
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for a null-terminated string
-    if (size == 0) {
+    // Ensure there's enough data for a null-terminated string
+    if (size < 1) {
         return 0;
     }
 
-    // Create a new icalcomponent
+    // Create an icalcomponent
     icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
     if (component == NULL) {
         return 0;
     }
 
-    // Copy the data to a new buffer and null-terminate it
+    // Create a null-terminated string from the input data
     char *x_name = (char *)malloc(size + 1);
     if (x_name == NULL) {
         icalcomponent_free(component);
@@ -27,9 +31,18 @@ extern "C" int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
     // Call the function-under-test
     icalcomponent_set_x_name(component, x_name);
 
+    // To increase code coverage, retrieve the x-name and ensure it matches the input
+    const char *retrieved_x_name = icalcomponent_get_x_name(component);
+    if (retrieved_x_name != NULL) {
+        // Compare the set and retrieved x-name
+        if (strcmp(x_name, retrieved_x_name) != 0) {
+            // Handle mismatch if necessary
+        }
+    }
+
     // Clean up
-    free(x_name);
     icalcomponent_free(component);
+    free(x_name);
 
     return 0;
 }

@@ -1,66 +1,53 @@
 #include <sys/stat.h>
+#include "libical/ical.h"
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
-extern "C" {
-    #include "libical/ical.h"
-}
-
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *data, size_t size) {
-    icalcomponent *component = NULL;
-    icalcomponent *parent = NULL;
-    icalcomponent *child = NULL;
-    icalproperty *property = NULL;
-
-    // Ensure the input data is null-terminated to prevent buffer overflow
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
-
-    // Initialize an icalcomponent from the input data if possible
-    if (size > 0) {
-        component = icalcomponent_new_from_string(null_terminated_data);
+    // Ensure that the data size is sufficient to create a valid icalcomponent
+    if (size == 0) {
+        return 0;
     }
 
-    // If the component is NULL, create a default one for fuzzing
-    if (component == NULL) {
-        component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-        parent = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-        child = icalcomponent_new(ICAL_VTODO_COMPONENT);
-        property = icalproperty_new_summary("Sample Summary");
-
-        icalcomponent_add_component(parent, component);
-        icalcomponent_add_component(component, child);
-        icalcomponent_add_property(component, property);
+    // Create a temporary buffer to hold the data
+    char *tempData = (char *)malloc(size + 1);
+    if (tempData == NULL) {
+        return 0;
     }
 
-    // Call the function-under-test
-    bool result = icalcomponent_check_restrictions(component);
+    // Copy the input data to the temporary buffer and null-terminate it
+    memcpy(tempData, data, size);
+    tempData[size] = '\0';
 
-    // Clean up
-    // Correct the order of freeing components to avoid use-after-free
-    if (child != NULL) {
-        icalcomponent_remove_component(component, child);
-        icalcomponent_free(child);
-    }
-    if (property != NULL) {
-        icalcomponent_remove_property(component, property);
-        icalproperty_free(property);
-    }
+    // Parse the data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(tempData);
+
+    // Free the temporary buffer
+    free(tempData);
+
+    // Ensure the component is not NULL before calling the function
     if (component != NULL) {
-        icalcomponent_remove_component(parent, component);
+        // Call the function-under-test
+        struct icaldurationtype duration = icalcomponent_get_duration(component);
+
+        // Clean up
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_duration to icalcomponent_set_recurrenceid
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        struct icaltimetype ret_icalcomponent_get_dtend_wbfcn = icalcomponent_get_dtend(component);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        icalcomponent_set_recurrenceid(component, ret_icalcomponent_get_dtend_wbfcn);
+        // End mutation: Producer.APPEND_MUTATOR
+        
         icalcomponent_free(component);
     }
-    if (parent != NULL) {
-        icalcomponent_free(parent);
-    }
-
-    // Free the allocated memory for null-terminated data
-    free(null_terminated_data);
 
     return 0;
 }

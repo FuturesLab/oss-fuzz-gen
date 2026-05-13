@@ -1,31 +1,75 @@
 #include <sys/stat.h>
+#include "libical/ical.h"
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
-#include <cstddef>
-#include <cstdint>
-
-extern "C" {
-    #include "libical/ical.h"
-}
 
 extern "C" int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_vvoter();
+    // Ensure the data size is sufficient to create a valid string
+    if (size == 0) {
+        return 0;
+    }
 
-    // Perform operations on the component if necessary
+    // Create a null-terminated string from the input data
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
+        return 0;
+    }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0';
+
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputData);
+
+    // Check if the component was successfully created
     if (component != NULL) {
-        // For example, you could convert it to a string and print it
-        char *component_str = icalcomponent_as_ical_string(component);
-        if (component_str != NULL) {
-            // Print the component string (or perform other operations)
-            // printf("%s\n", component_str);  // Uncomment for debugging
+        // Call the function-under-test
+        char *icalString = icalcomponent_as_ical_string_r(component);
+
+        // Free the resulting string if it was created
+        if (icalString != NULL) {
+            free(icalString);
         }
 
-        // Free the component string if it was allocated
-        icalmemory_free_buffer(component_str);
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_set_duration
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        struct icaldurationtype ret_icalcomponent_get_duration_kcsfr = icalcomponent_get_duration(component);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        icalcomponent_set_duration(component, ret_icalcomponent_get_duration_kcsfr);
+        // End mutation: Producer.APPEND_MUTATOR
+        
 
-        // Free the component to avoid memory leaks
-        icalcomponent_free(component);
-    }
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_duration to icalcomponent_remove_component
+        icalcomponent* ret_icalcomponent_new_vreply_bmewy = icalcomponent_new_vreply();
+        if (ret_icalcomponent_new_vreply_bmewy == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalcomponent_new_vreply_bmewy) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        icalcomponent_remove_component(ret_icalcomponent_new_vreply_bmewy, component);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Free the input data
+    free(inputData);
 
     return 0;
 }

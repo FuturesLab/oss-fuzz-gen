@@ -1,28 +1,27 @@
-#include <cstdint> // Include for uint8_t
-#include <cstddef> // Include for size_t
-
 extern "C" {
-    #include <libical/ical.h>
+#include <libical/ical.h>
+#include <stdint.h>
+#include <stddef.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_128(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for creating a valid input
-    if (size == 0) {
-        return 0;
+    // Initialize an icalcomponent and icalproperty for the iterator
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalproperty *property = icalproperty_new_summary("Sample Summary");
+
+    // Add the property to the component
+    icalcomponent_add_property(component, property);
+
+    // Initialize the icalproperty iterator
+    icalproperty *next_property = nullptr;
+    for (next_property = icalcomponent_get_first_property(component, ICAL_ANY_PROPERTY);
+         next_property != nullptr;
+         next_property = icalcomponent_get_next_property(component, ICAL_ANY_PROPERTY)) {
+        // Process each property if needed
     }
 
-    // Create a dummy input by using the data as a pointer
-    const void *input = static_cast<const void*>(data);
-
-    // Call the function-under-test
-    bool result = icalcomponent_isa_component(input);
-
-    // Use the result in some way to prevent optimization out
-    if (result) {
-        // Do something if the result is true
-    } else {
-        // Do something if the result is false
-    }
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }

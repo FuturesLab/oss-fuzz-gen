@@ -1,24 +1,29 @@
-#include <cstdint>  // Include this for uint8_t
-#include <cstddef>  // Include this for size_t
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <stdint.h>
+#include <stdlib.h>
+#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_155(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent pointers
-    icalcomponent *parent = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    icalcomponent *child = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    // Initialize two icalcomponent pointers
+    icalcomponent *parent_component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalcomponent *child_component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
 
-    // Insert the child component into the parent
-    icalcomponent_add_component(parent, child);
+    // Ensure the components are not NULL
+    if (parent_component == NULL || child_component == NULL) {
+        if (parent_component != NULL) {
+            icalcomponent_free(parent_component);
+        }
+        if (child_component != NULL) {
+            icalcomponent_free(child_component);
+        }
+        return 0;
+    }
 
     // Call the function-under-test
-    icalcomponent_remove_component(parent, child);
+    icalcomponent_add_component(parent_component, child_component);
 
     // Clean up
-    icalcomponent_free(parent);
-    // No need to free child as it is removed from parent and should be freed there
+    icalcomponent_free(parent_component);
+    // Note: No need to free child_component separately as it is now part of parent_component
 
     return 0;
 }

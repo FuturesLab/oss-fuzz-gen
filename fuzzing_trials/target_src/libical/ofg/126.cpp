@@ -1,44 +1,44 @@
-#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <cstdlib> // For malloc and free
-#include <cstring> // For memcpy
+#include <stdlib.h> // For malloc and free
+#include <string.h> // For memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_126(const uint8_t *data, size_t size) {
-    // Initialize an icalcomponent from the input data
+    // Initialize a memory context
     icalcomponent *component = nullptr;
-    
-    // Ensure the size is greater than zero to prevent creating an empty string
-    if (size > 0) {
-        // Create a temporary buffer to hold the input data as a string
+
+    // Ensure the data is not null and has a reasonable size
+    if (data != nullptr && size > 0) {
+        // Create a temporary buffer to hold the data
         char *buffer = (char *)malloc(size + 1);
         if (buffer == nullptr) {
-            return 0; // Exit if memory allocation fails
+            return 0;
         }
-        
-        // Copy the input data into the buffer and null-terminate it
+
+        // Copy the data into the buffer and null-terminate it
         memcpy(buffer, data, size);
         buffer[size] = '\0';
-        
-        // Parse the string into an icalcomponent
+
+        // Parse the buffer into an icalcomponent
         component = icalparser_parse_string(buffer);
-        
+
         // Free the buffer
         free(buffer);
     }
 
-    // If the component was successfully created, call the function-under-test
+    // Fuzz the function-under-test
     if (component != nullptr) {
-        icalproperty *property = icalcomponent_get_current_property(component);
-        
-        // Perform any additional operations or checks on the property if needed
-        // For this harness, we are just calling the function to test for vulnerabilities
-        
-        // Free the icalcomponent
+        const char *relcalid = icalcomponent_get_relcalid(component);
+        // Use the result in some way to avoid compiler optimizations
+        if (relcalid != nullptr) {
+            // Do something with relcalid, e.g., print or log
+        }
+
+        // Clean up the icalcomponent
         icalcomponent_free(component);
     }
 

@@ -9,75 +9,66 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <iostream>
+#include <fstream>
+#include <cstring>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
+static void writeDummyFile(const uint8_t *Data, size_t Size) {
+    std::ofstream file("./dummy_file", std::ios::binary);
+    if (file.is_open()) {
+        file.write(reinterpret_cast<const char *>(Data), Size);
+        file.close();
+    }
+}
+
 extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size == 0) return 0;
 
-    // Use the first byte to determine the icalcomponent_kind
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+    // Ensure the input string is null-terminated
+    std::vector<char> inputString(Data, Data + Size);
+    inputString.push_back('\0');
 
-    // Test icalcomponent_new
-    icalcomponent *comp = icalcomponent_new(kind);
-    if (!comp) {
-        return 0;
-    }
-
-    // Test icalcomponent_kind_to_string
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new to icalcomponent_set_parent
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!comp) {
-    	return 0;
-    }
-    struct icaltimetype ret_icalcomponent_get_due_dzkgq = icalcomponent_get_due(comp);
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!comp) {
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!comp) {
-    	return 0;
-    }
-    icalcomponent_set_parent(comp, comp);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    const char *kind_str = icalcomponent_kind_to_string(kind);
-
-    // Test icalcomponent_isa
-    icalcomponent_kind comp_kind = icalcomponent_isa(comp);
-
-    // Test icalcomponent_set_description
-    if (Size > 1) {
-        // Ensure the description is null-terminated
-        size_t desc_len = Size - 1;
-        char *description = static_cast<char *>(malloc(desc_len + 1));
-        if (description) {
-            memcpy(description, Data + 1, desc_len);
-            description[desc_len] = '\0';
-            icalcomponent_set_description(comp, description);
-            free(description);
+    // Fuzz icalcomponent_new_from_string
+    icalcomponent *component = icalcomponent_new_from_string(inputString.data());
+    if (component) {
+        // Fuzz icalcomponent_clone
+        icalcomponent *clone = icalcomponent_clone(component);
+        if (clone) {
+            icalcomponent_free(clone);
         }
+
+        // Fuzz icalcomponent_isa
+        icalcomponent_kind kind = icalcomponent_isa(component);
+
+        // Fuzz icalcomponent_kind_to_string
+        const char *kindStr = icalcomponent_kind_to_string(kind);
+        if (kindStr) {
+            // Use the kind string
+        }
+
+        // Fuzz icalcomponent_get_component_name
+        const char *componentName = icalcomponent_get_component_name(component);
+        if (componentName) {
+            // Use the component name
+        }
+
+        icalcomponent_free(component);
     }
 
-    // Test icalcomponent_string_to_kind
-    if (kind_str) {
-        icalcomponent_kind kind_from_str = icalcomponent_string_to_kind(kind_str);
+    // Fuzz icalcomponent_string_to_kind
+    icalcomponent_kind kindFromString = icalcomponent_string_to_kind(inputString.data());
+    if (kindFromString != ICAL_NO_COMPONENT) {
+        // Use the kind from string
     }
 
-    // Test icalcomponent_kind_is_valid
-    bool is_valid = icalcomponent_kind_is_valid(kind);
-
-    // Clean up
-    icalcomponent_free(comp);
+    // Write input data to a dummy file if needed
+    writeDummyFile(Data, Size);
 
     return 0;
 }

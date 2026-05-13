@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_new_vjournal at icalcomponent.c:2040:16 in icalcomponent.h
-// icalcomponent_new_vquery at icalcomponent.c:2075:16 in icalcomponent.h
-// icalcomponent_new_vcalendar at icalcomponent.c:2025:16 in icalcomponent.h
-// icalcomponent_new_vagenda at icalcomponent.c:2070:16 in icalcomponent.h
-// icalcomponent_new_vresource at icalcomponent.c:2130:16 in icalcomponent.h
-// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
+// icalcomponent_kind_to_string at icalcomponent.c:1354:13 in icalcomponent.h
+// icalcomponent_string_to_kind at icalcomponent.c:1367:20 in icalcomponent.h
+// icalcomponent_get_component_name at icalcomponent.c:386:13 in icalcomponent.h
+// icalcomponent_clone at icalcomponent.c:137:16 in icalcomponent.h
+// icalcomponent_new_from_string at icalcomponent.c:132:16 in icalcomponent.h
+// icalcomponent_isa at icalcomponent.c:324:20 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,53 +14,66 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
+#include <iostream>
+#include <fstream>
+#include <cstring>
+#include <cstdint>
+#include <cstdlib>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include "icalcomponent.h"
+
+static void writeDummyFile(const uint8_t *Data, size_t Size) {
+    std::ofstream file("./dummy_file", std::ios::binary);
+    if (file.is_open()) {
+        file.write(reinterpret_cast<const char *>(Data), Size);
+        file.close();
+    }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_47(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
-    
-    // Fuzzing icalcomponent_new_vquery
-    icalcomponent *vquery_component = icalcomponent_new_vquery();
-    if (vquery_component) {
-        icalcomponent_free(vquery_component);
+    if (Size == 0) return 0;
+
+    // Ensure the input string is null-terminated
+    std::vector<char> inputString(Data, Data + Size);
+    inputString.push_back('\0');
+
+    // Fuzz icalcomponent_new_from_string
+    icalcomponent *component = icalcomponent_new_from_string(inputString.data());
+    if (component) {
+        // Fuzz icalcomponent_clone
+        icalcomponent *clone = icalcomponent_clone(component);
+        if (clone) {
+            icalcomponent_free(clone);
+        }
+
+        // Fuzz icalcomponent_isa
+        icalcomponent_kind kind = icalcomponent_isa(component);
+
+        // Fuzz icalcomponent_kind_to_string
+        const char *kindStr = icalcomponent_kind_to_string(kind);
+        if (kindStr) {
+            // Use the kind string
+        }
+
+        // Fuzz icalcomponent_get_component_name
+        const char *componentName = icalcomponent_get_component_name(component);
+        if (componentName) {
+            // Use the component name
+        }
+
+        icalcomponent_free(component);
     }
 
-    // Fuzzing icalcomponent_new_vresource
-    icalcomponent *vresource_component = icalcomponent_new_vresource();
-    if (vresource_component) {
-        icalcomponent_free(vresource_component);
+    // Fuzz icalcomponent_string_to_kind
+    icalcomponent_kind kindFromString = icalcomponent_string_to_kind(inputString.data());
+    if (kindFromString != ICAL_NO_COMPONENT) {
+        // Use the kind from string
     }
 
-    // Fuzzing icalcomponent_new_vjournal
-    icalcomponent *vjournal_component = icalcomponent_new_vjournal();
-    if (vjournal_component) {
-        icalcomponent_free(vjournal_component);
-    }
-
-    // Fuzzing icalcomponent_new_vagenda
-    icalcomponent *vagenda_component = icalcomponent_new_vagenda();
-    if (vagenda_component) {
-        icalcomponent_free(vagenda_component);
-    }
-
-    // Fuzzing icalcomponent_new_vcalendar
-    icalcomponent *vcalendar_component = icalcomponent_new_vcalendar();
-    if (vcalendar_component) {
-        icalcomponent_free(vcalendar_component);
-    }
-
-    // Fuzzing icalcomponent_new_xpatch
-    icalcomponent *xpatch_component = icalcomponent_new_xpatch();
-    if (xpatch_component) {
-        icalcomponent_free(xpatch_component);
-    }
+    // Write input data to a dummy file if needed
+    writeDummyFile(Data, Size);
 
     return 0;
 }

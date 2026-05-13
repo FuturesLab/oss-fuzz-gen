@@ -1,39 +1,40 @@
 #include <sys/stat.h>
-#include <string.h>
-#include "libical/ical.h"
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h> // Include string.h for memcpy
+
+extern "C" {
+    #include "libical/ical.h" // Assuming the correct path for ical.h
+}
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *data, size_t size) {
-    if (size == 0) {
+    // Initialize an icalcomponent object
+    icalcomponent *component = icalcomponent_new(ICAL_NO_COMPONENT);
+
+    // Ensure the component is not NULL
+    if (component == NULL) {
         return 0;
     }
 
-    // Create a temporary buffer to hold the data and ensure it's null-terminated
-    char *buffer = static_cast<char*>(malloc(size + 1));
-    if (buffer == nullptr) {
+    // Create a temporary buffer to store the data as a string
+    char *buffer = (char *)malloc(size + 1);
+    if (buffer == NULL) {
+        icalcomponent_free(component);
         return 0;
     }
+
+    // Copy the data into the buffer and null-terminate it
     memcpy(buffer, data, size);
     buffer[size] = '\0';
 
-    // Parse the buffer into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(buffer);
+    // Set the comment property of the component using the buffer
+    icalcomponent_set_comment(component, buffer);
 
-    // Free the buffer as it's no longer needed
+    // Call the function-under-test
+    const char *comment = icalcomponent_get_comment(component);
+
+    // Free the allocated memory
     free(buffer);
-
-    if (component == nullptr) {
-        return 0;
-    }
-
-    // Iterate over a few icalproperty_kind values to test the function
-    for (int kind = ICAL_ANY_PROPERTY; kind <= ICAL_X_PROPERTY; ++kind) {
-        icalcomponent_count_properties(component, static_cast<icalproperty_kind>(kind));
-    }
-
-    // Clean up the icalcomponent
     icalcomponent_free(component);
 
     return 0;

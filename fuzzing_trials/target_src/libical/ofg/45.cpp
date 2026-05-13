@@ -2,38 +2,37 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
-#include <string.h> // Include for memcpy
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_45(const uint8_t *data, size_t size) {
-    // Create a temporary buffer to hold the input data
+    // Initialize a string buffer with the fuzzing data
     char *buffer = (char *)malloc(size + 1);
     if (buffer == NULL) {
-        return 0; // If memory allocation fails, exit early
+        return 0;
     }
-
-    // Copy the input data to the buffer and null-terminate it
     memcpy(buffer, data, size);
-    buffer[size] = '\0';
+    buffer[size] = '\0';  // Null-terminate the string
 
     // Parse the buffer into an icalcomponent
     icalcomponent *component = icalparser_parse_string(buffer);
-
-    // Free the buffer as it is no longer needed
-    free(buffer);
-
-    // If parsing was successful, call the function-under-test
-    if (component != NULL) {
-        const char *description = icalcomponent_get_description(component);
-        // Do something with the description if needed
-        (void)description; // To avoid unused variable warning
-
-        // Free the icalcomponent
-        icalcomponent_free(component);
+    if (component == NULL) {
+        free(buffer);
+        return 0;
     }
+
+    // Call the function-under-test
+    const char *description = icalcomponent_get_description(component);
+
+    // Use the description in some way to avoid compiler optimizations removing the call
+    if (description != NULL) {
+        // Simply print the description length
+        size_t desc_len = strlen(description);
+        (void)desc_len;  // Suppress unused variable warning
+    }
+
+    // Clean up
+    icalcomponent_free(component);
+    free(buffer);
 
     return 0;
 }

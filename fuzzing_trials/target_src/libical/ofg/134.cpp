@@ -1,29 +1,18 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>  // Include for uint8_t
+#include <cstddef>  // Include for size_t
 
 extern "C" {
-    #include <libical/icalcomponent.h>
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_134(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated to safely convert to a string
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_xpatch();
 
-    // Call the function-under-test with the fuzzed input
-    icalcomponent *component = icalcomponent_new_x(null_terminated_data);
-
-    // Clean up
+    // If the component is created, free it to avoid memory leaks
     if (component != NULL) {
         icalcomponent_free(component);
     }
-    free(null_terminated_data);
 
     return 0;
 }

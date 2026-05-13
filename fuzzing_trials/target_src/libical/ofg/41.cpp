@@ -1,51 +1,29 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstdio>   // Include for printf
-#include <cstdlib>  // Include for malloc and free
-#include <cstring>  // Include for memcpy
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    // Ensure that the input data is sufficient to create a valid component
-    if (size == 0) {
-        return 0; // Exit early if there's no data
-    }
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_vresource();
 
-    // Create a string from the input data
-    char *input_str = (char *)malloc(size + 1);
-    if (input_str == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
-    memcpy(input_str, data, size);
-    input_str[size] = '\0'; // Null-terminate the string
-
-    // Parse the input string into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(input_str);
-
-    // Free the input string after parsing
-    free(input_str);
-
-    // Check if the component is not NULL
+    // Check if the component is created successfully
     if (component != NULL) {
         // Perform operations on the component if needed
-        // For instance, you can convert it to a string or perform other checks
+        // For example, convert it to a string and print (or any other operation)
         char *component_str = icalcomponent_as_ical_string(component);
+        
+        // If you want to print or use the string representation
         if (component_str != NULL) {
-            // Optionally print the component string (for debugging purposes)
+            // Do something with component_str, e.g., log or analyze
+            // For fuzzing, we typically do not print, but you can use this for debugging
             // printf("%s\n", component_str);
-            // Free the string after use
-            icalmemory_free_buffer(component_str);
         }
+
+        // Free the string if allocated
+        // Note: icalcomponent_as_ical_string does not require manual free, it's just an example
 
         // Free the component after use
         icalcomponent_free(component);
-    } else {
-        // Handle the case where the component is NULL
-        // This might be due to invalid input data, so we should ensure
-        // that the fuzzer is aware of this case by returning a non-zero value
-        return 0; // Changed from 1 to 0 to prevent immediate crash
     }
 
     return 0;

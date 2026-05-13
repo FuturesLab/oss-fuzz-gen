@@ -1,24 +1,35 @@
-#include <stdint.h>
-#include <stddef.h>
 #include <libical/ical.h>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" int LLVMFuzzerTestOneInput_170(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to read an integer
-    if (size < sizeof(int)) {
-        return 0;
-    }
-
-    // Initialize a new icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    // Initialize an icalcomponent with some basic data
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
     if (component == NULL) {
         return 0;
     }
 
-    // Extract an integer from the input data
-    int sequence = *((int *)data);
+    // Add a VEVENT component to the VCALENDAR
+    icalcomponent *vevent = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (vevent == NULL) {
+        icalcomponent_free(component);
+        return 0;
+    }
+    icalcomponent_add_component(component, vevent);
+
+    // Add a VTODO component to the VCALENDAR
+    icalcomponent *vtodo = icalcomponent_new(ICAL_VTODO_COMPONENT);
+    if (vtodo == NULL) {
+        icalcomponent_free(component);
+        return 0;
+    }
+    icalcomponent_add_component(component, vtodo);
+
+    // Use the data to decide which component kind to search for
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(data[0] % ICAL_NO_COMPONENT);
 
     // Call the function-under-test
-    icalcomponent_set_sequence(component, sequence);
+    icalcomponent *next_component = icalcomponent_get_next_component(component, kind);
 
     // Clean up
     icalcomponent_free(component);

@@ -1,34 +1,17 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_150(const uint8_t *data, size_t size) {
-    // Check if the size is sufficient to proceed
-    if (size < 2) {
-        return 0;
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_vvoter();
+
+    // Check if the component is created successfully
+    if (component != NULL) {
+        // Perform operations on the component if needed
+        // For now, just free the component
+        icalcomponent_free(component);
     }
-
-    // Create two icalcomponent objects
-    icalcomponent *component1 = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalcomponent *component2 = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-
-    // Ensure that the components are not NULL
-    if (component1 == NULL || component2 == NULL) {
-        if (component1 != NULL) {
-            icalcomponent_free(component1);
-        }
-        if (component2 != NULL) {
-            icalcomponent_free(component2);
-        }
-        return 0;
-    }
-
-    // Call the function under test
-    icalcomponent_set_parent(component1, component2);
-
-    // Clean up
-    icalcomponent_free(component1);
-    icalcomponent_free(component2);
 
     return 0;
 }

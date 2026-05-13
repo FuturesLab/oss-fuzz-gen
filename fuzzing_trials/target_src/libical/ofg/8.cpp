@@ -1,35 +1,35 @@
 #include <cstdint>
 #include <cstdlib>
-#include <cstring> // Include for memcpy
+#include <cstring>
 
 extern "C" {
-    #include <libical/ical.h> // Correct header path for libical
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-
-    // Ensure the component is not null
-    if (component == NULL) {
-        return 0;
+    // Ensure the input data is null-terminated to be safely used as a string
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
+        return 0; // Exit if memory allocation failed
     }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0';
 
-    // Add some properties to the component using the input data
-    if (size > 0) {
-        // Use the input data to create a UID property
-        char uid[37]; // UUIDs are 36 characters plus null terminator
-        size_t uid_size = size < 36 ? size : 36;
-        memcpy(uid, data, uid_size);
-        uid[uid_size] = '\0'; // Null-terminate the string
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputData);
 
-        icalcomponent_set_uid(component, uid);
+    // Free the allocated input data
+    free(inputData);
+
+    // Check if the component is successfully created
+    if (component == NULL) {
+        return 0; // Exit if component creation failed
     }
 
     // Call the function-under-test
     icalproperty_status status = icalcomponent_get_status(component);
 
-    // Clean up
+    // Clean up the icalcomponent
     icalcomponent_free(component);
 
     return 0;

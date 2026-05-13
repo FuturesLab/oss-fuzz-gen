@@ -9,51 +9,50 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <iostream>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Create a dummy icalcomponent
-    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (!comp) return 0;
-
-    // Ensure the data is null-terminated
-    char *inputString = static_cast<char *>(malloc(Size + 1));
-    if (!inputString) {
-        icalcomponent_free(comp);
-        return 0;
+    // Call icalcomponent_new_vlocation and free the component
+    icalcomponent *vlocation = icalcomponent_new_vlocation();
+    if (vlocation != nullptr) {
+        icalcomponent_free(vlocation);
     }
-    memcpy(inputString, Data, Size);
-    inputString[Size] = '\0';
 
-    // Fuzz icalcomponent_set_uid
-    icalcomponent_set_uid(comp, inputString);
+    // Call icalcomponent_new_vevent and free the component
+    icalcomponent *vevent = icalcomponent_new_vevent();
+    if (vevent != nullptr) {
+        icalcomponent_free(vevent);
+    }
 
-    // Fuzz icalcomponent_set_relcalid
-    icalcomponent_set_relcalid(comp, inputString);
+    // Call icalcomponent_new_vquery and free the component
+    icalcomponent *vquery = icalcomponent_new_vquery();
+    if (vquery != nullptr) {
+        icalcomponent_free(vquery);
+    }
 
-    // Fuzz icalcomponent_set_comment
-    icalcomponent_set_comment(comp, inputString);
+    // Call icalcomponent_new_vreply and free the component
+    icalcomponent *vreply = icalcomponent_new_vreply();
+    if (vreply != nullptr) {
+        icalcomponent_free(vreply);
+    }
 
-    // Fuzz icalcomponent_set_description
-    icalcomponent_set_description(comp, inputString);
+    // Call icalcomponent_new_xstandard and free the component
+    icalcomponent *xstandard = icalcomponent_new_xstandard();
+    if (xstandard != nullptr) {
+        icalcomponent_free(xstandard);
+    }
 
-    // Fuzz icalcomponent_set_location
-    icalcomponent_set_location(comp, inputString);
-
-    // Fuzz icalcomponent_set_summary
-    icalcomponent_set_summary(comp, inputString);
-
-    // Cleanup
-    free(inputString);
-    icalcomponent_free(comp);
+    // Call icalcomponent_new_vcalendar and free the component
+    icalcomponent *vcalendar = icalcomponent_new_vcalendar();
+    if (vcalendar != nullptr) {
+        icalcomponent_free(vcalendar);
+    }
 
     return 0;
 }

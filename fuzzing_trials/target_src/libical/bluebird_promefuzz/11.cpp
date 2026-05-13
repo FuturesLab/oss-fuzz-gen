@@ -9,44 +9,82 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
 #include <iostream>
+#include <fstream>
+#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
+static icalcomponent* create_icalcomponent_from_data(const uint8_t *Data, size_t Size) {
+    // For simplicity, assume the data is a string representation of an icalcomponent
+    char *dataStr = static_cast<char*>(malloc(Size + 1));
+    if (!dataStr) {
+        return nullptr;
+    }
+    memcpy(dataStr, Data, Size);
+    dataStr[Size] = '\0';
+
+    icalcomponent *comp = icalcomponent_new_from_string(dataStr);
+    free(dataStr);
+    return comp;
+}
+
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size == 0) {
+        return 0;
+    }
 
-    // Create various icalcomponent types
-    icalcomponent *vtodo = icalcomponent_new_vtodo();
-    icalcomponent *vevent = icalcomponent_new_vevent();
-    icalcomponent *vreply = icalcomponent_new_vreply();
-    icalcomponent *vagenda = icalcomponent_new_vagenda();
+    icalcomponent *comp = create_icalcomponent_from_data(Data, Size);
+    if (!comp) {
+        return 0;
+    }
 
-    // Choose a method based on the input data
-    icalproperty_method method = static_cast<icalproperty_method>(Data[0] % 17 + 10500);
+    // Fuzz icalcomponent_get_uid
+    const char *uid = icalcomponent_get_uid(comp);
+    if (uid) {
+        std::cout << "UID: " << uid << std::endl;
+    }
 
-    // Set methods to components
-    icalcomponent_set_method(vtodo, method);
-    icalcomponent_set_method(vevent, method);
-    icalcomponent_set_method(vreply, method);
-    icalcomponent_set_method(vagenda, method);
+    // Fuzz icalcomponent_get_x_name (assuming this is the correct function)
+    const char *x_name = icalcomponent_get_x_name(comp);
+    if (x_name) {
+        std::cout << "X Name: " << x_name << std::endl;
+    }
 
-    // Retrieve methods to ensure they are set correctly
-    icalcomponent_get_method(vtodo);
-    icalcomponent_get_method(vevent);
-    icalcomponent_get_method(vreply);
-    icalcomponent_get_method(vagenda);
+    // Fuzz icalcomponent_get_relcalid
+    const char *relcalid = icalcomponent_get_relcalid(comp);
+    if (relcalid) {
+        std::cout << "RELCALID: " << relcalid << std::endl;
+    }
 
-    // Clean up
-    icalcomponent_free(vtodo);
-    icalcomponent_free(vevent);
-    icalcomponent_free(vreply);
-    icalcomponent_free(vagenda);
+    // Fuzz icalcomponent_as_ical_string_r
+    char *ical_str = icalcomponent_as_ical_string_r(comp);
+    if (ical_str) {
+        std::cout << "ICAL String: " << ical_str << std::endl;
+        free(ical_str);
+    }
 
+    // Fuzz icalcomponent_get_description
+    const char *description = icalcomponent_get_description(comp);
+    if (description) {
+        std::cout << "Description: " << description << std::endl;
+    }
+
+    // Fuzz icalcomponent_normalize
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_description to icalcomponent_get_span
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
+    }
+    struct icaltime_span ret_icalcomponent_get_span_flhxi = icalcomponent_get_span(comp);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    icalcomponent_normalize(comp);
+
+    icalcomponent_free(comp);
     return 0;
 }
 #ifdef INC_MAIN

@@ -1,62 +1,41 @@
 #include <sys/stat.h>
+#include "libical/ical.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 
-extern "C" {
-    #include "libical/ical.h"
-}
-
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    icalcomponent *component = nullptr;
-    icaltimetype due_time;
+    // Ensure the input data is null-terminated
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0;
+    }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // Ensure the data is not empty and can be used to create a component
-    if (size > 0) {
-        // Create a temporary buffer to hold the data
-        char *temp_buffer = new char[size + 1];
-        memcpy(temp_buffer, data, size);
-        temp_buffer[size] = '\0'; // Null-terminate the buffer
+    // Initialize a memory zone for the icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
 
-        // Parse the data into an icalcomponent
-        component = icalparser_parse_string(temp_buffer);
-
-        // Clean up the temporary buffer
-        delete[] temp_buffer;
+    // Ensure the component is not NULL
+    if (component == NULL) {
+        free(null_terminated_data);
+        return 0;
     }
 
-    // Ensure the component is not NULL before calling the function-under-test
-    if (component != nullptr) {
-        // Call the function-under-test
-        due_time = icalcomponent_get_due(component);
+    // Create an icalproperty from the input data
+    icalproperty *property = icalproperty_new_from_string(null_terminated_data);
 
-        // Free the component after use
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_due to icalcomponent_get_timezone
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
-        	return 0;
-        }
-        char* ret_icalcomponent_as_ical_string_r_wufab = icalcomponent_as_ical_string_r(component);
-        if (ret_icalcomponent_as_ical_string_r_wufab == NULL){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalcomponent_as_ical_string_r_wufab) {
-        	return 0;
-        }
-        icaltimezone* ret_icalcomponent_get_timezone_oycqc = icalcomponent_get_timezone(component, ret_icalcomponent_as_ical_string_r_wufab);
-        if (ret_icalcomponent_get_timezone_oycqc == NULL){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        icalcomponent_free(component);
+    // If the property is valid, add it to the component
+    if (property != NULL) {
+        icalcomponent_add_property(component, property);
     }
+
+    // Call the function-under-test
+    icalproperty_method method = icalcomponent_get_method(component);
+
+    // Clean up
+    icalcomponent_free(component);
+    free(null_terminated_data);
 
     return 0;
 }

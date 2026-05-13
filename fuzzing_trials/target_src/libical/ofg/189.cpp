@@ -1,53 +1,48 @@
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring> // Include the header for memcpy
+#include <libical/ical.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h> // For malloc and free
+#include <string.h> // For memcpy
 
 extern "C" {
-    #include <libical/ical.h>
+    // Include any necessary C headers or declarations here
 }
 
 extern "C" int LLVMFuzzerTestOneInput_189(const uint8_t *data, size_t size) {
-    // Initialize an icalcomponent and icalcompiter
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalcompiter iter;
+    // Initialize libical
+    icalcomponent *component = nullptr;
 
-    // Ensure that the data size is sufficient to create some properties
     if (size > 0) {
-        // Create a string from the input data
-        char *summary = static_cast<char*>(malloc(size + 1));
-        if (summary == nullptr) {
-            icalcomponent_free(component);
-            return 0;
+        // Create a temporary buffer to hold the input data
+        char *input_data = (char *)malloc(size + 1);
+        if (input_data == nullptr) {
+            return 0; // Exit if memory allocation fails
         }
-        memcpy(summary, data, size);
-        summary[size] = '\0';
 
-        // Add properties to the component
-        icalcomponent_set_summary(component, summary);
-        free(summary);
+        // Copy the input data and null-terminate it
+        memcpy(input_data, data, size);
+        input_data[size] = '\0';
+
+        // Parse the input data into an icalcomponent
+        component = icalparser_parse_string(input_data);
+
+        // Free the temporary buffer
+        free(input_data);
     }
 
-    // Initialize the iterator
-    iter = icalcomponent_begin_component(component, ICAL_ANY_COMPONENT);
+    // Ensure the component is not NULL before calling the function
+    if (component != nullptr) {
+        // Call the function-under-test
+        const char *summary = icalcomponent_get_summary(component);
 
-    // Use the iterator to traverse components
-    if (icalcompiter_deref(&iter) != nullptr) {
-        do {
-            // Call the function-under-test
-            icalcomponent *prior_component = icalcompiter_prior(&iter);
+        // Optionally, do something with the summary, like print it
+        if (summary != nullptr) {
+            // For fuzzing purposes, we generally do not print to avoid cluttering the output
+        }
 
-            // Clean up
-            if (prior_component != nullptr) {
-                icalcomponent_free(prior_component);
-            }
-
-            // Move to the next component
-            icalcompiter_next(&iter);
-        } while (icalcompiter_deref(&iter) != nullptr);
+        // Free the icalcomponent
+        icalcomponent_free(component);
     }
-
-    icalcomponent_free(component);
 
     return 0;
 }

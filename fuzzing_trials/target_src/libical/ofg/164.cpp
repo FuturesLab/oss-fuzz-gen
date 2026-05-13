@@ -1,40 +1,34 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h> // Include for memcpy
+#include <cstdint>  // For uint8_t
+#include <cstddef>  // For size_t
+#include <cstring>  // For memcpy
 
 extern "C" {
-    #include <libical/ical.h> // Correct include path for libical
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_164(const uint8_t *data, size_t size) {
-    // Ensure size is large enough to create a valid string
-    if (size < 1) return 0;
+    // Initialize the icalcomponent object
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
 
-    // Create a null-terminated string from the input data
-    char *inputData = (char *)malloc(size + 1);
-    if (!inputData) return 0;
-    memcpy(inputData, data, size);
-    inputData[size] = '\0';
+    // Ensure that the data size is reasonable for the buffer
+    if (size > 0 && size < 1024) {
+        // Create a temporary buffer to hold the input data
+        char buffer[1024];
+        memcpy(buffer, data, size);
+        buffer[size] = '\0'; // Null-terminate the buffer
 
-    // Create an icalcomponent from the input data
-    icalcomponent *component = icalcomponent_new_from_string(inputData);
-    
-    // Free the input data as it's no longer needed
-    free(inputData);
+        // Parse the buffer into an icalcomponent
+        icalcomponent *parsed_component = icalparser_parse_string(buffer);
+        if (parsed_component != NULL) {
+            // Use the function-under-test
+            const char *component_name = icalcomponent_get_component_name(parsed_component);
 
-    // If component creation failed, exit
-    if (!component) return 0;
-
-    // Call the function-under-test
-    const char *componentName = icalcomponent_get_component_name(component);
-
-    // Use the componentName for further processing if needed
-    // For now, just ensure it's not NULL by checking its value
-    if (componentName) {
-        // Normally, you might do something with componentName here
+            // Clean up the parsed component
+            icalcomponent_free(parsed_component);
+        }
     }
 
-    // Clean up by freeing the icalcomponent
+    // Clean up the initial icalcomponent
     icalcomponent_free(component);
 
     return 0;

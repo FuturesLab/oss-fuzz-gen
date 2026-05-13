@@ -1,38 +1,46 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint> // Include for uint8_t
+#include <cstdlib> // Include for malloc and free
+#include <cstring> // Include for memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_62(const uint8_t *data, size_t size) {
-    // Initialize the iCal library
-    icalcomponent *component = nullptr;
-
-    // Create a temporary buffer to hold the data
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == nullptr) {
+    // Ensure the input size is sufficient to create a valid icalcomponent
+    if (size < 1) {
         return 0;
     }
 
-    // Copy the data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
+    // Create a string from the input data to simulate a calendar component
+    char *inputString = (char *)malloc(size + 1);
+    if (inputString == NULL) {
+        return 0;
+    }
+    memcpy(inputString, data, size);
+    inputString[size] = '\0';
 
-    // Parse the data into an icalcomponent
-    component = icalparser_parse_string(buffer);
-
-    // If parsing was successful, check if the component is valid
-    if (component != nullptr) {
-        bool is_valid = icalcomponent_is_valid(component);
-
-        // Clean up the component
-        icalcomponent_free(component);
+    // Parse the input string into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputString);
+    if (component == NULL) {
+        free(inputString);
+        return 0;
     }
 
-    // Free the buffer
-    free(buffer);
+    // Create an iterator for the component
+    icalcompiter iter = icalcomponent_begin_component(component, ICAL_ANY_COMPONENT);
+
+    // Call the function-under-test
+    icalcomponent *result = icalcompiter_deref(&iter);
+
+    // Clean up
+    free(inputString);
+    icalcomponent_free(component);
+
+    // Check if the result is not null to ensure the function is being tested
+    if (result != NULL) {
+        return 1;
+    }
 
     return 0;
 }

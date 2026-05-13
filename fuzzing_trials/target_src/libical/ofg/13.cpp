@@ -1,41 +1,35 @@
-#include <libical/ical.h>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to process
-    if (size == 0) {
-        return 0;
+    // Initialize an icalcomponent from the input data
+    icalcomponent *component = nullptr;
+    if (size > 0) {
+        // Create a string from the input data
+        char *str = (char *)malloc(size + 1);
+        if (str == nullptr) {
+            return 0; // Memory allocation failed
+        }
+        memcpy(str, data, size);
+        str[size] = '\0';
+
+        // Parse the string into an icalcomponent
+        component = icalparser_parse_string(str);
+        free(str);
     }
 
-    // Create a temporary buffer to hold the input data
-    char *buffer = static_cast<char *>(malloc(size + 1));
-    if (buffer == nullptr) {
-        return 0;
-    }
-
-    // Copy the input data to the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
-
-    // Parse the input data as an iCalendar component
-    icalcomponent *component = icalparser_parse_string(buffer);
-
-    // If parsing was successful, call the function-under-test
     if (component != nullptr) {
+        // Call the function-under-test
         icalproperty_method method = icalcomponent_get_method(component);
-        
-        // Optionally, print the method for debugging purposes
-        std::cout << "Method: " << method << std::endl;
 
-        // Free the parsed component
+        // Clean up
         icalcomponent_free(component);
     }
-
-    // Free the buffer
-    free(buffer);
 
     return 0;
 }

@@ -9,105 +9,77 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
-#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "/src/libical/src/libical/icaltime.h"
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+
+static void fuzz_icalcomponent_clone(icalcomponent *component) {
+    if (component) {
+        icalcomponent *cloned = icalcomponent_clone(component);
+        if (cloned) {
+            icalcomponent_free(cloned);
+        }
+    }
+}
+
+static void fuzz_icalcomponent_kind_to_string(icalcomponent_kind kind) {
+    const char *kind_str = icalcomponent_kind_to_string(kind);
+    if (kind_str) {
+        // Use the string for further operations if needed
+    }
+}
+
+static void fuzz_icalcomponent_isa(icalcomponent *component) {
+    if (component) {
+        icalcomponent_kind kind = icalcomponent_isa(component);
+        fuzz_icalcomponent_kind_to_string(kind);
+    }
+}
+
+static void fuzz_icalcomponent_string_to_kind(const char *string) {
+    icalcomponent_kind kind = icalcomponent_string_to_kind(string);
+    fuzz_icalcomponent_kind_to_string(kind);
+}
+
+static void fuzz_icalcomponent_get_component_name(icalcomponent *component) {
+    if (component) {
+        const char *name = icalcomponent_get_component_name(component);
+        if (name) {
+            // Use the name for further operations if needed
+        }
+    }
+}
+
+static void fuzz_icalcomponent_new_from_string(const char *str) {
+    icalcomponent *component = icalcomponent_new_from_string(str);
+    if (component) {
+        fuzz_icalcomponent_clone(component);
+        fuzz_icalcomponent_isa(component);
+        fuzz_icalcomponent_get_component_name(component);
+        icalcomponent_free(component);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int) + sizeof(icaltimetype)) {
-        return 0; // Not enough data to proceed
-    }
+    if (Size == 0) return 0;
 
-    // Create a dummy icalcomponent
-    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (!comp) {
-        return 0; // Failed to create component
-    }
+    // Create a null-terminated string from the input data
+    char *input = static_cast<char *>(malloc(Size + 1));
+    if (!input) return 0;
+    memcpy(input, Data, Size);
+    input[Size] = '\0';
 
-    // Extract an integer to decide which function to test
-    int choice = *reinterpret_cast<const int*>(Data);
-    Data += sizeof(int);
-    Size -= sizeof(int);
-
-    // Create an icaltimetype from the remaining data
-    icaltimetype time = icaltime_null_time();
-    if (Size >= sizeof(icaltimetype)) {
-        std::memcpy(&time, Data, sizeof(icaltimetype));
-        // Ensure the timezone pointer is valid or null
-        time.zone = nullptr; // Set to null as a safe default
-    }
-
-    switch (choice % 6) {
-        case 0: {
-            // Test icalcomponent_get_dtstamp
-            icaltimetype dtstamp = icalcomponent_get_dtstamp(comp);
-            (void)dtstamp; // Suppress unused variable warning
-            break;
-        }
-        case 1: {
-            // Test icalcomponent_set_dtstart
-            icalcomponent_set_dtstart(comp, time);
-            break;
-        }
-        case 2: {
-            // Test icalcomponent_set_dtstamp
-            icalcomponent_set_dtstamp(comp, time);
-            break;
-        }
-        case 3: {
-            // Test icalcomponent_set_dtend
-            icalcomponent_set_dtend(comp, time);
-
-            // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_set_dtend to icalcomponent_count_errors using the plateau pool
-            // Ensure dataflow is valid (i.e., non-null)
-            if (!comp) {
-            	return 0;
-            }
-            int ret_icalcomponent_count_errors_damfh = icalcomponent_count_errors(comp);
-            if (ret_icalcomponent_count_errors_damfh < 0){
-            	return 0;
-            }
-            // End mutation: Producer.SPLICE_MUTATOR
-            
-
-            // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_count_errors to icalcomponent_get_duration using the plateau pool
-            // Ensure dataflow is valid (i.e., non-null)
-            if (!comp) {
-            	return 0;
-            }
-            struct icaldurationtype ret_icalcomponent_get_duration_nrdjo = icalcomponent_get_duration(comp);
-            // End mutation: Producer.SPLICE_MUTATOR
-            
-            break;
-        }
-        case 4: {
-            // Test icalcomponent_new_valarm
-            icalcomponent *valarm = icalcomponent_new_valarm();
-            if (valarm) {
-                icalcomponent_free(valarm);
-            }
-            break;
-        }
-        case 5: {
-            // Test icalcomponent_get_dtstart
-            icaltimetype dtstart = icalcomponent_get_dtstart(comp);
-            (void)dtstart; // Suppress unused variable warning
-            break;
-        }
-        default:
-            break;
-    }
+    // Fuzz different functions
+    fuzz_icalcomponent_string_to_kind(input);
+    fuzz_icalcomponent_new_from_string(input);
 
     // Clean up
-    icalcomponent_free(comp);
+    free(input);
     return 0;
 }
 #ifdef INC_MAIN

@@ -1,29 +1,39 @@
-#include <cstdint> // Include standard library for uint8_t
-#include <cstddef> // Include standard library for size_t
-#include <cstring> // Include standard library for memcpy
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_181(const uint8_t *data, size_t size) {
+    // Check if the size is zero to prevent unnecessary processing
     if (size == 0) {
-        return 0; // No data to process
+        return 0;
     }
 
-    // Create a string from the input data
-    char *inputData = new char[size + 1];
-    memcpy(inputData, data, size);
-    inputData[size] = '\0'; // Null-terminate the string
+    // Convert the input data to a null-terminated string
+    char *inputString = (char *)malloc(size + 1);
+    if (inputString == NULL) {
+        return 0;
+    }
+    memcpy(inputString, data, size);
+    inputString[size] = '\0';
 
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(inputData);
+    // Initialize icalcomponent and icalproperty
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalproperty *property = icalproperty_new_comment(inputString);
+
+    // Check if component and property are successfully created
+    if (component != NULL && property != NULL) {
+        // Call the function-under-test
+        icalcomponent_add_property(component, property);
+    }
 
     // Clean up
-    if (component != nullptr) {
+    if (component != NULL) {
         icalcomponent_free(component);
     }
-    delete[] inputData;
+
+    // Free the allocated memory for the input string
+    free(inputString);
 
     return 0;
 }

@@ -11,39 +11,44 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
-#include <cstring>
-#include <cassert>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Create a new VTIMEZONE component
+    // Prepare environment and initialize components
     icalcomponent *vtimezone = icalcomponent_new_vtimezone();
-    assert(vtimezone != nullptr);
+    icalcomponent *xdaylight = icalcomponent_new_xdaylight();
+    icalcomponent *clone = nullptr;
 
-    // Create a new VALARM component
-    icalcomponent *valarm = icalcomponent_new_valarm();
-    assert(valarm != nullptr);
+    // Add xdaylight to vtimezone
+    icalcomponent_add_component(vtimezone, xdaylight);
 
-    // Determine the kind of the components
-    icalcomponent_kind kind_vtimezone = icalcomponent_isa(vtimezone);
-    icalcomponent_kind kind_valarm = icalcomponent_isa(valarm);
+    // Clone the vtimezone component
+    clone = icalcomponent_clone(vtimezone);
 
-    // Set a summary for the VTIMEZONE component
-    std::string summary(reinterpret_cast<const char*>(Data), Size);
-    icalcomponent_set_summary(vtimezone, summary.c_str());
+    // Create a dummy VCALENDAR component for merging
+    icalcomponent *vcalendar1 = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalcomponent *vcalendar2 = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
 
-    // Get and set status for the VALARM component
-    icalproperty_status status = icalcomponent_get_status(valarm);
-    icalcomponent_set_status(valarm, ICAL_STATUS_TENTATIVE);
+    // Add vtimezone to vcalendar1
+    icalcomponent_add_component(vcalendar1, vtimezone);
 
-    // Clean up components
-    icalcomponent_free(vtimezone);
-    icalcomponent_free(valarm);
+    // Merge vcalendar2 into vcalendar1
+    icalcomponent_merge_component(vcalendar1, vcalendar2);
+
+    // Define a dummy callback for foreach_tzid
+    auto callback = [](icalparameter *param, void *data) {
+        // Dummy callback logic
+    };
+
+    // Iterate over TZIDs in the cloned component
+    icalcomponent_foreach_tzid(clone, callback, nullptr);
+
+    // Cleanup
+    icalcomponent_free(vcalendar1);
+    icalcomponent_free(clone);
 
     return 0;
 }

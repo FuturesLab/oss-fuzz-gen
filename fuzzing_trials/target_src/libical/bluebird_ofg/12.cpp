@@ -1,53 +1,67 @@
 #include <sys/stat.h>
-#include "libical/ical.h"
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h> // Include for memcpy
+#include <stdlib.h>
+#include <string.h>
+
+extern "C" {
+    #include "libical/ical.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-    // Ensure that the input data is large enough to be meaningful
-    if (size < 1) {
-        return 0;
+    // Initialize libical
+    icalcomponent *component = nullptr;
+    icalparser *parser = nullptr;
+
+    // Ensure that the data is null-terminated for parsing
+    char *ical_data = (char *)malloc(size + 1);
+    if (ical_data == nullptr) {
+        return 0; // If memory allocation fails, exit gracefully
+    }
+    memcpy(ical_data, data, size);
+    ical_data[size] = '\0';
+
+    // Create a parser and parse the data
+    parser = icalparser_new();
+    if (parser != nullptr) {
+        // Adjusted to call the correct function signature
+        component = icalparser_parse_string(ical_data);
+        icalparser_free(parser);
     }
 
-    // Initialize the icalcomponent and icalproperty_kind
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalproperty_kind kind = ICAL_ANY_PROPERTY;
+    // Fuzz the function-under-test if component is successfully created
+    if (component != nullptr) {
+        const char *uid = icalcomponent_get_uid(component);
+        // Use the uid in some way to prevent compiler optimization
+        if (uid != nullptr) {
+            // For the purpose of fuzzing, we don't need to do anything with uid
+            // Just ensure the function is called
+        }
 
-    // Add some properties to the component to ensure it is not empty
-    icalproperty *summary = icalproperty_new_summary("Sample Summary");
-    icalcomponent_add_property(component, summary);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_uid to icalcomponent_as_ical_string
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
 
-    icalproperty *description = icalproperty_new_description("Sample Description");
-    icalcomponent_add_property(component, description);
-
-    // Use the input data to modify the component or properties
-    // For example, create a new property from the input data
-    char *data_copy = (char *)malloc(size + 1);
-    if (data_copy == NULL) {
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_uid to icalcomponent_get_span
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        struct icaltime_span ret_icalcomponent_get_span_bhlpx = icalcomponent_get_span(component);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        char* ret_icalcomponent_as_ical_string_bhcai = icalcomponent_as_ical_string(component);
+        if (ret_icalcomponent_as_ical_string_bhcai == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
         icalcomponent_free(component);
-        return 0;
-    }
-    memcpy(data_copy, data, size);
-    data_copy[size] = '\0'; // Null-terminate the string
-
-    icalproperty *custom_property = icalproperty_new_comment(data_copy);
-    icalcomponent_add_property(component, custom_property);
-
-    // Call the function under test
-    icalproperty *property = icalcomponent_get_first_property(component, kind);
-
-    // Process the component to increase code coverage
-    char *component_as_string = icalcomponent_as_ical_string(component);
-    if (component_as_string) {
-        // Optionally, you can print or log the string for debugging
-        // printf("%s\n", component_as_string);
     }
 
-    // Clean up
-    free(data_copy);
-    icalcomponent_free(component);
-
+    free(ical_data);
     return 0;
 }
 #ifdef INC_MAIN

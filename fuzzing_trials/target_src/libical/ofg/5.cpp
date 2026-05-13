@@ -1,25 +1,22 @@
 #include <stdint.h>
-#include <stdbool.h>
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <stddef.h>
+#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to read an icalcomponent_kind value
+    // Ensure size is sufficient to extract an icalcomponent_kind
     if (size < sizeof(icalcomponent_kind)) {
         return 0;
     }
 
-    // Interpret the input data as an icalcomponent_kind
-    icalcomponent_kind kind = *(const icalcomponent_kind *)data;
+    // Extract an icalcomponent_kind from the input data
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(data[0]);
 
     // Call the function-under-test
-    bool result = icalcomponent_kind_is_valid(kind);
+    bool is_valid = icalcomponent_kind_is_valid(kind);
 
-    // Use the result in some way to avoid compiler optimizations
-    if (result) {
-        // Do something if the kind is valid (no-op for fuzzing purposes)
+    // Use the result to avoid compiler optimizations (not necessary but good practice)
+    if (is_valid) {
+        // Do something if needed, for now just a placeholder
     }
 
     return 0;

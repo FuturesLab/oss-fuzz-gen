@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_vanew at icalcomponent.c:105:16 in icalcomponent.h
-// icalcomponent_new at icalcomponent.c:100:16 in icalcomponent.h
-// icalcomponent_new_xvote at icalcomponent.c:2105:16 in icalcomponent.h
-// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
-// icalcomponent_new_from_string at icalcomponent.c:124:16 in icalcomponent.h
-// icalcomponent_new_vavailability at icalcomponent.c:2085:16 in icalcomponent.h
+// icalproperty_get_datetime_with_component at icalproperty.c:1072:21 in icalcomponent.h
+// icalcomponent_get_due at icalcomponent.c:2661:21 in icalcomponent.h
+// icalcomponent_get_dtend at icalcomponent.c:1630:21 in icalcomponent.h
+// icalcomponent_set_dtend at icalcomponent.c:1686:6 in icalcomponent.h
+// icalcomponent_set_due at icalcomponent.c:2682:6 in icalcomponent.h
+// icalcomponent_get_inner at icalcomponent.c:1552:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,75 +14,92 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/ical.h>
 #include <cstdint>
-#include <cstddef>
 #include <cstdlib>
-#include <cstdio>
-#include <cstdarg>
+#include <cstring>
 #include <iostream>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "icalcomponent.h"
+#include <fstream>
 
-static void fuzz_icalcomponent_new() {
-    for (int kind = ICAL_NO_COMPONENT; kind < ICAL_NUM_COMPONENT_TYPES; ++kind) {
-        icalcomponent *comp = icalcomponent_new(static_cast<icalcomponent_kind>(kind));
-        if (comp) {
-            icalcomponent_free(comp);
-        }
-    }
+static icalcomponent* create_component_from_data(const uint8_t* data, size_t size) {
+    if (size == 0) return nullptr;
+    // Attempt to parse the data as an iCalendar component
+    char* dataCopy = static_cast<char*>(malloc(size + 1));
+    if (!dataCopy) return nullptr;
+    memcpy(dataCopy, data, size);
+    dataCopy[size] = '\0';
+    icalcomponent* component = icalparser_parse_string(dataCopy);
+    free(dataCopy);
+    return component;
 }
 
-static void fuzz_icalcomponent_new_from_string(const uint8_t *Data, size_t Size) {
-    char *str = static_cast<char *>(malloc(Size + 1));
-    if (!str) return;
-    memcpy(str, Data, Size);
-    str[Size] = '\0';
-
-    icalcomponent *comp = icalcomponent_new_from_string(str);
-    if (comp) {
-        icalcomponent_free(comp);
-    }
-
-    free(str);
-}
-
-static void fuzz_icalcomponent_new_vavailability() {
-    icalcomponent *comp = icalcomponent_new_vavailability();
-    if (comp) {
-        icalcomponent_free(comp);
-    }
-}
-
-static void fuzz_icalcomponent_new_xvote() {
-    icalcomponent *comp = icalcomponent_new_xvote();
-    if (comp) {
-        icalcomponent_free(comp);
-    }
-}
-
-static void fuzz_icalcomponent_vanew() {
-    icalcomponent *comp = icalcomponent_vanew(ICAL_VEVENT_COMPONENT, NULL);
-    if (comp) {
-        icalcomponent_free(comp);
-    }
-}
-
-static void fuzz_icalcomponent_new_xpatch() {
-    icalcomponent *comp = icalcomponent_new_xpatch();
-    if (comp) {
-        icalcomponent_free(comp);
-    }
+static icalproperty* create_property_from_data(const uint8_t* data, size_t size) {
+    if (size == 0) return nullptr;
+    // Attempt to parse the data as an iCalendar property
+    char* dataCopy = static_cast<char*>(malloc(size + 1));
+    if (!dataCopy) return nullptr;
+    memcpy(dataCopy, data, size);
+    dataCopy[size] = '\0';
+    icalproperty* prop = icalproperty_new_from_string(dataCopy);
+    free(dataCopy);
+    return prop;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_41(const uint8_t *Data, size_t Size) {
-    fuzz_icalcomponent_new();
-    fuzz_icalcomponent_new_from_string(Data, Size);
-    fuzz_icalcomponent_new_vavailability();
-    fuzz_icalcomponent_new_xvote();
-    fuzz_icalcomponent_vanew();
-    fuzz_icalcomponent_new_xpatch();
+    if (Size < 2) return 0;
+
+    // Split the data into two parts for property and component
+    size_t mid = Size / 2;
+    const uint8_t* propData = Data;
+    size_t propSize = mid;
+    const uint8_t* compData = Data + mid;
+    size_t compSize = Size - mid;
+
+    icalproperty* prop = create_property_from_data(propData, propSize);
+    icalcomponent* comp = create_component_from_data(compData, compSize);
+
+    if (prop && comp) {
+        // Fuzz icalproperty_get_datetime_with_component
+        struct icaltimetype dt = icalproperty_get_datetime_with_component(prop, comp);
+        if (!icaltime_is_null_time(dt)) {
+            // Do something with the result if needed
+        }
+
+        // Fuzz icalcomponent_get_due
+        struct icaltimetype due = icalcomponent_get_due(comp);
+        if (!icaltime_is_null_time(due)) {
+            // Do something with the result if needed
+        }
+
+        // Fuzz icalcomponent_get_dtend
+        struct icaltimetype dtend = icalcomponent_get_dtend(comp);
+        if (!icaltime_is_null_time(dtend)) {
+            // Do something with the result if needed
+        }
+
+        // Fuzz icalcomponent_get_inner
+        icalcomponent* innerComp = icalcomponent_get_inner(comp);
+        if (innerComp) {
+            // Do something with the result if needed
+        }
+
+        // Fuzz icalcomponent_set_dtend
+        icalcomponent_set_dtend(comp, dt);
+
+        // Fuzz icalcomponent_set_due
+        icalcomponent_set_due(comp, due);
+    }
+
+    if (prop) {
+        icalproperty_free(prop);
+    }
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+
     return 0;
 }
     #ifdef INC_MAIN

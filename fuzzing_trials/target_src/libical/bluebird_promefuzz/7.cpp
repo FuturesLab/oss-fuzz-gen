@@ -9,49 +9,84 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
+#include <cstdlib>
+#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
-extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+static icalcomponent* create_dummy_component() {
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalproperty *property = icalproperty_new(ICAL_SUMMARY_PROPERTY);
+    icalcomponent_add_property(component, property);
 
-    // Create two VCALENDAR components
-    icalcomponent *vcalendar1 = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    icalcomponent *vcalendar2 = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_add_property to icalcomponent_set_dtstamp
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!component) {
+    	return 0;
+    }
+    struct icaltimetype ret_icalcomponent_get_dtstamp_jqppu = icalcomponent_get_dtstamp(component);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!component) {
+    	return 0;
+    }
+    icalcomponent_set_dtstamp(component, ret_icalcomponent_get_dtstamp_jqppu);
+    // End mutation: Producer.APPEND_MUTATOR
     
-    // Create a VEVENT component and add it to the first VCALENDAR
-    icalcomponent *vevent = icalcomponent_new_vevent();
-    icalcomponent_add_component(vcalendar1, vevent);
+    return component;
+}
 
-    // Normalize the first VCALENDAR component
-    icalcomponent_normalize(vcalendar1);
+static void fuzz_icalpropiter_deref(icalpropiter *iter) {
+    icalproperty *prop = icalpropiter_deref(iter);
+    // Utilize the property if needed, currently just dereferencing
+}
 
-    // Merge the second VCALENDAR into the first
-    icalcomponent_merge_component(vcalendar1, vcalendar2);
+static void fuzz_icalcomponent_add_property(icalcomponent *component, icalproperty *property) {
+    icalcomponent_add_property(component, property);
+}
 
-    // Get the time span of the first VCALENDAR
-    icaltime_span span = icalcomponent_get_span(vcalendar1);
+static void fuzz_icalpropiter_next(icalpropiter *iter) {
+    icalproperty *prop = icalpropiter_next(iter);
+    // Utilize the property if needed, currently just iterating
+}
 
-    // Set a recurrence ID on the VEVENT
-    icaltimetype recurrence_id;
-    recurrence_id.year = 2023;
-    recurrence_id.zone = nullptr;
-    icalcomponent_set_recurrenceid(vevent, recurrence_id);
+static void fuzz_icalcomponent_begin_property(icalcomponent *component, icalproperty_kind kind) {
+    icalpropiter iter = icalcomponent_begin_property(component, kind);
+    if (icalpropiter_deref(&iter)) {
+        fuzz_icalpropiter_deref(&iter);
+        fuzz_icalpropiter_next(&iter);
+    }
+}
 
-    // Clean up components
-    icalcomponent_free(vcalendar1);
+static void fuzz_icalcomponent_remove_property(icalcomponent *component, icalproperty *property) {
+    icalcomponent_remove_property(component, property);
+}
 
-    // Write Data to a dummy file if needed
-    std::ofstream dummyFile("./dummy_file", std::ios::binary);
-    if (dummyFile.is_open()) {
-        dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-        dummyFile.close();
+static void fuzz_icalcomponent_get_current_property(icalcomponent *component) {
+    icalproperty *prop = icalcomponent_get_current_property(component);
+    // Utilize the property if needed, currently just getting current property
+}
+
+extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(icalproperty_kind)) {
+        return 0;
     }
 
+    icalcomponent *component = create_dummy_component();
+    icalproperty_kind kind = static_cast<icalproperty_kind>(Data[0] % ICAL_NO_PROPERTY);
+
+    fuzz_icalcomponent_begin_property(component, kind);
+
+    icalproperty *new_property = icalproperty_new(kind);
+    fuzz_icalcomponent_add_property(component, new_property);
+
+    fuzz_icalcomponent_get_current_property(component);
+
+    fuzz_icalcomponent_remove_property(component, new_property);
+    icalproperty_free(new_property);
+
+    icalcomponent_free(component);
     return 0;
 }
 #ifdef INC_MAIN

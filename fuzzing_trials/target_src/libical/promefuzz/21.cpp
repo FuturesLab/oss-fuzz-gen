@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalpropiter_is_valid at icalcomponent.c:1454:6 in icalcomponent.h
-// icalcompiter_is_valid at icalcomponent.c:1336:6 in icalcomponent.h
-// icalcomponent_is_valid at icalcomponent.c:295:6 in icalcomponent.h
-// icalcomponent_check_restrictions at icalcomponent.c:1117:6 in icalcomponent.h
-// icalcomponent_free at icalcomponent.c:172:6 in icalcomponent.h
-// icalcomponent_new_vevent at icalcomponent.c:2030:16 in icalcomponent.h
+// icalcomponent_count_components at icalcomponent.c:626:5 in icalcomponent.h
+// icalcomponent_get_first_component at icalcomponent.c:654:16 in icalcomponent.h
+// icalcomponent_get_next_component at icalcomponent.c:670:16 in icalcomponent.h
+// icalcomponent_get_first_real_component at icalcomponent.c:690:16 in icalcomponent.h
+// icalcomponent_begin_component at icalcomponent.c:1401:14 in icalcomponent.h
+// icalcomponent_add_component at icalcomponent.c:552:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,39 +14,53 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
+#include <iostream>
+#include <fstream>
+#include <cassert>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include "icalcomponent.h"
 
+static void init_dummy_file(const uint8_t *Data, size_t Size) {
+    std::ofstream dummy_file("./dummy_file", std::ios::binary);
+    if (dummy_file.is_open()) {
+        dummy_file.write(reinterpret_cast<const char*>(Data), Size);
+        dummy_file.close();
+    }
+}
+
 extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *Data, size_t Size) {
-    // Create a new VEVENT component
-    icalcomponent *vevent = icalcomponent_new_vevent();
-    if (!vevent) {
-        return 0; // Memory allocation failed
+    if (Size < sizeof(icalcomponent_kind)) {
+        return 0;
     }
 
-    // Check restrictions on the new VEVENT component
-    bool restrictions_ok = icalcomponent_check_restrictions(vevent);
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+    icalcomponent *parent = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalcomponent *child = icalcomponent_new(kind);
+    
+    if (parent && child) {
+        icalcomponent_add_component(parent, child);
 
-    // Create a dummy icalcompiter and icalpropiter
-    icalcompiter comp_iter;
-    icalpropiter prop_iter;
+        icalcomponent *first_component = icalcomponent_get_first_component(parent, kind);
+        icalcomponent *next_component = icalcomponent_get_next_component(parent, kind);
+        icalcomponent *first_real_component = icalcomponent_get_first_real_component(parent);
+        int component_count = icalcomponent_count_components(parent, kind);
 
-    // Check validity of the compiter and propiter
-    bool compiter_valid = icalcompiter_is_valid(&comp_iter);
-    bool propiter_valid = icalpropiter_is_valid(&prop_iter);
+        icalcompiter iter = icalcomponent_begin_component(parent, kind);
+        bool is_valid_iter = icalcompiter_is_valid(&iter);
 
-    // Check if the VEVENT component is valid
-    bool vevent_valid = icalcomponent_is_valid(vevent);
+        // Use the results to avoid unused variable warnings
+        (void)first_component;
+        (void)next_component;
+        (void)first_real_component;
+        (void)component_count;
+        (void)is_valid_iter;
+    }
 
-    // Free the VEVENT component
-    icalcomponent_free(vevent);
+    // Cleanup
+    icalcomponent_free(parent);
 
-    // Return 0 to indicate normal termination
     return 0;
 }
     #ifdef INC_MAIN

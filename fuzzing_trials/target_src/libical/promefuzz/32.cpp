@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_get_component_name at icalcomponent.c:344:13 in icalcomponent.h
-// icalcomponent_get_component_name_r at icalcomponent.c:353:7 in icalcomponent.h
-// icalcomponent_get_description at icalcomponent.c:1897:13 in icalcomponent.h
-// icalcomponent_get_first_component at icalcomponent.c:611:16 in icalcomponent.h
-// icalcomponent_get_comment at icalcomponent.c:1781:13 in icalcomponent.h
-// icalcomponent_get_location at icalcomponent.c:1932:13 in icalcomponent.h
+// icalcomponent_end_component at icalcomponent.c:1424:14 in icalcomponent.h
+// icalcomponent_begin_component at icalcomponent.c:1401:14 in icalcomponent.h
+// icalcompiter_deref at icalcomponent.c:1484:16 in icalcomponent.h
+// icalcompiter_prior at icalcomponent.c:1465:16 in icalcomponent.h
+// icalcomponent_get_current_component at icalcomponent.c:643:16 in icalcomponent.h
+// icalcomponent_check_restrictions at icalcomponent.c:1160:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,67 +14,73 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <iostream>
+#include <fstream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalcomponent.h"
+#include <libical/icalcomponent.h>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icalerror.h>
+#include <cstdint>
+
+static icalcomponent* create_dummy_component() {
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalcomponent *vevent = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalcomponent_add_component(component, vevent);
+    return component;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_32(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icalcomponent_kind)) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
+    // Create a dummy component for testing
+    icalcomponent *component = create_dummy_component();
+    if (!component) return 0;
+
+    // Extract a kind from the input data
     icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
 
-    // Create a dummy icalcomponent using the library's creation function
-    icalcomponent *comp = icalcomponent_new(kind);
-
-    if (comp == NULL) {
-        return 0;
+    // Test icalcomponent_end_component
+    icalcompiter end_iter = icalcomponent_end_component(component, kind);
+    if (icalcompiter_is_valid(&end_iter)) {
+        icalcomponent *end_component = icalcompiter_deref(&end_iter);
+        if (end_component) {
+            // Do something with end_component
+        }
     }
 
-    // Test icalcomponent_get_component_name_r
-    char *component_name_r = icalcomponent_get_component_name_r(comp);
-    if (component_name_r != NULL) {
-        free(component_name_r);
+    // Test icalcomponent_begin_component
+    icalcompiter begin_iter = icalcomponent_begin_component(component, kind);
+    if (icalcompiter_is_valid(&begin_iter)) {
+        icalcomponent *begin_component = icalcompiter_deref(&begin_iter);
+        if (begin_component) {
+            // Do something with begin_component
+        }
     }
 
-    // Test icalcomponent_get_location
-    const char *location = icalcomponent_get_location(comp);
-    if (location != NULL) {
-        // Process location if needed
+    // Test icalcomponent_get_current_component
+    icalcomponent *current_component = icalcomponent_get_current_component(component);
+    if (current_component) {
+        // Do something with current_component
     }
 
-    // Test icalcomponent_get_description
-    const char *description = icalcomponent_get_description(comp);
-    if (description != NULL) {
-        // Process description if needed
+    // Test icalcomponent_check_restrictions
+    bool has_restrictions = icalcomponent_check_restrictions(component);
+    if (has_restrictions) {
+        // Handle restrictions
     }
 
-    // Test icalcomponent_get_component_name
-    const char *component_name = icalcomponent_get_component_name(comp);
-    if (component_name != NULL) {
-        // Process component_name if needed
-    }
-
-    // Test icalcomponent_get_first_component
-    icalcomponent *first_component = icalcomponent_get_first_component(comp, kind);
-    if (first_component != NULL) {
-        // Process first_component if needed
-    }
-
-    // Test icalcomponent_get_comment
-    const char *comment = icalcomponent_get_comment(comp);
-    if (comment != NULL) {
-        // Process comment if needed
+    // Test icalcompiter_prior
+    icalcomponent *prior_component = icalcompiter_prior(&begin_iter);
+    if (prior_component) {
+        // Do something with prior_component
     }
 
     // Clean up
-    icalcomponent_free(comp);
+    icalcomponent_free(component);
 
     return 0;
 }

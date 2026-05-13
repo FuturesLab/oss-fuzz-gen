@@ -1,23 +1,28 @@
-#include <libical/ical.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+
+extern "C" {
+    #include <libical/icalcomponent.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_25(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_vquery();
+    // Declare and initialize the icalcompiter structure
+    icalcompiter compiter;
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
 
-    // Perform operations on the component if needed
-    if (component != NULL) {
-        // For demonstration, convert the component to a string and free it
-        char *component_str = icalcomponent_as_ical_string(component);
-        if (component_str != NULL) {
-            // Normally, you might process the string here
-            // For fuzzing, we're just ensuring the function is called
-        }
-
-        // Free the component
-        icalcomponent_free(component);
+    // Ensure the component is not NULL
+    if (component == NULL) {
+        return 0;
     }
+
+    // Initialize the icalcompiter with the component
+    compiter = icalcomponent_begin_component(component, ICAL_ANY_COMPONENT);
+
+    // Call the function-under-test
+    bool is_valid = icalcomponent_is_valid(component);
+
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }

@@ -1,42 +1,35 @@
-#include <cstdint>
-#include <cstddef>
-#include <cstring>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h> // Include this for memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_104(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to be meaningful
-    if (size == 0) {
-        return 0;
-    }
+    // Initialize the icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
 
-    // Create a string from the input data
+    // Create a buffer with the input data
     char *inputData = (char *)malloc(size + 1);
     if (inputData == NULL) {
+        icalcomponent_free(component);
         return 0;
     }
     memcpy(inputData, data, size);
-    inputData[size] = '\0';
+    inputData[size] = '\0'; // Ensure null-termination
 
-    // Parse the input data as an iCalendar component
-    icalcomponent *component = icalparser_parse_string(inputData);
-
-    // Perform operations on 'component' if it is successfully created
-    if (component != NULL) {
-        // Example operation: convert component to string and print
-        char *componentStr = icalcomponent_as_ical_string(component);
-        if (componentStr != NULL) {
-            // Normally, you would do something with 'componentStr'
-            // For example, logging it or using it in further processing
-        }
-
-        // Free the component
-        icalcomponent_free(component);
+    // Create a temporary icalproperty to set a DTSTART
+    icalproperty *dtstart_prop = icalproperty_new_from_string(inputData);
+    if (dtstart_prop != NULL) {
+        icalcomponent_add_property(component, dtstart_prop);
     }
 
-    // Free the input data
+    // Call the function-under-test
+    struct icaltimetype dtstart = icalcomponent_get_dtstart(component);
+
+    // Clean up
+    icalcomponent_free(component);
     free(inputData);
 
     return 0;

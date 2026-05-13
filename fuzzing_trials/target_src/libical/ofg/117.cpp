@@ -1,21 +1,44 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_117(const uint8_t *data, size_t size) {
-    // Initialize a dummy icalcomponent object
-    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    // Ensure that the input size is sufficient for creating a valid icalcomponent
+    if (size < 1) {
+        return 0;
+    }
 
-    // Add a property to ensure the component is not NULL
-    icalcomponent_add_property(component, icalproperty_new_summary("Test Summary"));
+    // Create an icalcomponent from the input data
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
 
-    // Call the function-under-test
-    icalcomponent_strip_errors(component);
+    // Use the first byte of data to determine the kind of component
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(data[0] % (ICAL_NO_COMPONENT + 1));
+
+    // Create a temporary buffer to hold the input data as a string
+    char *temp_data = new char[size + 1];
+    memcpy(temp_data, data, size);
+    temp_data[size] = '\0'; // Null-terminate the string
+
+    // Set the component's properties using the input data
+    icalcomponent_set_summary(component, temp_data);
+
+    // Attempt to parse the input data as an iCalendar string
+    icalcomponent *parsed_component = icalparser_parse_string(temp_data);
+    if (parsed_component) {
+        // Iterate over sub-components if parsing was successful
+        icalcomponent *sub_component = icalcomponent_get_first_component(parsed_component, kind);
+        while (sub_component != NULL) {
+            sub_component = icalcomponent_get_next_component(parsed_component, kind);
+        }
+        icalcomponent_free(parsed_component);
+    }
 
     // Clean up
+    delete[] temp_data;
     icalcomponent_free(component);
 
     return 0;

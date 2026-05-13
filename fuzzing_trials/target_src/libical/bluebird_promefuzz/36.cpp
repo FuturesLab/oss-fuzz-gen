@@ -17,46 +17,79 @@
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
+static icalcomponent* create_icalcomponent_from_data(const uint8_t *Data, size_t Size) {
+    // For simplicity, assume the data is a string representation of an icalcomponent
+    char *dataStr = static_cast<char*>(malloc(Size + 1));
+    if (!dataStr) {
+        return nullptr;
+    }
+    memcpy(dataStr, Data, Size);
+    dataStr[Size] = '\0';
+
+    icalcomponent *comp = icalcomponent_new_from_string(dataStr);
+    free(dataStr);
+    return comp;
+}
+
 extern "C" int LLVMFuzzerTestOneInput_36(const uint8_t *Data, size_t Size) {
-    if (Size < 4) return 0;
-
-    // Create a new VEVENT component
-    icalcomponent *vevent = icalcomponent_new_vevent();
-    if (!vevent) return 0;
-
-    // Clone the VEVENT component
-    icalcomponent *cloned_vevent = icalcomponent_clone(vevent);
-    if (!cloned_vevent) {
-        icalcomponent_free(vevent);
+    if (Size == 0) {
         return 0;
     }
 
-    // Count properties in the VEVENT component
-    int property_kind = ICAL_ANY_PROPERTY;
-    if (Size >= 5) {
-        property_kind = static_cast<int>(Data[4]) % ICAL_NO_PROPERTY;
-    }
-    int count = icalcomponent_count_properties(vevent, static_cast<icalproperty_kind>(property_kind));
-
-    // Get summary of the VEVENT component
-    const char *summary = icalcomponent_get_summary(vevent);
-
-    // Create a new PARTICIPANT component
-    icalcomponent *participant = icalcomponent_new_participant();
-    if (!participant) {
-        icalcomponent_free(vevent);
-        icalcomponent_free(cloned_vevent);
+    icalcomponent *comp = create_icalcomponent_from_data(Data, Size);
+    if (!comp) {
         return 0;
     }
 
-    // Get current component from PARTICIPANT
-    icalcomponent *current_component = icalcomponent_get_current_component(participant);
+    // Fuzz icalcomponent_get_uid
+    const char *uid = icalcomponent_get_uid(comp);
+    if (uid) {
+        std::cout << "UID: " << uid << std::endl;
+    }
 
-    // Clean up
-    icalcomponent_free(vevent);
-    icalcomponent_free(cloned_vevent);
-    icalcomponent_free(participant);
+    // Fuzz icalcomponent_get_x_name (assuming this is the correct function)
 
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_uid to icalcomponent_set_status
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
+    }
+    enum icalproperty_status ret_icalcomponent_get_status_jaeib = icalcomponent_get_status(comp);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
+    }
+    icalcomponent_set_status(comp, ret_icalcomponent_get_status_jaeib);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    const char *x_name = icalcomponent_get_x_name(comp);
+    if (x_name) {
+        std::cout << "X Name: " << x_name << std::endl;
+    }
+
+    // Fuzz icalcomponent_get_relcalid
+    const char *relcalid = icalcomponent_get_relcalid(comp);
+    if (relcalid) {
+        std::cout << "RELCALID: " << relcalid << std::endl;
+    }
+
+    // Fuzz icalcomponent_as_ical_string_r
+    char *ical_str = icalcomponent_as_ical_string_r(comp);
+    if (ical_str) {
+        std::cout << "ICAL String: " << ical_str << std::endl;
+        free(ical_str);
+    }
+
+    // Fuzz icalcomponent_get_description
+    const char *description = icalcomponent_get_description(comp);
+    if (description) {
+        std::cout << "Description: " << description << std::endl;
+    }
+
+    // Fuzz icalcomponent_normalize
+    icalcomponent_normalize(comp);
+
+    icalcomponent_free(comp);
     return 0;
 }
 #ifdef INC_MAIN

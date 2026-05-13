@@ -1,22 +1,29 @@
-#include <cstdint> // Include for uint8_t
-#include <cstddef> // Include for size_t
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h> // Include for memcpy
 
 extern "C" {
-#include <libical/ical.h>
+    #include <libical/ical.h> // Adjust the path as necessary for the project
 }
 
 extern "C" int LLVMFuzzerTestOneInput_147(const uint8_t *data, size_t size) {
+    // Ensure that the data is large enough to be used as a string
+    if (size == 0) return 0;
+
+    // Allocate memory for the comment string and ensure it's null-terminated
+    char *comment = new char[size + 1];
+    memcpy(comment, data, size);
+    comment[size] = '\0';
+
+    // Create a new icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+
     // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_vagenda();
+    icalcomponent_set_comment(component, comment);
 
-    // Check if the component was created successfully
-    if (component != NULL) {
-        // Perform any additional operations on the component if necessary
-        // For example, you might want to convert it to a string or manipulate it
-
-        // Free the component to avoid memory leaks
-        icalcomponent_free(component);
-    }
+    // Clean up
+    icalcomponent_free(component);
+    delete[] comment;
 
     return 0;
 }

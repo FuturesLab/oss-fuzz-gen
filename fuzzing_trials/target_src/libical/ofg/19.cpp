@@ -1,39 +1,41 @@
-#include <cstdint> // Include for uint8_t
-#include <cstddef> // Include for size_t
-#include <cstdlib> // Include for malloc and free
-#include <cstring> // Include for memcpy
+#include <libical/ical.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    // Ensure the input data is large enough to be meaningful
-    if (size < 1) {
+    // Check if the input data is large enough to be meaningful
+    if (size == 0) {
         return 0;
     }
 
-    // Create a string from the input data to use as a name or property
-    char *name = (char *)malloc(size + 1);
-    if (name == NULL) {
+    // Create a string from the input data
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
         return 0;
     }
-    memcpy(name, data, size);
-    name[size] = '\0';
+    memcpy(inputData, data, size);
+    inputData[size] = '\0'; // Null-terminate the string
 
-    // Create a new participant component with the name
-    icalcomponent *participant = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    if (participant != NULL) {
-        icalproperty *prop = icalproperty_new_comment(name);
-        if (prop != NULL) {
-            icalcomponent_add_property(participant, prop);
-        }
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputData);
 
-        // Clean up by freeing the allocated component
-        icalcomponent_free(participant);
+    // Perform operations on the returned icalcomponent if necessary
+    if (component != NULL) {
+        // Example operation: check the component type
+        icalcomponent_kind kind = icalcomponent_isa(component);
+
+        // Free the allocated icalcomponent
+        icalcomponent_free(component);
     }
 
-    free(name);
+    // Free the allocated input data
+    free(inputData);
+
     return 0;
 }
 #ifdef INC_MAIN

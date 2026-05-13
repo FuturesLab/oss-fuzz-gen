@@ -1,39 +1,40 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
-#include <libical/ical.h>
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_136(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a valid string
-    if (size == 0) {
-        return 0;
+    // Initialize the library
+    icalcomponent *component = nullptr;
+    icaltimetype recurrence_id;
+
+    // Create a temporary buffer to hold the input data
+    char *buffer = (char *)malloc(size + 1);
+    if (buffer == nullptr) {
+        return 0; // Exit if memory allocation fails
     }
+    
+    // Copy the input data into the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
 
-    // Create a null-terminated string from the input data
-    char *icalString = (char *)malloc(size + 1);
-    if (icalString == NULL) {
-        return 0;
-    }
-    memcpy(icalString, data, size);
-    icalString[size] = '\0';
-
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(icalString);
-    if (component != NULL) {
-        // Define a valid icalcomponent_kind for testing
-        icalcomponent_kind kind = ICAL_VEVENT_COMPONENT;
-
+    // Parse the input data as an iCalendar component
+    component = icalparser_parse_string(buffer);
+    if (component != nullptr) {
         // Call the function-under-test
-        int count = icalcomponent_count_components(component, kind);
+        recurrence_id = icalcomponent_get_recurrenceid(component);
 
-        // Clean up
+        // Clean up the component
         icalcomponent_free(component);
     }
 
-    free(icalString);
+    // Free the buffer
+    free(buffer);
+
     return 0;
 }
 #ifdef INC_MAIN

@@ -1,64 +1,48 @@
 #include <sys/stat.h>
-#include <string.h>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stdlib.h>
+#include "libical/ical.h"
 
 extern "C" {
-    #include "libical/ical.h"
+    #include <string.h> // Include the string.h library for memcpy
 }
 
 extern "C" int LLVMFuzzerTestOneInput_41(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to create a valid string for the timezone.
-    if (size < 1) {
-        return 0;
-    }
-
-    // Create a dummy icalcomponent
+    // Allocate memory for the icalcomponent
     icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+
+    // Ensure the component is not NULL
     if (component == NULL) {
         return 0;
     }
 
-    // Create a null-terminated string from the input data for the timezone name
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new to icalcomponent_set_parent
-    icalcomponent* ret_icalcomponent_new_xpatch_cgtnc = icalcomponent_new_xpatch();
-    if (ret_icalcomponent_new_xpatch_cgtnc == NULL){
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!ret_icalcomponent_new_xpatch_cgtnc) {
-    	return 0;
-    }
-    icalcomponent_set_parent(component, ret_icalcomponent_new_xpatch_cgtnc);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    char *timezone_name = (char *)malloc(size + 1);
-    if (timezone_name == NULL) {
+    // Create a temporary buffer to hold the input data
+    char *temp_buffer = (char *)malloc(size + 1);
+    if (temp_buffer == NULL) {
         icalcomponent_free(component);
         return 0;
     }
-    memcpy(timezone_name, data, size);
-    timezone_name[size] = '\0';
 
-    // Create a timezone using the input data
-    icaltimezone *timezone = icaltimezone_get_builtin_timezone(timezone_name);
+    // Copy the input data to the temporary buffer and null-terminate it
+    memcpy(temp_buffer, data, size);
+    temp_buffer[size] = '\0';
 
-    // If the timezone is valid, add it to the component
-    if (timezone != NULL) {
-        icalproperty *tz_property = icalproperty_new_tzid(timezone_name);
-        if (tz_property != NULL) {
-            icalcomponent_add_property(component, tz_property);
-        }
+    // Parse the input data into the icalcomponent
+    icalcomponent *parsed_component = icalparser_parse_string(temp_buffer);
+
+    // Free the temporary buffer
+    free(temp_buffer);
+
+    // If parsing was successful, check restrictions
+    if (parsed_component != NULL) {
+        // Call the function-under-test
+        bool result = icalcomponent_check_restrictions(parsed_component);
+
+        // Free the parsed component
+        icalcomponent_free(parsed_component);
     }
 
-    // Free allocated resources
-    free(timezone_name);
+    // Free the original component
     icalcomponent_free(component);
 
     return 0;

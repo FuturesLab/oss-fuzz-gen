@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_set_sequence at icalcomponent.c:1955:6 in icalcomponent.h
-// icalcomponent_get_sequence at icalcomponent.c:1967:5 in icalcomponent.h
-// icalcomponent_get_inner at icalcomponent.c:1490:16 in icalcomponent.h
-// icalcomponent_get_next_component at icalcomponent.c:627:16 in icalcomponent.h
-// icalcomponent_set_dtstart at icalcomponent.c:1533:6 in icalcomponent.h
-// icalcomponent_new_valarm at icalcomponent.c:2045:16 in icalcomponent.h
+// icalcomponent_string_to_kind at icalcomponent.c:1367:20 in icalcomponent.h
+// icalcomponent_kind_to_string at icalcomponent.c:1354:13 in icalcomponent.h
+// icalcomponent_get_component_name at icalcomponent.c:386:13 in icalcomponent.h
+// icalcomponent_clone at icalcomponent.c:137:16 in icalcomponent.h
+// icalcomponent_new_from_string at icalcomponent.c:132:16 in icalcomponent.h
+// icalcomponent_isa at icalcomponent.c:324:20 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,54 +14,77 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <libical/icalcomponent.h>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include <libical/icaltime.h>
+#include "icalcomponent.h"
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+
+static void fuzz_icalcomponent_clone(icalcomponent *component) {
+    if (component) {
+        icalcomponent *cloned = icalcomponent_clone(component);
+        if (cloned) {
+            icalcomponent_free(cloned);
+        }
+    }
+}
+
+static void fuzz_icalcomponent_kind_to_string(icalcomponent_kind kind) {
+    const char *kind_str = icalcomponent_kind_to_string(kind);
+    if (kind_str) {
+        // Use the string for further operations if needed
+    }
+}
+
+static void fuzz_icalcomponent_isa(icalcomponent *component) {
+    if (component) {
+        icalcomponent_kind kind = icalcomponent_isa(component);
+        fuzz_icalcomponent_kind_to_string(kind);
+    }
+}
+
+static void fuzz_icalcomponent_string_to_kind(const char *string) {
+    icalcomponent_kind kind = icalcomponent_string_to_kind(string);
+    fuzz_icalcomponent_kind_to_string(kind);
+}
+
+static void fuzz_icalcomponent_get_component_name(icalcomponent *component) {
+    if (component) {
+        const char *name = icalcomponent_get_component_name(component);
+        if (name) {
+            // Use the name for further operations if needed
+        }
+    }
+}
+
+static void fuzz_icalcomponent_new_from_string(const char *str) {
+    icalcomponent *component = icalcomponent_new_from_string(str);
+    if (component) {
+        fuzz_icalcomponent_clone(component);
+        fuzz_icalcomponent_isa(component);
+        fuzz_icalcomponent_get_component_name(component);
+        icalcomponent_free(component);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_48(const uint8_t *Data, size_t Size) {
-    // Create a dummy file to use with functions that require file input
-    std::ofstream dummyFile("./dummy_file");
-    if (dummyFile.is_open()) {
-        dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-        dummyFile.close();
-    }
+    if (Size == 0) return 0;
 
-    // Initialize a new VCALENDAR component
-    icalcomponent *calendar = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    if (!calendar) return 0;
+    // Create a null-terminated string from the input data
+    char *input = static_cast<char *>(malloc(Size + 1));
+    if (!input) return 0;
+    memcpy(input, Data, Size);
+    input[Size] = '\0';
 
-    // Fuzz icalcomponent_get_inner
-    icalcomponent *inner = icalcomponent_get_inner(calendar);
-
-    // Fuzz icalcomponent_set_dtstart
-    struct icaltimetype dtstart = icaltime_from_string("20231015T123000Z");
-    icalcomponent_set_dtstart(calendar, dtstart);
-
-    // Fuzz icalcomponent_get_sequence
-    int sequence = icalcomponent_get_sequence(calendar);
-
-    // Fuzz icalcomponent_get_next_component
-    icalcomponent *nextComponent = icalcomponent_get_next_component(calendar, ICAL_VEVENT_COMPONENT);
-
-    // Fuzz icalcomponent_new_valarm
-    icalcomponent *valarm = icalcomponent_new_valarm();
-    if (valarm) {
-        icalcomponent_add_component(calendar, valarm);
-    }
-
-    // Fuzz icalcomponent_set_sequence
-    icalcomponent_set_sequence(calendar, sequence + 1);
+    // Fuzz different functions
+    fuzz_icalcomponent_string_to_kind(input);
+    fuzz_icalcomponent_new_from_string(input);
 
     // Clean up
-    icalcomponent_free(calendar);
-
+    free(input);
     return 0;
 }
     #ifdef INC_MAIN

@@ -1,13 +1,24 @@
-#include <libical/ical.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>  // Include for uint8_t
+#include <cstddef>  // Include for size_t
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_40(const uint8_t *data, size_t size) {
     // Call the function-under-test
     icalcomponent *component = icalcomponent_new_vresource();
 
-    // Perform cleanup if necessary
+    // Perform any necessary operations on the component
+    // For instance, you can convert it to a string and print it
     if (component != NULL) {
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // Print the component string (or perform other operations)
+            // printf("%s\n", component_str); // Uncomment to print
+        }
+
+        // Free the component after use
         icalcomponent_free(component);
     }
 

@@ -1,45 +1,42 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <assert.h>
 #include <stdlib.h>
-#include <string.h>
+#include <string.h>  // Include for memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_123(const uint8_t *data, size_t size) {
-    // Initialize the library
-    icalerror_clear_errno();
-
-    // Create a temporary string buffer to hold the input data
-    char *input = (char *)malloc(size + 1);
-    if (input == NULL) {
-        return 0; // Exit if memory allocation fails
-    }
-    memcpy(input, data, size);
-    input[size] = '\0'; // Null-terminate the string
-
-    // Parse the input data into an icalcomponent
-    icalcomponent *comp = icalparser_parse_string(input);
-    free(input);
-
-    if (comp == NULL) {
-        return 0; // Exit if parsing fails
+    // Ensure size is sufficient to create a valid icalcomponent
+    if (size == 0) {
+        return 0;
     }
 
-    // Iterate over properties using icalcomponent_get_first_property
-    icalproperty *prop;
-    for (prop = icalcomponent_get_first_property(comp, ICAL_ANY_PROPERTY);
-         prop != NULL;
-         prop = icalcomponent_get_next_property(comp, ICAL_ANY_PROPERTY)) {
-        // Perform operations on the property if needed
-        // For now, just assert that the property is not NULL
-        assert(prop != NULL);
+    // Create a temporary string from the input data
+    char *ical_str = (char *)malloc(size + 1);
+    if (!ical_str) {
+        return 0;
     }
+    memcpy(ical_str, data, size);
+    ical_str[size] = '\0'; // Null-terminate the string
+
+    // Parse the string into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(ical_str);
+    free(ical_str);
+
+    if (component == NULL) {
+        return 0;
+    }
+
+    // Clone the component
+    icalcomponent *cloned_component = icalcomponent_clone(component);
 
     // Clean up
-    icalcomponent_free(comp);
+    icalcomponent_free(component);
+    if (cloned_component != NULL) {
+        icalcomponent_free(cloned_component);
+    }
 
     return 0;
 }

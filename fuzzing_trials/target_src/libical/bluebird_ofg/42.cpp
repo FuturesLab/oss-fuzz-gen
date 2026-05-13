@@ -1,43 +1,46 @@
 #include <sys/stat.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stddef.h>
+#include <string.h> // Include for memcpy
 
 extern "C" {
-    #include "libical/ical.h"
+    #include "libical/ical.h" // Assuming the correct path for ical.h
 }
 
 extern "C" int LLVMFuzzerTestOneInput_42(const uint8_t *data, size_t size) {
-    // Initialize a memory context for the icalcomponent
-    icalcomponent *component = nullptr;
-
-    // Ensure the data is not empty
+    // Ensure the input data is not empty
     if (size == 0) {
         return 0;
     }
 
-    // Convert the input data to a string
-    char *ical_string = (char *)malloc(size + 1);
-    if (ical_string == nullptr) {
-        return 0;
-    }
-    memcpy(ical_string, data, size);
-    ical_string[size] = '\0';
+    // Create a temporary buffer to hold the input data
+    char *buffer = new char[size + 1];
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
 
-    // Parse the string into an icalcomponent
-    component = icalparser_parse_string(ical_string);
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(buffer);
 
-    // Ensure the component is not NULL
-    if (component != nullptr) {
+    // Check if the component was successfully created
+    if (component != NULL) {
         // Call the function-under-test
-        bool result = icalcomponent_check_restrictions(component);
+        struct icaltimetype dtstart = icalcomponent_get_dtstart(component);
 
         // Clean up the component
+
+        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_get_dtstart to icalcomponent_set_due using the plateau pool
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        icalcomponent_set_due(component, dtstart);
+        // End mutation: Producer.SPLICE_MUTATOR
+        
         icalcomponent_free(component);
     }
 
-    // Free the allocated string
-    free(ical_string);
+    // Clean up the buffer
+    delete[] buffer;
 
     return 0;
 }

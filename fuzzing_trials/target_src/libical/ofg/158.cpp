@@ -1,32 +1,39 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstddef>  // Include for size_t
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
-#include <libical/ical.h>
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_158(const uint8_t *data, size_t size) {
-    // Initialize two icalcomponent pointers
-    icalcomponent *parent = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    icalcomponent *child = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalcomponent *component = nullptr;
+    
+    if (size > 0) {
+        // Create a temporary buffer to hold the data
+        char *buffer = (char *)malloc(size + 1);
+        if (buffer == nullptr) {
+            return 0;
+        }
 
-    // Ensure both components are not NULL
-    if (parent == NULL || child == NULL) {
-        if (parent != NULL) {
-            icalcomponent_free(parent);
-        }
-        if (child != NULL) {
-            icalcomponent_free(child);
-        }
-        return 0;
+        // Copy the data into the buffer and null-terminate it
+        memcpy(buffer, data, size);
+        buffer[size] = '\0';
+
+        // Parse the data into an icalcomponent
+        component = icalparser_parse_string(buffer);
+
+        // Free the buffer
+        free(buffer);
     }
 
-    // Add the child component to the parent component
-    icalcomponent_add_component(parent, child);
+    // If parsing was successful, call the function under test
+    if (component != nullptr) {
+        icalcomponent_convert_errors(component);
 
-    // Clean up by freeing the parent component
-    // The child component is automatically freed when the parent is freed
-    icalcomponent_free(parent);
+        // Free the icalcomponent
+        icalcomponent_free(component);
+    }
 
     return 0;
 }

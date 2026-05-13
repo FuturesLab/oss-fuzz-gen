@@ -1,5 +1,6 @@
 #include <sys/stat.h>
 #include <string.h>
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -8,55 +9,60 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
-#include "libical/ical.h"
+#include <iostream>
+#include <string>
+#include <cstdlib>
+#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
+
+static icalcomponent* create_random_component() {
+    int kind_index = rand() % ICAL_NUM_COMPONENT_TYPES;
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(kind_index);
+    return icalcomponent_new(kind);
 }
 
-#include <cstdint>
-#include <cstring>
-#include <fstream>
+static void set_random_property(icalcomponent* comp, const char* data, size_t size) {
+    if (size == 0) return;
 
-static void writeToFile(const char* filename, const char* data, size_t size) {
-    std::ofstream file(filename, std::ios::binary);
-    file.write(data, size);
-    file.close();
+    switch (rand() % 6) {
+        case 0:
+            icalcomponent_set_location(comp, data);
+            break;
+        case 1:
+            icalcomponent_set_description(comp, data);
+            break;
+        case 2:
+            icalcomponent_set_comment(comp, data);
+            break;
+        case 3:
+            icalcomponent_set_summary(comp, data);
+            break;
+        case 4:
+            icalcomponent_set_relcalid(comp, data);
+            break;
+        case 5:
+            icalcomponent_set_uid(comp, data);
+            break;
+    }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_3(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size == 0) return 0;
 
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-    icalcomponent* comp = icalcomponent_new(kind);
+    char* buffer = new char[Size + 1];
+    memcpy(buffer, Data, Size);
+    buffer[Size] = '\0';
 
-    if (!comp) return 0;
-
-    const char* strData = reinterpret_cast<const char*>(Data);
-    size_t strSize = Size > 1 ? Size - 1 : 0;
-
-    // Create a null-terminated string
-    std::string safeStr(strData, strSize);
-
-    if (strSize > 0) {
-        icalcomponent_set_uid(comp, safeStr.c_str());
-        icalcomponent_set_comment(comp, safeStr.c_str());
-        icalcomponent_set_location(comp, safeStr.c_str());
-        icalcomponent_set_summary(comp, safeStr.c_str());
-        icalcomponent_set_x_name(comp, safeStr.c_str());
-
-        const char* summary = icalcomponent_get_summary(comp);
-        if (summary) {
-            writeToFile("./dummy_file", summary, strlen(summary));
-        }
+    icalcomponent* comp = create_random_component();
+    if (comp != nullptr) {
+        set_random_property(comp, buffer, Size);
+        icalcomponent_free(comp);
     }
 
-    icalcomponent_free(comp);
+    delete[] buffer;
     return 0;
 }
 #ifdef INC_MAIN

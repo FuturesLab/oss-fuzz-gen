@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_get_status at icalcomponent.c:2002:26 in icalcomponent.h
-// icalcomponent_set_status at icalcomponent.c:1990:6 in icalcomponent.h
-// icalcomponent_new_vtimezone at icalcomponent.c:2055:16 in icalcomponent.h
-// icalcomponent_isa at icalcomponent.c:304:20 in icalcomponent.h
-// icalcomponent_new_valarm at icalcomponent.c:2045:16 in icalcomponent.h
-// icalcomponent_set_summary at icalcomponent.c:1734:6 in icalcomponent.h
+// icalcomponent_remove_property_by_kind at icalcomponent.c:468:6 in icalcomponent.h
+// icalcomponent_get_first_property at icalcomponent.c:517:15 in icalcomponent.h
+// icalcomponent_get_next_property at icalcomponent.c:532:15 in icalcomponent.h
+// icalcomponent_begin_property at icalcomponent.c:1495:14 in icalcomponent.h
+// icalcomponent_get_first_component at icalcomponent.c:654:16 in icalcomponent.h
+// icalcomponent_count_properties at icalcomponent.c:490:5 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,40 +16,65 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
+#include <cstdint>
 #include <cstring>
-#include <cassert>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalcomponent.h"
+#include <icalcomponent.h>
+
+static void initialize_dummy_component(icalcomponent *component) {
+    // Initialize the component with some dummy properties
+    for (int i = 0; i < 5; ++i) {
+        icalproperty *prop = icalproperty_new(ICAL_SUMMARY_PROPERTY);
+        icalcomponent_add_property(component, prop);
+    }
+}
+
+static icalcomponent* create_dummy_component() {
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    initialize_dummy_component(component);
+    return component;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Create a new VTIMEZONE component
-    icalcomponent *vtimezone = icalcomponent_new_vtimezone();
-    assert(vtimezone != nullptr);
+    icalcomponent *component = create_dummy_component();
+    icalproperty_kind kind = static_cast<icalproperty_kind>(Data[0]);
 
-    // Create a new VALARM component
-    icalcomponent *valarm = icalcomponent_new_valarm();
-    assert(valarm != nullptr);
+    // Test icalcomponent_remove_property_by_kind
+    icalcomponent_remove_property_by_kind(component, kind);
 
-    // Determine the kind of the components
-    icalcomponent_kind kind_vtimezone = icalcomponent_isa(vtimezone);
-    icalcomponent_kind kind_valarm = icalcomponent_isa(valarm);
+    // Test icalcomponent_get_first_property
+    icalproperty *first_property = icalcomponent_get_first_property(component, kind);
+    if (first_property) {
+        // Do something with first_property if needed
+    }
 
-    // Set a summary for the VTIMEZONE component
-    std::string summary(reinterpret_cast<const char*>(Data), Size);
-    icalcomponent_set_summary(vtimezone, summary.c_str());
+    // Test icalcomponent_get_next_property
+    icalproperty *next_property = icalcomponent_get_next_property(component, kind);
+    if (next_property) {
+        // Do something with next_property if needed
+    }
 
-    // Get and set status for the VALARM component
-    icalproperty_status status = icalcomponent_get_status(valarm);
-    icalcomponent_set_status(valarm, ICAL_STATUS_TENTATIVE);
+    // Test icalcomponent_count_properties
+    int count = icalcomponent_count_properties(component, kind);
 
-    // Clean up components
-    icalcomponent_free(vtimezone);
-    icalcomponent_free(valarm);
+    // Test icalcomponent_get_first_component
+    icalcomponent_kind comp_kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+    icalcomponent *first_component = icalcomponent_get_first_component(component, comp_kind);
+    if (first_component) {
+        // Do something with first_component if needed
+    }
 
+    // Test icalcomponent_begin_property
+    icalpropiter prop_iter = icalcomponent_begin_property(component, kind);
+    if (icalpropiter_is_valid(&prop_iter)) {
+        // Iterate through properties if needed
+    }
+
+    icalcomponent_free(component);
     return 0;
 }
     #ifdef INC_MAIN

@@ -1,30 +1,38 @@
+#include <libical/ical.h>
 #include <cstdint>
 #include <cstdlib>
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_130(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_xpatch();
+    // Initialize an icalcomponent from the input data
+    icalcomponent *component = nullptr;
 
-    // Check if the component is not NULL
-    if (component != NULL) {
-        // Perform operations on the component if needed
-        // For example, convert the component to a string and print it
-        char *component_str = icalcomponent_as_ical_string(component);
-        if (component_str != NULL) {
-            // Print the component string (for debugging purposes)
-            // printf("%s\n", component_str);
+    // Ensure the data size is sufficient to create a valid component string
+    if (size > 0) {
+        // Create a temporary buffer to store the component string
+        char *comp_str = (char *)malloc(size + 1);
+        if (comp_str == nullptr) {
+            return 0;
         }
 
-        // Free the component string if allocated
-        if (component_str != NULL) {
-            icalmemory_free_buffer(component_str);
-        }
+        // Copy the data into the buffer and null-terminate it
+        memcpy(comp_str, data, size);
+        comp_str[size] = '\0';
 
-        // Free the component
+        // Parse the component string into an icalcomponent
+        component = icalparser_parse_string(comp_str);
+
+        // Free the temporary buffer
+        free(comp_str);
+    }
+
+    // If a valid component was created, call the function-under-test
+    if (component != nullptr) {
+        icalproperty *property = icalcomponent_get_current_property(component);
+
+        // Perform any additional operations or checks on the property if needed
+
+        // Free the component after use
         icalcomponent_free(component);
     }
 

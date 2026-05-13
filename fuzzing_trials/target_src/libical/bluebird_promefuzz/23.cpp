@@ -10,8 +10,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <iostream>
-#include <fstream>
-#include <cstring>
+#include <cstdint>
 #include <cstdlib>
 #include "libical/ical.h"
 #include "libical/ical.h"
@@ -19,96 +18,40 @@
 #include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size == 0) {
         return 0;
     }
 
-    // Create a string from the input data
-    std::string icalStr(reinterpret_cast<const char*>(Data), Size);
-
-    // Use the icalcomponent_new_from_string function
-    icalcomponent *component = icalcomponent_new_from_string(icalStr.c_str());
-
-    if (component) {
-        // Use the icalcomponent_get_location function
-        const char *location = icalcomponent_get_location(component);
-
-        // Use the icalcomponent_isa function
-        icalcomponent_kind kind = icalcomponent_isa(component);
-
-        // Use the icalcomponent_get_recurrenceid function
-        struct icaltimetype recurrenceId = icalcomponent_get_recurrenceid(component);
-
-        // Loop through different component kinds for icalcomponent_get_first_component
-        for (int kindIndex = ICAL_NO_COMPONENT; kindIndex < ICAL_NUM_COMPONENT_TYPES; ++kindIndex) {
-            icalcomponent *firstComponent = icalcomponent_get_first_component(component, static_cast<icalcomponent_kind>(kindIndex));
-            // Just to simulate usage
-            if (firstComponent) {
-                const char *comment = icalcomponent_get_comment(firstComponent);
-            
-                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_comment to icalcomponent_set_duration
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!firstComponent) {
-                	return 0;
-                }
-
-                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_comment to icalcomponent_set_dtend
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!firstComponent) {
-                	return 0;
-                }
-                struct icaltimetype ret_icalcomponent_get_due_bmdiv = icalcomponent_get_due(firstComponent);
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!firstComponent) {
-                	return 0;
-                }
-                icalcomponent_set_dtend(firstComponent, ret_icalcomponent_get_due_bmdiv);
-                // End mutation: Producer.APPEND_MUTATOR
-                
-                struct icaldurationtype ret_icalcomponent_get_duration_qchvp = icalcomponent_get_duration(firstComponent);
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!firstComponent) {
-                	return 0;
-                }
-                icalcomponent_set_duration(firstComponent, ret_icalcomponent_get_duration_qchvp);
-                // End mutation: Producer.APPEND_MUTATOR
-                
-}
-        }
-
-        // Use the icalcomponent_get_comment function
-        const char *comment = icalcomponent_get_comment(component);
-
-        // Free the component
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
-        icalcomponent_normalize(component);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Create a vJournal component and free it
+    icalcomponent *vjournal = icalcomponent_new_vjournal();
+    if (vjournal) {
+        icalcomponent_free(vjournal);
     }
 
+    // Create an xAvailable component and free it
+    icalcomponent *xavailable = icalcomponent_new_xavailable();
+    if (xavailable) {
+        icalcomponent_free(xavailable);
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new_from_string to icalcomponent_get_timezone
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
+    // Create an xVote component and free it
+    icalcomponent *xvote = icalcomponent_new_xvote();
+    if (xvote) {
+        icalcomponent_free(xvote);
     }
-    char* ret_icalcomponent_as_ical_string_vtbic = icalcomponent_as_ical_string(component);
-    if (ret_icalcomponent_as_ical_string_vtbic == NULL){
-    	return 0;
+
+    // Create a participant component and free it
+    icalcomponent *participant = icalcomponent_new_participant();
+    if (participant) {
+        icalcomponent_free(participant);
     }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
+
+    // Create a vAlarm component and free it
+    icalcomponent *valarm = icalcomponent_new_valarm();
+    if (valarm) {
+        icalcomponent_free(valarm);
     }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!ret_icalcomponent_as_ical_string_vtbic) {
-    	return 0;
-    }
-    icaltimezone* ret_icalcomponent_get_timezone_pqykh = icalcomponent_get_timezone(component, ret_icalcomponent_as_ical_string_vtbic);
-    if (ret_icalcomponent_get_timezone_pqykh == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
+
     return 0;
 }
 #ifdef INC_MAIN

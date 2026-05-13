@@ -1,20 +1,34 @@
 #include <libical/ical.h>
 #include <cstdint>
 #include <cstdlib>
+#include <cstring> // Include for memcpy
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_110(const uint8_t *data, size_t size) {
-    // Initialize an icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (!component) {
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize an icalcompiter
-    icalcompiter iter;
-    iter = icalcomponent_begin_component(component, ICAL_ANY_COMPONENT);
+    // Initialize an icalcomponent from the input data
+    char *ical_string = (char *)malloc(size + 1);
+    if (ical_string == NULL) {
+        return 0;
+    }
+    memcpy(ical_string, data, size);
+    ical_string[size] = '\0';
 
-    // Call the function-under-test
-    icalcomponent *result = icalcompiter_next(&iter);
+    icalcomponent *component = icalparser_parse_string(ical_string);
+    free(ical_string);
+
+    if (component == NULL) {
+        return 0;
+    }
+
+    // Fuzz the icalcomponent_get_inner function
+    icalcomponent *inner_component = icalcomponent_get_inner(component);
 
     // Clean up
     icalcomponent_free(component);

@@ -11,69 +11,50 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
+#include <iostream>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_25(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    if (Size < 1) return 0;
+
+    // Test icalcomponent_new with different kinds
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+    icalcomponent *comp = icalcomponent_new(kind);
+    if (comp) {
+        icalcomponent_free(comp);
     }
 
-    // Step 1: Create a null-terminated string from the input data
-    char *inputStr = static_cast<char *>(malloc(Size + 1));
-    if (!inputStr) {
-        return 0;
+    // Test icalcomponent_new_vresource
+    icalcomponent *vresourceComp = icalcomponent_new_vresource();
+    if (vresourceComp) {
+        icalcomponent_free(vresourceComp);
     }
-    memcpy(inputStr, Data, Size);
-    inputStr[Size] = '\0';
 
-    // Step 2: Create an icalcomponent from the input string
-    icalcomponent *component = icalcomponent_new_from_string(inputStr);
-    free(inputStr);
+    // Test icalcomponent_new_xpatch
+    icalcomponent *xpatchComp = icalcomponent_new_xpatch();
+    if (xpatchComp) {
+        icalcomponent_free(xpatchComp);
+    }
 
-    if (component) {
-        // Step 3: Test icalcomponent_get_component_name_r
-        char *componentName = icalcomponent_get_component_name_r(component);
-        if (componentName) {
-            free(componentName);
-        }
+    // Test icalcomponent_new_vvoter
+    icalcomponent *vvoterComp = icalcomponent_new_vvoter();
+    if (vvoterComp) {
+        icalcomponent_free(vvoterComp);
+    }
 
-        // Step 4: Test icalcomponent_as_ical_string_r
-        char *icalStringR = icalcomponent_as_ical_string_r(component);
-        if (icalStringR) {
-            free(icalStringR);
-        }
+    // Test icalcomponent_new_vquery
+    icalcomponent *vqueryComp = icalcomponent_new_vquery();
+    if (vqueryComp) {
+        icalcomponent_free(vqueryComp);
+    }
 
-        // Step 5: Test icalcomponent_as_ical_string
-        char *icalString = icalcomponent_as_ical_string(component);
-        if (icalString) {
-            free(icalString);
-        }
-
-        // Step 6: Test icalcomponent_set_summary
-        const char *summaryText = "Sample Summary";
-        icalcomponent_set_summary(component, summaryText);
-
-        // Step 7: Test icalcomponent_get_comment
-
-        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_set_summary to icalcomponent_get_span using the plateau pool
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
-        	return 0;
-        }
-        struct icaltime_span ret_icalcomponent_get_span_cajvc = icalcomponent_get_span(component);
-        // End mutation: Producer.SPLICE_MUTATOR
-        
-        const char *comment = icalcomponent_get_comment(component);
-        if (comment) {
-            // Do something with the comment if needed
-        }
-
-        // Clean up the icalcomponent
-        icalcomponent_free(component);
+    // Test icalcomponent_new_xstandard
+    icalcomponent *xstandardComp = icalcomponent_new_xstandard();
+    if (xstandardComp) {
+        icalcomponent_free(xstandardComp);
     }
 
     return 0;

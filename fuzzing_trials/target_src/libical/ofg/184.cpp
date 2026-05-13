@@ -1,42 +1,28 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h>  // Include string.h for memcpy
+#include <cstdint> // Include standard library for uint8_t
+#include <cstdlib> // Include standard library for size_t
 
 extern "C" {
-    #include <libical/ical.h>  // Assuming the correct path for libical header
+    #include <libical/ical.h> // Include the libical library within extern "C"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_184(const uint8_t *data, size_t size) {
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_xavailable();
 
-    // Ensure the input data is not empty and has a reasonable size
-    if (size > 0 && size < 1024) {
-        // Create a temporary buffer to store the input data as a string
-        char *input_data = (char *)malloc(size + 1);
-        if (input_data != NULL) {
-            // Copy the input data and null-terminate it
-            memcpy(input_data, data, size);
-            input_data[size] = '\0';
-
-            // Set the summary of the component using the input data
-            icalcomponent_set_summary(component, input_data);
-
-            // Call the function-under-test
-            const char *summary = icalcomponent_get_summary(component);
-
-            // Optionally, perform some checks or operations with the summary
-            if (summary != NULL) {
-                // Example operation: print the summary
-                // printf("Summary: %s\n", summary);
-            }
-
-            // Free the allocated memory for input_data
-            free(input_data);
+    // Check if the component was created successfully
+    if (component != NULL) {
+        // Perform operations on the component if needed
+        // For the purpose of this fuzzing, we can convert it to a string and free it
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // Normally, you might want to do something with the string
+            // For fuzzing, we just ensure it doesn't crash and then free it
+            icalmemory_free_buffer(component_str);
         }
-    }
 
-    // Clean up the component
-    icalcomponent_free(component);
+        // Free the component to avoid memory leaks
+        icalcomponent_free(component);
+    }
 
     return 0;
 }

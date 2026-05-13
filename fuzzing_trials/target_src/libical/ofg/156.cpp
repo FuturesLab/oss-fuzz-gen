@@ -1,34 +1,36 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_156(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for a null-terminated string
-    if (size == 0) return 0;
-
-    // Create a new icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) return 0;
-
-    // Create a null-terminated string from the input data
-    char *relcalid = (char *)malloc(size + 1);
-    if (relcalid == NULL) {
-        icalcomponent_free(component);
+    // Ensure the input data is null-terminated for safe string operations
+    char *input_data = (char *)malloc(size + 1);
+    if (input_data == NULL) {
         return 0;
     }
-    memcpy(relcalid, data, size);
-    relcalid[size] = '\0';
+    memcpy(input_data, data, size);
+    input_data[size] = '\0';
 
-    // Call the function-under-test
-    icalcomponent_set_relcalid(component, relcalid);
+    // Parse the input data into an icalcomponent
+    icalcomponent *child_component = icalparser_parse_string(input_data);
+    free(input_data);
 
-    // Clean up
-    free(relcalid);
-    icalcomponent_free(component);
+    // Initialize a parent icalcomponent
+    icalcomponent *parent_component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+
+    // Ensure the child component is not NULL
+    if (child_component == NULL) {
+        icalcomponent_free(parent_component);
+        return 0;
+    }
+
+    // Add the parsed child component to the parent component
+    icalcomponent_add_component(parent_component, child_component);
+
+    // Clean up by freeing the components
+    icalcomponent_free(parent_component);
+    // Note: child_component is already added to parent_component and will be freed with it
 
     return 0;
 }

@@ -1,46 +1,39 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
-#include <string.h>
-#include <libical/ical.h>
+#include <string.h> // Include string.h for memcpy
 
 extern "C" {
-    #include <libical/ical.h>
+    #include <libical/ical.h> // Assuming the correct path for ical.h
 }
 
 extern "C" int LLVMFuzzerTestOneInput_37(const uint8_t *data, size_t size) {
-    // Initialize the iCalendar component
-    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    // Initialize an icalcomponent object
+    icalcomponent *component = icalcomponent_new(ICAL_NO_COMPONENT);
 
     // Ensure the component is not NULL
     if (component == NULL) {
         return 0;
     }
 
-    // Create a string from the fuzzing data
-    char *ical_str = (char *)malloc(size + 1);
-    if (ical_str == NULL) {
+    // Create a temporary buffer to store the data as a string
+    char *buffer = (char *)malloc(size + 1);
+    if (buffer == NULL) {
         icalcomponent_free(component);
         return 0;
     }
-    memcpy(ical_str, data, size);
-    ical_str[size] = '\0';
 
-    // Parse the iCalendar data into the component
-    icalcomponent *parsed_component = icalparser_parse_string(ical_str);
-    if (parsed_component != NULL) {
-        // Call the function-under-test
-        int sequence = icalcomponent_get_sequence(parsed_component);
+    // Copy the data into the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
 
-        // Optionally, use the sequence number for further logic
-        (void)sequence; // Suppress unused variable warning
+    // Set the comment property of the component using the buffer
+    icalcomponent_set_comment(component, buffer);
 
-        // Free the parsed component
-        icalcomponent_free(parsed_component);
-    }
+    // Call the function-under-test
+    const char *comment = icalcomponent_get_comment(component);
 
-    // Free allocated resources
-    free(ical_str);
+    // Free the allocated memory
+    free(buffer);
     icalcomponent_free(component);
 
     return 0;

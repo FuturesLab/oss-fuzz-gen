@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_get_timezone at icalcomponent.c:2430:15 in icalcomponent.h
-// icalcomponent_new_xdaylight at icalcomponent.c:2065:16 in icalcomponent.h
-// icalcomponent_new_vtimezone at icalcomponent.c:2055:16 in icalcomponent.h
-// icalcomponent_add_component at icalcomponent.c:509:6 in icalcomponent.h
-// icalcomponent_add_property at icalcomponent.c:385:6 in icalcomponent.h
-// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
+// icalcomponent_vanew at icalcomponent.c:113:16 in icalcomponent.h
+// icalcomponent_new at icalcomponent.c:108:16 in icalcomponent.h
+// icalcomponent_new_vvoter at icalcomponent.c:2164:16 in icalcomponent.h
+// icalcomponent_new_vpoll at icalcomponent.c:2159:16 in icalcomponent.h
+// icalcomponent_new_xstandard at icalcomponent.c:2124:16 in icalcomponent.h
+// icalcomponent_new_xvote at icalcomponent.c:2169:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,62 +15,68 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <iostream>
+#include <cstdarg>
+#include <cstdio>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalcomponent.h"
+#include <icalcomponent.h>
+
+static void fuzz_icalcomponent_new(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(icalcomponent_kind)) return;
+
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(*Data);
+    icalcomponent *component = icalcomponent_new(kind);
+    if (component) {
+        icalcomponent_free(component);
+    }
+}
+
+static void fuzz_icalcomponent_new_vvoter() {
+    icalcomponent *component = icalcomponent_new_vvoter();
+    if (component) {
+        icalcomponent_free(component);
+    }
+}
+
+static void fuzz_icalcomponent_vanew(const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(icalcomponent_kind)) return;
+
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(*Data);
+    icalcomponent *component = icalcomponent_vanew(kind, nullptr);
+    if (component) {
+        icalcomponent_free(component);
+    }
+}
+
+static void fuzz_icalcomponent_new_xstandard() {
+    icalcomponent *component = icalcomponent_new_xstandard();
+    if (component) {
+        icalcomponent_free(component);
+    }
+}
+
+static void fuzz_icalcomponent_new_xvote() {
+    icalcomponent *component = icalcomponent_new_xvote();
+    if (component) {
+        icalcomponent_free(component);
+    }
+}
+
+static void fuzz_icalcomponent_new_vpoll() {
+    icalcomponent *component = icalcomponent_new_vpoll();
+    if (component) {
+        icalcomponent_free(component);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_53(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Create a new XPATCH component
-    icalcomponent *xpatch_component = icalcomponent_new_xpatch();
-    if (!xpatch_component) return 0;
-
-    // Create a new XDAYLIGHT component
-    icalcomponent *xdaylight_component = icalcomponent_new_xdaylight();
-    if (!xdaylight_component) {
-        icalcomponent_free(xpatch_component);
-        return 0;
-    }
-
-    // Create a new VTIMEZONE component
-    icalcomponent *vtimezone_component = icalcomponent_new_vtimezone();
-    if (!vtimezone_component) {
-        icalcomponent_free(xpatch_component);
-        icalcomponent_free(xdaylight_component);
-        return 0;
-    }
-
-    // Add the XDAYLIGHT component to the XPATCH component
-    icalcomponent_add_component(xpatch_component, xdaylight_component);
-
-    // Add the VTIMEZONE component to the XPATCH component
-    icalcomponent_add_component(xpatch_component, vtimezone_component);
-
-    // Create a property and add it to the XPATCH component
-    icalproperty *property = icalproperty_new(ICAL_TZID_PROPERTY);
-    if (property) {
-        icalcomponent_add_property(xpatch_component, property);
-    }
-
-    // Use the data to get a timezone from the XPATCH component
-    char tzid[256];
-    size_t tzid_length = Size < 255 ? Size : 255;
-    memcpy(tzid, Data, tzid_length);
-    tzid[tzid_length] = '\0';
-
-    icaltimezone *timezone = icalcomponent_get_timezone(xpatch_component, tzid);
-
-    // Clean up
-    if (timezone) {
-        // Assume some usage of timezone
-    }
-    icalcomponent_free(xpatch_component);
-
+    fuzz_icalcomponent_new(Data, Size);
+    fuzz_icalcomponent_new_vvoter();
+    fuzz_icalcomponent_vanew(Data, Size);
+    fuzz_icalcomponent_new_xstandard();
+    fuzz_icalcomponent_new_xvote();
+    fuzz_icalcomponent_new_vpoll();
     return 0;
 }
     #ifdef INC_MAIN

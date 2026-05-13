@@ -1,21 +1,43 @@
-#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_154(const uint8_t *data, size_t size) {
-    // Initialize the iCalendar component
-    icalcomponent *parent = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    icalcomponent *child = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    // Ensure the input size is sufficient for a null-terminated string
+    if (size == 0) return 0;
 
-    // Ensure the child component is added to the parent
-    icalcomponent_add_component(parent, child);
+    // Create a null-terminated string from the input data
+    char *relcalid = (char *)malloc(size + 1);
+    if (relcalid == NULL) return 0;
+    memcpy(relcalid, data, size);
+    relcalid[size] = '\0';
 
-    // Call the function-under-test with the parent and child components
-    icalcomponent_remove_component(parent, child);
+    // Create a new icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
+        free(relcalid);
+        return 0;
+    }
+
+    // Call the function-under-test
+    icalcomponent_set_relcalid(component, relcalid);
+
+    // Additional operations to ensure code coverage
+    const char *retrieved_relcalid = icalcomponent_get_relcalid(component);
+    if (retrieved_relcalid != NULL) {
+        // Perform some operation with the retrieved_relcalid
+        printf("Retrieved relcalid: %s\n", retrieved_relcalid);
+    }
 
     // Clean up
-    icalcomponent_free(parent);
-    // Note: The child component is freed when the parent is freed
+    icalcomponent_free(component);
+    free(relcalid);
 
     return 0;
 }

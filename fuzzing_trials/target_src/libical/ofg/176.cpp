@@ -1,41 +1,22 @@
-#include <libical/ical.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint> // Include for uint8_t
+#include <cstddef> // Include for size_t
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_176(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient to create a property
-    if (size < 2) {
-        return 0;
+    // Initialize a dummy icalcomponent to avoid passing NULL
+    icalcomponent *dummy_component = icalcomponent_new(ICAL_NO_COMPONENT);
+    if (dummy_component == NULL) {
+        return 0; // Exit if component creation fails
     }
-
-    // Create a new icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        return 0;
-    }
-
-    // Create a new icalproperty
-    icalproperty *property = icalproperty_new(ICAL_SUMMARY_PROPERTY);
-    if (property == NULL) {
-        icalcomponent_free(component);
-        return 0;
-    }
-
-    // Use the input data to set a value for the property
-    char value[size + 1];
-    for (size_t i = 0; i < size; ++i) {
-        value[i] = static_cast<char>(data[i]);
-    }
-    value[size] = '\0'; // Null-terminate the string
-
-    icalproperty_set_summary(property, value);
 
     // Call the function-under-test
-    icalcomponent_add_property(component, property);
+    icalcomponent *parent = icalcomponent_get_parent(dummy_component);
 
     // Clean up
-    icalcomponent_free(component);
-    // Note: The property is freed when the component is freed
+    icalcomponent_free(dummy_component);
 
     return 0;
 }

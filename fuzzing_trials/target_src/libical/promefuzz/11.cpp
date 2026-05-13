@@ -1,10 +1,9 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_new_xstandard at icalcomponent.c:2060:16 in icalcomponent.h
-// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
-// icalcomponent_new_vvoter at icalcomponent.c:2100:16 in icalcomponent.h
-// icalcomponent_new_vresource at icalcomponent.c:2130:16 in icalcomponent.h
-// icalcomponent_add_component at icalcomponent.c:509:6 in icalcomponent.h
-// icalcomponent_new_xdaylight at icalcomponent.c:2065:16 in icalcomponent.h
+// icalcomponent_count_errors at icalcomponent.c:1166:5 in icalcomponent.h
+// icalcomponent_count_properties at icalcomponent.c:490:5 in icalcomponent.h
+// icalcomponent_convert_errors at icalcomponent.c:1211:6 in icalcomponent.h
+// icalcomponent_new_vpoll at icalcomponent.c:2159:16 in icalcomponent.h
+// icalcomponent_new_vfreebusy at icalcomponent.c:2114:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,56 +13,48 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <icalcomponent.h>
-#include <iostream>
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *Data, size_t Size) {
-    // Initialize components using the target API functions
-    icalcomponent *vresource = nullptr;
-    icalcomponent *xstandard = nullptr;
-    icalcomponent *vvoter = nullptr;
-    icalcomponent *xdaylight = nullptr;
-    icalcomponent *xpatch = nullptr;
+    if (Size == 0) return 0;
 
-    try {
-        vresource = icalcomponent_new_vresource();
-        xstandard = icalcomponent_new_xstandard();
-        vvoter = icalcomponent_new_vvoter();
-        xdaylight = icalcomponent_new_xdaylight();
-        xpatch = icalcomponent_new_xpatch();
+    // Test icalcomponent_new_vpoll
+    icalcomponent *vpoll = icalcomponent_new_vpoll();
+    if (vpoll) {
+        // Test icalcomponent_convert_errors
+        icalcomponent_convert_errors(vpoll);
 
-        // Create an array of components to add to a parent
-        icalcomponent *components[] = {vresource, xstandard, vvoter, xdaylight, xpatch};
+        // Test icalcomponent_count_properties
+        int property_count = icalcomponent_count_properties(vpoll, ICAL_ANY_PROPERTY);
 
-        // Create a parent component
-        icalcomponent *parent = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+        // Test icalcomponent_count_errors
+        int error_count = icalcomponent_count_errors(vpoll);
 
-        // Add each component to the parent
-        for (icalcomponent *child : components) {
-            if (child != nullptr && parent != nullptr) {
-                icalcomponent_add_component(parent, child);
-            }
-        }
+        // Free the component
+        icalcomponent_free(vpoll);
+    }
 
-        // Clean up by freeing the parent component, which should recursively free children
-        if (parent != nullptr) {
-            icalcomponent_free(parent);
-        } else {
-            // Free components individually if parent creation failed
-            for (icalcomponent *child : components) {
-                if (child != nullptr) {
-                    icalcomponent_free(child);
-                }
-            }
-        }
-    } catch (...) {
-        // Catch all exceptions to prevent fuzzer from crashing
-        std::cerr << "Exception caught during fuzzing" << std::endl;
+    // Test icalcomponent_new_vfreebusy
+    icalcomponent *vfreebusy = icalcomponent_new_vfreebusy();
+    if (vfreebusy) {
+        // Test icalcomponent_convert_errors
+        icalcomponent_convert_errors(vfreebusy);
+
+        // Test icalcomponent_count_properties
+        int property_count = icalcomponent_count_properties(vfreebusy, ICAL_ANY_PROPERTY);
+
+        // Test icalcomponent_count_errors
+        int error_count = icalcomponent_count_errors(vfreebusy);
+
+        // Free the component
+        icalcomponent_free(vfreebusy);
     }
 
     return 0;

@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_get_parent at icalcomponent.c:1226:16 in icalcomponent.h
-// icalcomponent_set_parent at icalcomponent.c:1231:6 in icalcomponent.h
-// icalcomponent_remove_component at icalcomponent.c:543:6 in icalcomponent.h
-// icalcomponent_add_component at icalcomponent.c:509:6 in icalcomponent.h
-// icalcomponent_new_vtimezone at icalcomponent.c:2055:16 in icalcomponent.h
-// icalcomponent_isa at icalcomponent.c:304:20 in icalcomponent.h
+// icalcomponent_new_vpatch at icalcomponent.c:2174:16 in icalcomponent.h
+// icalcomponent_new_vevent at icalcomponent.c:2094:16 in icalcomponent.h
+// icalcomponent_new_vresource at icalcomponent.c:2194:16 in icalcomponent.h
+// icalcomponent_new_vcalendar at icalcomponent.c:2089:16 in icalcomponent.h
+// icalcomponent_new_vreply at icalcomponent.c:2144:16 in icalcomponent.h
+// icalcomponent_new_vquery at icalcomponent.c:2139:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,68 +14,48 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <cstdlib>
-#include <cstdint>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalcomponent.h"
-
-static icalcomponent* createRandomComponent() {
-    icalcomponent_kind kinds[] = {
-        ICAL_VEVENT_COMPONENT,
-        ICAL_VTODO_COMPONENT,
-        ICAL_VJOURNAL_COMPONENT,
-        ICAL_VCALENDAR_COMPONENT,
-        ICAL_VAGENDA_COMPONENT,
-        ICAL_VFREEBUSY_COMPONENT,
-        ICAL_VALARM_COMPONENT,
-        ICAL_VTIMEZONE_COMPONENT,
-        ICAL_VAVAILABILITY_COMPONENT,
-        ICAL_VPOLL_COMPONENT,
-        ICAL_VLOCATION_COMPONENT,
-        ICAL_VRESOURCE_COMPONENT
-    };
-    int randomIndex = rand() % (sizeof(kinds) / sizeof(kinds[0]));
-    icalcomponent *comp = icalcomponent_new(kinds[randomIndex]);
-    return comp;
-}
+#include <icalcomponent.h>
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    icalcomponent *parent = createRandomComponent();
-    icalcomponent *child = createRandomComponent();
-
-    // Test icalcomponent_add_component
-    icalcomponent_add_component(parent, child);
-
-    // Test icalcomponent_get_parent
-    icalcomponent *retrievedParent = icalcomponent_get_parent(child);
-
-    // Test icalcomponent_isa
-    icalcomponent_kind kind = icalcomponent_isa(child);
-
-    // Test icalcomponent_remove_component
-    icalcomponent_remove_component(parent, child);
-
-    // Test icalcomponent_set_parent
-    icalcomponent_set_parent(child, parent);
-
-    // Test icalcomponent_new_vtimezone
-    icalcomponent *vtimezone = icalcomponent_new_vtimezone();
-
-    // Clean up
-    if (parent) {
-        icalcomponent_free(parent);
+    // Fuzz icalcomponent_new_vresource
+    icalcomponent *vresource = icalcomponent_new_vresource();
+    if (vresource) {
+        icalcomponent_free(vresource);
     }
-    if (child) {
-        icalcomponent_free(child);
+
+    // Fuzz icalcomponent_new_vpatch
+    icalcomponent *vpatch = icalcomponent_new_vpatch();
+    if (vpatch) {
+        icalcomponent_free(vpatch);
     }
-    if (vtimezone) {
-        icalcomponent_free(vtimezone);
+
+    // Fuzz icalcomponent_new_vevent
+    icalcomponent *vevent = icalcomponent_new_vevent();
+    if (vevent) {
+        icalcomponent_free(vevent);
+    }
+
+    // Fuzz icalcomponent_new_vquery
+    icalcomponent *vquery = icalcomponent_new_vquery();
+    if (vquery) {
+        icalcomponent_free(vquery);
+    }
+
+    // Fuzz icalcomponent_new_vreply
+    icalcomponent *vreply = icalcomponent_new_vreply();
+    if (vreply) {
+        icalcomponent_free(vreply);
+    }
+
+    // Fuzz icalcomponent_new_vcalendar
+    icalcomponent *vcalendar = icalcomponent_new_vcalendar();
+    if (vcalendar) {
+        icalcomponent_free(vcalendar);
     }
 
     return 0;

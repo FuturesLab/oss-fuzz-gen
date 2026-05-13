@@ -11,99 +11,85 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
-#include <cstring>
-#include <cstdlib>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icalproperty.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icaltime.h"
+
+static icalcomponent* create_component_from_data(const uint8_t* Data, size_t Size) {
+    // Create a dummy VEVENT component for testing
+    icalcomponent* comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (Size > 0) {
+        std::string dataStr(reinterpret_cast<const char*>(Data), Size);
+        struct icaltimetype tt = icaltime_from_string(dataStr.c_str());
+        if (!icaltime_is_null_time(tt)) {
+            icalproperty* prop = icalproperty_new_dtstart(tt);
+            if (prop) {
+                icalcomponent_add_property(comp, prop);
+            }
+        }
+    }
+    return comp;
+}
+
+static icalproperty* create_property_from_data(const uint8_t* Data, size_t Size) {
+    // Create a dummy DTSTART property for testing
+    if (Size > 0) {
+        std::string dataStr(reinterpret_cast<const char*>(Data), Size);
+        struct icaltimetype tt = icaltime_from_string(dataStr.c_str());
+        if (!icaltime_is_null_time(tt)) {
+            return icalproperty_new_dtstart(tt);
+        }
+    }
+    return nullptr;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_40(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    icalcomponent* comp = create_component_from_data(Data, Size);
+    icalproperty* prop = create_property_from_data(Data, Size);
 
-    // Create a string from the input data
-    std::string icalStr(reinterpret_cast<const char*>(Data), Size);
-
-    // Use the icalcomponent_new_from_string function
-    icalcomponent *component = icalcomponent_new_from_string(icalStr.c_str());
-
-    if (component) {
-        // Use the icalcomponent_get_location function
-        const char *location = icalcomponent_get_location(component);
-
-        // Use the icalcomponent_isa function
-        icalcomponent_kind kind = icalcomponent_isa(component);
-
-        // Use the icalcomponent_get_recurrenceid function
-        struct icaltimetype recurrenceId = icalcomponent_get_recurrenceid(component);
-
-        // Loop through different component kinds for icalcomponent_get_first_component
-        for (int kindIndex = ICAL_NO_COMPONENT; kindIndex < ICAL_NUM_COMPONENT_TYPES; ++kindIndex) {
-            icalcomponent *firstComponent = icalcomponent_get_first_component(component, static_cast<icalcomponent_kind>(kindIndex));
-            // Just to simulate usage
-            if (firstComponent) {
-                const char *comment = icalcomponent_get_comment(firstComponent);
-            
-                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_comment to icalcomponent_set_duration
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!firstComponent) {
-                	return 0;
-                }
-                struct icaldurationtype ret_icalcomponent_get_duration_qchvp = icalcomponent_get_duration(firstComponent);
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!firstComponent) {
-                	return 0;
-                }
-                icalcomponent_set_duration(firstComponent, ret_icalcomponent_get_duration_qchvp);
-                // End mutation: Producer.APPEND_MUTATOR
-                
-}
+    if (comp && prop) {
+        // Test icalproperty_get_datetime_with_component
+        struct icaltimetype dt = icalproperty_get_datetime_with_component(prop, comp);
+        if (!icaltime_is_null_time(dt)) {
+            icalcomponent_set_dtstamp(comp, dt);
+            icalcomponent_set_dtend(comp, dt);
         }
 
-        // Use the icalcomponent_get_comment function
-        const char *comment = icalcomponent_get_comment(component);
-
-        // Free the component
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
-
-        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_get_comment to icalcomponent_get_status using the plateau pool
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
-        	return 0;
+        // Test icalcomponent_get_dtstart
+        struct icaltimetype dtstart = icalcomponent_get_dtstart(comp);
+        if (!icaltime_is_null_time(dtstart)) {
+            icalcomponent_set_dtstamp(comp, dtstart);
         }
-        enum icalproperty_status ret_icalcomponent_get_status_etjny = icalcomponent_get_status(component);
-        // End mutation: Producer.SPLICE_MUTATOR
-        
-        icalcomponent_normalize(component);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+
+        // Test icalcomponent_get_dtend
+        struct icaltimetype dtend = icalcomponent_get_dtend(comp);
+        if (!icaltime_is_null_time(dtend)) {
+            icalcomponent_set_dtstamp(comp, dtend);
+        }
+
+        // Test icalcomponent_get_dtstamp
+        struct icaltimetype dtstamp = icalcomponent_get_dtstamp(comp);
+        if (!icaltime_is_null_time(dtstamp)) {
+            icalcomponent_set_dtend(comp, dtstamp);
+        }
     }
 
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+    if (prop) {
+        icalproperty_free(prop);
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new_from_string to icalcomponent_get_timezone
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
-    }
-    char* ret_icalcomponent_as_ical_string_vtbic = icalcomponent_as_ical_string(component);
-    if (ret_icalcomponent_as_ical_string_vtbic == NULL){
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!ret_icalcomponent_as_ical_string_vtbic) {
-    	return 0;
-    }
-    icaltimezone* ret_icalcomponent_get_timezone_pqykh = icalcomponent_get_timezone(component, ret_icalcomponent_as_ical_string_vtbic);
-    if (ret_icalcomponent_get_timezone_pqykh == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
     return 0;
 }
 #ifdef INC_MAIN

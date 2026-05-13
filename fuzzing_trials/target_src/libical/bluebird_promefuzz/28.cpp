@@ -12,79 +12,91 @@
 #include <iostream>
 #include <fstream>
 #include <cstring>
-#include <cstdlib>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
+static icalcomponent* create_icalcomponent_from_data(const uint8_t *Data, size_t Size) {
+    // For simplicity, assume the data is a string representation of an icalcomponent
+    char *dataStr = static_cast<char*>(malloc(Size + 1));
+    if (!dataStr) {
+        return nullptr;
+    }
+    memcpy(dataStr, Data, Size);
+    dataStr[Size] = '\0';
+
+    icalcomponent *comp = icalcomponent_new_from_string(dataStr);
+    free(dataStr);
+    return comp;
+}
+
 extern "C" int LLVMFuzzerTestOneInput_28(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size == 0) {
         return 0;
     }
 
-    // Create a string from the input data
-    std::string icalStr(reinterpret_cast<const char*>(Data), Size);
-
-    // Use the icalcomponent_new_from_string function
-    icalcomponent *component = icalcomponent_new_from_string(icalStr.c_str());
-
-    if (component) {
-        // Use the icalcomponent_get_location function
-        const char *location = icalcomponent_get_location(component);
-
-        // Use the icalcomponent_isa function
-        icalcomponent_kind kind = icalcomponent_isa(component);
-
-        // Use the icalcomponent_get_recurrenceid function
-        struct icaltimetype recurrenceId = icalcomponent_get_recurrenceid(component);
-
-        // Loop through different component kinds for icalcomponent_get_first_component
-        for (int kindIndex = ICAL_NO_COMPONENT; kindIndex < ICAL_NUM_COMPONENT_TYPES; ++kindIndex) {
-            icalcomponent *firstComponent = icalcomponent_get_first_component(component, static_cast<icalcomponent_kind>(kindIndex));
-            // Just to simulate usage
-            if (firstComponent) {
-                const char *comment = icalcomponent_get_comment(firstComponent);
-            
-                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_comment to icalcomponent_set_duration
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!firstComponent) {
-                	return 0;
-                }
-                struct icaldurationtype ret_icalcomponent_get_duration_qchvp = icalcomponent_get_duration(firstComponent);
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!firstComponent) {
-                	return 0;
-                }
-                icalcomponent_set_duration(firstComponent, ret_icalcomponent_get_duration_qchvp);
-                // End mutation: Producer.APPEND_MUTATOR
-                
-}
-        }
-
-        // Use the icalcomponent_get_comment function
-        const char *comment = icalcomponent_get_comment(component);
-
-        // Free the component
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
-        icalcomponent_normalize(component);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    icalcomponent *comp = create_icalcomponent_from_data(Data, Size);
+    if (!comp) {
+        return 0;
     }
 
+    // Fuzz icalcomponent_get_uid
+    const char *uid = icalcomponent_get_uid(comp);
+    if (uid) {
+        std::cout << "UID: " << uid << std::endl;
+    }
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new_from_string to icalcomponent_set_dtstamp
+    // Fuzz icalcomponent_get_x_name (assuming this is the correct function)
+
+    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_get_uid to icalcomponent_set_duration using the plateau pool
+    struct icaldurationtype duration;
     // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
+    if (!comp) {
     	return 0;
     }
-    struct icaltimetype ret_icalcomponent_get_dtend_toxpw = icalcomponent_get_dtend(component);
+    icalcomponent_set_duration(comp, duration);
+    // End mutation: Producer.SPLICE_MUTATOR
+    
+    const char *x_name = icalcomponent_get_x_name(comp);
+    if (x_name) {
+        std::cout << "X Name: " << x_name << std::endl;
+    }
+
+    // Fuzz icalcomponent_get_relcalid
+    const char *relcalid = icalcomponent_get_relcalid(comp);
+    if (relcalid) {
+        std::cout << "RELCALID: " << relcalid << std::endl;
+    }
+
+    // Fuzz icalcomponent_as_ical_string_r
+    char *ical_str = icalcomponent_as_ical_string_r(comp);
+    if (ical_str) {
+        std::cout << "ICAL String: " << ical_str << std::endl;
+        free(ical_str);
+    }
+
+    // Fuzz icalcomponent_get_description
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_get_description with icalcomponent_get_comment
+    const char *description = icalcomponent_get_comment(comp);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    if (description) {
+        std::cout << "Description: " << description << std::endl;
+    }
+
+    // Fuzz icalcomponent_normalize
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_description to icalcomponent_get_dtend
     // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
+    if (!comp) {
     	return 0;
     }
-    icalcomponent_set_dtstamp(component, ret_icalcomponent_get_dtend_toxpw);
+    struct icaltimetype ret_icalcomponent_get_dtend_uwtgi = icalcomponent_get_dtend(comp);
     // End mutation: Producer.APPEND_MUTATOR
     
+    icalcomponent_normalize(comp);
+
+    icalcomponent_free(comp);
     return 0;
 }
 #ifdef INC_MAIN

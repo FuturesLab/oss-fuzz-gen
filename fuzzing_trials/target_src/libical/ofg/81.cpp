@@ -4,31 +4,39 @@
 #include <string.h>
 
 extern "C" {
-    #include <libical/ical.h>
+    #include <libical/ical.h> // Correct include path for the ical library
+
+    // Function signature from the project
+    void icalcomponent_set_x_name(icalcomponent *, const char *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_81(const uint8_t *data, size_t size) {
-    // Initialize variables
+    // Initialize icalcomponent
     icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    char *x_name = nullptr;
-
-    // Ensure the input size is sufficient to create a null-terminated string
-    if (size > 0) {
-        // Allocate memory for x_name and copy data into it
-        x_name = (char *)malloc(size + 1);
-        if (x_name != nullptr) {
-            memcpy(x_name, data, size);
-            x_name[size] = '\0'; // Null-terminate the string
-
-            // Call the function-under-test
-            icalcomponent_set_x_name(component, x_name);
-
-            // Free the allocated memory for x_name
-            free(x_name);
-        }
+    if (component == NULL) {
+        return 0; // Exit if initialization fails
     }
 
-    // Clean up the component
+    // Ensure the data size is reasonable for a string
+    if (size == 0 || size > 1000) { // Arbitrary limit to avoid excessive allocation
+        icalcomponent_free(component);
+        return 0;
+    }
+
+    // Convert data to a null-terminated string
+    char *x_name = (char *)malloc(size + 1);
+    if (x_name == NULL) {
+        icalcomponent_free(component);
+        return 0; // Exit if memory allocation fails
+    }
+    memcpy(x_name, data, size);
+    x_name[size] = '\0'; // Null-terminate the string
+
+    // Call the function-under-test
+    icalcomponent_set_x_name(component, x_name);
+
+    // Clean up
+    free(x_name);
     icalcomponent_free(component);
 
     return 0;

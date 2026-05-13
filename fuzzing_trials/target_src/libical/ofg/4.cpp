@@ -1,24 +1,25 @@
 #include <stdint.h>
 #include <stdbool.h>
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to read an icalcomponent_kind
+    // Ensure there is enough data to read an icalcomponent_kind value
     if (size < sizeof(icalcomponent_kind)) {
         return 0;
     }
 
-    // Interpret the input data as an icalcomponent_kind
+    // Cast the input data to icalcomponent_kind
     icalcomponent_kind kind = *(const icalcomponent_kind *)data;
 
     // Call the function-under-test
-    bool result = icalcomponent_kind_is_valid(kind);
+    bool is_valid = icalcomponent_kind_is_valid(kind);
 
-    // Use the result in some way to avoid compiler optimizations
-    (void)result;
+    // Use the result to prevent the compiler from optimizing away the call
+    if (is_valid) {
+        // Do something trivial
+        volatile int dummy = 0;
+        (void)dummy;
+    }
 
     return 0;
 }

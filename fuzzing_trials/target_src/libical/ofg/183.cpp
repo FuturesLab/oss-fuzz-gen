@@ -1,35 +1,32 @@
-#include <stdint.h>
-#include <stdlib.h>
 #include <libical/ical.h>
+#include <stdint.h>
+#include <stddef.h>
 
-extern "C" {
+extern "C" int LLVMFuzzerTestOneInput_183(const uint8_t *data, size_t size) {
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_xavailable();
 
-// Define a callback function that matches the expected signature
-void recurrence_callback(const icalcomponent *comp, const struct icaltime_span *span, void *data) {
-    // This is a placeholder callback function
-    // In a real scenario, you might want to do something meaningful here
-}
+    // Perform operations on the created component
+    if (component != NULL) {
+        // Example: Add a property to the component
+        icalproperty *prop = icalproperty_new_comment("Fuzzing test");
+        icalcomponent_add_property(component, prop);
 
-int LLVMFuzzerTestOneInput_183(const uint8_t *data, size_t size) {
-    // Initialize icalcomponent and icaltimetype structures
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    struct icaltimetype start_time = icaltime_from_string("20230101T000000Z");
-    struct icaltimetype end_time = icaltime_from_string("20231231T235959Z");
+        // Example: Convert the component to a string
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // Normally, you might do something with the string here
+            // For fuzzing, we just ensure it doesn't crash
+        }
 
-    // Ensure the component is not NULL before proceeding
-    if (component == NULL) {
-        return 0;
+        // Free the string if it was allocated
+        icalmemory_free_buffer(component_str);
+
+        // Free the component
+        icalcomponent_free(component);
     }
 
-    // Call the function-under-test
-    icalcomponent_foreach_recurrence(component, start_time, end_time, recurrence_callback, NULL);
-
-    // Clean up
-    icalcomponent_free(component);
-
     return 0;
-}
-
 }
 #ifdef INC_MAIN
 #include <stdio.h>

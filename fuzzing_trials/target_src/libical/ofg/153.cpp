@@ -1,28 +1,36 @@
-#include <cstdint> // Include for uint8_t
-#include <cstddef> // Include for size_t
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_153(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_vvoter();
+    // Initialize the iCalendar library
+    icalcomponent *parent_component;
+    icalcomponent *child_component;
 
-    // Check if the component is created successfully
-    if (component != NULL) {
-        // Perform operations on the component if needed
-        // For example, convert it to a string and print (for debugging purposes)
-        char *component_str = icalcomponent_as_ical_string(component);
-        if (component_str != NULL) {
-            // In a real fuzzing scenario, you might want to do more with the string
-            // Here, we simply print it (commented out to avoid cluttering output)
-            // printf("%s\n", component_str);
-        }
-
-        // Free the component after use
-        icalcomponent_free(component);
+    // Create a dummy parent component
+    parent_component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    if (parent_component == NULL) {
+        return 0;
     }
+
+    // Create a dummy child component
+    child_component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (child_component == NULL) {
+        icalcomponent_free(parent_component);
+        return 0;
+    }
+
+    // Add the child component to the parent component
+    icalcomponent_add_component(parent_component, child_component);
+
+    // Fuzz the function by removing the child component from the parent
+    icalcomponent_remove_component(parent_component, child_component);
+
+    // Free the parent component
+    icalcomponent_free(parent_component);
 
     return 0;
 }

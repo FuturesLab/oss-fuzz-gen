@@ -1,88 +1,72 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_get_next_component at icalcomponent.c:627:16 in icalcomponent.h
-// icalcomponent_get_first_component at icalcomponent.c:611:16 in icalcomponent.h
-// icalcomponent_isa at icalcomponent.c:304:20 in icalcomponent.h
-// icalcomponent_get_first_real_component at icalcomponent.c:647:16 in icalcomponent.h
-// icalcomponent_get_inner at icalcomponent.c:1490:16 in icalcomponent.h
-// icalcomponent_get_dtend at icalcomponent.c:1566:21 in icalcomponent.h
+// icalcomponent_set_x_name at icalcomponent.c:344:6 in icalcomponent.h
+// icalcomponent_get_x_name at icalcomponent.c:357:13 in icalcomponent.h
+// icalcomponent_as_ical_string_r at icalcomponent.c:245:7 in icalcomponent.h
+// icalcomponent_get_relcalid at icalcomponent.c:2639:13 in icalcomponent.h
+// icalcomponent_get_uid at icalcomponent.c:1880:13 in icalcomponent.h
 #include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <cstring>
-#include <cstdlib>
-#include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
+#include <cstring>
+extern "C" {
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <libical/icalcomponent.h>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include <libical/icaltime.h>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include <libical/icaltimezone.h>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include <libical/icalarray.h>
+#include "icalcomponent.h"
+}
+
+static icalcomponent* createComponentFromData(const uint8_t* Data, size_t Size) {
+    icalcomponent* comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (!comp) {
+        return nullptr;
+    }
+    icalcomponent_set_x_name(comp, "X-NAME-FUZZ");
+    return comp;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icalcomponent_kind)) return 0;
-
-    // Create a dummy VCALENDAR component
-    icalcomponent *root = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    if (!root) return 0;
-
-    // Create a dummy VEVENT component
-    icalcomponent *event = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (!event) {
-        icalcomponent_free(root);
+    icalcomponent* comp = createComponentFromData(Data, Size);
+    if (!comp) {
         return 0;
     }
 
-    // Add the VEVENT to the VCALENDAR
-    icalcomponent_add_component(root, event);
-
-    // Read a kind from the input data
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0]);
-
-    // Invoke icalcomponent_get_next_component
-    icalcomponent *next_component = icalcomponent_get_next_component(root, kind);
-    if (next_component) {
-        icalcomponent_isa(next_component);
+    // Test icalcomponent_get_x_name
+    const char* x_name = icalcomponent_get_x_name(comp);
+    if (x_name) {
+        // Do something with x_name if needed
     }
 
-    // Invoke icalcomponent_get_first_component
-    icalcomponent *first_component = icalcomponent_get_first_component(root, kind);
-    if (first_component) {
-        icalcomponent_isa(first_component);
+    // Test icalcomponent_get_uid
+    const char* uid = icalcomponent_get_uid(comp);
+    if (uid) {
+        // Do something with uid if needed
     }
 
-    // Invoke icalcomponent_get_first_real_component
-    const icalcomponent *first_real_component = icalcomponent_get_first_real_component(root);
-    if (first_real_component) {
-        icalcomponent_isa(first_real_component);
+    // Test icalcomponent_get_relcalid
+    const char* relcalid = icalcomponent_get_relcalid(comp);
+    if (relcalid) {
+        // Do something with relcalid if needed
     }
 
-    // Invoke icalcomponent_get_inner
-    icalcomponent *inner_component = icalcomponent_get_inner(root);
-    if (inner_component) {
-        icalcomponent_isa(inner_component);
+    // Test icalcomponent_as_ical_string_r
+    char* ical_string = icalcomponent_as_ical_string_r(comp);
+    if (ical_string) {
+        // Do something with ical_string if needed
+        icalmemory_free_buffer(ical_string);
     }
 
-    // Invoke icalcomponent_get_dtend
-    struct icaltimetype dtend = icalcomponent_get_dtend(event);
-    (void)dtend; // Use dtend to avoid unused variable warning
+    // Test icalcomponent_set_x_name with different data
+    // Ensure the data is null-terminated before setting it as X-NAME
+    char* safe_data = (char*)malloc(Size + 1);
+    if (safe_data) {
+        memcpy(safe_data, Data, Size);
+        safe_data[Size] = '\0';
+        icalcomponent_set_x_name(comp, safe_data);
+        free(safe_data);
+    }
 
     // Clean up
-    icalcomponent_free(root);
+    icalcomponent_free(comp);
 
     return 0;
 }

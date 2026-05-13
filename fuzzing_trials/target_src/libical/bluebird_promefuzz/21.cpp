@@ -9,58 +9,85 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
+#include <iostream>
+#include <fstream>
+#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
-#include <iostream>
+
+static icalcomponent* create_icalcomponent_from_data(const uint8_t *Data, size_t Size) {
+    // For simplicity, assume the data is a string representation of an icalcomponent
+    char *dataStr = static_cast<char*>(malloc(Size + 1));
+    if (!dataStr) {
+        return nullptr;
+    }
+    memcpy(dataStr, Data, Size);
+    dataStr[Size] = '\0';
+
+    icalcomponent *comp = icalcomponent_new_from_string(dataStr);
+    free(dataStr);
+    return comp;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *Data, size_t Size) {
-    // Initialize components using the target API functions
-    icalcomponent *vresource = nullptr;
-    icalcomponent *xstandard = nullptr;
-    icalcomponent *vvoter = nullptr;
-    icalcomponent *xdaylight = nullptr;
-    icalcomponent *xpatch = nullptr;
-
-    try {
-        vresource = icalcomponent_new_vresource();
-        xstandard = icalcomponent_new_xstandard();
-        vvoter = icalcomponent_new_vvoter();
-        xdaylight = icalcomponent_new_xdaylight();
-        xpatch = icalcomponent_new_xpatch();
-
-        // Create an array of components to add to a parent
-        icalcomponent *components[] = {vresource, xstandard, vvoter, xdaylight, xpatch};
-
-        // Create a parent component
-        icalcomponent *parent = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-
-        // Add each component to the parent
-        for (icalcomponent *child : components) {
-            if (child != nullptr && parent != nullptr) {
-                icalcomponent_add_component(parent, child);
-            }
-        }
-
-        // Clean up by freeing the parent component, which should recursively free children
-        if (parent != nullptr) {
-            icalcomponent_free(parent);
-        } else {
-            // Free components individually if parent creation failed
-            for (icalcomponent *child : components) {
-                if (child != nullptr) {
-                    icalcomponent_free(child);
-                }
-            }
-        }
-    } catch (...) {
-        // Catch all exceptions to prevent fuzzer from crashing
-        std::cerr << "Exception caught during fuzzing" << std::endl;
+    if (Size == 0) {
+        return 0;
     }
 
+    icalcomponent *comp = create_icalcomponent_from_data(Data, Size);
+    if (!comp) {
+        return 0;
+    }
+
+    // Fuzz icalcomponent_get_uid
+    const char *uid = icalcomponent_get_uid(comp);
+    if (uid) {
+        std::cout << "UID: " << uid << std::endl;
+    }
+
+    // Fuzz icalcomponent_get_x_name (assuming this is the correct function)
+    const char *x_name = icalcomponent_get_x_name(comp);
+    if (x_name) {
+        std::cout << "X Name: " << x_name << std::endl;
+    }
+
+    // Fuzz icalcomponent_get_relcalid
+    const char *relcalid = icalcomponent_get_relcalid(comp);
+    if (relcalid) {
+        std::cout << "RELCALID: " << relcalid << std::endl;
+    }
+
+    // Fuzz icalcomponent_as_ical_string_r
+    char *ical_str = icalcomponent_as_ical_string_r(comp);
+    if (ical_str) {
+        std::cout << "ICAL String: " << ical_str << std::endl;
+        free(ical_str);
+    }
+
+    // Fuzz icalcomponent_get_description
+    const char *description = icalcomponent_get_description(comp);
+    if (description) {
+        std::cout << "Description: " << description << std::endl;
+    }
+
+    // Fuzz icalcomponent_normalize
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_description to icalcomponent_count_errors
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
+    }
+    int ret_icalcomponent_count_errors_gedit = icalcomponent_count_errors(comp);
+    if (ret_icalcomponent_count_errors_gedit < 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    icalcomponent_normalize(comp);
+
+    icalcomponent_free(comp);
     return 0;
 }
 #ifdef INC_MAIN

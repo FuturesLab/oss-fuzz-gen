@@ -1,50 +1,40 @@
 #include <sys/stat.h>
-#include <string.h>
-#include "libical/ical.h"
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h> // Include for memcpy
+
+extern "C" {
+    #include "libical/ical.h" // Assuming the correct path for ical.h
+}
 
 extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
-    // Ensure that the input data is not empty
+    // Ensure the input data is not empty
     if (size == 0) {
         return 0;
     }
 
     // Create a temporary buffer to hold the input data
-    char *buffer = static_cast<char *>(malloc(size + 1));
-    if (buffer == nullptr) {
-        return 0;
-    }
-
-    // Copy the input data into the buffer and null-terminate it
+    char *buffer = new char[size + 1];
     memcpy(buffer, data, size);
     buffer[size] = '\0';
 
-    // Parse the buffer into an icalcomponent
+    // Parse the input data into an icalcomponent
     icalcomponent *component = icalparser_parse_string(buffer);
 
-    // If parsing was successful, call the function-under-test
-    if (component != nullptr) {
-        char *icalString = icalcomponent_as_ical_string_r(component);
+    // Check if the component was successfully created
+    if (component != NULL) {
+        // Call the function-under-test
+        struct icaltimetype dtstart = icalcomponent_get_dtstart(component);
 
-        // Free the returned string if it's not null
-        if (icalString != nullptr) {
-            free(icalString);
-        }
+        // Clean up the component
 
-        // Free the icalcomponent
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
-        icalcomponent_normalize(component);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_set_comment
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_dtstart to icalcomponent_set_summary
         // Ensure dataflow is valid (i.e., non-null)
         if (!component) {
         	return 0;
         }
-        char* ret_icalcomponent_as_ical_string_r_gdxvg = icalcomponent_as_ical_string_r(component);
-        if (ret_icalcomponent_as_ical_string_r_gdxvg == NULL){
+        char* ret_icalcomponent_as_ical_string_brfet = icalcomponent_as_ical_string(component);
+        if (ret_icalcomponent_as_ical_string_brfet == NULL){
         	return 0;
         }
         // Ensure dataflow is valid (i.e., non-null)
@@ -52,16 +42,17 @@ extern "C" int LLVMFuzzerTestOneInput_38(const uint8_t *data, size_t size) {
         	return 0;
         }
         // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalcomponent_as_ical_string_r_gdxvg) {
+        if (!ret_icalcomponent_as_ical_string_brfet) {
         	return 0;
         }
-        icalcomponent_set_comment(component, ret_icalcomponent_as_ical_string_r_gdxvg);
+        icalcomponent_set_summary(component, ret_icalcomponent_as_ical_string_brfet);
         // End mutation: Producer.APPEND_MUTATOR
         
-}
+        icalcomponent_free(component);
+    }
 
-    // Free the buffer
-    free(buffer);
+    // Clean up the buffer
+    delete[] buffer;
 
     return 0;
 }

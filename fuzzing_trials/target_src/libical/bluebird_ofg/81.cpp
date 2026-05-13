@@ -1,19 +1,18 @@
 #include <sys/stat.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include "libical/ical.h"
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_81(const uint8_t *data, size_t size) {
-    // Ensure that the input data is not empty
-    if (size == 0) {
+    // Check if the size is sufficient to create a valid icalcomponent
+    if (size < 1) {
         return 0;
     }
 
     // Create a temporary buffer to hold the input data
-    char *buffer = static_cast<char *>(malloc(size + 1));
-    if (buffer == nullptr) {
+    char *buffer = (char *)malloc(size + 1);
+    if (buffer == NULL) {
         return 0;
     }
 
@@ -21,40 +20,26 @@ extern "C" int LLVMFuzzerTestOneInput_81(const uint8_t *data, size_t size) {
     memcpy(buffer, data, size);
     buffer[size] = '\0';
 
-    // Parse the buffer into an icalcomponent
+    // Create an icalcomponent from the buffer
     icalcomponent *component = icalparser_parse_string(buffer);
+    if (component == NULL) {
+        free(buffer);
+        return 0;
+    }
 
-    // If parsing was successful, call the function-under-test
-    if (component != nullptr) {
-        char *icalString = icalcomponent_as_ical_string_r(component);
+    // Call the function-under-test
+    char *component_name = icalcomponent_get_component_name_r(component);
 
-        // Free the returned string if it's not null
-        if (icalString != nullptr) {
-            free(icalString);
-        }
-
-        // Free the icalcomponent
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
-        icalcomponent_normalize(component);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_set_dtstart
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
-        	return 0;
-        }
-        struct icaltimetype ret_icalcomponent_get_dtstamp_yrwmx = icalcomponent_get_dtstamp(component);
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
-        	return 0;
-        }
-        icalcomponent_set_dtstart(component, ret_icalcomponent_get_dtstamp_yrwmx);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-}
+    // Free the component
+    icalcomponent_free(component);
 
     // Free the buffer
     free(buffer);
+
+    // Free the component name if it was allocated
+    if (component_name != NULL) {
+        free(component_name);
+    }
 
     return 0;
 }

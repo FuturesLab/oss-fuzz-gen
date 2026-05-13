@@ -1,24 +1,41 @@
-#include <cstdint>
-#include <cstdlib>
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_124(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent and icalproperty
-    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalproperty *prop = icalproperty_new_summary("Sample Summary");
-    icalcomponent_add_property(comp, prop);
+    // Ensure the data size is sufficient to create a valid string
+    if (size == 0) {
+        return 0;
+    }
 
-    // Use the icalcomponent_get_first_property to initialize the icalpropiter
-    icalproperty *first_prop = icalcomponent_get_first_property(comp, ICAL_ANY_PROPERTY);
+    // Create a null-terminated string from the input data
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
+        return 0;
+    }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0';
 
-    // Call the function-under-test
-    icalproperty *next_prop = icalcomponent_get_next_property(comp, ICAL_ANY_PROPERTY);
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputData);
 
-    // Cleanup
-    icalcomponent_free(comp);
+    // Check if the component was successfully created
+    if (component != NULL) {
+        // Call the function-under-test
+        char *icalString = icalcomponent_as_ical_string_r(component);
+
+        // Free the resulting string if it was created
+        if (icalString != NULL) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+        icalcomponent_free(component);
+    }
+
+    // Free the input data
+    free(inputData);
 
     return 0;
 }

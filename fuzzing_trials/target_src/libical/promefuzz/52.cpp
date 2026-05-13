@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_get_timezone at icalcomponent.c:2430:15 in icalcomponent.h
-// icalcomponent_new_xdaylight at icalcomponent.c:2065:16 in icalcomponent.h
-// icalcomponent_new_vtimezone at icalcomponent.c:2055:16 in icalcomponent.h
-// icalcomponent_add_component at icalcomponent.c:509:6 in icalcomponent.h
-// icalcomponent_add_property at icalcomponent.c:385:6 in icalcomponent.h
-// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
+// icalcomponent_get_parent at icalcomponent.c:1270:16 in icalcomponent.h
+// icalcomponent_free at icalcomponent.c:191:6 in icalcomponent.h
+// icalcomponent_new_vtodo at icalcomponent.c:2099:16 in icalcomponent.h
+// icalcomponent_new_vfreebusy at icalcomponent.c:2114:16 in icalcomponent.h
+// icalcomponent_add_component at icalcomponent.c:552:6 in icalcomponent.h
+// icalcomponent_clone at icalcomponent.c:137:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,9 +14,8 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
-#include <string>
+#include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include "ical.h"
 #include "ical.h"
@@ -26,26 +25,29 @@
 extern "C" int LLVMFuzzerTestOneInput_52(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Create components using the available API functions
-    icalcomponent *xpatchComponent = icalcomponent_new_xpatch();
-    icalcomponent *xdaylightComponent = icalcomponent_new_xdaylight();
-    icalcomponent *vtimezoneComponent = icalcomponent_new_vtimezone();
+    // Create a new VTODO component
+    icalcomponent *vtodo = icalcomponent_new_vtodo();
+    if (!vtodo) return 0;
 
-    // Create a property and add it to a component
-    icalproperty *property = icalproperty_new(ICAL_TZID_PROPERTY);
-    icalcomponent_add_property(xpatchComponent, property);
+    // Clone the VTODO component
+    icalcomponent *cloned_vtodo = icalcomponent_clone(vtodo);
+    if (cloned_vtodo) {
+        // Add the cloned VTODO as a child to the original VTODO
+        icalcomponent_add_component(vtodo, cloned_vtodo);
+    }
 
-    // Add components to a parent component
-    icalcomponent_add_component(xpatchComponent, xdaylightComponent);
-    icalcomponent_add_component(xpatchComponent, vtimezoneComponent);
+    // Create a new VFREEBUSY component
+    icalcomponent *vfreebusy = icalcomponent_new_vfreebusy();
+    if (vfreebusy) {
+        // Add the VFREEBUSY component as a child to the original VTODO
+        icalcomponent_add_component(vtodo, vfreebusy);
+    }
 
-    // Use the input data to create a tzid string and get timezone
-    std::string tzid(reinterpret_cast<const char*>(Data), Size);
-    icaltimezone *timezone = icalcomponent_get_timezone(xpatchComponent, tzid.c_str());
+    // Get the parent of the cloned VTODO
+    icalcomponent *parent_of_cloned = icalcomponent_get_parent(cloned_vtodo);
 
-    // Clean up the created components
-    icalcomponent_free(xpatchComponent);  // This will also free the child components
-    // Property and timezone are managed by the component, no need to free separately
+    // Clean up
+    icalcomponent_free(vtodo); // This should recursively free all components
 
     return 0;
 }

@@ -1,27 +1,68 @@
 #include <sys/stat.h>
-#include <string.h>
 #include "libical/ical.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent and icalproperty
-    icalcomponent *component = icalcomponent_vanew(
-        ICAL_VCALENDAR_COMPONENT,
-        icalproperty_new_version("2.0"),
-        icalproperty_new_prodid("-//Sample Corp//NONSGML Event//EN"),
-        0);
+    // Ensure the data size is sufficient to create a valid string
+    if (size == 0) {
+        return 0;
+    }
 
-    icalproperty *property = icalproperty_new_summary("Sample Event");
+    // Create a null-terminated string from the input data
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
+        return 0;
+    }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0';
 
-    // Add the property to the component
-    icalcomponent_add_property(component, property);
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputData);
 
-    // Fuzzing logic: Attempt to remove the property using the function-under-test
-    icalcomponent_remove_property(component, property);
+    // Check if the component was successfully created
+    if (component != NULL) {
+        // Call the function-under-test
+        char *icalString = icalcomponent_as_ical_string_r(component);
 
-    // Clean up
-    icalcomponent_free(component);
+        // Free the resulting string if it was created
+        if (icalString != NULL) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_set_duration
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        struct icaldurationtype ret_icalcomponent_get_duration_kcsfr = icalcomponent_get_duration(component);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        icalcomponent_set_duration(component, ret_icalcomponent_get_duration_kcsfr);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_duration to icalcomponent_set_method
+        icalproperty_method ret_icalcomponent_get_method_vfygc = icalcomponent_get_method(NULL);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        icalcomponent_set_method(component, ret_icalcomponent_get_method_vfygc);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Free the input data
+    free(inputData);
 
     return 0;
 }

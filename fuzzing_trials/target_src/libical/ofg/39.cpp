@@ -1,26 +1,45 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstddef>  // Include for size_t
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create a valid icalcomponent
+    // Check if the size is sufficient to create a valid icalcomponent
     if (size < 1) {
         return 0;
     }
 
-    // Create a dummy icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    // Create a temporary buffer to hold the input data
+    char *buffer = (char *)malloc(size + 1);
+    if (buffer == NULL) {
+        return 0;
+    }
+
+    // Copy the input data into the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
+
+    // Create an icalcomponent from the buffer
+    icalcomponent *component = icalparser_parse_string(buffer);
+    if (component == NULL) {
+        free(buffer);
+        return 0;
+    }
 
     // Call the function-under-test
     char *component_name = icalcomponent_get_component_name_r(component);
 
-    // Clean up
+    // Free the component
     icalcomponent_free(component);
 
-    // Since component_name is a static string, no need to free it
+    // Free the buffer
+    free(buffer);
+
+    // Free the component name if it was allocated
+    if (component_name != NULL) {
+        free(component_name);
+    }
+
     return 0;
 }
 #ifdef INC_MAIN

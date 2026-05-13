@@ -1,10 +1,9 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_set_due at icalcomponent.c:2634:6 in icalcomponent.h
-// icalcomponent_set_dtstamp at icalcomponent.c:1710:6 in icalcomponent.h
-// icalcomponent_set_dtend at icalcomponent.c:1622:6 in icalcomponent.h
-// icalcomponent_set_dtstart at icalcomponent.c:1533:6 in icalcomponent.h
-// icalcomponent_new_vtimezone at icalcomponent.c:2055:16 in icalcomponent.h
-// icalcomponent_get_dtstart at icalcomponent.c:1553:21 in icalcomponent.h
+// icalcompiter_is_valid at icalcomponent.c:1392:6 in icalcomponent.h
+// icalcompiter_deref at icalcomponent.c:1484:16 in icalcomponent.h
+// icalcomponent_begin_component at icalcomponent.c:1401:14 in icalcomponent.h
+// icalcompiter_next at icalcomponent.c:1446:16 in icalcomponent.h
+// icalcompiter_prior at icalcomponent.c:1465:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,61 +15,39 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
-#include <cstdint>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <libical/icalcomponent.h>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include <libical/icaltime.h>
+#include "icalcomponent.h"
 
-static icaltimetype generate_icaltimetype(const uint8_t *Data, size_t Size) {
-    icaltimetype time = icaltime_null_time();
-    if (Size >= sizeof(int)) {
-        int year;
-        std::memcpy(&year, Data, sizeof(int));
-        time.year = year;
-    }
-    return time;
+static icalcomponent* create_dummy_component() {
+    icalcomponent* component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalcomponent* vevent = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalcomponent_add_component(component, vevent);
+    return component;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_51(const uint8_t *Data, size_t Size) {
-    if (Size == 0) return 0;
-
-    // Create a new VTODO component
-    icalcomponent *vtodo = icalcomponent_new(ICAL_VTODO_COMPONENT);
-    if (!vtodo) return 0;
-
-    // Create icaltimetype from input data
-    icaltimetype due_time = generate_icaltimetype(Data, Size);
-
-    // Fuzz icalcomponent_set_due
-    icalcomponent_set_due(vtodo, due_time);
-
-    // Fuzz icalcomponent_set_dtstart
-    icalcomponent_set_dtstart(vtodo, due_time);
-
-    // Fuzz icalcomponent_set_dtstamp
-    icalcomponent_set_dtstamp(vtodo, due_time);
-
-    // Fuzz icalcomponent_set_dtend
-    icalcomponent_set_dtend(vtodo, due_time);
-
-    // Fuzz icalcomponent_new_vtimezone
-    icalcomponent *vtimezone = icalcomponent_new_vtimezone();
-    if (vtimezone) {
-        icalcomponent_free(vtimezone);
+    if (Size < sizeof(icalcomponent_kind)) {
+        return 0;
     }
 
-    // Fuzz icalcomponent_get_dtstart
-    icaltimetype dtstart_time = icalcomponent_get_dtstart(vtodo);
+    icalcomponent* component = create_dummy_component();
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
 
-    // Clean up
-    icalcomponent_free(vtodo);
+    icalcompiter iter = icalcomponent_begin_component(component, kind);
 
+    if (icalcompiter_is_valid(&iter)) {
+        icalcomponent* current_component = icalcompiter_deref(&iter);
+        if (current_component) {
+            icalcompiter_next(&iter);
+            icalcompiter_prior(&iter);
+        }
+    }
+
+    icalcomponent_free(component);
     return 0;
 }
     #ifdef INC_MAIN

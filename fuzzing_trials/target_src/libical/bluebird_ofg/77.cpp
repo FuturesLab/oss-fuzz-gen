@@ -1,47 +1,79 @@
 #include <sys/stat.h>
+#include "libical/ical.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
-extern "C" {
-    #include "libical/ical.h"
-}
-
 extern "C" int LLVMFuzzerTestOneInput_77(const uint8_t *data, size_t size) {
-    icalcomponent *component = nullptr;
-    icaltimetype due_time;
-
-    // Ensure the data is not empty and can be used to create a component
-    if (size > 0) {
-        // Create a temporary buffer to hold the data
-        char *temp_buffer = new char[size + 1];
-        memcpy(temp_buffer, data, size);
-        temp_buffer[size] = '\0'; // Null-terminate the buffer
-
-        // Parse the data into an icalcomponent
-        component = icalparser_parse_string(temp_buffer);
-
-        // Clean up the temporary buffer
-        delete[] temp_buffer;
+    // Ensure the data size is sufficient to create a valid string
+    if (size == 0) {
+        return 0;
     }
 
-    // Ensure the component is not NULL before calling the function-under-test
-    if (component != nullptr) {
+    // Create a null-terminated string from the input data
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
+        return 0;
+    }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0';
+
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputData);
+
+    // Check if the component was successfully created
+    if (component != NULL) {
         // Call the function-under-test
-        due_time = icalcomponent_get_due(component);
+        char *icalString = icalcomponent_as_ical_string_r(component);
 
-        // Free the component after use
+        // Free the resulting string if it was created
+        if (icalString != NULL) {
+            free(icalString);
+        }
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_due to icalcomponent_set_dtend
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_set_duration
         // Ensure dataflow is valid (i.e., non-null)
         if (!component) {
         	return 0;
         }
-        icalcomponent_set_dtend(component, due_time);
+        struct icaldurationtype ret_icalcomponent_get_duration_kcsfr = icalcomponent_get_duration(component);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_duration to icalcomponent_set_uid
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        char* ret_icalcomponent_get_component_name_r_nlbzb = icalcomponent_get_component_name_r(component);
+        if (ret_icalcomponent_get_component_name_r_nlbzb == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalcomponent_get_component_name_r_nlbzb) {
+        	return 0;
+        }
+        icalcomponent_set_uid(component, ret_icalcomponent_get_component_name_r_nlbzb);
         // End mutation: Producer.APPEND_MUTATOR
         
-        icalcomponent_free(component);
-    }
+        icalcomponent_set_duration(component, ret_icalcomponent_get_duration_kcsfr);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Free the input data
+    free(inputData);
 
     return 0;
 }

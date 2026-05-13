@@ -1,39 +1,23 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstddef>  // Include for size_t
-#include <cstring>  // Include for memcpy
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" int LLVMFuzzerTestOneInput_180(const uint8_t *data, size_t size) {
-    // Check if the size is sufficient to create a valid input for icalcomponent
-    if (size == 0) {
+    // Ensure that the input size is sufficient to extract a valid icalcomponent_kind
+    if (size < sizeof(icalcomponent_kind)) {
         return 0;
     }
 
-    // Create a string from the input data
-    char *inputString = (char *)malloc(size + 1);
-    if (inputString == NULL) {
-        return 0; // If memory allocation fails, exit early
-    }
-    memcpy(inputString, data, size);
-    inputString[size] = '\0'; // Null-terminate the string
+    // Extract an icalcomponent_kind from the input data
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(*data);
 
-    // Parse the input string into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(inputString);
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new(kind);
 
-    // Normally, you would do something with the component here,
-    // such as manipulating it or checking its properties.
-    // Since this is a fuzzing harness, we are primarily interested in
-    // ensuring that the function can handle any input without crashing.
-
-    // Clean up the created component to avoid memory leaks
+    // Clean up the created component if it's not NULL
     if (component != NULL) {
         icalcomponent_free(component);
     }
-
-    free(inputString); // Free the allocated memory for the input string
 
     return 0;
 }

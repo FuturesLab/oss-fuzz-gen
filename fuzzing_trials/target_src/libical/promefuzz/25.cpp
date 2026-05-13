@@ -1,10 +1,7 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_new_vlocation at icalcomponent.c:2125:16 in icalcomponent.h
-// icalcomponent_new_vreply at icalcomponent.c:2080:16 in icalcomponent.h
-// icalcomponent_new_valarm at icalcomponent.c:2045:16 in icalcomponent.h
-// icalcomponent_new_vcalendar at icalcomponent.c:2025:16 in icalcomponent.h
-// icalcomponent_new_vresource at icalcomponent.c:2130:16 in icalcomponent.h
-// icalcomponent_new_vfreebusy at icalcomponent.c:2050:16 in icalcomponent.h
+// icalcomponent_get_component_name_r at icalcomponent.c:395:7 in icalcomponent.h
+// icalcomponent_set_summary at icalcomponent.c:1798:6 in icalcomponent.h
+// icalcomponent_set_description at icalcomponent.c:1949:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,52 +11,46 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalcomponent.h"
-}
-
-#include <cstdint>
-#include <cstdlib>
-
-static void cleanup(icalcomponent *component) {
-    if (component) {
-        icalcomponent_free(component);
-    }
-}
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <icalcomponent.h>
 
 extern "C" int LLVMFuzzerTestOneInput_25(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    // Create components based on the first byte of the input data
-    icalcomponent *component = nullptr;
-    switch (Data[0] % 6) {
-        case 0:
-            component = icalcomponent_new_vfreebusy();
-            break;
-        case 1:
-            component = icalcomponent_new_vreply();
-            break;
-        case 2:
-            component = icalcomponent_new_vresource();
-            break;
-        case 3:
-            component = icalcomponent_new_vlocation();
-            break;
-        case 4:
-            component = icalcomponent_new_valarm();
-            break;
-        case 5:
-            component = icalcomponent_new_vcalendar();
-            break;
-        default:
-            break;
+    // Create a new icalcomponent using icalcomponent_new_x
+    icalcomponent *comp = icalcomponent_new_x("X-TEST");
+    if (!comp) return 0;
+
+    // Ensure the data is null-terminated
+    std::vector<uint8_t> safeData(Data, Data + Size);
+    safeData.push_back('\0');
+
+    // Set X name using icalcomponent_set_x_name
+    icalcomponent_set_x_name(comp, reinterpret_cast<const char*>(safeData.data()));
+
+    // Get X name using icalcomponent_get_x_name
+    const char *x_name = icalcomponent_get_x_name(comp);
+
+    // Set DESCRIPTION using icalcomponent_set_description
+    icalcomponent_set_description(comp, reinterpret_cast<const char*>(safeData.data()));
+
+    // Set SUMMARY using icalcomponent_set_summary
+    icalcomponent_set_summary(comp, reinterpret_cast<const char*>(safeData.data()));
+
+    // Get component name using icalcomponent_get_component_name_r
+    char *component_name = icalcomponent_get_component_name_r(comp);
+    if (component_name) {
+        free(component_name);
     }
 
-    // Cleanup the created component
-    cleanup(component);
+    // Clean up the component
+    icalcomponent_free(comp);
 
     return 0;
 }

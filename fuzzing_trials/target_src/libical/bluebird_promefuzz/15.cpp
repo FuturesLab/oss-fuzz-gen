@@ -11,84 +11,90 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
-#include <cstdlib>
 #include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icaltimezone.h"
+
+static void fuzz_icalcomponent_get_timezone(icalcomponent *comp, const std::string &input) {
+    // Attempt to retrieve timezone using input as TZID
+    icaltimezone *timezone = icalcomponent_get_timezone(comp, input.c_str());
+    if (timezone) {
+        const char *tzid = icaltimezone_get_tzid(timezone);
+        if (tzid) {
+            std::cout << "Timezone ID: " << tzid << std::endl;
+        }
+    }
+}
+
+static void fuzz_icalcomponent_get_location(icalcomponent *comp) {
+    // Retrieve location property
+    const char *location = icalcomponent_get_location(comp);
+    if (location) {
+        std::cout << "Location: " << location << std::endl;
+    }
+}
+
+static void fuzz_icalcomponent_get_uid(icalcomponent *comp) {
+    // Retrieve UID property
+    const char *uid = icalcomponent_get_uid(comp);
+    if (uid) {
+        std::cout << "UID: " << uid << std::endl;
+    }
+}
+
+static void fuzz_icalcomponent_get_description(icalcomponent *comp) {
+    // Retrieve description property
+    const char *description = icalcomponent_get_description(comp);
+    if (description) {
+        std::cout << "Description: " << description << std::endl;
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
-        return 0;
-    }
+    // Ensure the input data is null-terminated
+    std::string input(reinterpret_cast<const char *>(Data), Size);
 
-    // Convert the first byte to an icalcomponent_kind
-    icalcomponent_kind componentKind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+    // Create a new icalcomponent from the input string
+    icalcomponent *comp = icalcomponent_new_from_string(input.c_str());
+    if (comp) {
+        // Fuzz each target function with the created component
+        fuzz_icalcomponent_get_timezone(comp, input);
+        fuzz_icalcomponent_get_location(comp);
+        fuzz_icalcomponent_get_uid(comp);
+        fuzz_icalcomponent_get_description(comp);
 
-    // Convert the second byte to an icalproperty_kind
-    icalproperty_kind propertyKind = static_cast<icalproperty_kind>(Data[1] % ICAL_NO_PROPERTY);
-
-    // Create a new component
-    icalcomponent *component = icalcomponent_new(componentKind);
-    if (!component) {
-        return 0;
-    }
-
-    // Create a new property
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new to icalcomponent_set_recurrenceid
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
-    }
-    struct icaltimetype ret_icalcomponent_get_recurrenceid_eprli = icalcomponent_get_recurrenceid(component);
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
-    }
-    icalcomponent_set_recurrenceid(component, ret_icalcomponent_get_recurrenceid_eprli);
-    // End mutation: Producer.APPEND_MUTATOR
+        // Clean up the component
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_convert_errors
+        icalcomponent_convert_errors(comp);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     
-    icalproperty *property = icalproperty_new(propertyKind);
-    if (!property) {
-        icalcomponent_free(component);
-        return 0;
-    }
-
-    // Test icalcomponent_add_property
-    icalcomponent_add_property(component, property);
-
-    // Test icalcomponent_get_first_property
-    icalproperty *firstProperty = icalcomponent_get_first_property(component, propertyKind);
-
-    // Test icalcomponent_get_next_property
-    icalproperty *nextProperty = icalcomponent_get_next_property(component, propertyKind);
-
-    // Test icalcomponent_begin_property
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_next_property to icalcomponent_as_ical_string
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
-    }
-    char* ret_icalcomponent_as_ical_string_bomsq = icalcomponent_as_ical_string(component);
-    if (ret_icalcomponent_as_ical_string_bomsq == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    icalpropiter iter = icalcomponent_begin_property(component, propertyKind);
-
-    // Test icalcomponent_remove_property
-    icalcomponent_remove_property(component, property);
-
-    // Test icalcomponent_remove_property_by_kind
-    icalcomponent_remove_property_by_kind(component, propertyKind);
-
-    // Clean up
-    icalproperty_free(property);
-    icalcomponent_free(component);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_convert_errors to icalcomponent_set_uid
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!comp) {
+        	return 0;
+        }
+        char* ret_icalcomponent_as_ical_string_r_azwgg = icalcomponent_as_ical_string_r(comp);
+        if (ret_icalcomponent_as_ical_string_r_azwgg == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!comp) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalcomponent_as_ical_string_r_azwgg) {
+        	return 0;
+        }
+        icalcomponent_set_uid(comp, ret_icalcomponent_as_ical_string_r_azwgg);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
 
     return 0;
 }

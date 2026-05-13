@@ -1,24 +1,40 @@
 #include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_112(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_vjournal();
-
-    // Perform operations on the component if necessary
-    if (component != NULL) {
-        // Example operation: convert component to string and print (for debugging)
-        char *component_str = icalcomponent_as_ical_string(component);
-        if (component_str != NULL) {
-            // Normally, you'd do something with the string, but for fuzzing, we just ensure it processes
-            // printf("Component: %s\n", component_str); // Uncomment for debugging purposes
-        }
-
-        // Free the component after use
-        icalcomponent_free(component);
+    if (size == 0) {
+        return 0;
     }
 
+    // Convert the input data to a null-terminated string
+    char *ical_data = (char *)malloc(size + 1);
+    if (!ical_data) {
+        return 0;
+    }
+    memcpy(ical_data, data, size);
+    ical_data[size] = '\0';
+
+    // Parse the input data as an iCalendar component
+    icalcomponent *root = icalparser_parse_string(ical_data);
+
+    if (root) {
+        // Initialize an icalcompiter
+        icalcompiter iter;
+        iter = icalcomponent_begin_component(root, ICAL_ANY_COMPONENT);
+
+        // Iterate over components using icalcompiter_next
+        while (icalcompiter_deref(&iter) != NULL) {
+            icalcomponent *comp = icalcompiter_next(&iter);
+            // Perform operations on the component if needed
+        }
+
+        // Clean up
+        icalcomponent_free(root);
+    }
+
+    free(ical_data);
     return 0;
 }
 #ifdef INC_MAIN

@@ -1,37 +1,28 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint>
+#include <cstddef>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent from the input data
-    icalcomponent *component = nullptr;
-
-    // Ensure the data is null-terminated for safe string operations
-    char *ical_data = (char *)malloc(size + 1);
-    if (ical_data == nullptr) {
-        return 0; // Exit if memory allocation fails
-    }
-    memcpy(ical_data, data, size);
-    ical_data[size] = '\0';
-
-    // Parse the input data into an icalcomponent
-    component = icalparser_parse_string(ical_data);
-    free(ical_data);
-
-    if (component == nullptr) {
-        return 0; // Exit if parsing fails
-    }
-
     // Call the function-under-test
-    struct icaltimetype dtend = icalcomponent_get_dtend(component);
+    icalcomponent *component = icalcomponent_new_vtodo();
 
-    // Clean up
-    icalcomponent_free(component);
+    // Check if the component was created successfully
+    if (component != NULL) {
+        // Perform any additional operations if necessary
+        // For example, you might want to serialize the component to ensure it's valid
+        char *str = icalcomponent_as_ical_string(component);
+        if (str != NULL) {
+            // Normally you might do something with the string, but for fuzzing, we just ensure it doesn't crash
+            // Free the string after use
+            icalmemory_free_buffer(str);
+        }
+
+        // Free the component after use
+        icalcomponent_free(component);
+    }
 
     return 0;
 }

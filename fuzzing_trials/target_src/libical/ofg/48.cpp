@@ -1,39 +1,41 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
-#include <string.h> // Include this header for memcpy
+#include <string.h>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_48(const uint8_t *data, size_t size) {
-    icalcomponent *component = nullptr;
-
-    if (size > 0) {
-        // Create a temporary buffer to hold the input data
-        char *buffer = (char *)malloc(size + 1);
-        if (buffer == nullptr) {
-            return 0; // Unable to allocate memory
-        }
-
-        // Copy data into the buffer and ensure it's null-terminated
-        memcpy(buffer, data, size);
-        buffer[size] = '\0';
-
-        // Parse the input data into an icalcomponent
-        component = icalparser_parse_string(buffer);
-
-        // Free the temporary buffer
-        free(buffer);
+    // Ensure that size is greater than zero to create a valid string
+    if (size == 0) {
+        return 0;
     }
 
-    if (component != nullptr) {
-        // Call the function under test
+    // Create a temporary buffer to hold the input data as a string
+    char *inputData = (char *)malloc(size + 1);
+    if (!inputData) {
+        return 0;
+    }
+
+    // Copy the data into the buffer and null-terminate it
+    memcpy(inputData, data, size);
+    inputData[size] = '\0';
+
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputData);
+
+    // If parsing was successful, normalize the component
+    if (component != NULL) {
         icalcomponent_normalize(component);
 
-        // Clean up the component
+        // Clean up the component after use
         icalcomponent_free(component);
     }
+
+    // Free the allocated input buffer
+    free(inputData);
 
     return 0;
 }

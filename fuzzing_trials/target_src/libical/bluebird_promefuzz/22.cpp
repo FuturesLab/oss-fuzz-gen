@@ -9,74 +9,60 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <fstream>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_22(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return 0;
+    if (Size == 0) return 0;
 
-    // Create a dummy VEVENT component
-    icalcomponent *event = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (!event) return 0;
+    // Create a dummy file if needed
+    std::ofstream dummyFile("./dummy_file");
+    if (!dummyFile) return 0;
+    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+    dummyFile.close();
 
-    // Create a dummy VAGENDA component
-    icalcomponent *vagenda = icalcomponent_new_vagenda();
-    if (!vagenda) {
-        icalcomponent_free(event);
-        return 0;
+    // Convert input data to a string
+    std::string input(reinterpret_cast<const char*>(Data), Size);
+
+    // Test icalcomponent_new_x
+    icalcomponent *compX = icalcomponent_new_x(input.c_str());
+    if (compX) {
+        // Test icalcomponent_get_x_name
+        const char *xName = icalcomponent_get_x_name(compX);
+        if (xName) {
+            std::cout << "X Name: " << xName << std::endl;
+        }
+
+        // Test icalcomponent_get_component_name
+        const char *componentName = icalcomponent_get_component_name(compX);
+        if (componentName) {
+            std::cout << "Component Name: " << componentName << std::endl;
+        }
+
+        // Test icalcomponent_set_x_name
+        icalcomponent_set_x_name(compX, "test-x-name");
     }
 
-    // Create a dummy VLOCATION component
-    icalcomponent *vlocation = icalcomponent_new_vlocation();
-    if (!vlocation) {
-        icalcomponent_free(event);
-        icalcomponent_free(vagenda);
-        return 0;
+    // Test icalcomponent_new_valarm
+    icalcomponent *compValarm = icalcomponent_new_valarm();
+    if (compValarm) {
+        // Test icalcomponent_get_component_name
+        const char *valarmName = icalcomponent_get_component_name(compValarm);
+        if (valarmName) {
+            std::cout << "Valarm Component Name: " << valarmName << std::endl;
+        }
     }
 
-    // Add components to a parent VCALENDAR component
-    icalcomponent *vcalendar = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    if (!vcalendar) {
-        icalcomponent_free(event);
-        icalcomponent_free(vagenda);
-        icalcomponent_free(vlocation);
-        return 0;
+    // Cleanup
+    if (compX) {
+        icalcomponent_free(compX);
     }
-
-    icalcomponent_add_component(vcalendar, event);
-    icalcomponent_add_component(vcalendar, vagenda);
-    icalcomponent_add_component(vcalendar, vlocation);
-
-    // Create another VCALENDAR component to merge
-    icalcomponent *vcalendar_to_merge = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    if (!vcalendar_to_merge) {
-        icalcomponent_free(vcalendar);
-        return 0;
+    if (compValarm) {
+        icalcomponent_free(compValarm);
     }
-
-    // Merge two VCALENDAR components
-    icalcomponent_merge_component(vcalendar, vcalendar_to_merge);
-
-    // Define a simple callback function for foreach_tzid
-    auto tzid_callback = [](icalparameter *param, void *data) {
-        // Just a placeholder to demonstrate using the callback
-    };
-
-    // Use foreach_tzid on the vcalendar component
-    icalcomponent_foreach_tzid(vcalendar, tzid_callback, nullptr);
-
-    // Prepare a dummy icaltimetype
-    icaltimetype recurrence_id;
-    recurrence_id.year = 2023;
-    recurrence_id.zone = nullptr;
-
-    // Set the recurrence ID for the event
-    icalcomponent_set_recurrenceid(event, recurrence_id);
-
-    // Clean up
-    icalcomponent_free(vcalendar);
 
     return 0;
 }

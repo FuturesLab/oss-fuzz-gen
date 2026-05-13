@@ -1,61 +1,59 @@
+#include <string.h>
 #include <sys/stat.h>
-#include <stdint.h>
-#include <stdlib.h>
-#include <time.h>
-#include "libical/ical.h"
-#include <string.h> // Include string.h for strlen
+#include <cstdint> // Include for uint8_t
+#include <cstddef> // Include for size_t
+#include <cstring> // Include for memcpy
 
 extern "C" {
-
-// Callback function to be used with icalcomponent_foreach_recurrence
-void recurrence_callback_5(const icalcomponent *comp, const struct icaltime_span *span, void *data) {
-    // This is a placeholder callback function
+    #include "libical/ical.h"
 }
 
-int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-
-    // Ensure the component is not NULL
-    if (component == NULL) {
+extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *data, size_t size) {
+    // Check if the size is sufficient to create a meaningful string
+    if (size < 1) {
         return 0;
     }
 
-    // Create start and end time for the recurrence
-    struct icaltimetype start_time = icaltime_from_timet_with_zone(time(NULL), 0, NULL);
-    struct icaltimetype end_time = icaltime_from_timet_with_zone(time(NULL) + 3600, 0, NULL);
+    // Create a null-terminated string from the input data
+    char *input = new char[size + 1];
+    memcpy(input, data, size);
+    input[size] = '\0';
 
-    // Set a valid DTSTART property to the component
-    icalcomponent_set_dtstart(component, start_time);
+    // Call the function-under-test
+    icalcomponent *valarm = icalcomponent_new_valarm();
 
-    // Set a RRULE property to the component using the input data
-    if (size > 0) {
-        // Ensure the input data is null-terminated before converting to string
-        char *data_str = (char *)malloc(size + 1);
-        if (data_str == NULL) {
-            icalcomponent_free(component);
-            return 0;
+    // Perform operations on the created component if needed
+    if (valarm != NULL) {
+        // Example: Add some properties to the valarm component
+        icalcomponent_add_property(valarm, icalproperty_new_action(ICAL_ACTION_DISPLAY));
+        icalcomponent_add_property(valarm, icalproperty_new_description(input));
+
+        // Correctly create a trigger property using icaltriggertype
+        struct icaltriggertype trigger;
+        trigger.time = icaltime_from_string("20231010T123000Z");
+        icalcomponent_add_property(valarm, icalproperty_new_trigger(trigger));
+
+        // Add additional operations to increase code coverage
+        icalcomponent_add_property(valarm, icalproperty_new_summary("Test Summary"));
+
+        // Optionally, convert the component to a string and back to test serialization/deserialization
+        char *component_string = icalcomponent_as_ical_string(valarm);
+        if (component_string != NULL) {
+            icalcomponent *parsed_component = icalparser_parse_string(component_string);
+            if (parsed_component != NULL) {
+                icalcomponent_free(parsed_component);
+            }
+            icalmemory_free_buffer(component_string);
         }
-        memcpy(data_str, data, size);
-        data_str[size] = '\0'; // Null-terminate the string
 
-        icalproperty *rrule_prop = icalproperty_new_from_string(data_str);
-        if (rrule_prop != NULL) {
-            icalcomponent_add_property(component, rrule_prop);
-        }
-
-        free(data_str); // Free the allocated memory
+        // Clean up by freeing the component
+        icalcomponent_free(valarm);
     }
 
-    // Call the function under test
-    icalcomponent_foreach_recurrence(component, start_time, end_time, recurrence_callback_5, NULL);
-
-    // Clean up
-    icalcomponent_free(component);
+    // Free the allocated input string
+    delete[] input;
 
     return 0;
-}
-
 }
 #ifdef INC_MAIN
 #include <stdio.h>

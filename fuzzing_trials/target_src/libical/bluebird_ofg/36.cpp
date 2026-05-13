@@ -1,79 +1,39 @@
-#include <sys/stat.h>
 #include <string.h>
+#include <sys/stat.h>
 #include "libical/ical.h"
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_36(const uint8_t *data, size_t size) {
-    // Ensure that the input data is not empty
-    if (size == 0) {
+    // Ensure the size is large enough to create a valid icalcomponent
+    if (size < 1) {
         return 0;
     }
 
-    // Create a temporary buffer to hold the input data
-    char *buffer = static_cast<char *>(malloc(size + 1));
-    if (buffer == nullptr) {
+    // Allocate memory for the icalcomponent string
+    char *ical_str = static_cast<char *>(malloc(size + 1));
+    if (ical_str == nullptr) {
         return 0;
     }
 
-    // Copy the input data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
+    // Copy the data into the icalcomponent string and null-terminate it
+    memcpy(ical_str, data, size);
+    ical_str[size] = '\0';
 
-    // Parse the buffer into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(buffer);
+    // Convert the string to an icalcomponent
+    icalcomponent *comp = icalparser_parse_string(ical_str);
 
-    // If parsing was successful, call the function-under-test
-    if (component != nullptr) {
-        char *icalString = icalcomponent_as_ical_string_r(component);
+    // Free the allocated string memory
+    free(ical_str);
 
-        // Free the returned string if it's not null
-        if (icalString != nullptr) {
-            free(icalString);
-        }
+    // If the component is successfully created, call the function-under-test
+    if (comp != nullptr) {
+        struct icaltimetype dtstamp = icalcomponent_get_dtstamp(comp);
 
-        // Free the icalcomponent
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
-        icalcomponent_normalize(component);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_set_summary
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
-        	return 0;
-        }
-        char* ret_icalcomponent_as_ical_string_kxqzt = icalcomponent_as_ical_string(component);
-        if (ret_icalcomponent_as_ical_string_kxqzt == NULL){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalcomponent_as_ical_string_kxqzt) {
-        	return 0;
-        }
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string to icalcomponent_new_from_string
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalcomponent_as_ical_string_kxqzt) {
-        	return 0;
-        }
-        icalcomponent* ret_icalcomponent_new_from_string_flkiu = icalcomponent_new_from_string(ret_icalcomponent_as_ical_string_kxqzt);
-        if (ret_icalcomponent_new_from_string_flkiu == NULL){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        icalcomponent_set_summary(component, ret_icalcomponent_as_ical_string_kxqzt);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-}
-
-    // Free the buffer
-    free(buffer);
+        // Clean up the icalcomponent
+        icalcomponent_free(comp);
+    }
 
     return 0;
 }

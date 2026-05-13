@@ -9,57 +9,75 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <iostream>
+#include <fstream>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
+#include <cstdint>
+
+static icalcomponent* create_dummy_component() {
+    return icalcomponent_new(ICAL_VEVENT_COMPONENT);
+}
+
+static void test_icalcomponent_get_method(icalcomponent* comp) {
+    icalproperty_method method = icalcomponent_get_method(comp);
+    (void)method; // Suppress unused variable warning
+}
+
+static void test_icalcomponent_set_method(icalcomponent* comp, icalproperty_method method) {
+    icalcomponent_set_method(comp, method);
+}
+
+static void test_icalcomponent_add_component(icalcomponent* parent, icalcomponent* child) {
+    icalcomponent_add_component(parent, child);
+}
+
+static void test_icalcomponent_remove_component(icalcomponent* parent, icalcomponent* child) {
+    icalcomponent_remove_component(parent, child);
+}
+
+static void test_icalcomponent_set_parent(icalcomponent* component, icalcomponent* parent) {
+    icalcomponent_set_parent(component, parent);
+}
+
+static icalcomponent* test_icalcomponent_new_xdaylight() {
+    return icalcomponent_new_xdaylight();
+}
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
+    if (Size < 1) return 0;
+
+    icalcomponent* parent = create_dummy_component();
+    icalcomponent* child = create_dummy_component();
+
+    if (!parent || !child) {
+        if (parent) icalcomponent_free(parent);
+        if (child) icalcomponent_free(child);
         return 0;
     }
 
-    // Ensure null-terminated string for icalcomponent_new_from_string
-    char *icalStr = static_cast<char*>(malloc(Size + 1));
-    if (!icalStr) {
-        return 0;
+    // Test icalcomponent_get_method and icalcomponent_set_method
+    test_icalcomponent_get_method(parent);
+    test_icalcomponent_set_method(parent, static_cast<icalproperty_method>(Data[0] % (ICAL_METHOD_NONE + 1)));
+
+    // Test icalcomponent_add_component and icalcomponent_remove_component
+    test_icalcomponent_add_component(parent, child);
+    test_icalcomponent_remove_component(parent, child);
+
+    // Test icalcomponent_set_parent
+    test_icalcomponent_set_parent(child, parent);
+
+    // Test icalcomponent_new_xdaylight
+    icalcomponent* xdaylight = test_icalcomponent_new_xdaylight();
+    if (xdaylight) {
+        icalcomponent_free(xdaylight);
     }
-    memcpy(icalStr, Data, Size);
-    icalStr[Size] = '\0';
 
-    // Create icalcomponent from string
-    icalcomponent *comp = icalcomponent_new_from_string(icalStr);
-    free(icalStr);
-
-    if (comp) {
-        // Test icalcomponent_isa_component
-        icalcomponent_isa_component(comp);
-
-        // Setup a dummy icaltimetype for testing
-        struct icaltimetype dtstart = {0};
-        struct icaltimetype recurtime = {0};
-
-        // Test icalproperty_recurrence_is_excluded
-        icalproperty_recurrence_is_excluded(comp, &dtstart, &recurtime);
-
-        // Test icalcomponent_set_description
-        icalcomponent_set_description(comp, "Sample Description");
-
-        // Test icalcomponent_kind_is_valid
-        icalcomponent_kind kind = icalcomponent_isa(comp);
-        icalcomponent_kind_is_valid(kind);
-
-        // Test icalcomponent_is_valid
-        icalcomponent_is_valid(comp);
-
-        // Cleanup the component
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_convert_errors
-        icalcomponent_convert_errors(comp);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    }
+    // Clean up
+    icalcomponent_free(parent);
+    icalcomponent_free(child);
 
     return 0;
 }

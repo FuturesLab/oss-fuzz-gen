@@ -1,40 +1,24 @@
-#include <cstdint> // Include for uint8_t
-#include <cstddef> // Include for size_t
-#include <cstdlib> // Include for malloc and free
-#include <cstring> // Include for memcpy
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *data, size_t size) {
-    // Check if the input data is large enough to be used meaningfully
-    if (size == 0) {
-        return 0; // No operation if there's no data
-    }
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_participant();
 
-    // Create a string from the input data
-    char *inputData = (char *)malloc(size + 1);
-    if (inputData == NULL) {
-        return 0; // Memory allocation failed
-    }
-    memcpy(inputData, data, size);
-    inputData[size] = '\0'; // Null-terminate the string
-
-    // Parse the input data as an iCal component
-    icalcomponent *component = icalparser_parse_string(inputData);
-
-    // Check if the component was created successfully
+    // Perform any necessary operations on the component
     if (component != NULL) {
-        // Perform operations on the component if needed
-        // For example, convert to string or add properties
+        // Example operation: Convert the component to a string and print it
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // Normally, you might want to log or further process this string
+            // For fuzzing, we can simply print it
+            printf("%s\n", component_str);
+        }
 
         // Free the component after use
         icalcomponent_free(component);
     }
-
-    // Free the allocated input data
-    free(inputData);
 
     return 0;
 }

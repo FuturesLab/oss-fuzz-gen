@@ -1,50 +1,29 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <libical/ical.h>
-#include <string.h>
-#include <stdlib.h>
+#include <cstdint>
+#include <cstddef>
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_71(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to work with
-    if (size == 0) {
-        return 0;
-    }
-    
-    // Initialize necessary variables
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-
-    // Ensure the component is not NULL
-    if (component == NULL) {
-        return 0;
-    }
-
-    // Create a string from the input data
-    char *inputData = (char *)malloc(size + 1);
-    if (inputData == NULL) {
-        icalcomponent_free(component);
-        return 0;
-    }
-    memcpy(inputData, data, size);
-    inputData[size] = '\0';
-
-    // Set the input data as a property of the component
-    icalproperty *prop = icalproperty_new_comment(inputData);
-    if (prop != NULL) {
-        icalcomponent_add_property(component, prop);
-    }
-
     // Call the function-under-test
-    // Instead of using icalcomponent_end_component, let's try parsing the input data
-    // as an iCalendar string to ensure the function under test is effectively invoked.
-    icalcomponent *parsedComponent = icalparser_parse_string(inputData);
-    if (parsedComponent != NULL) {
-        // If parsing succeeds, free the parsed component
-        icalcomponent_free(parsedComponent);
-    }
+    icalcomponent *component = icalcomponent_new_vevent();
 
-    // Clean up
-    free(inputData);
-    icalcomponent_free(component);
+    // Perform operations on the component if necessary
+    // For example, you can convert it to a string and print it
+    if (component != NULL) {
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // Print the component string (or perform other operations)
+            // printf("%s\n", component_str); // Uncomment for debugging purposes
+
+            // Free the string after use
+            icalmemory_free_buffer(component_str);
+        }
+
+        // Free the component after use
+        icalcomponent_free(component);
+    }
 
     return 0;
 }

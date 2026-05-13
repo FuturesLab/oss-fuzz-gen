@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_vanew at icalcomponent.c:105:16 in icalcomponent.h
-// icalcomponent_new at icalcomponent.c:100:16 in icalcomponent.h
-// icalcomponent_new_vlocation at icalcomponent.c:2125:16 in icalcomponent.h
-// icalcomponent_new_from_string at icalcomponent.c:124:16 in icalcomponent.h
-// icalcomponent_new_xvote at icalcomponent.c:2105:16 in icalcomponent.h
-// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
+// icalpropiter_deref at icalcomponent.c:1541:15 in icalcomponent.h
+// icalpropiter_next at icalcomponent.c:1522:15 in icalcomponent.h
+// icalcomponent_get_current_property at icalcomponent.c:506:15 in icalcomponent.h
+// icalcomponent_begin_property at icalcomponent.c:1495:14 in icalcomponent.h
+// icalcomponent_remove_property at icalcomponent.c:443:6 in icalcomponent.h
+// icalcomponent_add_property at icalcomponent.c:428:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,79 +14,68 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstddef>
+#include <cstdlib>
+#include <cstring>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include <icalcomponent.h>
-#include <cstring>
-#include <cstdarg>
-#include <cstdio>
 
-static void test_icalcomponent_new() {
-    for (int kind = ICAL_NO_COMPONENT; kind <= ICAL_NUM_COMPONENT_TYPES; ++kind) {
-        icalcomponent *comp = icalcomponent_new(static_cast<icalcomponent_kind>(kind));
-        if (comp) {
-            icalcomponent_free(comp);
-        }
+static icalcomponent* create_dummy_component() {
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalproperty *property = icalproperty_new(ICAL_SUMMARY_PROPERTY);
+    icalcomponent_add_property(component, property);
+    return component;
+}
+
+static void fuzz_icalpropiter_deref(icalpropiter *iter) {
+    icalproperty *prop = icalpropiter_deref(iter);
+    // Utilize the property if needed, currently just dereferencing
+}
+
+static void fuzz_icalcomponent_add_property(icalcomponent *component, icalproperty *property) {
+    icalcomponent_add_property(component, property);
+}
+
+static void fuzz_icalpropiter_next(icalpropiter *iter) {
+    icalproperty *prop = icalpropiter_next(iter);
+    // Utilize the property if needed, currently just iterating
+}
+
+static void fuzz_icalcomponent_begin_property(icalcomponent *component, icalproperty_kind kind) {
+    icalpropiter iter = icalcomponent_begin_property(component, kind);
+    if (icalpropiter_deref(&iter)) {
+        fuzz_icalpropiter_deref(&iter);
+        fuzz_icalpropiter_next(&iter);
     }
 }
 
-static void test_icalcomponent_new_vlocation() {
-    icalcomponent *comp = icalcomponent_new_vlocation();
-    if (comp) {
-        icalcomponent_free(comp);
-    }
+static void fuzz_icalcomponent_remove_property(icalcomponent *component, icalproperty *property) {
+    icalcomponent_remove_property(component, property);
 }
 
-static void test_icalcomponent_new_from_string(const char *str) {
-    icalcomponent *comp = icalcomponent_new_from_string(str);
-    if (comp) {
-        icalcomponent_free(comp);
-    }
-}
-
-static void test_icalcomponent_new_xvote() {
-    icalcomponent *comp = icalcomponent_new_xvote();
-    if (comp) {
-        icalcomponent_free(comp);
-    }
-}
-
-static void test_icalcomponent_vanew() {
-    icalcomponent *comp = icalcomponent_vanew(ICAL_VEVENT_COMPONENT, NULL);
-    if (comp) {
-        icalcomponent_free(comp);
-    }
-}
-
-static void test_icalcomponent_new_xpatch() {
-    icalcomponent *comp = icalcomponent_new_xpatch();
-    if (comp) {
-        icalcomponent_free(comp);
-    }
+static void fuzz_icalcomponent_get_current_property(icalcomponent *component) {
+    icalproperty *prop = icalcomponent_get_current_property(component);
+    // Utilize the property if needed, currently just getting current property
 }
 
 extern "C" int LLVMFuzzerTestOneInput_42(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
+    if (Size < sizeof(icalproperty_kind)) return 0;
 
-    // Ensure null-termination for string input
-    char *str = new char[Size + 1];
-    memcpy(str, Data, Size);
-    str[Size] = '\0';
+    icalcomponent *component = create_dummy_component();
+    icalproperty_kind kind = static_cast<icalproperty_kind>(Data[0] % ICAL_NO_PROPERTY);
 
-    // Test various functions
-    test_icalcomponent_new();
-    test_icalcomponent_new_vlocation();
-    test_icalcomponent_new_from_string(str);
-    test_icalcomponent_new_xvote();
-    test_icalcomponent_vanew();
-    test_icalcomponent_new_xpatch();
+    fuzz_icalcomponent_begin_property(component, kind);
 
-    delete[] str;
+    icalproperty *new_property = icalproperty_new(kind);
+    fuzz_icalcomponent_add_property(component, new_property);
+
+    fuzz_icalcomponent_get_current_property(component);
+
+    fuzz_icalcomponent_remove_property(component, new_property);
+    icalproperty_free(new_property);
+
+    icalcomponent_free(component);
     return 0;
 }
     #ifdef INC_MAIN

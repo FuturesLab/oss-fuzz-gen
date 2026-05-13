@@ -1,10 +1,11 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_set_x_name at icalcomponent.c:324:6 in icalcomponent.h
-// icalcomponent_set_comment at icalcomponent.c:1769:6 in icalcomponent.h
-// icalcomponent_set_location at icalcomponent.c:1920:6 in icalcomponent.h
-// icalcomponent_set_uid at icalcomponent.c:1804:6 in icalcomponent.h
-// icalcomponent_set_summary at icalcomponent.c:1734:6 in icalcomponent.h
-// icalcomponent_get_summary at icalcomponent.c:1746:13 in icalcomponent.h
+// icalcomponent_new_vavailability at icalcomponent.c:2149:16 in icalcomponent.h
+// icalcomponent_new_vagenda at icalcomponent.c:2134:16 in icalcomponent.h
+// icalcomponent_free at icalcomponent.c:191:6 in icalcomponent.h
+// icalcomponent_new_xavailable at icalcomponent.c:2154:16 in icalcomponent.h
+// icalcomponent_new_vreply at icalcomponent.c:2144:16 in icalcomponent.h
+// icalcomponent_new_vevent at icalcomponent.c:2094:16 in icalcomponent.h
+#include <iostream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -13,55 +14,68 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include <libical/icalcomponent.h>
-}
-
+#include <iostream>
 #include <cstdint>
-#include <cstring>
-#include <fstream>
-
-static void writeToFile(const char* filename, const char* data, size_t size) {
-    std::ofstream file(filename, std::ios::binary);
-    file.write(data, size);
-    file.close();
-}
+#include <cstdlib>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_28(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    // Create various icalcomponents using the target API functions
+    icalcomponent *vagenda = icalcomponent_new_vagenda();
+    icalcomponent *vevent = icalcomponent_new_vevent();
+    icalcomponent *xavailable = icalcomponent_new_xavailable();
+    icalcomponent *vreply = icalcomponent_new_vreply();
+    icalcomponent *vavailability = icalcomponent_new_vavailability();
 
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-    icalcomponent* comp = icalcomponent_new(kind);
+    // Simulate diverse use of the components
+    bool vagendaFreed = false;
+    bool veventFreed = false;
+    bool xavailableFreed = false;
+    bool vreplyFreed = false;
+    bool vavailabilityFreed = false;
 
-    if (!comp) return 0;
-
-    const char* strData = reinterpret_cast<const char*>(Data);
-    size_t strSize = Size > 1 ? Size - 1 : 0;
-
-    // Create a null-terminated string
-    std::string safeStr(strData, strSize);
-
-    if (strSize > 0) {
-        icalcomponent_set_uid(comp, safeStr.c_str());
-        icalcomponent_set_comment(comp, safeStr.c_str());
-        icalcomponent_set_location(comp, safeStr.c_str());
-        icalcomponent_set_summary(comp, safeStr.c_str());
-        icalcomponent_set_x_name(comp, safeStr.c_str());
-
-        const char* summary = icalcomponent_get_summary(comp);
-        if (summary) {
-            writeToFile("./dummy_file", summary, strlen(summary));
+    if (Size > 0) {
+        switch (Data[0] % 5) {
+            case 0:
+                // Perform operations with vagenda
+                icalcomponent_free(vagenda);
+                vagendaFreed = true;
+                break;
+            case 1:
+                // Perform operations with vevent
+                icalcomponent_free(vevent);
+                veventFreed = true;
+                break;
+            case 2:
+                // Perform operations with xavailable
+                icalcomponent_free(xavailable);
+                xavailableFreed = true;
+                break;
+            case 3:
+                // Perform operations with vreply
+                icalcomponent_free(vreply);
+                vreplyFreed = true;
+                break;
+            case 4:
+                // Perform operations with vavailability
+                icalcomponent_free(vavailability);
+                vavailabilityFreed = true;
+                break;
+            default:
+                break;
         }
     }
 
-    icalcomponent_free(comp);
+    // Free any components that were not freed in the switch
+    if (!vagendaFreed && vagenda) icalcomponent_free(vagenda);
+    if (!veventFreed && vevent) icalcomponent_free(vevent);
+    if (!xavailableFreed && xavailable) icalcomponent_free(xavailable);
+    if (!vreplyFreed && vreply) icalcomponent_free(vreply);
+    if (!vavailabilityFreed && vavailability) icalcomponent_free(vavailability);
+
     return 0;
 }
     #ifdef INC_MAIN

@@ -1,29 +1,41 @@
-#include <cstdint> // Include for uint8_t
-#include <cstddef> // Include for size_t
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
 extern "C" {
-#include <libical/ical.h>
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_61(const uint8_t *data, size_t size) {
-    // Initialize an icalcomponent and icalcompiter
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalcompiter iter;
-    
-    if (component == NULL) {
-        return 0; // Return if component creation failed
+    // Ensure there is enough data to proceed
+    if (size < 1) {
+        return 0;
     }
-    
-    // Initialize the iterator with the component
-    iter = icalcomponent_begin_component(component, ICAL_ANY_COMPONENT);
+
+    // Create a temporary string from the input data
+    char *ical_string = new char[size + 1];
+    memcpy(ical_string, data, size);
+    ical_string[size] = '\0';
+
+    // Initialize an icalcomponent from the string
+    icalcomponent *component = icalparser_parse_string(ical_string);
+    delete[] ical_string;
+
+    if (component == nullptr) {
+        return 0;
+    }
+
+    // Initialize an icalcompiter
+    icalcompiter comp_iter = icalcomponent_begin_component(component, ICAL_ANY_COMPONENT);
 
     // Call the function-under-test
-    icalcomponent *result = icalcompiter_deref(&iter);
+    icalcomponent *result = icalcompiter_deref(&comp_iter);
 
     // Clean up
-    if (component != NULL) {
-        icalcomponent_free(component);
+    if (result != nullptr) {
+        icalcomponent_free(result);
     }
+    icalcomponent_free(component);
 
     return 0;
 }

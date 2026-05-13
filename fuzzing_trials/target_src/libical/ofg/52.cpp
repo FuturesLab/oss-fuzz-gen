@@ -1,41 +1,26 @@
 #include <libical/ical.h>
-#include <cstdint>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" int LLVMFuzzerTestOneInput_52(const uint8_t *data, size_t size) {
-    // Ensure that the data size is sufficient to extract meaningful information
-    if (size < 1) {
+    // Ensure the input size is sufficient for creating a valid icalcomponent
+    if (size == 0) {
         return 0;
     }
 
-    // Convert input data to a null-terminated string
-    char *ical_data = (char *)malloc(size + 1);
-    if (!ical_data) {
-        return 0;
-    }
-    memcpy(ical_data, data, size);
-    ical_data[size] = '\0';
-
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(ical_data);
-    free(ical_data);
-
+    // Create a dummy icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
     if (component == NULL) {
         return 0;
     }
 
-    // Iterate over all properties in the component
-    for (icalproperty *prop = icalcomponent_get_first_property(component, ICAL_ANY_PROPERTY);
-         prop != NULL;
-         prop = icalcomponent_get_next_property(component, ICAL_ANY_PROPERTY)) {
-        // Process each property
-        icalproperty_kind kind = icalproperty_isa(prop);
-        // Call the function-under-test
-        icalpropiter propiter = icalcomponent_begin_property(component, kind);
-        (void)propiter; // Suppress unused variable warning
-    }
+    // Use the first byte of data to determine the icalproperty_kind
+    icalproperty_kind kind = static_cast<icalproperty_kind>(data[0] % ICAL_NO_PROPERTY);
 
-    // Clean up the icalcomponent object
+    // Call the function-under-test
+    icalpropiter iter = icalcomponent_begin_property(component, kind);
+
+    // Clean up
     icalcomponent_free(component);
 
     return 0;

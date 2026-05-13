@@ -1,50 +1,38 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h> // Include for memcpy
 #include <libical/ical.h>
-
-extern "C" {
-    // Include necessary C headers, source files, functions, and code here.
-    #include <libical/ical.h>
-}
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_32(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to create a valid icalcomponent
-    if (size == 0) {
+    // Ensure the input size is sufficient to create a valid string
+    if (size < 1) {
         return 0;
     }
 
-    // Create a temporary buffer to hold the input data as a string
-    char *inputData = (char *)malloc(size + 1);
-    if (inputData == NULL) {
+    // Create a null-terminated string from the input data
+    char *inputStr = (char *)malloc(size + 1);
+    if (inputStr == NULL) {
+        return 0;
+    }
+    memcpy(inputStr, data, size);
+    inputStr[size] = '\0';
+
+    // Parse the input string into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputStr);
+    free(inputStr);
+
+    if (component == NULL) {
         return 0;
     }
 
-    // Copy the input data and null-terminate the string
-    memcpy(inputData, data, size);
-    inputData[size] = '\0';
+    // Use the first byte of data to determine the icalcomponent_kind
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(data[0] % ICAL_NO_COMPONENT);
 
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(inputData);
+    // Call the function-under-test
+    icalcomponent *result = icalcomponent_get_first_component(component, kind);
 
-    // Free the temporary input data buffer
-    free(inputData);
-
-    // If parsing was successful, call the function-under-test
-    if (component != NULL) {
-        char *icalString = icalcomponent_as_ical_string(component);
-
-        // Normally, you would do something with icalString here
-        // For fuzzing, we just ensure it was generated
-
-        // Free the generated string
-        if (icalString != NULL) {
-            free(icalString);
-        }
-
-        // Free the icalcomponent
-        icalcomponent_free(component);
-    }
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }

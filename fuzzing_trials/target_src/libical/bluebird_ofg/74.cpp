@@ -1,36 +1,37 @@
-#include <sys/stat.h>
 #include <string.h>
-#include <stdint.h>
-#include <stddef.h>
-#include "libical/ical.h"
+#include <sys/stat.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Include for memcpy
 
 extern "C" {
-    // Include the function-under-test signature
-    void icalcomponent_set_dtend(icalcomponent *, struct icaltimetype);
+    #include "libical/ical.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_74(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        return 0;
+    // Initialize an icalcomponent from the input data
+    icalcomponent *component = nullptr;
+    if (size > 0) {
+        // Ensure the data is null-terminated for string-based functions
+        char *ical_data = static_cast<char*>(malloc(size + 1));
+        if (ical_data == nullptr) {
+            return 0; // Exit if memory allocation fails
+        }
+        memcpy(ical_data, data, size);
+        ical_data[size] = '\0';
+
+        // Parse the data into an icalcomponent
+        component = icalcomponent_new_from_string(ical_data);
+        free(ical_data);
     }
 
-    // Ensure there's enough data to create a valid icaltimetype
-    if (size < sizeof(struct icaltimetype)) {
+    if (component != nullptr) {
+        // Call the function-under-test
+        icalcomponent *first_real_component = icalcomponent_get_first_real_component(component);
+
+        // Clean up the created icalcomponent
         icalcomponent_free(component);
-        return 0;
     }
-
-    // Create an icaltimetype from the input data
-    struct icaltimetype dtend = icaltime_from_timet_with_zone(
-        *((time_t *)data), 0, nullptr);
-
-    // Call the function-under-test
-    icalcomponent_set_dtend(component, dtend);
-
-    // Clean up
-    icalcomponent_free(component);
 
     return 0;
 }

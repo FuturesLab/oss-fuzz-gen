@@ -1,29 +1,36 @@
-#include <cstdint> // Include for uint8_t
-#include <cstddef> // Include for size_t
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_68(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_xvote();
+    if (size == 0) {
+        return 0;
+    }
 
-    // Perform operations on the component if needed
+    // Create a string from the input data
+    char *input_data = static_cast<char *>(malloc(size + 1));
+    if (input_data == nullptr) {
+        return 0;
+    }
+    memcpy(input_data, data, size);
+    input_data[size] = '\0';
+
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(input_data);
+
     if (component != NULL) {
-        // Example operation: convert the component to a string and print it
-        char *component_str = icalcomponent_as_ical_string(component);
-        if (component_str != NULL) {
-            // Print the component string (for debugging purposes)
-            // printf("%s\n", component_str);
-
-            // Free the string after use
-            icalmemory_free_buffer(component_str);
-        }
+        // Do something with the component
+        // ...
 
         // Free the component after use
         icalcomponent_free(component);
     }
+
+    free(input_data);
 
     return 0;
 }

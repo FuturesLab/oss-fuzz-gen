@@ -1,17 +1,14 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstddef>  // Include for size_t
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <stdint.h>
+#include <stddef.h>
+#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_171(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient for extracting an integer
+    // Ensure the data size is sufficient to extract an integer
     if (size < sizeof(int)) {
         return 0;
     }
 
-    // Initialize an icalcomponent
+    // Initialize the icalcomponent
     icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
     if (component == NULL) {
         return 0;

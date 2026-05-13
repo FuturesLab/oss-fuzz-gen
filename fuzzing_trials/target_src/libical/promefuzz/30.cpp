@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_foreach_recurrence at icalcomponent.c:927:6 in icalcomponent.h
-// icalcomponent_get_due at icalcomponent.c:2613:21 in icalcomponent.h
-// icalcomponent_get_dtend at icalcomponent.c:1566:21 in icalcomponent.h
-// icalcomponent_get_recurrenceid at icalcomponent.c:1859:21 in icalcomponent.h
-// icalcomponent_get_dtstart at icalcomponent.c:1553:21 in icalcomponent.h
-// icalcomponent_set_dtstart at icalcomponent.c:1533:6 in icalcomponent.h
+// icalcomponent_isa_component at icalcomponent.c:331:6 in icalcomponent.h
+// icalcomponent_kind_is_valid at icalcomponent.c:1341:6 in icalcomponent.h
+// icalcompiter_is_valid at icalcomponent.c:1392:6 in icalcomponent.h
+// icalcomponent_is_valid at icalcomponent.c:314:6 in icalcomponent.h
+// icalcomponent_get_next_component at icalcomponent.c:670:16 in icalcomponent.h
+// icalcomponent_begin_component at icalcomponent.c:1401:14 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,62 +16,53 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
+#include <cstring>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <libical/icalcomponent.h>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include <libical/icaltime.h>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include <libical/icaltimezone.h>
+#include "icalcomponent.h"
+
+static icalcomponent* create_dummy_component() {
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    return component;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icalcomponent_kind) + sizeof(int)) return 0;
+    if (Size < 1) return 0;
 
-    // Prepare a dummy VEVENT component
-    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (!comp) return 0;
+    // Create a dummy component for testing
+    icalcomponent *component = create_dummy_component();
+    if (!component) return 0;
 
-    // Prepare a dummy time
-    struct icaltimetype time = icaltime_null_time();
-    time.year = 2023;
+    // Fuzz different icalcomponent_kind values
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
 
-    // Set DTSTART
-    icalcomponent_set_dtstart(comp, time);
+    // Test icalcomponent_get_next_component
+    icalcomponent *next_component = icalcomponent_get_next_component(component, kind);
+    if (next_component) {
+        // Perform operations on next_component if needed
+    }
 
-    // Get DTSTART
-    struct icaltimetype dtstart = icalcomponent_get_dtstart(comp);
+    // Test icalcomponent_begin_component
+    icalcompiter comp_iter = icalcomponent_begin_component(component, kind);
+    if (icalcompiter_is_valid(&comp_iter)) {
+        // Perform operations on comp_iter if needed
+    }
 
-    // Get RECURRENCE-ID
-    struct icaltimetype recurrence_id = icalcomponent_get_recurrenceid(comp);
+    // Test icalcomponent_isa_component
+    bool is_component = icalcomponent_isa_component(component);
+    (void)is_component; // Suppress unused variable warning
 
-    // Get DTEND
-    struct icaltimetype dtend = icalcomponent_get_dtend(comp);
+    // Test icalcomponent_is_valid
+    bool is_valid = icalcomponent_is_valid(component);
+    (void)is_valid; // Suppress unused variable warning
 
-    // Get DUE
-    struct icaltimetype due = icalcomponent_get_due(comp);
-
-    // Define a simple callback for foreach_recurrence
-    static auto recurrence_callback = [](const icalcomponent *comp, const struct icaltime_span *span, void *data) {
-        (void)comp;
-        (void)span;
-        (void)data;
-        // Just a placeholder callback
-    };
-
-    // Prepare start and end times for foreach_recurrence
-    struct icaltimetype start = icaltime_from_string("20230101T000000Z");
-    struct icaltimetype end = icaltime_from_string("20231231T235959Z");
-
-    // Call foreach_recurrence
-    icalcomponent_foreach_recurrence(comp, start, end, recurrence_callback, nullptr);
+    // Test icalcomponent_kind_is_valid
+    bool kind_is_valid = icalcomponent_kind_is_valid(kind);
+    (void)kind_is_valid; // Suppress unused variable warning
 
     // Cleanup
-    icalcomponent_free(comp);
+    icalcomponent_free(component);
 
     return 0;
 }

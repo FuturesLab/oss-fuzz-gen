@@ -9,20 +9,20 @@ extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *data, size_t size) {
     // Call the function-under-test
     icalcomponent *component = icalcomponent_new_xdaylight();
 
-    // Perform basic operations on the component to ensure it's valid
+    // Check if the component is not NULL before proceeding
     if (component != NULL) {
-        // Add a property to the component
-        icalproperty *prop = icalproperty_new_comment("Fuzzing test");
-        icalcomponent_add_property(component, prop);
-
-        // Convert the component to a string and print it (for debugging purposes)
-        char *str = icalcomponent_as_ical_string(component);
-        if (str != NULL) {
-            // In a real fuzzing scenario, you might want to log or further process the string
-            // Here we just ensure that the conversion to string works
+        // Perform operations on the component if needed
+        // For example, convert it to a string and log or process it
+        char *component_str = icalcomponent_as_ical_string(component);
+        
+        // Normally, you would do something with component_str, like logging or further processing
+        // For this fuzzing harness, we just ensure it is not NULL and then free it
+        if (component_str != NULL) {
+            // Free the string after use
+            icalmemory_free_buffer(component_str);
         }
 
-        // Clean up
+        // Free the component after use
         icalcomponent_free(component);
     }
 

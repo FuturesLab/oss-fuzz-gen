@@ -1,38 +1,26 @@
-#include <cstdint>
-#include <cstring>
-
-extern "C" {
 #include <libical/ical.h>
-}
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" int LLVMFuzzerTestOneInput_28(const uint8_t *data, size_t size) {
-    // Ensure there is enough data for the function parameters
-    if (size < sizeof(struct icaltimetype) * 2) {
-        return 0;
-    }
+    // Initialize variables
+    icalcomponent *component = nullptr;
+    struct icaltimetype start_time;
+    struct icaltimetype end_time;
 
-    // Initialize an icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        return 0;
-    }
+    // Ensure size is sufficient for creating a valid component and time
+    if (size < 10) return 0;
 
-    // Create two icaltimetype structures from the input data
-    struct icaltimetype time1;
-    struct icaltimetype time2;
+    // Create a dummy icalcomponent
+    component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == nullptr) return 0;
 
-    // Copy data to time1 and time2, ensuring they are valid
-    memcpy(&time1, data, sizeof(struct icaltimetype));
-    memcpy(&time2, data + sizeof(struct icaltimetype), sizeof(struct icaltimetype));
+    // Initialize start_time and end_time
+    start_time = icaltime_from_timet_with_zone(time(nullptr), 0, nullptr);
+    end_time = icaltime_from_timet_with_zone(time(nullptr) + 3600, 0, nullptr);
 
-    // Set some valid fields in the icaltimetype structures
-    time1.is_date = 0;
-    time1.is_daylight = 0;
-    time2.is_date = 0;
-    time2.is_daylight = 0;
-
-    // Call the function under test
-    bool result = icalproperty_recurrence_is_excluded(component, &time1, &time2);
+    // Call the function-under-test
+    bool result = icalproperty_recurrence_is_excluded(component, &start_time, &end_time);
 
     // Clean up
     icalcomponent_free(component);

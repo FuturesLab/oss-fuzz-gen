@@ -1,37 +1,43 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstddef>  // Include for size_t
+#include <libical/ical.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>  // For malloc and free
+#include <string.h>  // For memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_31(const uint8_t *data, size_t size) {
-    if (size < 1) {
+    // Initialize variables
+    icalcomponent *component = nullptr;
+    icalcomponent *first_component = nullptr;
+    icalcomponent_kind kind = ICAL_VEVENT_COMPONENT; // Use a valid enum value
+
+    // Ensure data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Create a dummy icalcomponent
-    icalcomponent *parent_component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    if (!parent_component) {
+    // Create an icalcomponent from the input data
+    // Note: This assumes the input data is a valid iCalendar string
+    char *ical_string = (char *)malloc(size + 1);
+    if (ical_string == nullptr) {
         return 0;
     }
+    memcpy(ical_string, data, size);
+    ical_string[size] = '\0';
 
-    // Add a subcomponent to the parent component
-    icalcomponent *sub_component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (!sub_component) {
-        icalcomponent_free(parent_component);
-        return 0;
+    component = icalparser_parse_string(ical_string);
+    free(ical_string);
+
+    if (component != nullptr) {
+        // Call the function-under-test
+        first_component = icalcomponent_get_first_component(component, kind);
+
+        // Clean up
+        icalcomponent_free(component);
     }
-    icalcomponent_add_component(parent_component, sub_component);
-
-    // Use the first byte of data to determine the icalcomponent_kind
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(data[0] % ICAL_NO_COMPONENT);
-
-    // Call the function-under-test
-    icalcomponent *result = icalcomponent_get_first_component(parent_component, kind);
-
-    // Clean up
-    icalcomponent_free(parent_component);
 
     return 0;
 }

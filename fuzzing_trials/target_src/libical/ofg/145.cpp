@@ -1,37 +1,28 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h> // Include for memcpy
+#include <cstdint>
+#include <cstddef>
 
 extern "C" {
-    // Include necessary C headers and function declarations
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_145(const uint8_t *data, size_t size) {
-    // Ensure size is sufficient to extract meaningful data
-    if (size < sizeof(struct icaltimetype)) {
-        return 0;
-    }
-
-    // Initialize icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        return 0;
-    }
-
-    // Extract icaltimetype from data
-    struct icaltimetype recurrence_id;
-    memcpy(&recurrence_id, data, sizeof(struct icaltimetype));
-
-    // Set valid fields of icaltimetype
-    recurrence_id.is_date = 0; // Ensure it's a date-time
-    recurrence_id.zone = icaltimezone_get_utc_timezone(); // Set timezone to UTC
-
     // Call the function-under-test
-    icalcomponent_set_recurrenceid(component, recurrence_id);
+    icalcomponent *component = icalcomponent_new_vagenda();
 
-    // Clean up
-    icalcomponent_free(component);
+    // Perform any necessary operations on the component if needed
+    // For example, serialize it to a string and print (for debugging purposes)
+    if (component != NULL) {
+        char *str = icalcomponent_as_ical_string(component);
+        if (str != NULL) {
+            // For fuzzing, we generally don't print, but we could log or use the string
+            // printf("%s\n", str); // Uncomment for debugging purposes
+        }
+        // Free the string if it was allocated
+        icalmemory_free_buffer(str);
+
+        // Free the component to avoid memory leaks
+        icalcomponent_free(component);
+    }
 
     return 0;
 }

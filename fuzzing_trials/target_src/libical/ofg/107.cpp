@@ -1,37 +1,55 @@
-#include <libical/ical.h>
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <cstdint> // Include for uint8_t
+#include <cstddef> // Include for size_t
+#include <cstring> // Include for memcpy
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_107(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a valid string
-    if (size == 0) {
+    // Check if the size is sufficient to create a meaningful string
+    if (size < 1) {
         return 0;
     }
 
-    // Copy the input data to a null-terminated string
-    char *ical_data = (char *)malloc(size + 1);
-    if (ical_data == NULL) {
-        return 0;
+    // Create a null-terminated string from the input data
+    char *input = new char[size + 1];
+    memcpy(input, data, size);
+    input[size] = '\0';
+
+    // Call the function-under-test
+    icalcomponent *valarm = icalcomponent_new_valarm();
+
+    // Perform operations on the created component if needed
+    if (valarm != NULL) {
+        // Example: Add some properties to the valarm component
+        icalcomponent_add_property(valarm, icalproperty_new_action(ICAL_ACTION_DISPLAY));
+        icalcomponent_add_property(valarm, icalproperty_new_description(input));
+
+        // Correctly create a trigger property using icaltriggertype
+        struct icaltriggertype trigger;
+        trigger.time = icaltime_from_string("20231010T123000Z");
+        icalcomponent_add_property(valarm, icalproperty_new_trigger(trigger));
+
+        // Add additional operations to increase code coverage
+        icalcomponent_add_property(valarm, icalproperty_new_summary("Test Summary"));
+
+        // Optionally, convert the component to a string and back to test serialization/deserialization
+        char *component_string = icalcomponent_as_ical_string(valarm);
+        if (component_string != NULL) {
+            icalcomponent *parsed_component = icalparser_parse_string(component_string);
+            if (parsed_component != NULL) {
+                icalcomponent_free(parsed_component);
+            }
+            icalmemory_free_buffer(component_string);
+        }
+
+        // Clean up by freeing the component
+        icalcomponent_free(valarm);
     }
-    memcpy(ical_data, data, size);
-    ical_data[size] = '\0';
 
-    // Parse the iCalendar data
-    icalcomponent *component = icalparser_parse_string(ical_data);
-
-    // Ensure the component is not NULL before calling the function-under-test
-    if (component != NULL) {
-        // Call the function-under-test
-        int error_count = icalcomponent_count_errors(component);
-
-        // Clean up the component
-        icalcomponent_free(component);
-    }
-
-    // Free the allocated memory for ical_data
-    free(ical_data);
+    // Free the allocated input string
+    delete[] input;
 
     return 0;
 }

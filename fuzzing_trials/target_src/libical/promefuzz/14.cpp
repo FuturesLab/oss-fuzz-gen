@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_get_dtstamp at icalcomponent.c:1722:21 in icalcomponent.h
-// icalcomponent_set_dtstamp at icalcomponent.c:1710:6 in icalcomponent.h
-// icalcomponent_get_dtstart at icalcomponent.c:1553:21 in icalcomponent.h
-// icalcomponent_set_dtstart at icalcomponent.c:1533:6 in icalcomponent.h
-// icalcomponent_set_dtend at icalcomponent.c:1622:6 in icalcomponent.h
-// icalcomponent_new_valarm at icalcomponent.c:2045:16 in icalcomponent.h
+// icalcomponent_get_status at icalcomponent.c:2066:26 in icalcomponent.h
+// icalcomponent_set_status at icalcomponent.c:2054:6 in icalcomponent.h
+// icalcomponent_new_vtodo at icalcomponent.c:2099:16 in icalcomponent.h
+// icalcomponent_convert_errors at icalcomponent.c:1211:6 in icalcomponent.h
+// icalcomponent_set_sequence at icalcomponent.c:2019:6 in icalcomponent.h
+// icalcomponent_clone at icalcomponent.c:137:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,84 +14,58 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
+#include <cstdint>
+#include <cstdlib>
 #include <fstream>
-#include <cstring>
+#include <iostream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <libical/icalcomponent.h>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include <libical/icaltime.h>
+#include "icalcomponent.h"
+
+static void fuzz_icalcomponent_set_sequence(icalcomponent *comp, const uint8_t *data, size_t size) {
+    if (size < sizeof(int)) return;
+    int sequence = *reinterpret_cast<const int*>(data);
+    icalcomponent_set_sequence(comp, sequence);
+}
+
+static void fuzz_icalcomponent_clone(icalcomponent *comp) {
+    icalcomponent *clone = icalcomponent_clone(comp);
+    if (clone) {
+        icalcomponent_free(clone);
+    }
+}
+
+static void fuzz_icalcomponent_get_status(icalcomponent *comp) {
+    icalproperty_status status = icalcomponent_get_status(comp);
+    (void)status; // Suppress unused variable warning
+}
+
+static void fuzz_icalcomponent_set_status(icalcomponent *comp, const uint8_t *data, size_t size) {
+    if (size < sizeof(icalproperty_status)) return;
+    icalproperty_status status = *reinterpret_cast<const icalproperty_status*>(data);
+    icalcomponent_set_status(comp, status);
+}
+
+static void fuzz_icalcomponent_convert_errors(icalcomponent *comp) {
+    icalcomponent_convert_errors(comp);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int) + sizeof(icaltimetype)) {
-        return 0; // Not enough data to proceed
-    }
+    // Create a new VTODO component
+    icalcomponent *comp = icalcomponent_new_vtodo();
+    if (!comp) return 0;
 
-    // Create a dummy icalcomponent
-    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (!comp) {
-        return 0; // Failed to create component
-    }
+    // Fuzz each function with the input data
+    fuzz_icalcomponent_set_sequence(comp, Data, Size);
+    fuzz_icalcomponent_clone(comp);
+    fuzz_icalcomponent_get_status(comp);
+    fuzz_icalcomponent_set_status(comp, Data, Size);
+    fuzz_icalcomponent_convert_errors(comp);
 
-    // Extract an integer to decide which function to test
-    int choice = *reinterpret_cast<const int*>(Data);
-    Data += sizeof(int);
-    Size -= sizeof(int);
-
-    // Create an icaltimetype from the remaining data
-    icaltimetype time = icaltime_null_time();
-    if (Size >= sizeof(icaltimetype)) {
-        std::memcpy(&time, Data, sizeof(icaltimetype));
-        // Ensure the timezone pointer is valid or null
-        time.zone = nullptr; // Set to null as a safe default
-    }
-
-    switch (choice % 6) {
-        case 0: {
-            // Test icalcomponent_get_dtstamp
-            icaltimetype dtstamp = icalcomponent_get_dtstamp(comp);
-            (void)dtstamp; // Suppress unused variable warning
-            break;
-        }
-        case 1: {
-            // Test icalcomponent_set_dtstart
-            icalcomponent_set_dtstart(comp, time);
-            break;
-        }
-        case 2: {
-            // Test icalcomponent_set_dtstamp
-            icalcomponent_set_dtstamp(comp, time);
-            break;
-        }
-        case 3: {
-            // Test icalcomponent_set_dtend
-            icalcomponent_set_dtend(comp, time);
-            break;
-        }
-        case 4: {
-            // Test icalcomponent_new_valarm
-            icalcomponent *valarm = icalcomponent_new_valarm();
-            if (valarm) {
-                icalcomponent_free(valarm);
-            }
-            break;
-        }
-        case 5: {
-            // Test icalcomponent_get_dtstart
-            icaltimetype dtstart = icalcomponent_get_dtstart(comp);
-            (void)dtstart; // Suppress unused variable warning
-            break;
-        }
-        default:
-            break;
-    }
-
-    // Clean up
+    // Cleanup
     icalcomponent_free(comp);
+
     return 0;
 }
     #ifdef INC_MAIN

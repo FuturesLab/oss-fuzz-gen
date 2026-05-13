@@ -1,26 +1,22 @@
-#include <cstdint> // Include for uint8_t
-#include <cstdlib> // Include for size_t
+#include <cstdint>
+#include <cstddef>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
-// Fuzzing harness for icalcomponent_new_vfreebusy
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
     // Call the function-under-test
     icalcomponent *component = icalcomponent_new_vfreebusy();
 
-    // Check if the component is created successfully
-    if (component != nullptr) {
-        // Perform operations on the component if needed
-        // For example, convert the component to a string and print it
-        char *str = icalcomponent_as_ical_string(component);
-        if (str != nullptr) {
-            // Normally, you might do something with str, like logging or further processing
-            // but for this fuzzing harness, we'll just ensure it's created
-        }
+    // Perform operations on the component if necessary
+    // For example, you could add properties or subcomponents
+    if (component != NULL) {
+        // Add a property to the component as an example
+        icalproperty *prop = icalproperty_new_comment("Fuzzing test comment");
+        icalcomponent_add_property(component, prop);
 
-        // Free the component after use
+        // Clean up and free the component
         icalcomponent_free(component);
     }
 

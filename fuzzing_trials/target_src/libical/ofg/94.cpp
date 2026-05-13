@@ -1,28 +1,28 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h> // Include for memcpy
+#include <cstdint>  // Include for uint8_t
+#include <cstddef>  // Include for size_t
+#include <cstring>  // Include for memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_94(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a valid icaltimetype
+    // Ensure that the data size is sufficient to create a valid icaltimetype
     if (size < sizeof(struct icaltimetype)) {
         return 0;
     }
 
-    // Initialize icalcomponent
+    // Create a new icalcomponent
     icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
     if (component == NULL) {
         return 0;
     }
 
-    // Create an icaltimetype from the input data
+    // Extract an icaltimetype from the input data
     struct icaltimetype dtstamp;
     memcpy(&dtstamp, data, sizeof(struct icaltimetype));
 
-    // Call the function-under-test
+    // Set the dtstamp for the component
     icalcomponent_set_dtstamp(component, dtstamp);
 
     // Clean up

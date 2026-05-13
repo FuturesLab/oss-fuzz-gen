@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_foreach_tzid at icalcomponent.c:2393:6 in icalcomponent.h
-// icalcomponent_new_vlocation at icalcomponent.c:2125:16 in icalcomponent.h
-// icalcomponent_merge_component at icalcomponent.c:2139:6 in icalcomponent.h
-// icalcomponent_new_vagenda at icalcomponent.c:2070:16 in icalcomponent.h
-// icalcomponent_set_recurrenceid at icalcomponent.c:1839:6 in icalcomponent.h
-// icalcomponent_add_component at icalcomponent.c:509:6 in icalcomponent.h
+// icalcomponent_as_ical_string at icalcomponent.c:234:7 in icalcomponent.h
+// icalcomponent_set_relcalid at icalcomponent.c:2627:6 in icalcomponent.h
+// icalcomponent_set_comment at icalcomponent.c:1833:6 in icalcomponent.h
+// icalcomponent_set_description at icalcomponent.c:1949:6 in icalcomponent.h
+// icalcomponent_get_comment at icalcomponent.c:1845:13 in icalcomponent.h
+// icalcomponent_get_timezone at icalcomponent.c:2492:15 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,74 +14,63 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <iostream>
+#include <fstream>
+#include <cstring>
+#include <cassert>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return 0;
+    if (Size < 1) return 0;
 
-    // Create a dummy VEVENT component
-    icalcomponent *event = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (!event) return 0;
+    // Initialize an icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    assert(component != nullptr);
 
-    // Create a dummy VAGENDA component
-    icalcomponent *vagenda = icalcomponent_new_vagenda();
-    if (!vagenda) {
-        icalcomponent_free(event);
-        return 0;
+    // Use the data to set the description
+    char *description = new char[Size + 1];
+    std::memcpy(description, Data, Size);
+    description[Size] = '\0';
+    icalcomponent_set_description(component, description);
+
+    // Retrieve the comment (which should be initially NULL)
+    const char *comment = icalcomponent_get_comment(component);
+    if (comment != nullptr) {
+        std::cout << "Comment: " << comment << std::endl;
     }
 
-    // Create a dummy VLOCATION component
-    icalcomponent *vlocation = icalcomponent_new_vlocation();
-    if (!vlocation) {
-        icalcomponent_free(event);
-        icalcomponent_free(vagenda);
-        return 0;
+    // Use the data to set the comment
+    icalcomponent_set_comment(component, description);
+
+    // Retrieve the comment again
+    comment = icalcomponent_get_comment(component);
+    if (comment != nullptr) {
+        std::cout << "Updated Comment: " << comment << std::endl;
     }
 
-    // Add components to a parent VCALENDAR component
-    icalcomponent *vcalendar = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    if (!vcalendar) {
-        icalcomponent_free(event);
-        icalcomponent_free(vagenda);
-        icalcomponent_free(vlocation);
-        return 0;
+    // Use the data to set the RELCALID
+    icalcomponent_set_relcalid(component, description);
+
+    // Attempt to retrieve a timezone using part of the data as TZID
+    char *tzid = new char[Size + 1];
+    std::memcpy(tzid, Data, Size);
+    tzid[Size] = '\0';
+    icaltimezone *timezone = icalcomponent_get_timezone(component, tzid);
+
+    // Convert the component to an iCal string
+    char *ical_string = icalcomponent_as_ical_string(component);
+    if (ical_string != nullptr) {
+        std::cout << "iCal String: " << ical_string << std::endl;
+        // Do not free ical_string as it is managed by the libical library
     }
 
-    icalcomponent_add_component(vcalendar, event);
-    icalcomponent_add_component(vcalendar, vagenda);
-    icalcomponent_add_component(vcalendar, vlocation);
-
-    // Create another VCALENDAR component to merge
-    icalcomponent *vcalendar_to_merge = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    if (!vcalendar_to_merge) {
-        icalcomponent_free(vcalendar);
-        return 0;
-    }
-
-    // Merge two VCALENDAR components
-    icalcomponent_merge_component(vcalendar, vcalendar_to_merge);
-
-    // Define a simple callback function for foreach_tzid
-    auto tzid_callback = [](icalparameter *param, void *data) {
-        // Just a placeholder to demonstrate using the callback
-    };
-
-    // Use foreach_tzid on the vcalendar component
-    icalcomponent_foreach_tzid(vcalendar, tzid_callback, nullptr);
-
-    // Prepare a dummy icaltimetype
-    icaltimetype recurrence_id;
-    recurrence_id.year = 2023;
-    recurrence_id.zone = nullptr;
-
-    // Set the recurrence ID for the event
-    icalcomponent_set_recurrenceid(event, recurrence_id);
-
-    // Clean up
-    icalcomponent_free(vcalendar);
+    // Cleanup
+    icalcomponent_free(component);
+    delete[] description;
+    delete[] tzid;
 
     return 0;
 }

@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_remove_component at icalcomponent.c:543:6 in icalcomponent.h
-// icalcomponent_set_parent at icalcomponent.c:1231:6 in icalcomponent.h
-// icalcomponent_get_parent at icalcomponent.c:1226:16 in icalcomponent.h
-// icalcomponent_add_component at icalcomponent.c:509:6 in icalcomponent.h
-// icalcomponent_new_vtimezone at icalcomponent.c:2055:16 in icalcomponent.h
-// icalcomponent_isa at icalcomponent.c:304:20 in icalcomponent.h
+// icalcomponent_merge_component at icalcomponent.c:2203:6 in icalcomponent.h
+// icalcomponent_new_xdaylight at icalcomponent.c:2129:16 in icalcomponent.h
+// icalcomponent_new_vtimezone at icalcomponent.c:2119:16 in icalcomponent.h
+// icalcomponent_foreach_tzid at icalcomponent.c:2456:6 in icalcomponent.h
+// icalcomponent_add_component at icalcomponent.c:552:6 in icalcomponent.h
+// icalcomponent_clone at icalcomponent.c:137:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,49 +14,46 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <iostream>
+#include <fstream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <icalcomponent.h>
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_29(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Create a new VTIMEZONE component
+    // Prepare environment and initialize components
     icalcomponent *vtimezone = icalcomponent_new_vtimezone();
-    if (!vtimezone) return 0;
+    icalcomponent *xdaylight = icalcomponent_new_xdaylight();
+    icalcomponent *clone = nullptr;
 
-    // Create another component to act as a child
-    icalcomponent *child = icalcomponent_new_vtimezone();
-    if (!child) {
-        icalcomponent_free(vtimezone);
-        return 0;
-    }
+    // Add xdaylight to vtimezone
+    icalcomponent_add_component(vtimezone, xdaylight);
 
-    // Fuzzing logic for icalcomponent_set_parent
-    icalcomponent_set_parent(child, vtimezone);
+    // Clone the vtimezone component
+    clone = icalcomponent_clone(vtimezone);
 
-    // Fuzzing logic for icalcomponent_add_component
-    icalcomponent_add_component(vtimezone, child);
+    // Create a dummy VCALENDAR component for merging
+    icalcomponent *vcalendar1 = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalcomponent *vcalendar2 = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
 
-    // Fuzzing logic for icalcomponent_get_parent
-    icalcomponent *parent = icalcomponent_get_parent(child);
-    (void)parent; // Suppress unused variable warning
+    // Add vtimezone to vcalendar1
+    icalcomponent_add_component(vcalendar1, vtimezone);
 
-    // Fuzzing logic for icalcomponent_isa
-    icalcomponent_kind kind = icalcomponent_isa(vtimezone);
-    (void)kind; // Suppress unused variable warning
+    // Merge vcalendar2 into vcalendar1
+    icalcomponent_merge_component(vcalendar1, vcalendar2);
 
-    // Fuzzing logic for icalcomponent_remove_component
-    icalcomponent_remove_component(vtimezone, child);
+    // Define a dummy callback for foreach_tzid
+    auto callback = [](icalparameter *param, void *data) {
+        // Dummy callback logic
+    };
 
-    // Free allocated components
-    icalcomponent_free(child);
-    icalcomponent_free(vtimezone);
+    // Iterate over TZIDs in the cloned component
+    icalcomponent_foreach_tzid(clone, callback, nullptr);
+
+    // Cleanup
+    icalcomponent_free(vcalendar1);
+    icalcomponent_free(clone);
 
     return 0;
 }

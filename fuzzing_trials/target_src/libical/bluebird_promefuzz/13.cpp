@@ -1,65 +1,62 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <iostream>
-#include <cstdint>
-#include <cstdlib>
+#include <sstream>
+#include <string>
+#include <vector>
 #include <cstring>
+#include <cstdlib>
+#include <cstdio>
+#include <cstdint>
+#include <cstddef>
+#include <cstdint>
+#include <cstdarg>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icalcomponent_kind)) {
-        return 0;
+    if (Size < 1) return 0;
+
+    // Use the first byte of data as an icalcomponent_kind
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+
+    // Test icalcomponent_new
+    icalcomponent *comp_new = icalcomponent_new(kind);
+    if (comp_new) {
+        icalcomponent_free(comp_new);
     }
 
-    // Create a dummy icalcomponent
-    icalcomponent *comp = icalcomponent_new(static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES));
-
-    if (!comp) {
-        return 0;
+    // Test icalcomponent_new_vvoter
+    icalcomponent *comp_vvoter = icalcomponent_new_vvoter();
+    if (comp_vvoter) {
+        icalcomponent_free(comp_vvoter);
     }
 
-    // Fuzz icalcomponent_get_component_name_r
-    char *component_name = icalcomponent_get_component_name_r(comp);
-    if (component_name) {
-        std::cout << "Component Name: " << component_name << std::endl;
-        free(component_name);
+    // Test icalcomponent_new_vreply
+    icalcomponent *comp_vreply = icalcomponent_new_vreply();
+    if (comp_vreply) {
+        icalcomponent_free(comp_vreply);
     }
 
-    // Fuzz icalcomponent_get_x_name
-    const char *x_name = icalcomponent_get_x_name(comp);
-    if (x_name) {
-        std::cout << "X Name: " << x_name << std::endl;
+    // Test icalcomponent_new_xvote
+    icalcomponent *comp_xvote = icalcomponent_new_xvote();
+    if (comp_xvote) {
+        icalcomponent_free(comp_xvote);
     }
 
-    // Fuzz icalcomponent_get_relcalid
-    const char *relcalid = icalcomponent_get_relcalid(comp);
-    if (relcalid) {
-        std::cout << "Relcalid: " << relcalid << std::endl;
+    // Test icalcomponent_new_vpoll
+    icalcomponent *comp_vpoll = icalcomponent_new_vpoll();
+    if (comp_vpoll) {
+        icalcomponent_free(comp_vpoll);
     }
 
-    // Fuzz icalcomponent_get_description
-    const char *description = icalcomponent_get_description(comp);
-    if (description) {
-        std::cout << "Description: " << description << std::endl;
+    // Test icalcomponent_vanew with a variable argument list
+    icalcomponent *comp_vanew = icalcomponent_vanew(kind, NULL);
+    if (comp_vanew) {
+        icalcomponent_free(comp_vanew);
     }
-
-    // Fuzz icalcomponent_get_uid
-    const char *uid = icalcomponent_get_uid(comp);
-    if (uid) {
-        std::cout << "UID: " << uid << std::endl;
-    }
-
-    // Fuzz icalcomponent_get_comment
-    const char *comment = icalcomponent_get_comment(comp);
-    if (comment) {
-        std::cout << "Comment: " << comment << std::endl;
-    }
-
-    // Clean up
-    icalcomponent_free(comp);
 
     return 0;
 }

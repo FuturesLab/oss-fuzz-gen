@@ -1,44 +1,41 @@
-#include <sys/stat.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring> // Include this for memcpy
+#include <cstring> // Include for memcpy
 
 extern "C" {
-    #include "libical/ical.h"
+    #include "libical/ical.h" // Correctly include the necessary header for libical
 }
 
 extern "C" int LLVMFuzzerTestOneInput_78(const uint8_t *data, size_t size) {
-    // Ensure that the size is large enough to create a valid icalcomponent
+    // Ensure that the size is sufficient to create a valid icalcomponent
     if (size == 0) {
         return 0;
     }
 
-    // Create a temporary buffer to hold the input data
-    char *buffer = static_cast<char*>(malloc(size + 1));
-    if (buffer == nullptr) {
+    // Create a temporary string from the input data
+    char *ical_str = static_cast<char *>(malloc(size + 1));
+    if (ical_str == nullptr) {
         return 0;
     }
+    memcpy(ical_str, data, size);
+    ical_str[size] = '\0';
 
-    // Copy the input data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
+    // Parse the string to create an icalcomponent
+    icalcomponent *component = icalparser_parse_string(ical_str);
 
-    // Parse the buffer to create an icalcomponent
-    icalcomponent *component = icalparser_parse_string(buffer);
-
+    // Ensure the component is not NULL before calling the function
     if (component != nullptr) {
         // Call the function-under-test
-        icalcomponent_kind kind = icalcomponent_isa(component);
+        icalproperty_status status = icalcomponent_get_status(component);
 
-        // Clean up the icalcomponent
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
-        icalcomponent_normalize(component);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        // Clean up the component after usage
+        icalcomponent_free(component);
     }
 
-    // Free the buffer
-    free(buffer);
+    // Free the allocated memory for the string
+    free(ical_str);
 
     return 0;
 }

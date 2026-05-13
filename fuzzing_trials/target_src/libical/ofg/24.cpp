@@ -1,26 +1,27 @@
-#include <cstddef>
-#include <cstdint>
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <stdint.h>
+#include <stddef.h>
+#include <stdbool.h>
+#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_24(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create an icalcompiter object
-    if (size < sizeof(icalcompiter)) {
+    // Declare and initialize the icalcompiter structure
+    icalcompiter compiter;
+    icalcomponent *component;
+    
+    // Initialize a dummy icalcomponent to ensure icalcompiter is not NULL
+    component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
         return 0;
     }
 
-    // Create an icalcompiter object from the input data
-    icalcompiter compiter;
-    icalcomponent *component = icalcomponent_new(ICAL_NO_COMPONENT);
-
-    // Initialize the icalcompiter object
-    // The correct function signature requires a component and a kind
+    // Initialize the icalcompiter with the dummy component
     compiter = icalcomponent_begin_component(component, ICAL_ANY_COMPONENT);
 
-    // Call the function-under-test
-    bool is_valid = icalcompiter_is_valid(&compiter);
+    // Ensure that the compiter is valid before calling the function
+    if (icalcompiter_deref(&compiter) != NULL) {
+        // Call the function-under-test
+        bool is_valid = icalcompiter_is_valid(&compiter);
+    }
 
     // Clean up
     icalcomponent_free(component);

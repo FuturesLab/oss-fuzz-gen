@@ -1,44 +1,36 @@
-#include <libical/ical.h>
-#include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h> // Include for memcpy
+
+extern "C" {
+    #include <libical/ical.h> // Wrap the C library includes with extern "C"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-    // Ensure that the input data is large enough to be meaningful
-    if (size < 1) {
-        return 0;
+    // Create a temporary buffer to hold the input data
+    char *buffer = (char *)malloc(size + 1);
+    if (buffer == NULL) {
+        return 0; // Exit if memory allocation fails
     }
 
-    // Initialize a non-null icalproperty object using data
-    icalproperty_kind kind = static_cast<icalproperty_kind>(data[0] % ICAL_NO_PROPERTY);
-    icalproperty *property = icalproperty_new(kind);
+    // Copy the input data to the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
 
-    // Ensure the property is not NULL
+    // Create a new icalproperty from the buffer
+    icalproperty *property = icalproperty_new_from_string(buffer); // Use the correct function name
     if (property == NULL) {
-        return 0;
+        free(buffer);
+        return 0; // Exit if property creation fails
     }
-
-    // Create a dummy icalcomponent and attach the property to it
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        icalproperty_free(property);
-        return 0;
-    }
-    icalcomponent_add_property(component, property);
 
     // Call the function-under-test
     icalcomponent *parent = icalproperty_get_parent(property);
 
-    // Perform some operations with the parent if needed
-    if (parent != NULL) {
-        // Example operation: Get the first property of the parent component
-        icalproperty *first_property = icalcomponent_get_first_property(parent, ICAL_ANY_PROPERTY);
-        // Do something with first_property if needed
-    }
-
     // Clean up
-    icalcomponent_free(component); // This will also free the property
+    icalproperty_free(property);
+    free(buffer);
 
     return 0;
 }

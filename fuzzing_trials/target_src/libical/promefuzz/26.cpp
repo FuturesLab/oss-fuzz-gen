@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_new_vtimezone at icalcomponent.c:2055:16 in icalcomponent.h
-// icalcomponent_remove_component at icalcomponent.c:543:6 in icalcomponent.h
-// icalcomponent_get_parent at icalcomponent.c:1226:16 in icalcomponent.h
-// icalcomponent_add_component at icalcomponent.c:509:6 in icalcomponent.h
-// icalcomponent_set_parent at icalcomponent.c:1231:6 in icalcomponent.h
-// icalcomponent_isa at icalcomponent.c:304:20 in icalcomponent.h
+// icalcomponent_set_method at icalcomponent.c:1561:6 in icalcomponent.h
+// icalcomponent_get_method at icalcomponent.c:1573:21 in icalcomponent.h
+// icalcomponent_add_component at icalcomponent.c:552:6 in icalcomponent.h
+// icalcomponent_set_parent at icalcomponent.c:1275:6 in icalcomponent.h
+// icalcomponent_new_xdaylight at icalcomponent.c:2129:16 in icalcomponent.h
+// icalcomponent_remove_component at icalcomponent.c:586:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,45 +14,75 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <iostream>
+#include <fstream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include <icalcomponent.h>
+#include <cstdint>
+
+static icalcomponent* create_dummy_component() {
+    return icalcomponent_new(ICAL_VEVENT_COMPONENT);
+}
+
+static void test_icalcomponent_get_method(icalcomponent* comp) {
+    icalproperty_method method = icalcomponent_get_method(comp);
+    (void)method; // Suppress unused variable warning
+}
+
+static void test_icalcomponent_set_method(icalcomponent* comp, icalproperty_method method) {
+    icalcomponent_set_method(comp, method);
+}
+
+static void test_icalcomponent_add_component(icalcomponent* parent, icalcomponent* child) {
+    icalcomponent_add_component(parent, child);
+}
+
+static void test_icalcomponent_remove_component(icalcomponent* parent, icalcomponent* child) {
+    icalcomponent_remove_component(parent, child);
+}
+
+static void test_icalcomponent_set_parent(icalcomponent* component, icalcomponent* parent) {
+    icalcomponent_set_parent(component, parent);
+}
+
+static icalcomponent* test_icalcomponent_new_xdaylight() {
+    return icalcomponent_new_xdaylight();
+}
 
 extern "C" int LLVMFuzzerTestOneInput_26(const uint8_t *Data, size_t Size) {
     if (Size < 1) return 0;
 
-    icalcomponent *parent = icalcomponent_new_vtimezone();
-    icalcomponent *child = icalcomponent_new_vtimezone();
+    icalcomponent* parent = create_dummy_component();
+    icalcomponent* child = create_dummy_component();
 
-    // Fuzzing icalcomponent_set_parent
-    icalcomponent_set_parent(child, parent);
-
-    // Fuzzing icalcomponent_add_component
-    icalcomponent_add_component(parent, child);
-
-    // Fuzzing icalcomponent_get_parent
-    icalcomponent *retrieved_parent = icalcomponent_get_parent(child);
-    if (retrieved_parent != parent) {
-        // Handle error case
+    if (!parent || !child) {
+        if (parent) icalcomponent_free(parent);
+        if (child) icalcomponent_free(child);
+        return 0;
     }
 
-    // Fuzzing icalcomponent_isa
-    icalcomponent_kind kind = icalcomponent_isa(child);
-    if (kind != ICAL_VTIMEZONE_COMPONENT) {
-        // Handle error case
-    }
+    // Test icalcomponent_get_method and icalcomponent_set_method
+    test_icalcomponent_get_method(parent);
+    test_icalcomponent_set_method(parent, static_cast<icalproperty_method>(Data[0] % (ICAL_METHOD_NONE + 1)));
 
-    // Fuzzing icalcomponent_remove_component
-    icalcomponent_remove_component(parent, child);
+    // Test icalcomponent_add_component and icalcomponent_remove_component
+    test_icalcomponent_add_component(parent, child);
+    test_icalcomponent_remove_component(parent, child);
+
+    // Test icalcomponent_set_parent
+    test_icalcomponent_set_parent(child, parent);
+
+    // Test icalcomponent_new_xdaylight
+    icalcomponent* xdaylight = test_icalcomponent_new_xdaylight();
+    if (xdaylight) {
+        icalcomponent_free(xdaylight);
+    }
 
     // Clean up
-    icalcomponent_free(child);
     icalcomponent_free(parent);
+    icalcomponent_free(child);
 
     return 0;
 }

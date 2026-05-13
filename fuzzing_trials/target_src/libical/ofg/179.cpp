@@ -1,22 +1,21 @@
 #include <libical/ical.h>
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 extern "C" int LLVMFuzzerTestOneInput_179(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_xavailable();
+    // Ensure there is enough data to extract a icalcomponent_kind value
+    if (size < sizeof(icalcomponent_kind)) {
+        return 0;
+    }
 
-    // Perform any additional operations or checks on the component if needed
+    // Extract an icalcomponent_kind value from the input data
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(data[0]);
+
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new(kind);
+
+    // Clean up if a component was created
     if (component != NULL) {
-        // Example: Convert the component to a string and free it afterwards
-        char *component_str = icalcomponent_as_ical_string(component);
-        if (component_str != NULL) {
-            // Normally, you might do something with component_str here
-            // For fuzzing, we just ensure it doesn't crash and then free it
-            icalmemory_free_buffer(component_str);
-        }
-        
-        // Free the component
         icalcomponent_free(component);
     }
 

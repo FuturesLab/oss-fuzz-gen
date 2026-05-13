@@ -1,39 +1,28 @@
-#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h> // For malloc and free
-#include <string.h> // For memcpy
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <stdlib.h>
+#include <string.h>
+#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_137(const uint8_t *data, size_t size) {
-    // Initialize a string from the input data
-    char *input_data = (char *)malloc(size + 1);
-    if (input_data == NULL) {
-        return 0;
-    }
-    memcpy(input_data, data, size);
-    input_data[size] = '\0';
-
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(input_data);
-    if (component == NULL) {
-        free(input_data);
-        return 0;
+    // Ensure the input data is null-terminated for safe string operations
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0; // Fail gracefully if memory allocation fails
     }
 
-    // Define a valid icalcomponent_kind
-    icalcomponent_kind kind = ICAL_VEVENT_COMPONENT;
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // Call the function under test
-    int count = icalcomponent_count_components(component, kind);
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_x(null_terminated_data);
 
     // Clean up
-    icalcomponent_free(component);
-    free(input_data);
+    if (component != NULL) {
+        icalcomponent_free(component);
+    }
 
+    free(null_terminated_data);
     return 0;
 }
 #ifdef INC_MAIN

@@ -10,8 +10,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <iostream>
-#include <fstream>
-#include <cstring>
+#include <cstdint>
 #include <cstdlib>
 #include "libical/ical.h"
 #include "libical/ical.h"
@@ -19,109 +18,59 @@
 #include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_26(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    // Create various icalcomponents using the target API functions
+    icalcomponent *vagenda = icalcomponent_new_vagenda();
+    icalcomponent *vevent = icalcomponent_new_vevent();
+    icalcomponent *xavailable = icalcomponent_new_xavailable();
+    icalcomponent *vreply = icalcomponent_new_vreply();
+    icalcomponent *vavailability = icalcomponent_new_vavailability();
 
-    // Create a string from the input data
-    std::string icalStr(reinterpret_cast<const char*>(Data), Size);
+    // Simulate diverse use of the components
+    bool vagendaFreed = false;
+    bool veventFreed = false;
+    bool xavailableFreed = false;
+    bool vreplyFreed = false;
+    bool vavailabilityFreed = false;
 
-    // Use the icalcomponent_new_from_string function
-    icalcomponent *component = icalcomponent_new_from_string(icalStr.c_str());
-
-    if (component) {
-        // Use the icalcomponent_get_location function
-        const char *location = icalcomponent_get_location(component);
-
-        // Use the icalcomponent_isa function
-        icalcomponent_kind kind = icalcomponent_isa(component);
-
-        // Use the icalcomponent_get_recurrenceid function
-        struct icaltimetype recurrenceId = icalcomponent_get_recurrenceid(component);
-
-        // Loop through different component kinds for icalcomponent_get_first_component
-        for (int kindIndex = ICAL_NO_COMPONENT; kindIndex < ICAL_NUM_COMPONENT_TYPES; ++kindIndex) {
-            icalcomponent *firstComponent = icalcomponent_get_first_component(component, static_cast<icalcomponent_kind>(kindIndex));
-            // Just to simulate usage
-            if (firstComponent) {
-                const char *comment = icalcomponent_get_comment(firstComponent);
-            
-                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_comment to icalcomponent_set_duration
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!firstComponent) {
-                	return 0;
-                }
-                struct icaldurationtype ret_icalcomponent_get_duration_qchvp = icalcomponent_get_duration(firstComponent);
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!firstComponent) {
-                	return 0;
-                }
-                icalcomponent_set_duration(firstComponent, ret_icalcomponent_get_duration_qchvp);
-                // End mutation: Producer.APPEND_MUTATOR
-                
-
-                // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_set_duration to icalcomponent_set_due using the plateau pool
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!firstComponent) {
-                	return 0;
-                }
-                icalcomponent_set_due(firstComponent, recurrenceId);
-                // End mutation: Producer.SPLICE_MUTATOR
-                
-
-                // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_set_due to icalproperty_recurrence_is_excluded
-                struct icaltimetype ret_icalcomponent_get_dtstart_dvcrx = icalcomponent_get_dtstart(NULL);
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!firstComponent) {
-                	return 0;
-                }
-                struct icaltimetype ret_icalcomponent_get_dtstamp_jizqr = icalcomponent_get_dtstamp(firstComponent);
-                // Ensure dataflow is valid (i.e., non-null)
-                if (!firstComponent) {
-                	return 0;
-                }
-                bool ret_icalproperty_recurrence_is_excluded_ypngs = icalproperty_recurrence_is_excluded(firstComponent, &ret_icalcomponent_get_dtstart_dvcrx, &ret_icalcomponent_get_dtstamp_jizqr);
-                if (ret_icalproperty_recurrence_is_excluded_ypngs == 0){
-                	return 0;
-                }
-                // End mutation: Producer.APPEND_MUTATOR
-                
-}
+    if (Size > 0) {
+        switch (Data[0] % 5) {
+            case 0:
+                // Perform operations with vagenda
+                icalcomponent_free(vagenda);
+                vagendaFreed = true;
+                break;
+            case 1:
+                // Perform operations with vevent
+                icalcomponent_free(vevent);
+                veventFreed = true;
+                break;
+            case 2:
+                // Perform operations with xavailable
+                icalcomponent_free(xavailable);
+                xavailableFreed = true;
+                break;
+            case 3:
+                // Perform operations with vreply
+                icalcomponent_free(vreply);
+                vreplyFreed = true;
+                break;
+            case 4:
+                // Perform operations with vavailability
+                icalcomponent_free(vavailability);
+                vavailabilityFreed = true;
+                break;
+            default:
+                break;
         }
-
-        // Use the icalcomponent_get_comment function
-        const char *comment = icalcomponent_get_comment(component);
-
-        // Free the component
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
-        icalcomponent_normalize(component);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
 
+    // Free any components that were not freed in the switch
+    if (!vagendaFreed && vagenda) icalcomponent_free(vagenda);
+    if (!veventFreed && vevent) icalcomponent_free(vevent);
+    if (!xavailableFreed && xavailable) icalcomponent_free(xavailable);
+    if (!vreplyFreed && vreply) icalcomponent_free(vreply);
+    if (!vavailabilityFreed && vavailability) icalcomponent_free(vavailability);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new_from_string to icalcomponent_get_timezone
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
-    }
-    char* ret_icalcomponent_as_ical_string_vtbic = icalcomponent_as_ical_string(component);
-    if (ret_icalcomponent_as_ical_string_vtbic == NULL){
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!ret_icalcomponent_as_ical_string_vtbic) {
-    	return 0;
-    }
-    icaltimezone* ret_icalcomponent_get_timezone_pqykh = icalcomponent_get_timezone(component, ret_icalcomponent_as_ical_string_vtbic);
-    if (ret_icalcomponent_get_timezone_pqykh == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
     return 0;
 }
 #ifdef INC_MAIN

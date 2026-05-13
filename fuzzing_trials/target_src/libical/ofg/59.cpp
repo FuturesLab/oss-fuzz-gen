@@ -1,44 +1,56 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>  // Added for malloc and free
-#include <string.h>  // Added for memcpy
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
-    #include <libical/ical.h>  // Corrected to include the appropriate path for ical headers
-
-    icalcomponent_kind icalcomponent_isa(const icalcomponent *);
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_59(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create a valid icalcomponent
-    if (size == 0) {
+    // Ensure the data is large enough to contain a null-terminated string
+    if (size < 1) {
         return 0;
     }
 
-    // Create a temporary buffer to hold the data for the icalcomponent
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == NULL) {
+    // Create a new icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
         return 0;
     }
 
-    // Copy the data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
-
-    // Parse the buffer into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(buffer);
-
-    // Ensure the component is not NULL before calling the function
-    if (component != NULL) {
-        // Call the function-under-test
-        icalcomponent_kind kind = icalcomponent_isa(component);
-
-        // Clean up the icalcomponent
+    // Allocate memory for the location string and ensure it is null-terminated
+    char *location = (char *)malloc(size + 1);
+    if (location == NULL) {
         icalcomponent_free(component);
+        return 0;
+    }
+    memcpy(location, data, size);
+    location[size] = '\0';
+
+    // Ensure the location is not an empty string to increase code coverage
+    if (strlen(location) == 0) {
+        free(location);
+        icalcomponent_free(component);
+        return 0;
     }
 
-    // Free the allocated buffer
-    free(buffer);
+    // Call the function-under-test
+    icalcomponent_set_location(component, location);
+
+    // Additional operations to ensure code coverage
+    // Attempt to retrieve the location to ensure the function is being tested
+    const char *retrieved_location = icalcomponent_get_location(component);
+    if (retrieved_location != NULL) {
+        // Perform some operation with retrieved_location
+        size_t retrieved_length = strlen(retrieved_location);
+        if (retrieved_length > 0) {
+            // This block ensures that the retrieved location is not null
+        }
+    }
+
+    // Clean up
+    free(location);
+    icalcomponent_free(component);
 
     return 0;
 }

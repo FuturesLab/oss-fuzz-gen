@@ -1,58 +1,74 @@
 #include <sys/stat.h>
+#include "libical/ical.h"
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
-
-extern "C" {
-    #include "libical/ical.h"
-}
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated for safe string operations
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        return 0;
-    }
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
-
-    // Attempt to parse the input data as an iCalendar string
-    icalcomponent *component = icalparser_parse_string(null_terminated_data);
-
-    // Ensure the component is not NULL
-    if (component == NULL) {
-        free(null_terminated_data);
+    // Ensure the data size is sufficient to create a valid string
+    if (size == 0) {
         return 0;
     }
 
-    // Call the function-under-test
-    const char *relcalid = icalcomponent_get_relcalid(component);
-
-    // Do something with the result to avoid compiler optimizations
-    if (relcalid != NULL) {
-        // Normally you might log or further process the result
-        // Here we'll just use it in a dummy operation
-        volatile size_t relcalid_length = strlen(relcalid);
-        (void)relcalid_length; // Suppress unused variable warning
+    // Create a null-terminated string from the input data
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
+        return 0;
     }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0';
 
-    // Clean up
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputData);
 
-    // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_get_relcalid to icalcomponent_set_due using the plateau pool
-    int day = (int)(data[2] % 31) + 1;
-    int year = (int)data[0] + 1900;
-    struct icaltimetype due_time = icaltime_from_day_of_year(
-        day, year);
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
-    }
-    icalcomponent_set_due(component, due_time);
-    // End mutation: Producer.SPLICE_MUTATOR
+    // Check if the component was successfully created
+    if (component != NULL) {
+        // Call the function-under-test
+        char *icalString = icalcomponent_as_ical_string_r(component);
+
+        // Free the resulting string if it was created
+        if (icalString != NULL) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     
-    icalcomponent_free(component);
-    free(null_terminated_data);
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_set_duration
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_set_dtstart
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        struct icaltimetype ret_icalcomponent_get_dtend_znrbf = icalcomponent_get_dtend(component);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_dtstart with icalcomponent_set_dtend
+        icalcomponent_set_dtend(component, ret_icalcomponent_get_dtend_znrbf);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        struct icaldurationtype ret_icalcomponent_get_duration_kcsfr = icalcomponent_get_duration(component);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        icalcomponent_set_duration(component, ret_icalcomponent_get_duration_kcsfr);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Free the input data
+    free(inputData);
 
     return 0;
 }

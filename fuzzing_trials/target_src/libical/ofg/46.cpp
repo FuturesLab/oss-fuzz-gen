@@ -1,45 +1,29 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <libical/ical.h>
 
 extern "C" {
-    #include <libical/icalcomponent.h>
-    #include <libical/icalproperty.h>
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_46(const uint8_t *data, size_t size) {
-    // Check if the input data size is sufficient
-    if (size < 1) {
+    // Ensure that there is enough data to read
+    if (size < sizeof(icalproperty_status)) {
         return 0;
     }
 
-    // Initialize variables
+    // Create an icalcomponent
     icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (!component) {
-        return 0; // Failed to create component
+    if (component == NULL) {
+        return 0;
     }
 
-    // Map the first byte of data to a status value
-    icalproperty_status status;
-    switch (data[0] % 3) {
-        case 0:
-            status = ICAL_STATUS_TENTATIVE;
-            break;
-        case 1:
-            status = ICAL_STATUS_CONFIRMED;
-            break;
-        case 2:
-            status = ICAL_STATUS_CANCELLED;
-            break;
-        default:
-            status = ICAL_STATUS_NONE;
-            break;
-    }
+    // Extract an icalproperty_status from the data
+    icalproperty_status status = 
+        static_cast<icalproperty_status>(data[0]);
 
-    // Set the status of the component
+    // Call the function-under-test
     icalcomponent_set_status(component, status);
-
-    // Optionally, add more properties or manipulate the component further
-    // based on the input data to increase code coverage.
 
     // Clean up
     icalcomponent_free(component);

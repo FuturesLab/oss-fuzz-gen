@@ -1,43 +1,24 @@
 #include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <iostream>
 
 extern "C" int LLVMFuzzerTestOneInput_185(const uint8_t *data, size_t size) {
-    // Ensure there is data to process
-    if (size == 0) {
-        return 0;
-    }
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_vreply();
 
-    // Create a temporary buffer to hold the data
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == NULL) {
-        return 0;
-    }
-
-    // Copy data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
-
-    // Parse the buffer into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(buffer);
-
-    // Ensure the component is not NULL before proceeding
+    // Check if the component was created successfully
     if (component != NULL) {
-        // Call the function-under-test
-        const char *summary = icalcomponent_get_summary(component);
-
-        // Use the summary in some way to avoid compiler optimizations
-        if (summary != NULL) {
-            std::cout << "Summary: " << summary << std::endl;
+        // Perform operations on the component if necessary
+        // For example, convert it to a string and print it
+        char *component_string = icalcomponent_as_ical_string(component);
+        if (component_string != NULL) {
+            // Print the component string
+            printf("%s\n", component_string);
         }
 
-        // Clean up the icalcomponent
+        // Free the component
         icalcomponent_free(component);
     }
-
-    // Free the allocated buffer
-    free(buffer);
 
     return 0;
 }

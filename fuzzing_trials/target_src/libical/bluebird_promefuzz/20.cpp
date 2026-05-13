@@ -9,53 +9,67 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
+#include <iostream>
+#include <fstream>
 #include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icaltimezone.h"
+
+static void fuzz_icalcomponent_get_timezone(icalcomponent *comp, const std::string &input) {
+    // Attempt to retrieve timezone using input as TZID
+    icaltimezone *timezone = icalcomponent_get_timezone(comp, input.c_str());
+    if (timezone) {
+        const char *tzid = icaltimezone_get_tzid(timezone);
+        if (tzid) {
+            std::cout << "Timezone ID: " << tzid << std::endl;
+        }
+    }
+}
+
+static void fuzz_icalcomponent_get_location(icalcomponent *comp) {
+    // Retrieve location property
+    const char *location = icalcomponent_get_location(comp);
+    if (location) {
+        std::cout << "Location: " << location << std::endl;
+    }
+}
+
+static void fuzz_icalcomponent_get_uid(icalcomponent *comp) {
+    // Retrieve UID property
+    const char *uid = icalcomponent_get_uid(comp);
+    if (uid) {
+        std::cout << "UID: " << uid << std::endl;
+    }
+}
+
+static void fuzz_icalcomponent_get_description(icalcomponent *comp) {
+    // Retrieve description property
+    const char *description = icalcomponent_get_description(comp);
+    if (description) {
+        std::cout << "Description: " << description << std::endl;
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_20(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
+    // Ensure the input data is null-terminated
+    std::string input(reinterpret_cast<const char *>(Data), Size);
 
-    // Ensure null-terminated string for icalcomponent_new_from_string
-    char *icalStr = static_cast<char*>(malloc(Size + 1));
-    if (!icalStr) {
-        return 0;
-    }
-    memcpy(icalStr, Data, Size);
-    icalStr[Size] = '\0';
-
-    // Create icalcomponent from string
-    icalcomponent *comp = icalcomponent_new_from_string(icalStr);
-    free(icalStr);
-
+    // Create a new icalcomponent from the input string
+    icalcomponent *comp = icalcomponent_new_from_string(input.c_str());
     if (comp) {
-        // Test icalcomponent_isa_component
-        icalcomponent_isa_component(comp);
+        // Fuzz each target function with the created component
+        fuzz_icalcomponent_get_timezone(comp, input);
+        fuzz_icalcomponent_get_location(comp);
+        fuzz_icalcomponent_get_uid(comp);
+        fuzz_icalcomponent_get_description(comp);
 
-        // Setup a dummy icaltimetype for testing
-        struct icaltimetype dtstart = {0};
-        struct icaltimetype recurtime = {0};
-
-        // Test icalproperty_recurrence_is_excluded
-        icalproperty_recurrence_is_excluded(comp, &dtstart, &recurtime);
-
-        // Test icalcomponent_set_description
-        icalcomponent_set_description(comp, "Sample Description");
-
-        // Test icalcomponent_kind_is_valid
-        icalcomponent_kind kind = icalcomponent_isa(comp);
-        icalcomponent_kind_is_valid(kind);
-
-        // Test icalcomponent_is_valid
-        icalcomponent_is_valid(comp);
-
-        // Cleanup the component
+        // Clean up the component
         // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_strip_errors
         icalcomponent_strip_errors(comp);
         // End mutation: Producer.REPLACE_FUNC_MUTATOR

@@ -1,34 +1,40 @@
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
+#include <string.h>
 
-// Wrap the necessary includes and declarations with extern "C"
 extern "C" {
-    #include <libical/ical.h>
+    #include <libical/icalcomponent.h>  // Correct header for icalcomponent
 }
 
 extern "C" int LLVMFuzzerTestOneInput_91(const uint8_t *data, size_t size) {
-    // Declare and initialize variables for the function-under-test
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    struct icaldurationtype duration;
-
-    // Ensure the data is large enough to fill the duration fields
-    if (size < sizeof(struct icaldurationtype)) {
-        icalcomponent_free(component);
+    // Ensure that the input data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Populate the duration fields using the input data
-    duration.is_neg = data[0] % 2; // 0 or 1
-    duration.weeks = data[1];
-    duration.days = data[2];
-    duration.hours = data[3];
-    duration.minutes = data[4];
-    duration.seconds = data[5];
+    // Create an icalcomponent object
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+
+    // Ensure that the component is created successfully
+    if (component == NULL) {
+        return 0;
+    }
+
+    // Convert the input data to a null-terminated string
+    char *uid = (char *)malloc(size + 1);
+    if (uid == NULL) {
+        icalcomponent_free(component);
+        return 0;
+    }
+    memcpy(uid, data, size);
+    uid[size] = '\0';
 
     // Call the function-under-test
-    icalcomponent_set_duration(component, duration);
+    icalcomponent_set_uid(component, uid);
 
     // Clean up
+    free(uid);
     icalcomponent_free(component);
 
     return 0;

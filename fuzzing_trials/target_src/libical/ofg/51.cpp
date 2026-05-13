@@ -1,40 +1,38 @@
-#include <libical/ical.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
+#include <libical/ical.h>
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_51(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a valid icalcomponent
+    // Ensure the data is not too large for processing
     if (size == 0) {
         return 0;
     }
 
-    // Create a temporary buffer to hold the data
-    char *tempData = (char *)malloc(size + 1);
-    if (tempData == NULL) {
+    // Create a string from the input data
+    char *ical_str = (char *)malloc(size + 1);
+    if (ical_str == NULL) {
         return 0;
     }
+    memcpy(ical_str, data, size);
+    ical_str[size] = '\0';
 
-    // Copy the input data to the temporary buffer and null-terminate it
-    memcpy(tempData, data, size);
-    tempData[size] = '\0';
+    // Parse the string into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(ical_str);
+    free(ical_str);
 
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(tempData);
+    if (component != NULL) {
+        // Call the function-under-test
+        struct icaldurationtype duration = icalcomponent_get_duration(component);
 
-    // Free the temporary buffer
-    free(tempData);
-
-    // If the component is NULL, exit
-    if (component == NULL) {
-        return 0;
+        // Clean up the component
+        icalcomponent_free(component);
     }
-
-    // Call the function-under-test
-    struct icaldurationtype duration = icalcomponent_get_duration(component);
-
-    // Clean up the icalcomponent
-    icalcomponent_free(component);
 
     return 0;
 }

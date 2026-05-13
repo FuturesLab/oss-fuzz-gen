@@ -1,55 +1,39 @@
 #include <sys/stat.h>
+#include "libical/ical.h"
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
-
-extern "C" {
-    #include "libical/ical.h"
-}
+#include <time.h>
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    icalcomponent *component = nullptr;
-    icaltimetype due_time;
-
-    // Ensure the data is not empty and can be used to create a component
-    if (size > 0) {
-        // Create a temporary buffer to hold the data
-        char *temp_buffer = new char[size + 1];
-        memcpy(temp_buffer, data, size);
-        temp_buffer[size] = '\0'; // Null-terminate the buffer
-
-        // Parse the data into an icalcomponent
-        component = icalparser_parse_string(temp_buffer);
-
-        // Clean up the temporary buffer
-        delete[] temp_buffer;
+    // Ensure the input data is not empty
+    if (size == 0) {
+        return 0;
     }
 
-    // Ensure the component is not NULL before calling the function-under-test
-    if (component != nullptr) {
-        // Call the function-under-test
-        due_time = icalcomponent_get_due(component);
+    // Create a summary from the input data
+    char summary[size + 1];
+    memcpy(summary, data, size);
+    summary[size] = '\0'; // Null-terminate the string
 
-        // Free the component after use
+    // Initialize a dummy icalcomponent with the input data as the summary
+    icalcomponent *component = icalcomponent_vanew(
+        ICAL_VEVENT_COMPONENT,
+        icalproperty_new_dtstamp(icaltime_from_timet_with_zone(time(NULL), 0, NULL)),
+        icalproperty_new_summary(summary),
+        icalproperty_new_uid("1234567890@example.com"),
+        (void *)0);
 
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_due to icalcomponent_set_dtstamp
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
-        	return 0;
-        }
-        icalcomponent* ret_icalcomponent_clone_vsyge = icalcomponent_clone(component);
-        if (ret_icalcomponent_clone_vsyge == NULL){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalcomponent_clone_vsyge) {
-        	return 0;
-        }
-        icalcomponent_set_dtstamp(ret_icalcomponent_clone_vsyge, due_time);
-        // End mutation: Producer.APPEND_MUTATOR
-        
-        icalcomponent_free(component);
+    // Ensure the component is not NULL
+    if (component == NULL) {
+        return 0;
     }
+
+    // Call the function-under-test
+    struct icaltimetype dtstamp = icalcomponent_get_dtstamp(component);
+
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }

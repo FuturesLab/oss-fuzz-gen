@@ -1,35 +1,24 @@
+#include <libical/ical.h>
+#include <stddef.h>
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>  // Include for memcpy
-
-// Wrap the necessary includes and function declarations with extern "C"
-extern "C" {
-    #include <libical/ical.h>  // Corrected include path for libical
-}
 
 extern "C" int LLVMFuzzerTestOneInput_116(const uint8_t *data, size_t size) {
-    // Initialize a string buffer with the input data
-    char *input = (char *)malloc(size + 1);
-    if (input == NULL) {
-        return 0; // Return if memory allocation fails
-    }
-    memcpy(input, data, size);
-    input[size] = '\0'; // Null-terminate the string
-
-    // Parse the input string into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(input);
-
-    // Ensure the component is not NULL before calling the function
-    if (component != NULL) {
-        // Call the function-under-test
-        icalcomponent_strip_errors(component);
-
-        // Free the icalcomponent after use
-        icalcomponent_free(component);
+    // Ensure the data is large enough to extract a component kind
+    if (size < sizeof(icalcomponent_kind)) {
+        return 0;
     }
 
-    // Free the allocated input buffer
-    free(input);
+    // Create a dummy icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+
+    // Extract the icalcomponent_kind from the input data
+    icalcomponent_kind kind = *(reinterpret_cast<const icalcomponent_kind *>(data));
+
+    // Call the function-under-test
+    icalcompiter iter = icalcomponent_begin_component(component, kind);
+
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }

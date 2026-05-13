@@ -1,5 +1,5 @@
-#include <cstdint>  // Standard library for uint8_t
-#include <cstddef>  // Standard library for size_t
+#include <cstdint> // Include for uint8_t
+#include <cstddef> // Include for size_t
 
 extern "C" {
     #include <libical/ical.h>
@@ -7,14 +7,10 @@ extern "C" {
 
 extern "C" int LLVMFuzzerTestOneInput_186(const uint8_t *data, size_t size) {
     // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_vlocation();
+    icalcomponent *component = icalcomponent_new_vreply();
 
-    // Check if the component was created successfully
+    // Clean up the created component to avoid memory leaks
     if (component != NULL) {
-        // Perform additional operations on the component if needed
-        // For example, you could serialize it to a string or inspect its properties
-
-        // Free the component to avoid memory leaks
         icalcomponent_free(component);
     }
 

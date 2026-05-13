@@ -1,26 +1,38 @@
-#include <libical/ical.h>
-#include <cstdint>
-#include <cstdlib>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h> // Include for memcpy
+
+extern "C" {
+    #include <libical/ical.h> // Correct path for libical headers
+}
 
 extern "C" int LLVMFuzzerTestOneInput_60(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to create a valid icalcomponent
-    if (size < 1) {
-        return 0;
-    }
+    // Initialize a memory context for the icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
 
-    // Create a dummy icalcomponent for testing
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    // Ensure the component is not NULL
     if (component == NULL) {
         return 0;
     }
 
-    // Initialize an icalcompiter
-    icalcompiter iter = icalcomponent_begin_component(component, ICAL_ANY_COMPONENT);
+    // Use the data to create a string and add it as a property to the component
+    char *content = (char *)malloc(size + 1);
+    if (content == NULL) {
+        icalcomponent_free(component);
+        return 0;
+    }
+
+    memcpy(content, data, size);
+    content[size] = '\0'; // Null-terminate the string
+
+    // Add the content as a property to the component
+    icalcomponent_add_property(component, icalproperty_new_comment(content));
 
     // Call the function-under-test
-    icalcomponent *result = icalcompiter_deref(&iter);
+    icalcomponent_kind kind = icalcomponent_isa(component);
 
-    // Clean up
+    // Free allocated resources
+    free(content);
     icalcomponent_free(component);
 
     return 0;

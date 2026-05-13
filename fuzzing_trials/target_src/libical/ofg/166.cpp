@@ -1,21 +1,21 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstddef>  // Include for size_t
+#include <stdint.h>
+#include <stddef.h>
+#include <string> // Include the string header for std::string
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_166(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *vcalendar = icalcomponent_new_vcalendar();
+    // Convert the input data to a string, assuming it is a valid UTF-8 sequence
+    std::string input(reinterpret_cast<const char*>(data), size);
 
-    // Check if the vcalendar was created successfully
-    if (vcalendar != NULL) {
-        // Perform operations on the vcalendar if needed
-        // For example, add properties or subcomponents
+    // Parse the input data as an iCalendar component
+    icalcomponent *component = icalparser_parse_string(input.c_str());
 
-        // Clean up and free the vcalendar component
-        icalcomponent_free(vcalendar);
+    // Clean up the created component to avoid memory leaks
+    if (component != NULL) {
+        icalcomponent_free(component);
     }
 
     return 0;

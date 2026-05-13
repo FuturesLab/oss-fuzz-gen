@@ -1,37 +1,24 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" {
-    #include <libical/ical.h>
+    #include "libical/icalcomponent.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_131(const uint8_t *data, size_t size) {
-    icalcomponent *component = nullptr;
-    icaltimetype due_time;
-
-    // Ensure the data is not empty and can be used to create a component
-    if (size > 0) {
-        // Create a temporary buffer to hold the data
-        char *temp_buffer = new char[size + 1];
-        memcpy(temp_buffer, data, size);
-        temp_buffer[size] = '\0'; // Null-terminate the buffer
-
-        // Parse the data into an icalcomponent
-        component = icalparser_parse_string(temp_buffer);
-
-        // Clean up the temporary buffer
-        delete[] temp_buffer;
+    if (size < sizeof(void*)) {
+        return 0;
     }
 
-    // Ensure the component is not NULL before calling the function-under-test
-    if (component != nullptr) {
-        // Call the function-under-test
-        due_time = icalcomponent_get_due(component);
+    // Create a pointer from the input data
+    const void *input_data = reinterpret_cast<const void*>(data);
 
-        // Free the component after use
-        icalcomponent_free(component);
-    }
+    // Call the function-under-test
+    bool result = icalcomponent_isa_component(input_data);
+
+    // Use the result in some way to avoid compiler optimizations
+    volatile bool use_result = result;
+    (void)use_result;
 
     return 0;
 }

@@ -1,40 +1,49 @@
-#include <sys/stat.h>
 #include <string.h>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring> // Include for memcpy
+#include <sys/stat.h>
+#include <iostream>
+#include <cstring> // For memcpy
 
 extern "C" {
-    #include "libical/ical.h" // Correct header path for libical
+#include "libical/ical.h"
+
+// Callback function to be used with icalcomponent_foreach_tzid
+void tzid_callback(icalparameter *param, void *data) {
+    // For fuzzing purposes, we can simply print the tzid
+    const char *tzid = icalparameter_get_tzid(param);
+    if (tzid != nullptr) {
+        std::cout << "Timezone ID: " << tzid << std::endl;
+    }
 }
 
-extern "C" int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-
-    // Ensure the component is not null
-    if (component == NULL) {
+int LLVMFuzzerTestOneInput_20(const uint8_t *data, size_t size) {
+    // Ensure the data size is sufficient to create a valid icalcomponent
+    if (size == 0) {
         return 0;
     }
 
-    // Add some properties to the component using the input data
-    if (size > 0) {
-        // Use the input data to create a UID property
-        char uid[37]; // UUIDs are 36 characters plus null terminator
-        size_t uid_size = size < 36 ? size : 36;
-        memcpy(uid, data, uid_size);
-        uid[uid_size] = '\0'; // Null-terminate the string
+    // Create a temporary buffer to hold the input data
+    char *buffer = new char[size + 1];
+    memcpy(buffer, data, size);
+    buffer[size] = '\0'; // Null-terminate the buffer
 
-        icalcomponent_set_uid(component, uid);
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(buffer);
+
+    // Check if the component was created successfully
+    if (component != nullptr) {
+        // Call the function-under-test with the component, callback, and user data
+        icalcomponent_foreach_tzid(component, tzid_callback, nullptr);
+
+        // Free the component after use
+        icalcomponent_free(component);
     }
 
-    // Call the function-under-test
-    icalproperty_status status = icalcomponent_get_status(component);
-
-    // Clean up
-    icalcomponent_free(component);
+    // Clean up the temporary buffer
+    delete[] buffer;
 
     return 0;
+}
+
 }
 #ifdef INC_MAIN
 #include <stdio.h>

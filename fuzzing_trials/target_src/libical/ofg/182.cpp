@@ -1,27 +1,40 @@
-#include <cstdint>
-#include <cstddef>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_182(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_vreply();
+    // Ensure the input is null-terminated
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        return 0;
+    }
+    memcpy(input, data, size);
+    input[size] = '\0';
 
-    // Perform operations on the component if needed
+    // Parse the input as an iCalendar component
+    icalcomponent *component = icalparser_parse_string(input);
     if (component != NULL) {
-        // Example operation: Convert component to string and print (for debugging)
-        char *component_str = icalcomponent_as_ical_string(component);
-        if (component_str != NULL) {
-            // Print the component string (for debugging purposes)
-            // printf("%s\n", component_str);  // Uncomment for debugging
+        // If parsing is successful, iterate over properties
+        for (icalproperty *prop = icalcomponent_get_first_property(component, ICAL_ANY_PROPERTY);
+             prop != NULL;
+             prop = icalcomponent_get_next_property(component, ICAL_ANY_PROPERTY)) {
+            // Do something with the property to ensure code coverage
+            const char *value = icalproperty_get_value_as_string(prop);
+            if (value) {
+                // Perform some operation on the value
+                icalproperty_set_comment(prop, value);
+            }
         }
 
-        // Free the component after use
+        // Clean up the component
         icalcomponent_free(component);
     }
-    
+
+    free(input);
     return 0;
 }
 #ifdef INC_MAIN

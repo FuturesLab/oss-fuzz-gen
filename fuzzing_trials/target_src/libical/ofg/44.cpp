@@ -1,36 +1,36 @@
 #include <libical/ical.h>
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_44(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a valid string
-    if (size == 0) {
-        return 0;
+    // Initialize the icalcomponent structure
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+
+    // Ensure the data is not empty before using it
+    if (size > 0) {
+        // Create a temporary buffer to store the input data as a string
+        char *input_data = (char *)malloc(size + 1);
+        if (input_data != NULL) {
+            memcpy(input_data, data, size);
+            input_data[size] = '\0'; // Null-terminate the string
+
+            // Set the description property of the component using the input data
+            icalcomponent_set_description(component, input_data);
+
+            // Free the allocated memory for the input data
+            free(input_data);
+        }
     }
 
-    // Create a null-terminated string from the input data
-    char *icalString = new char[size + 1];
-    memcpy(icalString, data, size);
-    icalString[size] = '\0';
+    // Call the function-under-test
+    const char *description = icalcomponent_get_description(component);
 
-    // Parse the string into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(icalString);
+    // Perform any additional checks or operations with the description if needed
+    // For example, you can print it or check its length
 
-    // Ensure the component is not NULL before proceeding
-    if (component != nullptr) {
-        // Call the function-under-test
-        const char *description = icalcomponent_get_description(component);
-
-        // Optionally, use the description for further processing
-        // (e.g., logging, additional checks, etc.)
-    }
-
-    // Clean up
-    if (component != nullptr) {
-        icalcomponent_free(component);
-    }
-    delete[] icalString;
+    // Clean up the icalcomponent
+    icalcomponent_free(component);
 
     return 0;
 }

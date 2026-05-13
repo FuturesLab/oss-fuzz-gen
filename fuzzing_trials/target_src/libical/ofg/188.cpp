@@ -1,48 +1,45 @@
-#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>  // Include for malloc and free
-#include <string.h>  // Include for memcpy
+#include <libical/ical.h>
 
 extern "C" {
-    // Include necessary C headers, source files, functions, and code here.
-    #include <libical/ical.h>
+
+void dummy_callback_188(const icalcomponent *comp, const struct icaltime_span *span, void *data) {
+    // Dummy callback function
 }
 
-extern "C" int LLVMFuzzerTestOneInput_188(const uint8_t *data, size_t size) {
-    // Initialize a icalcomponent and icalcompiter
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalcompiter iter;
-
-    // Ensure the data is not empty and within a reasonable size
-    if (size > 0 && size < 1024) {
-        // Create a temporary buffer to store the input data
-        char *buffer = (char *)malloc(size + 1);
-        if (buffer != NULL) {
-            memcpy(buffer, data, size);
-            buffer[size] = '\0';
-
-            // Attempt to parse the buffer into an icalcomponent
-            icalcomponent *parsed_component = icalparser_parse_string(buffer);
-            if (parsed_component != NULL) {
-                // Initialize the iterator with the parsed component
-                iter = icalcomponent_begin_component(parsed_component, ICAL_ANY_COMPONENT);
-
-                // Call the function-under-test
-                icalcomponent *prior_component = icalcompiter_prior(&iter);
-
-                // Clean up
-                icalcomponent_free(parsed_component);
-            }
-
-            free(buffer);
-        }
+int LLVMFuzzerTestOneInput_188(const uint8_t *data, size_t size) {
+    if (size < sizeof(struct icaltimetype) * 2) {
+        return 0;
     }
+
+    // Initialize the icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (!component) {
+        return 0;
+    }
+
+    // Extract two icaltimetype structures from the input data
+    struct icaltimetype start_time = *((struct icaltimetype *)data);
+    struct icaltimetype end_time = *((struct icaltimetype *)(data + sizeof(struct icaltimetype)));
+
+    // Ensure end_time is after start_time for valid input
+    if (icaltime_compare(end_time, start_time) < 0) {
+        // Swap start and end times if necessary
+        struct icaltimetype temp = start_time;
+        start_time = end_time;
+        end_time = temp;
+    }
+
+    // Call the function-under-test
+    icalcomponent_foreach_recurrence(component, start_time, end_time, dummy_callback_188, nullptr);
 
     // Clean up
     icalcomponent_free(component);
 
     return 0;
+}
+
 }
 #ifdef INC_MAIN
 #include <stdio.h>

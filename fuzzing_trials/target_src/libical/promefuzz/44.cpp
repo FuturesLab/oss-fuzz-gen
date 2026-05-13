@@ -1,10 +1,9 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_new_vquery at icalcomponent.c:2075:16 in icalcomponent.h
-// icalcomponent_new_vjournal at icalcomponent.c:2040:16 in icalcomponent.h
-// icalcomponent_new_vcalendar at icalcomponent.c:2025:16 in icalcomponent.h
-// icalcomponent_new_vresource at icalcomponent.c:2130:16 in icalcomponent.h
-// icalcomponent_new_vagenda at icalcomponent.c:2070:16 in icalcomponent.h
-// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
+// icalcomponent_get_sequence at icalcomponent.c:2031:5 in icalcomponent.h
+// icalcomponent_set_sequence at icalcomponent.c:2019:6 in icalcomponent.h
+// icalcomponent_count_properties at icalcomponent.c:490:5 in icalcomponent.h
+// icalcomponent_new_vpoll at icalcomponent.c:2159:16 in icalcomponent.h
+// icalcomponent_new_vfreebusy at icalcomponent.c:2114:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,58 +13,85 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <libical/icalcomponent.h>
+#include <icalcomponent.h>
+
+static void fuzz_icalcomponent_set_sequence(icalcomponent *comp, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int)) return;
+    int sequence = *reinterpret_cast<const int*>(Data);
+    icalcomponent_set_sequence(comp, sequence);
+}
+
+static void fuzz_icalcomponent_get_sequence(icalcomponent *comp) {
+    int sequence = icalcomponent_get_sequence(comp);
+    (void)sequence; // Suppress unused variable warning
+}
+
+static void fuzz_icalcomponent_count_properties(icalcomponent *comp, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(icalproperty_kind)) return;
+    icalproperty_kind kind = *reinterpret_cast<const icalproperty_kind*>(Data);
+    int count = icalcomponent_count_properties(comp, kind);
+    (void)count; // Suppress unused variable warning
+}
+
+static void fuzz_icalcomponent_new_x(const uint8_t *Data, size_t Size) {
+    char *x_name = static_cast<char*>(malloc(Size + 1));
+    if (!x_name) return;
+    memcpy(x_name, Data, Size);
+    x_name[Size] = '\0';
+    icalcomponent *comp = icalcomponent_new_x(x_name);
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+    free(x_name);
+}
+
+static void fuzz_icalcomponent_new_vpoll() {
+    icalcomponent *comp = icalcomponent_new_vpoll();
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+}
+
+static void fuzz_icalcomponent_new_vfreebusy() {
+    icalcomponent *comp = icalcomponent_new_vfreebusy();
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_44(const uint8_t *Data, size_t Size) {
-    // Ensure we have data to work with
-    if (Size == 0) return 0;
+    if (Size < 1) return 0;
 
-    // Write the data to a dummy file if needed
-    std::ofstream dummyFile("./dummy_file", std::ios::binary);
-    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-    dummyFile.close();
+    // Fuzz icalcomponent_new_vpoll
+    fuzz_icalcomponent_new_vpoll();
 
-    // Call each target function and handle the returned component
-    icalcomponent *component = nullptr;
+    // Fuzz icalcomponent_new_vfreebusy
+    fuzz_icalcomponent_new_vfreebusy();
 
-    try {
-        component = icalcomponent_new_vquery();
-        if (component) {
-            icalcomponent_free(component);
-        }
+    // Fuzz icalcomponent_new_x
+    fuzz_icalcomponent_new_x(Data, Size);
 
-        component = icalcomponent_new_vresource();
-        if (component) {
-            icalcomponent_free(component);
-        }
+    // Create a new dummy component
+    icalcomponent *comp = icalcomponent_new_vpoll();
+    if (!comp) return 0;
 
-        component = icalcomponent_new_vjournal();
-        if (component) {
-            icalcomponent_free(component);
-        }
+    // Fuzz icalcomponent_set_sequence
+    fuzz_icalcomponent_set_sequence(comp, Data, Size);
 
-        component = icalcomponent_new_vagenda();
-        if (component) {
-            icalcomponent_free(component);
-        }
+    // Fuzz icalcomponent_get_sequence
+    fuzz_icalcomponent_get_sequence(comp);
 
-        component = icalcomponent_new_vcalendar();
-        if (component) {
-            icalcomponent_free(component);
-        }
+    // Fuzz icalcomponent_count_properties
+    fuzz_icalcomponent_count_properties(comp, Data, Size);
 
-        component = icalcomponent_new_xpatch();
-        if (component) {
-            icalcomponent_free(component);
-        }
-    } catch (...) {
-        // Handle any exceptions to prevent the fuzzer from crashing
-    }
+    // Clean up
+    icalcomponent_free(comp);
 
     return 0;
 }

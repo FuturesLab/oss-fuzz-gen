@@ -1,10 +1,9 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_begin_component at icalcomponent.c:1342:14 in icalcomponent.h
-// icalcomponent_end_component at icalcomponent.c:1365:14 in icalcomponent.h
-// icalcompiter_next at icalcomponent.c:1387:16 in icalcomponent.h
-// icalcompiter_deref at icalcomponent.c:1425:16 in icalcomponent.h
-// icalcomponent_get_first_component at icalcomponent.c:611:16 in icalcomponent.h
-// icalcomponent_get_current_component at icalcomponent.c:600:16 in icalcomponent.h
+// icalcomponent_get_timezone at icalcomponent.c:2492:15 in icalcomponent.h
+// icalcomponent_new_from_string at icalcomponent.c:132:16 in icalcomponent.h
+// icalcomponent_get_uid at icalcomponent.c:1880:13 in icalcomponent.h
+// icalcomponent_get_location at icalcomponent.c:1996:13 in icalcomponent.h
+// icalcomponent_get_description at icalcomponent.c:1961:13 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,58 +13,69 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
+#include <iostream>
+#include <fstream>
+#include <cstring>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalcomponent.h"
+#include <libical/icalcomponent.h>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icaltimezone.h>
+
+static void fuzz_icalcomponent_get_timezone(icalcomponent *comp, const std::string &input) {
+    // Attempt to retrieve timezone using input as TZID
+    icaltimezone *timezone = icalcomponent_get_timezone(comp, input.c_str());
+    if (timezone) {
+        const char *tzid = icaltimezone_get_tzid(timezone);
+        if (tzid) {
+            std::cout << "Timezone ID: " << tzid << std::endl;
+        }
+    }
 }
 
-#include <cstdint>
-#include <cstdlib>
+static void fuzz_icalcomponent_get_location(icalcomponent *comp) {
+    // Retrieve location property
+    const char *location = icalcomponent_get_location(comp);
+    if (location) {
+        std::cout << "Location: " << location << std::endl;
+    }
+}
 
-static icalcomponent* create_dummy_component() {
-    icalcomponent* component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    icalcomponent* vevent = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalcomponent_add_component(component, vevent);
-    return component;
+static void fuzz_icalcomponent_get_uid(icalcomponent *comp) {
+    // Retrieve UID property
+    const char *uid = icalcomponent_get_uid(comp);
+    if (uid) {
+        std::cout << "UID: " << uid << std::endl;
+    }
+}
+
+static void fuzz_icalcomponent_get_description(icalcomponent *comp) {
+    // Retrieve description property
+    const char *description = icalcomponent_get_description(comp);
+    if (description) {
+        std::cout << "Description: " << description << std::endl;
+    }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_4(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    // Ensure the input data is null-terminated
+    std::string input(reinterpret_cast<const char *>(Data), Size);
+
+    // Create a new icalcomponent from the input string
+    icalcomponent *comp = icalcomponent_new_from_string(input.c_str());
+    if (comp) {
+        // Fuzz each target function with the created component
+        fuzz_icalcomponent_get_timezone(comp, input);
+        fuzz_icalcomponent_get_location(comp);
+        fuzz_icalcomponent_get_uid(comp);
+        fuzz_icalcomponent_get_description(comp);
+
+        // Clean up the component
+        icalcomponent_free(comp);
     }
-
-    // Create a dummy component to work with
-    icalcomponent* component = create_dummy_component();
-
-    // Choose a component kind based on fuzzing data
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-
-    // Begin component iteration
-    icalcompiter iter = icalcomponent_begin_component(component, kind);
-
-    // Traverse components using the iterator
-    while (icalcompiter_deref(&iter)) {
-        icalcomponent* current_component = icalcompiter_deref(&iter);
-        if (current_component) {
-            // Use icalcomponent_get_current_component
-            icalcomponent_get_current_component(current_component);
-        }
-        icalcompiter_next(&iter);
-    }
-
-    // End component iteration
-    iter = icalcomponent_end_component(component, kind);
-
-    // Use icalcomponent_get_first_component
-    icalcomponent* first_component = icalcomponent_get_first_component(component, kind);
-    if (first_component) {
-        icalcomponent_get_current_component(first_component);
-    }
-
-    // Clean up
-    icalcomponent_free(component);
 
     return 0;
 }

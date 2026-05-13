@@ -1,64 +1,72 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_count_components at icalcomponent.c:583:5 in icalcomponent.h
-// icalcomponent_count_errors at icalcomponent.c:1123:5 in icalcomponent.h
-// icalcomponent_count_properties at icalcomponent.c:447:5 in icalcomponent.h
-// icalcomponent_clone at icalcomponent.c:129:16 in icalcomponent.h
-// icalcomponent_get_first_real_component at icalcomponent.c:647:16 in icalcomponent.h
-// icalcomponent_check_restrictions at icalcomponent.c:1117:6 in icalcomponent.h
+// icalcomponent_set_x_name at icalcomponent.c:344:6 in icalcomponent.h
+// icalcomponent_get_component_name at icalcomponent.c:386:13 in icalcomponent.h
+// icalcomponent_get_x_name at icalcomponent.c:357:13 in icalcomponent.h
+// icalcomponent_new_valarm at icalcomponent.c:2109:16 in icalcomponent.h
 #include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
 #include <cstring>
 #include <cstdlib>
+#include <cstdio>
 #include <cstdint>
+#include <cstddef>
+#include <fstream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
+    if (Size == 0) return 0;
+
+    // Create a dummy file if needed
+    std::ofstream dummyFile("./dummy_file");
+    if (!dummyFile) return 0;
+    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+    dummyFile.close();
+
+    // Convert input data to a string
+    std::string input(reinterpret_cast<const char*>(Data), Size);
+
+    // Test icalcomponent_new_x
+    icalcomponent *compX = icalcomponent_new_x(input.c_str());
+    if (compX) {
+        // Test icalcomponent_get_x_name
+        const char *xName = icalcomponent_get_x_name(compX);
+        if (xName) {
+            std::cout << "X Name: " << xName << std::endl;
+        }
+
+        // Test icalcomponent_get_component_name
+        const char *componentName = icalcomponent_get_component_name(compX);
+        if (componentName) {
+            std::cout << "Component Name: " << componentName << std::endl;
+        }
+
+        // Test icalcomponent_set_x_name
+        icalcomponent_set_x_name(compX, "test-x-name");
     }
 
-    // Create a dummy icalcomponent from input data
-    icalcomponent *component = icalcomponent_new(ICAL_NO_COMPONENT);
-    if (!component) {
-        return 0;
+    // Test icalcomponent_new_valarm
+    icalcomponent *compValarm = icalcomponent_new_valarm();
+    if (compValarm) {
+        // Test icalcomponent_get_component_name
+        const char *valarmName = icalcomponent_get_component_name(compValarm);
+        if (valarmName) {
+            std::cout << "Valarm Component Name: " << valarmName << std::endl;
+        }
     }
 
-    // Fuzz icalcomponent_count_properties
-    for (int kind = ICAL_ANY_PROPERTY; kind <= ICAL_NO_PROPERTY; ++kind) {
-        int property_count = icalcomponent_count_properties(component, static_cast<icalproperty_kind>(kind));
-        (void)property_count;
+    // Cleanup
+    if (compX) {
+        icalcomponent_free(compX);
+    }
+    if (compValarm) {
+        icalcomponent_free(compValarm);
     }
 
-    // Fuzz icalcomponent_count_errors
-    int error_count = icalcomponent_count_errors(component);
-    (void)error_count;
-
-    // Fuzz icalcomponent_count_components
-    for (int kind = ICAL_NO_COMPONENT; kind < ICAL_NUM_COMPONENT_TYPES; ++kind) {
-        int component_count = icalcomponent_count_components(component, static_cast<icalcomponent_kind>(kind));
-        (void)component_count;
-    }
-
-    // Fuzz icalcomponent_clone
-    icalcomponent *cloned_component = icalcomponent_clone(component);
-    if (cloned_component) {
-        icalcomponent_free(cloned_component);
-    }
-
-    // Fuzz icalcomponent_check_restrictions
-    bool restrictions_ok = icalcomponent_check_restrictions(component);
-    (void)restrictions_ok;
-
-    // Fuzz icalcomponent_get_first_real_component
-    icalcomponent *first_real_component = icalcomponent_get_first_real_component(component);
-    if (first_real_component) {
-        // Do something with the first real component if needed
-    }
-
-    // Clean up
-    icalcomponent_free(component);
     return 0;
 }
     #ifdef INC_MAIN

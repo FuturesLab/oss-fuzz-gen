@@ -9,52 +9,71 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
+#include <iostream>
+#include <fstream>
+#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "libical/ical.h"
+#include "/src/libical/src/libical/icaltimezone.h"
+
+static void fuzz_icalcomponent_get_timezone(icalcomponent *comp, const std::string &input) {
+    // Attempt to retrieve timezone using input as TZID
+    icaltimezone *timezone = icalcomponent_get_timezone(comp, input.c_str());
+    if (timezone) {
+        const char *tzid = icaltimezone_get_tzid(timezone);
+        if (tzid) {
+            std::cout << "Timezone ID: " << tzid << std::endl;
+        }
+    }
 }
 
-#include <cstdint>
-#include <cstdlib>
+static void fuzz_icalcomponent_get_location(icalcomponent *comp) {
+    // Retrieve location property
+    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_get_location with icalcomponent_get_summary
+    const char *location = icalcomponent_get_summary(comp);
+    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    if (location) {
+        std::cout << "Location: " << location << std::endl;
+    }
+}
 
-static void cleanup(icalcomponent *component) {
-    if (component) {
-        icalcomponent_free(component);
+static void fuzz_icalcomponent_get_uid(icalcomponent *comp) {
+    // Retrieve UID property
+    const char *uid = icalcomponent_get_uid(comp);
+    if (uid) {
+        std::cout << "UID: " << uid << std::endl;
+    }
+}
+
+static void fuzz_icalcomponent_get_description(icalcomponent *comp) {
+    // Retrieve description property
+    const char *description = icalcomponent_get_description(comp);
+    if (description) {
+        std::cout << "Description: " << description << std::endl;
     }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_35(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    // Ensure the input data is null-terminated
+    std::string input(reinterpret_cast<const char *>(Data), Size);
 
-    // Create components based on the first byte of the input data
-    icalcomponent *component = nullptr;
-    switch (Data[0] % 6) {
-        case 0:
-            component = icalcomponent_new_vfreebusy();
-            break;
-        case 1:
-            component = icalcomponent_new_vreply();
-            break;
-        case 2:
-            component = icalcomponent_new_vresource();
-            break;
-        case 3:
-            component = icalcomponent_new_vlocation();
-            break;
-        case 4:
-            component = icalcomponent_new_valarm();
-            break;
-        case 5:
-            component = icalcomponent_new_vcalendar();
-            break;
-        default:
-            break;
+    // Create a new icalcomponent from the input string
+    icalcomponent *comp = icalcomponent_new_from_string(input.c_str());
+    if (comp) {
+        // Fuzz each target function with the created component
+        fuzz_icalcomponent_get_timezone(comp, input);
+        fuzz_icalcomponent_get_location(comp);
+        fuzz_icalcomponent_get_uid(comp);
+        fuzz_icalcomponent_get_description(comp);
+
+        // Clean up the component
+        icalcomponent_free(comp);
     }
-
-    // Cleanup the created component
-    cleanup(component);
 
     return 0;
 }

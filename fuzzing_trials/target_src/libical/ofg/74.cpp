@@ -1,42 +1,40 @@
+#include <libical/ical.h>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
-extern "C" {
-    #include <libical/ical.h>
-}
-
 extern "C" int LLVMFuzzerTestOneInput_74(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to create a valid string for the timezone.
-    if (size < 1) return 0;
+    // Initialize the variables
+    icalcomponent *component = nullptr;
+    char *timezone_id = nullptr;
 
-    // Create a dummy icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    if (component == NULL) return 0;
-
-    // Create a null-terminated string from the input data for the timezone name
-    char *timezone_name = (char *)malloc(size + 1);
-    if (timezone_name == NULL) {
-        icalcomponent_free(component);
+    // Ensure the size is large enough to split into component and timezone_id
+    if (size < 2) {
         return 0;
     }
-    memcpy(timezone_name, data, size);
-    timezone_name[size] = '\0';
 
-    // Create a timezone using the input data
-    icaltimezone *timezone = icaltimezone_get_builtin_timezone(timezone_name);
+    // Allocate memory for timezone_id and ensure it's null-terminated
+    size_t timezone_id_size = size / 2;
+    timezone_id = static_cast<char *>(malloc(timezone_id_size + 1));
+    if (timezone_id == nullptr) {
+        return 0;
+    }
+    memcpy(timezone_id, data, timezone_id_size);
+    timezone_id[timezone_id_size] = '\0';
 
-    // If the timezone is valid, add it to the component
-    if (timezone != NULL) {
-        icalproperty *tz_property = icalproperty_new_tzid(timezone_name);
-        if (tz_property != NULL) {
-            icalcomponent_add_property(component, tz_property);
-        }
+    // Create a dummy component for fuzzing
+    component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    if (component == nullptr) {
+        free(timezone_id);
+        return 0;
     }
 
-    // Free allocated resources
-    free(timezone_name);
+    // Call the function-under-test
+    icaltimezone *timezone = icalcomponent_get_timezone(component, timezone_id);
+
+    // Clean up
     icalcomponent_free(component);
+    free(timezone_id);
 
     return 0;
 }

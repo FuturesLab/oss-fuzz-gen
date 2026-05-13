@@ -1,44 +1,29 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h> // Include the necessary header for memcpy
+#include <cstdint>
+#include <cstddef>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_11(const uint8_t *data, size_t size) {
-    // Initialize libical
-    icalcomponent *component = NULL;
-    icaltimetype dtend;
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_vtodo();
 
-    // Ensure the data is not empty
-    if (size == 0) {
-        return 0;
-    }
-
-    // Create a temporary string from the input data
-    char *ical_str = (char *)malloc(size + 1);
-    if (ical_str == NULL) {
-        return 0;
-    }
-    memcpy(ical_str, data, size);
-    ical_str[size] = '\0';
-
-    // Parse the input data into an icalcomponent
-    component = icalparser_parse_string(ical_str);
-
-    // Call the function-under-test if the component is successfully created
+    // Perform operations on the component if necessary
     if (component != NULL) {
-        dtend = icalcomponent_get_dtend(component);
-        // Optionally, you can add additional checks or operations on dtend
-    }
+        // Example operation: Convert the component to a string and print it
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // Print the component string (for debugging purposes)
+            // printf("%s\n", component_str);
 
-    // Clean up
-    if (component != NULL) {
+            // Free the string after use
+            icalmemory_free_buffer(component_str);
+        }
+
+        // Free the component after use
         icalcomponent_free(component);
     }
-    free(ical_str);
 
     return 0;
 }

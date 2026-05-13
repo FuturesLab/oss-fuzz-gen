@@ -1,36 +1,54 @@
-#include <cstddef>  // For size_t
-#include <cstdint>  // For uint8_t
-#include <cstdlib>  // For malloc, free
-#include <cstring>  // For memcpy
+#include <libical/ical.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
+// Ensure C linkage for the function-under-test and libical functions
 extern "C" {
-    #include <libical/ical.h>
+    icalcomponent *icalcomponent_get_inner(icalcomponent *);
+    icalcomponent *icalparser_parse_string(const char *str);
+    icalparser *icalparser_new();
+    void icalparser_free(icalparser *);
+    void icalcomponent_free(icalcomponent *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_111(const uint8_t *data, size_t size) {
-    // Convert the input data to a string, ensuring it's null-terminated
-    char *inputStr = (char *)malloc(size + 1);
-    if (inputStr == NULL) return 0; // If allocation fails, return early
-    memcpy(inputStr, data, size);
-    inputStr[size] = '\0';
+    // Initialize libical
+    icalcomponent *component = nullptr;
+    icalcomponent *inner_component = nullptr;
+    icalparser *parser = nullptr;
 
-    // Parse the input data as an iCalendar component
-    icalcomponent *component = icalparser_parse_string(inputStr);
-
-    if (component != NULL) {
-        // Convert the component back to a string
-        char *str = icalcomponent_as_ical_string(component);
-        if (str != NULL) {
-            // Normally you might print or log the string, but we'll just free it here
-            icalmemory_free_buffer(str);
-        }
-
-        // Free the component after use
-        icalcomponent_free(component);
+    // Create a parser
+    parser = icalparser_new();
+    if (parser == nullptr) {
+        return 0;
     }
 
-    // Free the allocated input string
-    free(inputStr);
+    // Create a string from the input data
+    char *input_data = (char *)malloc(size + 1);
+    if (input_data == nullptr) {
+        icalparser_free(parser);
+        return 0;
+    }
+    memcpy(input_data, data, size);
+    input_data[size] = '\0';
+
+    // Parse the input data into an icalcomponent
+    component = icalparser_parse_string(input_data);
+    if (component == nullptr) {
+        free(input_data);
+        icalparser_free(parser);
+        return 0;
+    }
+
+    // Call the function-under-test
+    inner_component = icalcomponent_get_inner(component);
+
+    // Clean up
+    free(input_data);
+    icalparser_free(parser);
+    icalcomponent_free(component);
 
     return 0;
 }

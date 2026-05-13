@@ -1,23 +1,36 @@
-#include <libical/ical.h>
-#include <cstdint>
-#include <cstddef>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdio.h>
+
+// Wrap the inclusion of libical headers and usage of its functions with extern "C"
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_163(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract an icalcomponent_kind
-    if (size < sizeof(icalcomponent_kind)) {
+    // Initialize an icalcomponent structure
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+
+    // Ensure the component is not NULL
+    if (component == NULL) {
         return 0;
     }
 
-    // Extract the icalcomponent_kind from the input data
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(*reinterpret_cast<const int*>(data));
+    // Add some properties to the component to make it non-empty
+    icalproperty *prop = icalproperty_new_comment("Sample comment");
+    icalcomponent_add_property(component, prop);
 
     // Call the function-under-test
-    icalcomponent *component = icalcomponent_vanew(kind, nullptr);
+    const char *component_name = icalcomponent_get_component_name(component);
+
+    // Use the component_name in some way to avoid compiler optimizations
+    if (component_name != NULL) {
+        // Print the component name (in real fuzzing, this might be logged)
+        printf("Component Name: %s\n", component_name);
+    }
 
     // Clean up
-    if (component != nullptr) {
-        icalcomponent_free(component);
-    }
+    icalcomponent_free(component);
 
     return 0;
 }

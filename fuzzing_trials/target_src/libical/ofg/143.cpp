@@ -1,27 +1,29 @@
+#include <cstdint>  // Include for uint8_t
+#include <cstddef>  // Include for size_t
+
+extern "C" {
 #include <libical/ical.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_143(const uint8_t *data, size_t size) {
-    if (size < 1) {
-        return 0;
-    }
-
-    // Initialize an icalcomponent
+    // Initialize the icalcomponent with some default data
     icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
     if (component == NULL) {
         return 0;
     }
 
-    // Use the first byte of data to determine the icalproperty_kind
-    icalproperty_kind kind = static_cast<icalproperty_kind>(data[0] % ICAL_NO_PROPERTY);
+    // Add a property to ensure the component is not empty
+    icalproperty *property = icalproperty_new_summary("Sample Event");
+    icalcomponent_add_property(component, property);
 
-    // Create a dummy icalproperty to add to the component
-    icalproperty *property = icalproperty_new(kind);
-    if (property != NULL) {
-        icalcomponent_add_property(component, property);
+    // Ensure the data size is sufficient to extract a property kind
+    if (size < sizeof(icalproperty_kind)) {
+        icalcomponent_free(component);
+        return 0;
     }
+
+    // Extract a property kind from the input data
+    icalproperty_kind kind = static_cast<icalproperty_kind>(data[0] % ICAL_NO_PROPERTY);
 
     // Call the function-under-test
     icalcomponent_remove_property_by_kind(component, kind);

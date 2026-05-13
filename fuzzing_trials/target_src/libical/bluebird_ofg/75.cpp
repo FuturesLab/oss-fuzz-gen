@@ -1,37 +1,72 @@
 #include <sys/stat.h>
-#include <string.h>
+#include "libical/ical.h"
 #include <stdint.h>
 #include <stdlib.h>
-#include "libical/ical.h"
+#include <string.h>
 
-extern "C" {
-
-// Define a callback function that matches the expected signature
-void recurrence_callback_75(const icalcomponent *comp, const struct icaltime_span *span, void *data) {
-    // This is a placeholder callback function
-    // In a real scenario, you might want to do something meaningful here
-}
-
-int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
-    // Initialize icalcomponent and icaltimetype structures
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    struct icaltimetype start_time = icaltime_from_string("20230101T000000Z");
-    struct icaltimetype end_time = icaltime_from_string("20231231T235959Z");
-
-    // Ensure the component is not NULL before proceeding
-    if (component == NULL) {
+extern "C" int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
+    // Ensure the data size is sufficient to create a valid string
+    if (size == 0) {
         return 0;
     }
 
-    // Call the function-under-test
-    icalcomponent_foreach_recurrence(component, start_time, end_time, recurrence_callback_75, NULL);
+    // Create a null-terminated string from the input data
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
+        return 0;
+    }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0';
 
-    // Clean up
-    icalcomponent_free(component);
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputData);
 
-    return 0;
+    // Check if the component was successfully created
+    if (component != NULL) {
+        // Call the function-under-test
+        char *icalString = icalcomponent_as_ical_string_r(component);
+
+        // Free the resulting string if it was created
+        if (icalString != NULL) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_set_duration
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_get_comment
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        const char* ret_icalcomponent_get_comment_yxhuf = icalcomponent_get_comment(component);
+        if (ret_icalcomponent_get_comment_yxhuf == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        struct icaldurationtype ret_icalcomponent_get_duration_kcsfr = icalcomponent_get_duration(component);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        icalcomponent_set_duration(component, ret_icalcomponent_get_duration_kcsfr);
+        // End mutation: Producer.APPEND_MUTATOR
+        
 }
 
+    // Free the input data
+    free(inputData);
+
+    return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

@@ -1,29 +1,32 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h> // Include string.h for strlen
-
-extern "C" {
-    #include <libical/ical.h> // Adjust the include path to the correct location of libical headers
-}
+#include <libical/ical.h>
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" int LLVMFuzzerTestOneInput_65(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to represent an icalcomponent_kind
-    if (size < sizeof(icalcomponent_kind)) {
+    // Initialize icalcomponent and icalproperty_kind
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
         return 0;
     }
 
-    // Cast the input data to icalcomponent_kind
-    icalcomponent_kind kind = *(reinterpret_cast<const icalcomponent_kind*>(data));
+    // Add a property to the component for testing
+    icalproperty *property = icalproperty_new_summary("Test Summary");
+    icalcomponent_add_property(component, property);
+
+    // Ensure the data size is sufficient to derive a valid icalproperty_kind
+    if (size < sizeof(icalproperty_kind)) {
+        icalcomponent_free(component);
+        return 0;
+    }
+
+    // Use the data to determine the icalproperty_kind
+    icalproperty_kind kind = static_cast<icalproperty_kind>(data[0] % ICAL_NO_PROPERTY);
 
     // Call the function-under-test
-    const char *result = icalcomponent_kind_to_string(kind);
+    icalproperty *result = icalcomponent_get_next_property(component, kind);
 
-    // Use the result to prevent compiler optimizations from removing the call
-    if (result != NULL) {
-        // Do something trivial with the result
-        volatile size_t len = strlen(result);
-        (void)len;
-    }
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }

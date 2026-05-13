@@ -1,46 +1,79 @@
 #include <sys/stat.h>
-#include <string.h>
-#include <cstdint>
-#include <cstdlib>
-#include "libical/ical.h"
-#include <cstring>
-
 extern "C" {
-
-// Define a callback function that matches the correct signature
-void tzid_callback(icalparameter *param, void *data) {
-    // Implement a simple callback that does nothing.
-    // This is just a placeholder to match the function signature.
+#include "libical/ical.h"
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
 }
 
-int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated to prevent buffer overflow
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        return 0; // If memory allocation fails, return early
-    }
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
-
-    // Create a new icalcomponent from the input data
-    icalcomponent *component = icalcomponent_new_from_string(null_terminated_data);
-
-    // Free the allocated null-terminated data
-    free(null_terminated_data);
-
-    if (component == NULL) {
-        return 0; // If the component is NULL, return early
+extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
+    // Ensure there is enough data to work with
+    if (size < 1) {
+        return 0;
     }
 
-    // Call the function-under-test with the component, callback, and user data
-    icalcomponent_foreach_tzid(component, tzid_callback, NULL);
+    // Declare and initialize the necessary variables
+    icalproperty *property = nullptr;
+    icalcomponent *component = nullptr;
+    struct icaltimetype result;
 
-    // Free the icalcomponent after use
-    icalcomponent_free(component);
+    // Create a new icalproperty and icalcomponent for testing
+    property = icalproperty_new(ICAL_DTSTART_PROPERTY);
+    component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+
+    // Ensure both property and component are non-NULL
+    if (property != nullptr && component != nullptr) {
+        // Use the fuzz input data to set a value in the property
+        // Convert the data to a string, assuming it's valid UTF-8
+        char *data_str = (char *)malloc(size + 1);
+        if (data_str != nullptr) {
+            memcpy(data_str, data, size);
+            data_str[size] = '\0'; // Null-terminate the string
+
+            // Set the string as a value for the property
+            icalproperty_set_value(property, icalvalue_new_string(data_str));
+
+            // Free the temporary string buffer
+            free(data_str);
+        }
+
+        // Add the property to the component
+        icalcomponent_add_property(component, property);
+
+        // Set a valid date-time value to increase the likelihood of non-null results
+        struct icaltimetype dtstart = icaltime_from_string("20230101T000000Z");
+        if (!icaltime_is_null_time(dtstart)) {
+            icalproperty_set_dtstart(property, dtstart);
+        }
+
+        // Call the function-under-test
+        result = icalproperty_get_datetime_with_component(property, component);
+
+        // Utilize the result to ensure the function is invoked effectively
+        if (!icaltime_is_null_time(result)) { // Check if result is not null
+            // Convert the result to a string to simulate further processing
+            const char *result_str = icaltime_as_ical_string(result);
+            if (result_str) {
+                // Simulate some processing with the result string
+                size_t result_len = strlen(result_str);
+                if (result_len > 0) {
+                    // Do something with the result string
+                }
+                // No need to free result_str as icaltime_as_ical_string does not allocate memory
+            }
+        }
+    }
+
+    // Clean up and free the allocated resources
+    if (property != nullptr) {
+        icalproperty_free(property);
+    }
+    if (component != nullptr) {
+        icalcomponent_free(component);
+    }
 
     return 0;
-}
-
 }
 #ifdef INC_MAIN
 #include <stdio.h>

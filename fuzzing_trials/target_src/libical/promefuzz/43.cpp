@@ -1,10 +1,7 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_set_sequence at icalcomponent.c:1955:6 in icalcomponent.h
-// icalcomponent_get_sequence at icalcomponent.c:1967:5 in icalcomponent.h
-// icalcomponent_get_inner at icalcomponent.c:1490:16 in icalcomponent.h
-// icalcomponent_get_next_component at icalcomponent.c:627:16 in icalcomponent.h
-// icalcomponent_set_dtstart at icalcomponent.c:1533:6 in icalcomponent.h
-// icalcomponent_new_valarm at icalcomponent.c:2045:16 in icalcomponent.h
+// icalcomponent_new_x at icalcomponent.c:169:16 in icalcomponent.h
+// icalcomponent_get_component_name_r at icalcomponent.c:395:7 in icalcomponent.h
+// icalcomponent_set_relcalid at icalcomponent.c:2627:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,71 +11,72 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <cstdint>
+#include <cstring>
 #include <iostream>
 #include <fstream>
-#include <stdint.h>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <libical/icalcomponent.h>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include <libical/icaltime.h>
+#include "icalcomponent.h"
 
-static icalcomponent* create_component_from_data(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return nullptr;
+static void fuzz_icalcomponent_set_x_name(icalcomponent *comp, const uint8_t *Data, size_t Size) {
+    if (Size > 0) {
+        char *name = new char[Size + 1];
+        memcpy(name, Data, Size);
+        name[Size] = '\0';
+        icalcomponent_set_x_name(comp, name);
+        delete[] name;
     }
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-    return icalcomponent_new(kind);
+}
+
+static void fuzz_icalcomponent_get_x_name(const icalcomponent *comp) {
+    const char *name = icalcomponent_get_x_name(comp);
+    if (name) {
+        std::cout << "X Name: " << name << std::endl;
+    }
+}
+
+static icalcomponent* fuzz_icalcomponent_new_x(const uint8_t *Data, size_t Size) {
+    if (Size > 0) {
+        char *x_name = new char[Size + 1];
+        memcpy(x_name, Data, Size);
+        x_name[Size] = '\0';
+        icalcomponent *comp = icalcomponent_new_x(x_name);
+        delete[] x_name;
+        return comp;
+    }
+    return nullptr;
+}
+
+static void fuzz_icalcomponent_set_relcalid(icalcomponent *comp, const uint8_t *Data, size_t Size) {
+    if (Size > 0) {
+        char *relcalid = new char[Size + 1];
+        memcpy(relcalid, Data, Size);
+        relcalid[Size] = '\0';
+        icalcomponent_set_relcalid(comp, relcalid);
+        delete[] relcalid;
+    }
+}
+
+static void fuzz_icalcomponent_get_component_name_r(const icalcomponent *comp) {
+    char *name = icalcomponent_get_component_name_r(comp);
+    if (name) {
+        std::cout << "Component Name: " << name << std::endl;
+        free(name);
+    }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    // Fuzz icalcomponent_new_x
+    icalcomponent *comp_x = fuzz_icalcomponent_new_x(Data, Size);
+    if (comp_x) {
+        fuzz_icalcomponent_set_x_name(comp_x, Data, Size);
+        fuzz_icalcomponent_get_x_name(comp_x);
+        fuzz_icalcomponent_set_relcalid(comp_x, Data, Size);
+        fuzz_icalcomponent_get_component_name_r(comp_x);
+        icalcomponent_free(comp_x);
     }
-
-    icalcomponent *comp = create_component_from_data(Data, Size);
-    if (!comp) {
-        return 0;
-    }
-
-    // Test icalcomponent_get_inner
-    icalcomponent *inner = icalcomponent_get_inner(comp);
-    if (inner) {
-        // Do something with inner, like checking its kind
-        icalcomponent_kind inner_kind = icalcomponent_isa(inner);
-        (void)inner_kind; // Suppress unused variable warning
-    }
-
-    // Test icalcomponent_set_dtstart
-    struct icaltimetype dtstart = icaltime_from_timet_with_zone(time(NULL), 0, nullptr);
-    icalcomponent_set_dtstart(comp, dtstart);
-
-    // Test icalcomponent_get_sequence
-    int sequence = icalcomponent_get_sequence(comp);
-    (void)sequence; // Suppress unused variable warning
-
-    // Test icalcomponent_get_next_component
-    icalcomponent *next = icalcomponent_get_next_component(comp, ICAL_VEVENT_COMPONENT);
-    if (next) {
-        // Do something with next, like checking its kind
-        icalcomponent_kind next_kind = icalcomponent_isa(next);
-        (void)next_kind; // Suppress unused variable warning
-    }
-
-    // Test icalcomponent_new_valarm
-    icalcomponent *alarm = icalcomponent_new_valarm();
-    if (alarm) {
-        icalcomponent_add_component(comp, alarm);
-    }
-
-    // Test icalcomponent_set_sequence
-    icalcomponent_set_sequence(comp, static_cast<int>(Data[0]));
-
-    // Cleanup
-    icalcomponent_free(comp);
 
     return 0;
 }

@@ -1,44 +1,37 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h>
-#include <stdlib.h> // Include for malloc and free
+#include <cstdint>
+#include <cstdlib>
 
 extern "C" {
-    #include <libical/icalcomponent.h> // Correct header for icalcomponent functions
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_93(const uint8_t *data, size_t size) {
-    // Ensure that the input data is large enough to be used as a UID string
-    if (size == 0) {
+    // Ensure size is sufficient for creating a valid icaltimetype
+    if (size < sizeof(struct icaltimetype)) {
         return 0;
     }
 
-    // Create an icalcomponent instance
+    // Initialize an icalcomponent
     icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
     if (component == NULL) {
         return 0;
     }
 
-    // Use the input data as a UID string, ensuring it is null-terminated
-    char *uid = (char *)malloc(size + 1);
-    if (uid == NULL) {
-        icalcomponent_free(component);
-        return 0;
-    }
-    memcpy(uid, data, size);
-    uid[size] = '\0';
+    // Create an icaltimetype from the input data
+    struct icaltimetype dtstamp;
+    dtstamp.year = (int)(data[0] % 100 + 1900); // Year between 1900 and 1999
+    dtstamp.month = (int)(data[1] % 12 + 1);    // Month between 1 and 12
+    dtstamp.day = (int)(data[2] % 28 + 1);      // Day between 1 and 28
+    dtstamp.hour = (int)(data[3] % 24);         // Hour between 0 and 23
+    dtstamp.minute = (int)(data[4] % 60);       // Minute between 0 and 59
+    dtstamp.second = (int)(data[5] % 60);       // Second between 0 and 59
+    dtstamp.is_date = 0;                        // Not a date-only value
+    dtstamp.zone = icaltimezone_get_utc_timezone(); // Use UTC timezone
 
     // Call the function-under-test
-    icalcomponent_set_uid(component, uid);
-
-    // Additional function calls to increase code coverage
-    icalcomponent *clone = icalcomponent_clone(component);
-    if (clone != NULL) {
-        icalcomponent_free(clone);
-    }
+    icalcomponent_set_dtstamp(component, dtstamp);
 
     // Clean up
-    free(uid);
     icalcomponent_free(component);
 
     return 0;

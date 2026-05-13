@@ -9,55 +9,94 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <iostream>
 #include <fstream>
+#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
+static icalcomponent* create_icalcomponent_from_data(const uint8_t *Data, size_t Size) {
+    // For simplicity, assume the data is a string representation of an icalcomponent
+    char *dataStr = static_cast<char*>(malloc(Size + 1));
+    if (!dataStr) {
+        return nullptr;
+    }
+    memcpy(dataStr, Data, Size);
+    dataStr[Size] = '\0';
+
+    icalcomponent *comp = icalcomponent_new_from_string(dataStr);
+    free(dataStr);
+    return comp;
+}
+
 extern "C" int LLVMFuzzerTestOneInput_32(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icalcomponent_kind)) {
+    if (Size == 0) {
         return 0;
     }
 
-    // Create a dummy icalcomponent for fuzzing purposes
-    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    if (!component) {
+    icalcomponent *comp = create_icalcomponent_from_data(Data, Size);
+    if (!comp) {
         return 0;
     }
 
-    // Extract icalcomponent_kind from the input data
-    icalcomponent_kind kind;
-    std::memcpy(&kind, Data, sizeof(icalcomponent_kind));
-
-    // Begin component iteration
-    icalcompiter iter = icalcomponent_begin_component(component, kind);
-    icalcomponent *comp = icalcompiter_deref(&iter);
-
-    // Iterate through components using next
-    while ((comp = icalcompiter_next(&iter)) != nullptr) {
-        // Process component
+    // Fuzz icalcomponent_get_uid
+    const char *uid = icalcomponent_get_uid(comp);
+    if (uid) {
+        std::cout << "UID: " << uid << std::endl;
     }
 
-    // End component iteration
-    iter = icalcomponent_end_component(component, kind);
-    comp = icalcompiter_deref(&iter);
+    // Fuzz icalcomponent_get_x_name (assuming this is the correct function)
 
-    // Iterate backward through components using prior
-    while ((comp = icalcompiter_prior(&iter)) != nullptr) {
-        // Process component
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_uid to icalcomponent_remove_component
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
+    }
+    icalcomponent* ret_icalcomponent_clone_vrgcq = icalcomponent_clone(comp);
+    if (ret_icalcomponent_clone_vrgcq == NULL){
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
+    }
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!ret_icalcomponent_clone_vrgcq) {
+    	return 0;
+    }
+    icalcomponent_remove_component(comp, ret_icalcomponent_clone_vrgcq);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    const char *x_name = icalcomponent_get_x_name(comp);
+    if (x_name) {
+        std::cout << "X Name: " << x_name << std::endl;
     }
 
-    // Get first component of specified kind
-    comp = icalcomponent_get_first_component(component, kind);
+    // Fuzz icalcomponent_get_relcalid
+    const char *relcalid = icalcomponent_get_relcalid(comp);
+    if (relcalid) {
+        std::cout << "RELCALID: " << relcalid << std::endl;
+    }
 
-    // Cleanup
-    icalcomponent_free(component);
+    // Fuzz icalcomponent_as_ical_string_r
+    char *ical_str = icalcomponent_as_ical_string_r(comp);
+    if (ical_str) {
+        std::cout << "ICAL String: " << ical_str << std::endl;
+        free(ical_str);
+    }
 
+    // Fuzz icalcomponent_get_description
+    const char *description = icalcomponent_get_description(comp);
+    if (description) {
+        std::cout << "Description: " << description << std::endl;
+    }
+
+    // Fuzz icalcomponent_normalize
+    icalcomponent_normalize(comp);
+
+    icalcomponent_free(comp);
     return 0;
 }
 #ifdef INC_MAIN

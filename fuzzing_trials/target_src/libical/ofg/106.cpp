@@ -1,44 +1,22 @@
-#include <stdint.h>
-#include <stdlib.h>
-#include <string.h> // Include for memcpy
+#include <cstdint> // Include for uint8_t
+#include <cstddef> // Include for size_t
 
 extern "C" {
-    #include <libical/ical.h> // Correctly include the libical header within extern "C"
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_106(const uint8_t *data, size_t size) {
-    // Initialize the library
-    icalcomponent *component = nullptr;
+    // Call the function-under-test
+    icalcomponent *valarm = icalcomponent_new_valarm();
 
-    // Ensure the data is not empty
-    if (size == 0) {
-        return 0;
+    // Normally, you would do something with the created component here,
+    // like adding properties or subcomponents, but for this fuzz target,
+    // we are just creating it to test the function itself.
+
+    // Clean up the created component to prevent memory leaks
+    if (valarm != NULL) {
+        icalcomponent_free(valarm);
     }
-
-    // Create a temporary buffer to null-terminate the data
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == nullptr) {
-        return 0;
-    }
-
-    // Copy the data and null-terminate
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
-
-    // Parse the data into an icalcomponent
-    component = icalparser_parse_string(buffer);
-
-    // If parsing is successful, call the function-under-test
-    if (component != nullptr) {
-        int error_count = icalcomponent_count_errors(component);
-        (void)error_count; // Suppress unused variable warning
-    }
-
-    // Clean up
-    if (component != nullptr) {
-        icalcomponent_free(component);
-    }
-    free(buffer);
 
     return 0;
 }

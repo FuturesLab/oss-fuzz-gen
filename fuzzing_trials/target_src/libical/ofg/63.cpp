@@ -1,26 +1,41 @@
-#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+
+extern "C" {
+    // Include the necessary C headers and declarations
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_63(const uint8_t *data, size_t size) {
-    // Initialize a default icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
+    // Ensure size is sufficient for creating an icalcomponent
+    if (size == 0) {
         return 0;
     }
 
-    // Add a property to the component to ensure it's not empty
-    icalproperty *property = icalproperty_new_summary("Sample Summary");
-    icalcomponent_add_property(component, property);
+    // Create a temporary string from the input data
+    char *ical_string = (char *)malloc(size + 1);
+    if (ical_string == NULL) {
+        return 0;
+    }
+    memcpy(ical_string, data, size);
+    ical_string[size] = '\0';
 
-    // Define an icalproperty_kind, using a valid enum value
-    icalproperty_kind kind = ICAL_ANY_PROPERTY;
+    // Parse the string into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(ical_string);
 
-    // Call the function-under-test
-    icalproperty *result = icalcomponent_get_next_property(component, kind);
+    // Free the temporary string
+    free(ical_string);
 
-    // Clean up
-    icalcomponent_free(component);
+    // Check if the component is valid
+    if (component != NULL) {
+        // Perform operations on the component if needed
+        bool is_valid = icalcomponent_is_valid(component);
+
+        // Free the component
+        icalcomponent_free(component);
+    }
 
     return 0;
 }

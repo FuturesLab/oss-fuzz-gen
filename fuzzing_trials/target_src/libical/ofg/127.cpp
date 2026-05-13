@@ -1,27 +1,41 @@
-#include <cstddef>
+#include <libical/ical.h>
 #include <cstdint>
+#include <cstdlib>
+#include <cstring>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_127(const uint8_t *data, size_t size) {
-    if (size < sizeof(void*)) {
-        return 0;
+    // Ensure the data is null-terminated for string operations
+    char *inputStr = (char *)malloc(size + 1);
+    if (!inputStr) {
+        return 0; // Exit if memory allocation fails
+    }
+    memcpy(inputStr, data, size);
+    inputStr[size] = '\0';
+
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputStr);
+    if (!component) {
+        free(inputStr);
+        return 0; // Exit if parsing fails
     }
 
-    // Cast the input data to a void pointer
-    const void *component_ptr = reinterpret_cast<const void*>(data);
+    // Initialize the iterator
+    icalproperty_kind kind = ICAL_ANY_PROPERTY;
+    icalproperty *next_property = icalcomponent_get_first_property(component, kind);
 
-    // Call the function-under-test
-    bool result = icalcomponent_isa_component(component_ptr);
-
-    // Use the result in some way to avoid compiler optimizations
-    if (result) {
-        // Do something if true, e.g., print or log
-    } else {
-        // Do something if false, e.g., print or log
+    // Iterate through properties
+    while (next_property != nullptr) {
+        // Process the property (for example, print or modify it)
+        next_property = icalcomponent_get_next_property(component, kind);
     }
+
+    // Clean up
+    icalcomponent_free(component);
+    free(inputStr);
 
     return 0;
 }

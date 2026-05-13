@@ -1,34 +1,56 @@
 #include <sys/stat.h>
 #include "libical/ical.h"
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *data, size_t size) {
-    if (size < 1) {
+    // Ensure the data size is sufficient to create a valid string
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize an icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
+    // Create a null-terminated string from the input data
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
         return 0;
     }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0';
 
-    // Use the first byte of data to determine the icalproperty_kind
-    icalproperty_kind kind = static_cast<icalproperty_kind>(data[0] % ICAL_NO_PROPERTY);
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputData);
 
-    // Create a dummy icalproperty to add to the component
-    icalproperty *property = icalproperty_new(kind);
-    if (property != NULL) {
-        icalcomponent_add_property(component, property);
-    }
+    // Check if the component was successfully created
+    if (component != NULL) {
+        // Call the function-under-test
+        char *icalString = icalcomponent_as_ical_string_r(component);
 
-    // Call the function-under-test
-    icalcomponent_remove_property_by_kind(component, kind);
+        // Free the resulting string if it was created
+        if (icalString != NULL) {
+            free(icalString);
+        }
 
-    // Clean up
-    icalcomponent_free(component);
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_get_description
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        const char* ret_icalcomponent_get_description_btppv = icalcomponent_get_description(component);
+        if (ret_icalcomponent_get_description_btppv == NULL){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Free the input data
+    free(inputData);
 
     return 0;
 }

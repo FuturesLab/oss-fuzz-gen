@@ -1,36 +1,38 @@
 #include <sys/stat.h>
-#include <string.h>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h> // Include the string.h library for memcpy
 
 extern "C" {
-    #include "libical/ical.h"
+#include "libical/ical.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient for a null-terminated string
-    if (size == 0) return 0;
-
-    // Create a new icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) return 0;
-
-    // Create a null-terminated string from the input data
-    char *relcalid = (char *)malloc(size + 1);
-    if (relcalid == NULL) {
-        icalcomponent_free(component);
+    // Ensure size is large enough to create a valid icalcomponent
+    if (size == 0) {
         return 0;
     }
-    memcpy(relcalid, data, size);
-    relcalid[size] = '\0';
 
-    // Call the function-under-test
-    icalcomponent_set_relcalid(component, relcalid);
+    // Create a string from the input data
+    char *ical_str = (char *)malloc(size + 1);
+    if (ical_str == NULL) {
+        return 0;
+    }
+    memcpy(ical_str, data, size);
+    ical_str[size] = '\0';
 
-    // Clean up
-    free(relcalid);
-    icalcomponent_free(component);
+    // Parse the string into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(ical_str);
+    free(ical_str);
+
+    // Check if the component was successfully created
+    if (component != NULL) {
+        // Call the function-under-test
+        icalcomponent_normalize(component);
+
+        // Clean up
+        icalcomponent_free(component);
+    }
 
     return 0;
 }

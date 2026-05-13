@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalpropiter_deref at icalcomponent.c:1479:15 in icalcomponent.h
-// icalpropiter_next at icalcomponent.c:1460:15 in icalcomponent.h
-// icalcomponent_get_current_property at icalcomponent.c:463:15 in icalcomponent.h
-// icalcomponent_remove_property at icalcomponent.c:400:6 in icalcomponent.h
-// icalproperty_get_parent at icalproperty.c:907:16 in icalcomponent.h
-// icalproperty_set_parent at icalproperty.c:900:6 in icalcomponent.h
+// icalcomponent_new_xdaylight at icalcomponent.c:2129:16 in icalcomponent.h
+// icalcomponent_new_xpatch at icalcomponent.c:2179:16 in icalcomponent.h
+// icalcomponent_new_vjournal at icalcomponent.c:2104:16 in icalcomponent.h
+// icalcomponent_new_xvote at icalcomponent.c:2169:16 in icalcomponent.h
+// icalcomponent_set_parent at icalcomponent.c:1275:6 in icalcomponent.h
+// icalcomponent_new_xstandard at icalcomponent.c:2124:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,72 +16,47 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
-#include <iostream>
-#include <fstream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalcomponent.h"
-
-static icalcomponent* create_dummy_component() {
-    icalcomponent* component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (!component) return nullptr;
-
-    icalproperty* property = icalproperty_new(ICAL_SUMMARY_PROPERTY);
-    if (!property) {
-        icalcomponent_free(component);
-        return nullptr;
-    }
-    icalcomponent_add_property(component, property);
-    return component;
-}
-
-static icalproperty* create_dummy_property(icalcomponent* parent) {
-    icalproperty* property = icalproperty_new(ICAL_DESCRIPTION_PROPERTY);
-    if (property && parent) {
-        icalproperty_set_parent(property, parent);
-    }
-    return property;
-}
+#include <icalcomponent.h>
 
 extern "C" int LLVMFuzzerTestOneInput_19(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    // Create components using the target API functions
+    icalcomponent *xpatch = icalcomponent_new_xpatch();
+    icalcomponent *vjournal = icalcomponent_new_vjournal();
+    icalcomponent *xstandard = icalcomponent_new_xstandard();
+    icalcomponent *xvote = icalcomponent_new_xvote();
+    icalcomponent *xdaylight = icalcomponent_new_xdaylight();
 
-    icalcomponent* component = create_dummy_component();
-    if (!component) return 0;
-
-    icalproperty* property = create_dummy_property(component);
-    if (!property) {
-        icalcomponent_free(component);
-        return 0;
+    // Explore different states by setting parent relationships
+    if (Size > 0) {
+        switch (Data[0] % 5) {
+            case 0:
+                icalcomponent_set_parent(xpatch, vjournal);
+                break;
+            case 1:
+                icalcomponent_set_parent(vjournal, xstandard);
+                break;
+            case 2:
+                icalcomponent_set_parent(xstandard, xvote);
+                break;
+            case 3:
+                icalcomponent_set_parent(xvote, xdaylight);
+                break;
+            case 4:
+                icalcomponent_set_parent(xdaylight, xpatch);
+                break;
+        }
     }
 
-    icalcomponent* parent = icalproperty_get_parent(property);
-    if (parent != component) {
-        std::cerr << "Parent component mismatch" << std::endl;
-    }
+    // Cleanup: free all components
+    if (xpatch) icalcomponent_free(xpatch);
+    if (vjournal) icalcomponent_free(vjournal);
+    if (xstandard) icalcomponent_free(xstandard);
+    if (xvote) icalcomponent_free(xvote);
+    if (xdaylight) icalcomponent_free(xdaylight);
 
-    icalpropiter iter;
-    iter.kind = static_cast<icalproperty_kind>(Data[0] % ICAL_NO_PROPERTY);
-    iter.iter = nullptr;
-
-    icalproperty* iter_property = icalpropiter_deref(&iter);
-    if (iter_property) {
-        icalcomponent_remove_property(component, iter_property);
-    }
-
-    iter_property = icalpropiter_next(&iter);
-    if (iter_property) {
-        icalcomponent_remove_property(component, iter_property);
-    }
-
-    icalproperty* current_property = icalcomponent_get_current_property(component);
-    if (current_property) {
-        icalcomponent_remove_property(component, current_property);
-    }
-
-    icalcomponent_free(component);
     return 0;
 }
     #ifdef INC_MAIN

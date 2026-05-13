@@ -1,41 +1,38 @@
-#include <libical/ical.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h> // For malloc and free
-#include <string.h> // For memcpy
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Include this header for memcpy
 
 extern "C" {
-    #include <libical/ical.h> // Ensure libical C headers are included within extern "C"
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *data, size_t size) {
-    // Initialize a new icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-
-    // Ensure the data is not empty
-    if (size > 0) {
-        // Create a string from the input data
-        char *ical_string = (char *)malloc(size + 1);
-        if (ical_string == NULL) {
-            return 0; // Memory allocation failed
-        }
-        memcpy(ical_string, data, size);
-        ical_string[size] = '\0';
-
-        // Parse the string into the icalcomponent
-        icalcomponent *parsed_component = icalparser_parse_string(ical_string);
-        if (parsed_component != NULL) {
-            icalcomponent_add_component(component, parsed_component);
-        }
-
-        free(ical_string);
+    // Ensure size is sufficient for creating a valid string
+    if (size < 1) {
+        return 0;
     }
 
-    // Call the function-under-test
-    icalproperty_method method = icalcomponent_get_method(component);
+    // Create a null-terminated string from the input data
+    char *icalData = (char *)malloc(size + 1);
+    if (icalData == nullptr) {
+        return 0;
+    }
+    memcpy(icalData, data, size);
+    icalData[size] = '\0';
 
-    // Clean up
-    icalcomponent_free(component);
+    // Parse the iCalendar data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(icalData);
+
+    if (component != nullptr) {
+        // Call the function-under-test
+        struct icaltimetype dtend = icalcomponent_get_dtend(component);
+
+        // Clean up the component
+        icalcomponent_free(component);
+    }
+
+    // Free the allocated memory
+    free(icalData);
 
     return 0;
 }

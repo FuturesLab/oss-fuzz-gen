@@ -1,20 +1,35 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <libical/ical.h>
+#include <stdlib.h>
+#include <string.h>
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_175(const uint8_t *data, size_t size) {
-    if (size < sizeof(icalcomponent_kind)) {
-        return 0;
+    // Create a temporary string buffer to hold the input data
+    char *tempData = (char *)malloc(size + 1);
+    if (tempData == NULL) {
+        return 0; // Memory allocation failed, return early
     }
 
-    // Extract an icalcomponent_kind from the input data
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(data[0]);
+    // Copy the input data to the temporary buffer and null-terminate it
+    memcpy(tempData, data, size);
+    tempData[size] = '\0';
 
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new(kind);
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(tempData);
 
-    // Clean up if component is not NULL
+    // Free the temporary buffer
+    free(tempData);
+
     if (component != NULL) {
+        // Call the function-under-test
+        icalcomponent *parent = icalcomponent_get_parent(component);
+
+        // Clean up the parsed icalcomponent
         icalcomponent_free(component);
     }
 

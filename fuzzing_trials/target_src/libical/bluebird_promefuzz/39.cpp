@@ -11,61 +11,108 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
-#include <cstdlib>
 #include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
+static icalcomponent* create_icalcomponent_from_data(const uint8_t *Data, size_t Size) {
+    // For simplicity, assume the data is a string representation of an icalcomponent
+    char *dataStr = static_cast<char*>(malloc(Size + 1));
+    if (!dataStr) {
+        return nullptr;
+    }
+    memcpy(dataStr, Data, Size);
+    dataStr[Size] = '\0';
+
+    icalcomponent *comp = icalcomponent_new_from_string(dataStr);
+    free(dataStr);
+    return comp;
+}
+
 extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
+    if (Size == 0) {
         return 0;
     }
 
-    // Convert the first byte to an icalcomponent_kind
-    icalcomponent_kind componentKind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-
-    // Convert the second byte to an icalproperty_kind
-    icalproperty_kind propertyKind = static_cast<icalproperty_kind>(Data[1] % ICAL_NO_PROPERTY);
-
-    // Create a new component
-    icalcomponent *component = icalcomponent_new(componentKind);
-    if (!component) {
+    icalcomponent *comp = create_icalcomponent_from_data(Data, Size);
+    if (!comp) {
         return 0;
     }
 
-    // Create a new property
-    icalproperty *property = icalproperty_new(propertyKind);
-    if (!property) {
-        icalcomponent_free(component);
-        return 0;
+    // Fuzz icalcomponent_get_uid
+    const char *uid = icalcomponent_get_uid(comp);
+    if (uid) {
+        std::cout << "UID: " << uid << std::endl;
     }
 
-    // Test icalcomponent_add_property
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_add_property with icalcomponent_remove_property
-    icalcomponent_remove_property(component, property);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    // Fuzz icalcomponent_get_x_name (assuming this is the correct function)
 
-    // Test icalcomponent_get_first_property
-    icalproperty *firstProperty = icalcomponent_get_first_property(component, propertyKind);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_uid to icalcomponent_set_dtend
+    struct icaltimetype ret_icalcomponent_get_dtend_hxhpc = icalcomponent_get_dtend(NULL);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
+    }
+    icalcomponent_set_dtend(comp, ret_icalcomponent_get_dtend_hxhpc);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    const char *x_name = icalcomponent_get_x_name(comp);
+    if (x_name) {
+        std::cout << "X Name: " << x_name << std::endl;
+    }
 
-    // Test icalcomponent_get_next_property
-    icalproperty *nextProperty = icalcomponent_get_next_property(component, propertyKind);
+    // Fuzz icalcomponent_get_relcalid
+    const char *relcalid = icalcomponent_get_relcalid(comp);
+    if (relcalid) {
+        std::cout << "RELCALID: " << relcalid << std::endl;
+    }
 
-    // Test icalcomponent_begin_property
-    icalpropiter iter = icalcomponent_begin_property(component, propertyKind);
+    // Fuzz icalcomponent_as_ical_string_r
+    char *ical_str = icalcomponent_as_ical_string_r(comp);
+    if (ical_str) {
+        std::cout << "ICAL String: " << ical_str << std::endl;
+        free(ical_str);
+    }
 
-    // Test icalcomponent_remove_property
-    icalcomponent_remove_property(component, property);
+    // Fuzz icalcomponent_get_description
+    const char *description = icalcomponent_get_description(comp);
+    if (description) {
+        std::cout << "Description: " << description << std::endl;
+    }
 
-    // Test icalcomponent_remove_property_by_kind
-    icalcomponent_remove_property_by_kind(component, propertyKind);
+    // Fuzz icalcomponent_normalize
 
-    // Clean up
-    icalproperty_free(property);
-    icalcomponent_free(component);
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_description to icalcomponent_get_duration
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
+    }
 
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_description to icalproperty_recurrence_is_excluded
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
+    }
+    struct icaltimetype ret_icalcomponent_get_recurrenceid_vetcv = icalcomponent_get_recurrenceid(comp);
+    struct icaltimetype ret_icalcomponent_get_recurrenceid_jvusa = icalcomponent_get_recurrenceid(NULL);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
+    }
+    bool ret_icalproperty_recurrence_is_excluded_dbrnl = icalproperty_recurrence_is_excluded(comp, &ret_icalcomponent_get_recurrenceid_vetcv, &ret_icalcomponent_get_recurrenceid_jvusa);
+    if (ret_icalproperty_recurrence_is_excluded_dbrnl == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    struct icaldurationtype ret_icalcomponent_get_duration_ekkwk = icalcomponent_get_duration(comp);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    icalcomponent_normalize(comp);
+
+    icalcomponent_free(comp);
     return 0;
 }
 #ifdef INC_MAIN

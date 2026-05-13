@@ -1,50 +1,44 @@
 #include <sys/stat.h>
-#include <string.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
-    #include "/src/libical/src/libical/icalcomponent.h"
-    #include "/src/libical/src/libical/icalproperty.h"
+    #include "libical/ical.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *data, size_t size) {
-    // Check if the input data size is sufficient
-    if (size < 1) {
+    // Ensure the input size is sufficient for a null-terminated string
+    if (size == 0) return 0;
+
+    // Create a null-terminated string from the input data
+    char *relcalid = (char *)malloc(size + 1);
+    if (relcalid == NULL) return 0;
+    memcpy(relcalid, data, size);
+    relcalid[size] = '\0';
+
+    // Create a new icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
+        free(relcalid);
         return 0;
     }
 
-    // Initialize variables
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (!component) {
-        return 0; // Failed to create component
+    // Call the function-under-test
+    icalcomponent_set_relcalid(component, relcalid);
+
+    // Additional operations to ensure code coverage
+    const char *retrieved_relcalid = icalcomponent_get_relcalid(component);
+    if (retrieved_relcalid != NULL) {
+        // Perform some operation with the retrieved_relcalid
+        printf("Retrieved relcalid: %s\n", retrieved_relcalid);
     }
-
-    // Map the first byte of data to a status value
-    icalproperty_status status;
-    switch (data[0] % 3) {
-        case 0:
-            status = ICAL_STATUS_TENTATIVE;
-            break;
-        case 1:
-            status = ICAL_STATUS_CONFIRMED;
-            break;
-        case 2:
-            status = ICAL_STATUS_CANCELLED;
-            break;
-        default:
-            status = ICAL_STATUS_NONE;
-            break;
-    }
-
-    // Set the status of the component
-    icalcomponent_set_status(component, status);
-
-    // Optionally, add more properties or manipulate the component further
-    // based on the input data to increase code coverage.
 
     // Clean up
     icalcomponent_free(component);
+    free(relcalid);
 
     return 0;
 }

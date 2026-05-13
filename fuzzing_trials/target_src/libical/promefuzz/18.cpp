@@ -1,69 +1,65 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_get_relcalid at icalcomponent.c:2591:13 in icalcomponent.h
-// icalcomponent_get_uid at icalcomponent.c:1816:13 in icalcomponent.h
-// icalcomponent_set_uid at icalcomponent.c:1804:6 in icalcomponent.h
-// icalcomponent_get_description at icalcomponent.c:1897:13 in icalcomponent.h
-// icalcomponent_get_x_name at icalcomponent.c:337:13 in icalcomponent.h
-// icalcomponent_get_summary at icalcomponent.c:1746:13 in icalcomponent.h
+// icalcomponent_set_location at icalcomponent.c:1984:6 in icalcomponent.h
+// icalcomponent_set_relcalid at icalcomponent.c:2627:6 in icalcomponent.h
+// icalcomponent_set_comment at icalcomponent.c:1833:6 in icalcomponent.h
+// icalcomponent_set_description at icalcomponent.c:1949:6 in icalcomponent.h
+// icalcomponent_set_summary at icalcomponent.c:1798:6 in icalcomponent.h
+// icalcomponent_set_uid at icalcomponent.c:1868:6 in icalcomponent.h
 #include <iostream>
-#include <sstream>
-#include <string>
-#include <vector>
-#include <cstring>
-#include <cstdlib>
-#include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <iostream>
-#include <fstream>
-#include <string>
+#include <cstring>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <libical/icalcomponent.h>
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_18(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
+    if (Size < 1) {
+        return 0;
+    }
 
     // Create a dummy icalcomponent
     icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (!comp) return 0;
 
-    // Use a portion of the input data as a potential UID
-    std::string uid(reinterpret_cast<const char *>(Data), Size);
-    icalcomponent_set_uid(comp, uid.c_str());
+    // Use the input data to set various properties
+    const char *inputStr = reinterpret_cast<const char *>(Data);
+    size_t strLen = std::min(Size, static_cast<size_t>(255)); // Limit string length
+    char *location = new char[strLen + 1];
+    char *description = new char[strLen + 1];
+    char *comment = new char[strLen + 1];
+    char *summary = new char[strLen + 1];
+    char *relcalid = new char[strLen + 1];
+    char *uid = new char[strLen + 1];
 
-    // Fetch and print the UID
-    const char *retrieved_uid = icalcomponent_get_uid(comp);
-    if (retrieved_uid) {
-        std::cout << "UID: " << retrieved_uid << std::endl;
-    }
+    strncpy(location, inputStr, strLen);
+    location[strLen] = '\0';
+    strncpy(description, inputStr, strLen);
+    description[strLen] = '\0';
+    strncpy(comment, inputStr, strLen);
+    comment[strLen] = '\0';
+    strncpy(summary, inputStr, strLen);
+    summary[strLen] = '\0';
+    strncpy(relcalid, inputStr, strLen);
+    relcalid[strLen] = '\0';
+    strncpy(uid, inputStr, strLen);
+    uid[strLen] = '\0';
 
-    // Fetch and print the X name
-    const char *x_name = icalcomponent_get_x_name(comp);
-    if (x_name) {
-        std::cout << "X Name: " << x_name << std::endl;
-    }
-
-    // Fetch and print the RELCALID
-    const char *relcalid = icalcomponent_get_relcalid(comp);
-    if (relcalid) {
-        std::cout << "RELCALID: " << relcalid << std::endl;
-    }
-
-    // Fetch and print the description
-    const char *description = icalcomponent_get_description(comp);
-    if (description) {
-        std::cout << "Description: " << description << std::endl;
-    }
-
-    // Fetch and print the summary
-    const char *summary = icalcomponent_get_summary(comp);
-    if (summary) {
-        std::cout << "Summary: " << summary << std::endl;
-    }
+    // Invoke the target functions
+    icalcomponent_set_location(comp, location);
+    icalcomponent_set_description(comp, description);
+    icalcomponent_set_comment(comp, comment);
+    icalcomponent_set_summary(comp, summary);
+    icalcomponent_set_relcalid(comp, relcalid);
+    icalcomponent_set_uid(comp, uid);
 
     // Clean up
+    delete[] location;
+    delete[] description;
+    delete[] comment;
+    delete[] summary;
+    delete[] relcalid;
+    delete[] uid;
     icalcomponent_free(comp);
 
     return 0;

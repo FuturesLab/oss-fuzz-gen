@@ -1,50 +1,29 @@
-#include <libical/ical.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <string.h> // Include for memcpy
+#include <cstdint>
+#include <cstring>
+#include <cstdlib>
+
+extern "C" {
+    #include <libical/icalcomponent.h>
+    #include <libical/icaltimezone.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_75(const uint8_t *data, size_t size) {
-    // Ensure that the input data is large enough to be meaningful
-    if (size < 1) {
-        return 0;
-    }
+    // Ensure the data size is large enough to create a valid string
+    if (size < 1) return 0;
 
-    // Initialize the icalcomponent and icalproperty_kind
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalproperty_kind kind = ICAL_ANY_PROPERTY;
+    // Initialize an icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
 
-    // Add some properties to the component to ensure it is not empty
-    icalproperty *summary = icalproperty_new_summary("Sample Summary");
-    icalcomponent_add_property(component, summary);
+    // Create a null-terminated string from the input data
+    char *timezone_id = (char *)malloc(size + 1);
+    memcpy(timezone_id, data, size);
+    timezone_id[size] = '\0';
 
-    icalproperty *description = icalproperty_new_description("Sample Description");
-    icalcomponent_add_property(component, description);
-
-    // Use the input data to modify the component or properties
-    // For example, create a new property from the input data
-    char *data_copy = (char *)malloc(size + 1);
-    if (data_copy == NULL) {
-        icalcomponent_free(component);
-        return 0;
-    }
-    memcpy(data_copy, data, size);
-    data_copy[size] = '\0'; // Null-terminate the string
-
-    icalproperty *custom_property = icalproperty_new_comment(data_copy);
-    icalcomponent_add_property(component, custom_property);
-
-    // Call the function under test
-    icalproperty *property = icalcomponent_get_first_property(component, kind);
-
-    // Process the component to increase code coverage
-    char *component_as_string = icalcomponent_as_ical_string(component);
-    if (component_as_string) {
-        // Optionally, you can print or log the string for debugging
-        // printf("%s\n", component_as_string);
-    }
+    // Call the function-under-test
+    icaltimezone *timezone = icalcomponent_get_timezone(component, timezone_id);
 
     // Clean up
-    free(data_copy);
+    free(timezone_id);
     icalcomponent_free(component);
 
     return 0;

@@ -1,34 +1,38 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <libical/ical.h>
+#include <string.h> // Include for memcpy
 
 extern "C" {
-
-// A simple callback function to be used with icalcomponent_foreach_tzid
-void tzid_callback(icalparameter *param, void *data) {
-    // This is where you would handle the parameter and data
-    // For fuzzing purposes, we can leave it empty or log the parameter
+    #include <libical/ical.h> // Assuming the correct path for ical.h
 }
 
-int LLVMFuzzerTestOneInput_103(const uint8_t *data, size_t size) {
-    // Initialize a memory zone for icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    if (component == NULL) {
+extern "C" int LLVMFuzzerTestOneInput_103(const uint8_t *data, size_t size) {
+    // Ensure the input data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Create a dummy data pointer
-    void *user_data = static_cast<void*>(const_cast<uint8_t*>(data));
+    // Create a temporary buffer to hold the input data
+    char *buffer = new char[size + 1];
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
 
-    // Call the function-under-test
-    icalcomponent_foreach_tzid(component, tzid_callback, user_data);
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(buffer);
 
-    // Clean up
-    icalcomponent_free(component);
+    // Check if the component was successfully created
+    if (component != NULL) {
+        // Call the function-under-test
+        struct icaltimetype dtstart = icalcomponent_get_dtstart(component);
+
+        // Clean up the component
+        icalcomponent_free(component);
+    }
+
+    // Clean up the buffer
+    delete[] buffer;
 
     return 0;
-}
-
 }
 #ifdef INC_MAIN
 #include <stdio.h>

@@ -1,39 +1,21 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
-
-extern "C" {
-    #include <libical/ical.h>
-}
 
 extern "C" int LLVMFuzzerTestOneInput_57(const uint8_t *data, size_t size) {
-    // Ensure that the data size is sufficient to create a valid string
-    if (size == 0) {
-        return 0;
-    }
-
-    // Create a dummy icalcomponent object
+    // Initialize the icalcomponent and icalproperty
     icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        return 0;
-    }
+    icalproperty *property = icalproperty_new_comment("Sample comment");
 
-    // Convert the input data to a null-terminated string
-    char *location = (char *)malloc(size + 1);
-    if (location == NULL) {
-        icalcomponent_free(component);
-        return 0;
-    }
-    memcpy(location, data, size);
-    location[size] = '\0'; // Null-terminate the string
+    // Add the property to the component
+    icalcomponent_add_property(component, property);
 
     // Call the function-under-test
-    icalcomponent_set_location(component, location);
+    icalcomponent_remove_property(component, property);
 
     // Clean up
-    free(location);
     icalcomponent_free(component);
+    // Note: The property is already removed and should not be freed separately
 
     return 0;
 }

@@ -1,35 +1,39 @@
+#include <stdint.h>
+#include <stddef.h>
 #include <libical/ical.h>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <cstring> // Include the header for memcpy
+
+extern "C" {
+    // Include necessary C headers, source files, functions, and code here.
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_109(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a valid icalcomponent
-    if (size < 1) {
-        return 0;
+    // Initialize an icalcomponent from the input data
+    icalcomponent *component = nullptr;
+    
+    // Ensure size is greater than zero to avoid passing NULL data
+    if (size > 0) {
+        // Create a temporary buffer to hold the data as a string
+        char *buffer = new char[size + 1];
+        memcpy(buffer, data, size);
+        buffer[size] = '\0'; // Null-terminate the string
+
+        // Parse the buffer into an icalcomponent
+        component = icalparser_parse_string(buffer);
+
+        // Clean up the buffer
+        delete[] buffer;
     }
 
-    // Create a temporary buffer to hold the data
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == NULL) {
-        return 0;
+    // If component is successfully created, call the function
+    if (component != nullptr) {
+        // Call the function-under-test
+        int error_count = icalcomponent_count_errors(component);
+        
+        // Free the icalcomponent
+        icalcomponent_free(component);
     }
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';  // Null-terminate the buffer
-
-    // Convert the buffer into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(buffer);
-    if (component == NULL) {
-        free(buffer);
-        return 0;
-    }
-
-    // Call the function-under-test
-    icalcomponent *inner_component = icalcomponent_get_inner(component);
-
-    // Clean up
-    icalcomponent_free(component);
-    free(buffer);
 
     return 0;
 }

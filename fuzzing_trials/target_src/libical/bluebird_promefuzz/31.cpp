@@ -9,67 +9,49 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-#include <iostream>
+#include <stdint.h>
+#include <stddef.h>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_31(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icalcomponent_kind)) {
-        return 0;
+    // Fuzz icalcomponent_new_vresource
+    icalcomponent *vresource = icalcomponent_new_vresource();
+    if (vresource) {
+        icalcomponent_free(vresource);
     }
 
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-
-    // Create a dummy icalcomponent using the library's creation function
-    icalcomponent *comp = icalcomponent_new(kind);
-
-    if (comp == NULL) {
-        return 0;
+    // Fuzz icalcomponent_new_vpatch
+    icalcomponent *vpatch = icalcomponent_new_vpatch();
+    if (vpatch) {
+        icalcomponent_free(vpatch);
     }
 
-    // Test icalcomponent_get_component_name_r
-    char *component_name_r = icalcomponent_get_component_name_r(comp);
-    if (component_name_r != NULL) {
-        free(component_name_r);
+    // Fuzz icalcomponent_new_vevent
+    icalcomponent *vevent = icalcomponent_new_vevent();
+    if (vevent) {
+        icalcomponent_free(vevent);
     }
 
-    // Test icalcomponent_get_location
-    const char *location = icalcomponent_get_location(comp);
-    if (location != NULL) {
-        // Process location if needed
+    // Fuzz icalcomponent_new_vquery
+    icalcomponent *vquery = icalcomponent_new_vquery();
+    if (vquery) {
+        icalcomponent_free(vquery);
     }
 
-    // Test icalcomponent_get_description
-    const char *description = icalcomponent_get_description(comp);
-    if (description != NULL) {
-        // Process description if needed
+    // Fuzz icalcomponent_new_vreply
+    icalcomponent *vreply = icalcomponent_new_vreply();
+    if (vreply) {
+        icalcomponent_free(vreply);
     }
 
-    // Test icalcomponent_get_component_name
-    const char *component_name = icalcomponent_get_component_name(comp);
-    if (component_name != NULL) {
-        // Process component_name if needed
+    // Fuzz icalcomponent_new_vcalendar
+    icalcomponent *vcalendar = icalcomponent_new_vcalendar();
+    if (vcalendar) {
+        icalcomponent_free(vcalendar);
     }
-
-    // Test icalcomponent_get_first_component
-    icalcomponent *first_component = icalcomponent_get_first_component(comp, kind);
-    if (first_component != NULL) {
-        // Process first_component if needed
-    }
-
-    // Test icalcomponent_get_comment
-    const char *comment = icalcomponent_get_comment(comp);
-    if (comment != NULL) {
-        // Process comment if needed
-    }
-
-    // Clean up
-    icalcomponent_free(comp);
 
     return 0;
 }

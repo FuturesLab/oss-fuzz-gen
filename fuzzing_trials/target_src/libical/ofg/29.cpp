@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -8,7 +7,7 @@ extern "C" {
 }
 
 extern "C" int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient for a valid string
+    // Ensure the size is sufficient to create a meaningful string
     if (size < 1) {
         return 0;
     }
@@ -19,7 +18,7 @@ extern "C" int LLVMFuzzerTestOneInput_29(const uint8_t *data, size_t size) {
         return 0;
     }
 
-    // Ensure the data is null-terminated to be used as a string
+    // Allocate memory for the description string and ensure it is null-terminated
     char *description = (char *)malloc(size + 1);
     if (description == NULL) {
         icalcomponent_free(component);

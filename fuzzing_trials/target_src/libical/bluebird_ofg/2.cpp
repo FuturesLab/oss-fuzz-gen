@@ -1,81 +1,94 @@
 #include <sys/stat.h>
+#include "libical/ical.h"
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-
-extern "C" {
-    #include "libical/ical.h"
-}
 
 extern "C" int LLVMFuzzerTestOneInput_2(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to create a valid string for the timezone.
-    if (size < 1) {
+    // Ensure the data size is sufficient to create a valid string
+    if (size == 0) {
         return 0;
     }
 
-    // Create a dummy icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    if (component == NULL) {
+    // Create a null-terminated string from the input data
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
         return 0;
     }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0';
 
-    // Create a null-terminated string from the input data for the timezone name
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputData);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new to icalcomponent_get_component_name
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
-    }
+    // Check if the component was successfully created
+    if (component != NULL) {
+        // Call the function-under-test
+        char *icalString = icalcomponent_as_ical_string_r(component);
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new to icalcomponent_merge_component
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
-    }
-    icalcomponent* ret_icalcomponent_clone_cvkjw = icalcomponent_clone(component);
-    if (ret_icalcomponent_clone_cvkjw == NULL){
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
-    }
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!ret_icalcomponent_clone_cvkjw) {
-    	return 0;
-    }
-    icalcomponent_merge_component(component, ret_icalcomponent_clone_cvkjw);
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    const char* ret_icalcomponent_get_component_name_iccfh = icalcomponent_get_component_name(component);
-    if (ret_icalcomponent_get_component_name_iccfh == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    char *timezone_name = (char *)malloc(size + 1);
-    if (timezone_name == NULL) {
-        icalcomponent_free(component);
-        return 0;
-    }
-    memcpy(timezone_name, data, size);
-    timezone_name[size] = '\0';
-
-    // Create a timezone using the input data
-    icaltimezone *timezone = icaltimezone_get_builtin_timezone(timezone_name);
-
-    // If the timezone is valid, add it to the component
-    if (timezone != NULL) {
-        icalproperty *tz_property = icalproperty_new_tzid(timezone_name);
-        if (tz_property != NULL) {
-            icalcomponent_add_property(component, tz_property);
+        // Free the resulting string if it was created
+        if (icalString != NULL) {
+            free(icalString);
         }
-    }
 
-    // Free allocated resources
-    free(timezone_name);
-    icalcomponent_free(component);
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_set_duration
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+
+        // Begin mutation: Producer.SPLICE_MUTATOR - Spliced data flow from icalcomponent_normalize to icalcomponent_add_component using the plateau pool
+        icalcomponent *subcomponent = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        icalcomponent_add_component(component, subcomponent);
+        // End mutation: Producer.SPLICE_MUTATOR
+        
+        struct icaldurationtype ret_icalcomponent_get_duration_kcsfr = icalcomponent_get_duration(component);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_duration to icalcomponent_merge_component
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        icalcomponent* ret_icalcomponent_clone_phcxj = icalcomponent_clone(component);
+        if (ret_icalcomponent_clone_phcxj == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalcomponent_clone_phcxj) {
+        	return 0;
+        }
+        icalcomponent_merge_component(component, ret_icalcomponent_clone_phcxj);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+        icalcomponent_set_duration(component, ret_icalcomponent_get_duration_kcsfr);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Free the input data
+    free(inputData);
 
     return 0;
 }

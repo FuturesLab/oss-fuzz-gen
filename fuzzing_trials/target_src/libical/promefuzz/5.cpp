@@ -1,10 +1,8 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_begin_property at icalcomponent.c:1436:14 in icalcomponent.h
-// icalcomponent_remove_property_by_kind at icalcomponent.c:425:6 in icalcomponent.h
-// icalcomponent_get_first_property at icalcomponent.c:474:15 in icalcomponent.h
-// icalcomponent_get_next_property at icalcomponent.c:489:15 in icalcomponent.h
-// icalcomponent_remove_property at icalcomponent.c:400:6 in icalcomponent.h
-// icalcomponent_add_property at icalcomponent.c:385:6 in icalcomponent.h
+// icalcomponent_get_relcalid at icalcomponent.c:2639:13 in icalcomponent.h
+// icalcomponent_set_x_name at icalcomponent.c:344:6 in icalcomponent.h
+// icalcomponent_get_x_name at icalcomponent.c:357:13 in icalcomponent.h
+// icalcomponent_get_component_name at icalcomponent.c:386:13 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,7 +14,6 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
-#include <cstdlib>
 #include <cstring>
 #include "ical.h"
 #include "ical.h"
@@ -24,50 +21,38 @@
 #include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_5(const uint8_t *Data, size_t Size) {
-    if (Size < 2) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Convert the first byte to an icalcomponent_kind
-    icalcomponent_kind componentKind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+    // Create a dummy file with the given data
+    std::ofstream dummyFile("./dummy_file", std::ios::binary);
+    if (!dummyFile) return 0;
+    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
+    dummyFile.close();
 
-    // Convert the second byte to an icalproperty_kind
-    icalproperty_kind propertyKind = static_cast<icalproperty_kind>(Data[1] % ICAL_NO_PROPERTY);
+    // Use the data to create an IANA name
+    std::string iana_name(reinterpret_cast<const char*>(Data), Size);
 
-    // Create a new component
-    icalcomponent *component = icalcomponent_new(componentKind);
-    if (!component) {
-        return 0;
-    }
+    // Create an icalcomponent using icalcomponent_new_x as a substitute
+    icalcomponent *comp = icalcomponent_new_x(iana_name.c_str());
+    if (!comp) return 0;
 
-    // Create a new property
-    icalproperty *property = icalproperty_new(propertyKind);
-    if (!property) {
-        icalcomponent_free(component);
-        return 0;
-    }
+    // Try to retrieve the IANA name (substitute with x_name retrieval)
+    const char *retrieved_x_name = icalcomponent_get_x_name(comp);
 
-    // Test icalcomponent_add_property
-    icalcomponent_add_property(component, property);
+    // Set a new X-NAME property
+    icalcomponent_set_x_name(comp, "NewXName");
 
-    // Test icalcomponent_get_first_property
-    icalproperty *firstProperty = icalcomponent_get_first_property(component, propertyKind);
+    // Retrieve the X-NAME property again
+    const char *new_x_name = icalcomponent_get_x_name(comp);
 
-    // Test icalcomponent_get_next_property
-    icalproperty *nextProperty = icalcomponent_get_next_property(component, propertyKind);
+    // Get the RELCALID property
+    const char *relcalid = icalcomponent_get_relcalid(comp);
 
-    // Test icalcomponent_begin_property
-    icalpropiter iter = icalcomponent_begin_property(component, propertyKind);
-
-    // Test icalcomponent_remove_property
-    icalcomponent_remove_property(component, property);
-
-    // Test icalcomponent_remove_property_by_kind
-    icalcomponent_remove_property_by_kind(component, propertyKind);
+    // Get the component name
+    const char *component_name = icalcomponent_get_component_name(comp);
 
     // Clean up
-    icalproperty_free(property);
-    icalcomponent_free(component);
+    icalcomponent_free(comp);
 
     return 0;
 }

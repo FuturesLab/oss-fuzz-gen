@@ -1,44 +1,24 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <cstring>  // Include for memcpy
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_56(const uint8_t *data, size_t size) {
-    // Ensure data size is sufficient to create a valid string
-    if (size < 2) return 0;
+    // Initialize the icalcomponent and icalproperty objects
+    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalproperty *prop = icalproperty_new_comment("Sample comment");
 
-    // Create a temporary null-terminated string from the input data
-    char *ical_str = new char[size + 1];
-    memcpy(ical_str, data, size);
-    ical_str[size] = '\0';
+    // Ensure that the component and property are not NULL
+    if (comp != NULL && prop != NULL) {
+        // Add the property to the component
+        icalcomponent_add_property(comp, prop);
 
-    // Initialize an icalcomponent from the string
-    icalcomponent *component = icalparser_parse_string(ical_str);
-    if (component == NULL) {
-        delete[] ical_str;
-        return 0;
+        // Call the function-under-test
+        icalcomponent_remove_property(comp, prop);
+
+        // Clean up
+        icalcomponent_free(comp);
+        // Note: The property is automatically freed when the component is freed.
     }
-
-    // Create a dummy icalproperty to remove
-    icalproperty *property = icalproperty_new_comment("Dummy comment");
-    if (property == NULL) {
-        icalcomponent_free(component);
-        delete[] ical_str;
-        return 0;
-    }
-
-    // Add the property to the component
-    icalcomponent_add_property(component, property);
-
-    // Call the function-under-test
-    icalcomponent_remove_property(component, property);
-
-    // Clean up
-    icalcomponent_free(component);
-    delete[] ical_str;
 
     return 0;
 }

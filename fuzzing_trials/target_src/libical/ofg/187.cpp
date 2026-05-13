@@ -1,26 +1,40 @@
 #include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <time.h>
 
-extern "C" int LLVMFuzzerTestOneInput_187(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_vlocation();
+extern "C" {
 
-    // Perform operations on the component if necessary
-    if (component != NULL) {
-        // Example operation: convert component to a string
-        char *str = icalcomponent_as_ical_string(component);
+// Dummy callback function to be used with icalcomponent_foreach_recurrence
+void dummy_callback_187(const icalcomponent *comp, const struct icaltime_span *span, void *data) {
+    // Do nothing
+}
 
-        // Free the string if it was allocated
-        if (str != NULL) {
-            icalmemory_free_buffer(str);
-        }
-
-        // Always free the component after use
-        icalcomponent_free(component);
+int LLVMFuzzerTestOneInput_187(const uint8_t *data, size_t size) {
+    if (size < 1) {
+        return 0;
     }
 
+    // Initialize an icalcomponent
+    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (comp == NULL) {
+        return 0;
+    }
+
+    // Create start and end times
+    struct icaltimetype start_time = icaltime_from_timet_with_zone(time(NULL), 0, NULL);
+    struct icaltimetype end_time = icaltime_from_timet_with_zone(time(NULL) + 3600, 0, NULL);
+
+    // Call the function-under-test
+    icalcomponent_foreach_recurrence(comp, start_time, end_time, dummy_callback_187, NULL);
+
+    // Clean up
+    icalcomponent_free(comp);
+
     return 0;
+}
+
 }
 #ifdef INC_MAIN
 #include <stdio.h>

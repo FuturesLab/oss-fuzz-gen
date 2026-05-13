@@ -1,62 +1,75 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_new_vquery at icalcomponent.c:2075:16 in icalcomponent.h
-// icalcomponent_new_vjournal at icalcomponent.c:2040:16 in icalcomponent.h
-// icalcomponent_new_vcalendar at icalcomponent.c:2025:16 in icalcomponent.h
-// icalcomponent_new_vresource at icalcomponent.c:2130:16 in icalcomponent.h
-// icalcomponent_new_vagenda at icalcomponent.c:2070:16 in icalcomponent.h
-// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
+// icalcomponent_new_x at icalcomponent.c:169:16 in icalcomponent.h
+// icalcomponent_get_component_name_r at icalcomponent.c:395:7 in icalcomponent.h
+// icalcomponent_get_x_name at icalcomponent.c:357:13 in icalcomponent.h
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <cstring>
+#include <cstdlib>
+#include <cstdio>
 #include <cstdint>
-extern "C" {
+#include <cstddef>
+#include <iostream>
+#include <cstring>
+#include <cstdlib>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include "icalcomponent.h"
+
+static icalcomponent* create_component(const uint8_t *Data, size_t Size) {
+    if (Size == 0) return nullptr;
+
+    // Ensure null-terminated string for component creation
+    char *component_name = static_cast<char*>(malloc(Size + 1));
+    if (!component_name) return nullptr;
+    memcpy(component_name, Data, Size);
+    component_name[Size] = '\0';
+
+    icalcomponent *comp = icalcomponent_new_x(component_name);
+    free(component_name);
+    return comp;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_46(const uint8_t *Data, size_t Size) {
     if (Size == 0) return 0;
 
-    // Fuzzing icalcomponent_new_vquery
-    icalcomponent *vquery_component = icalcomponent_new_vquery();
-    if (vquery_component != nullptr) {
-        // Clean up
-        icalcomponent_free(vquery_component);
+    // Create an icalcomponent
+    icalcomponent *comp = create_component(Data, Size);
+    if (!comp) return 0;
+
+    // Set IANA name
+    char *iana_name = static_cast<char*>(malloc(Size + 1));
+    if (iana_name) {
+        memcpy(iana_name, Data, Size);
+        iana_name[Size] = '\0';
+        icalcomponent_set_x_name(comp, iana_name);
+        free(iana_name);
     }
 
-    // Fuzzing icalcomponent_new_vresource
-    icalcomponent *vresource_component = icalcomponent_new_vresource();
-    if (vresource_component != nullptr) {
-        // Clean up
-        icalcomponent_free(vresource_component);
+    // Get X-NAME
+    const char *x_name = icalcomponent_get_x_name(comp);
+    if (x_name) {
+        std::cout << "X-NAME: " << x_name << std::endl;
     }
 
-    // Fuzzing icalcomponent_new_vjournal
-    icalcomponent *vjournal_component = icalcomponent_new_vjournal();
-    if (vjournal_component != nullptr) {
-        // Clean up
-        icalcomponent_free(vjournal_component);
+    // Get IANA name
+    const char *retrieved_iana_name = icalcomponent_get_x_name(comp);
+    if (retrieved_iana_name) {
+        std::cout << "IANA Name: " << retrieved_iana_name << std::endl;
     }
 
-    // Fuzzing icalcomponent_new_vagenda
-    icalcomponent *vagenda_component = icalcomponent_new_vagenda();
-    if (vagenda_component != nullptr) {
-        // Clean up
-        icalcomponent_free(vagenda_component);
+    // Get component name
+    char *component_name = icalcomponent_get_component_name_r(comp);
+    if (component_name) {
+        std::cout << "Component Name: " << component_name << std::endl;
+        free(component_name);
     }
 
-    // Fuzzing icalcomponent_new_vcalendar
-    icalcomponent *vcalendar_component = icalcomponent_new_vcalendar();
-    if (vcalendar_component != nullptr) {
-        // Clean up
-        icalcomponent_free(vcalendar_component);
-    }
-
-    // Fuzzing icalcomponent_new_xpatch
-    icalcomponent *xpatch_component = icalcomponent_new_xpatch();
-    if (xpatch_component != nullptr) {
-        // Clean up
-        icalcomponent_free(xpatch_component);
-    }
+    // Clean up
+    icalcomponent_free(comp);
 
     return 0;
 }

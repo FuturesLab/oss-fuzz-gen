@@ -1,37 +1,43 @@
-#include <cstdint>
-#include <cstring>
+#include <libical/ical.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h> // For malloc and free
+#include <string.h> // For memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_73(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient for creating a string
+    // Ensure the data is large enough to form a valid icalcomponent
     if (size < 1) {
         return 0;
     }
 
-    // Create a temporary buffer to hold the data as a string
-    char *timezone_id = new char[size + 1];
-    memcpy(timezone_id, data, size);
-    timezone_id[size] = '\0';  // Null-terminate the string
+    // Create a temporary buffer to hold the data, ensuring null termination
+    char *buffer = (char *)malloc(size + 1);
+    if (buffer == NULL) {
+        return 0;
+    }
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
 
-    // Create a dummy icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    // Parse the data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(buffer);
+    free(buffer);
 
-    // Add a timezone to the component to ensure there is something to retrieve
-    icaltimezone *dummy_timezone = icaltimezone_get_builtin_timezone("UTC");
-    if (dummy_timezone) {
-        icalproperty *prop = icalproperty_new_tzid(timezone_id); // Use the fuzz input
-        icalcomponent_add_property(component, prop);
+    if (component == NULL) {
+        return 0;
     }
 
-    // Call the function under test
-    icaltimezone *timezone = icalcomponent_get_timezone(component, timezone_id);
+    // Define a valid icalcomponent_kind, using a basic kind for fuzzing
+    icalcomponent_kind kind = ICAL_VEVENT_COMPONENT;
+
+    // Call the function-under-test
+    icalcompiter iter = icalcomponent_end_component(component, kind);
 
     // Clean up
     icalcomponent_free(component);
-    delete[] timezone_id;
 
     return 0;
 }

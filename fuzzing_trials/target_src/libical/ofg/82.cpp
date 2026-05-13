@@ -1,26 +1,34 @@
-#include <libical/ical.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint> // Include for uint8_t
+#include <cstdlib> // Include for size_t
+
+extern "C" {
+    #include <libical/ical.h> // Include libical headers within extern "C"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_82(const uint8_t *data, size_t size) {
     // Call the function-under-test
     icalcomponent *component = icalcomponent_new_vtimezone();
 
-    // Ensure the component is not NULL before proceeding
+    // Check if the component is created successfully
     if (component != NULL) {
-        // Perform operations on the component if necessary
-        // For example, convert it to a string and print it
+        // Perform operations on the component if needed
+        // For example, convert the component to a string and print it
         char *component_str = icalcomponent_as_ical_string(component);
         if (component_str != NULL) {
-            // Print or log the component string if needed
-            // printf("%s\n", component_str); // Uncomment for debugging
+            // Print the component string (for debugging purposes)
+            // printf("%s\n", component_str);
         }
 
-        // Clean up and free the component to avoid memory leaks
+        // Free the component string if it was allocated
+        if (component_str != NULL) {
+            icalmemory_free_buffer(component_str);
+        }
+
+        // Free the component after use
         icalcomponent_free(component);
     }
 
-    return 0; // Return 0 to indicate successful execution
+    return 0;
 }
 #ifdef INC_MAIN
 #include <stdio.h>

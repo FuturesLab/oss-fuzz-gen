@@ -9,69 +9,55 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
+#include <iostream>
+#include <fstream>
 #include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
+static icalcomponent* create_dummy_component() {
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    return component;
+}
+
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
+    if (Size < 1) return 0;
+
+    // Create a dummy component for testing
+    icalcomponent *component = create_dummy_component();
+    if (!component) return 0;
+
+    // Fuzz different icalcomponent_kind values
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+
+    // Test icalcomponent_get_next_component
+    icalcomponent *next_component = icalcomponent_get_next_component(component, kind);
+    if (next_component) {
+        // Perform operations on next_component if needed
     }
 
-    // Ensure null-terminated string for icalcomponent_new_from_string
-    char *icalStr = static_cast<char*>(malloc(Size + 1));
-    if (!icalStr) {
-        return 0;
+    // Test icalcomponent_begin_component
+    icalcompiter comp_iter = icalcomponent_begin_component(component, kind);
+    if (icalcompiter_is_valid(&comp_iter)) {
+        // Perform operations on comp_iter if needed
     }
-    memcpy(icalStr, Data, Size);
-    icalStr[Size] = '\0';
 
-    // Create icalcomponent from string
-    icalcomponent *comp = icalcomponent_new_from_string(icalStr);
+    // Test icalcomponent_isa_component
+    bool is_component = icalcomponent_isa_component(component);
+    (void)is_component; // Suppress unused variable warning
 
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new_from_string to icalcomponent_set_dtstart
-    struct icaltimetype ret_icalcomponent_get_due_jgzmi = icalcomponent_get_due(NULL);
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!comp) {
-    	return 0;
-    }
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_dtstart with icalcomponent_set_dtend
-    icalcomponent_set_dtend(comp, ret_icalcomponent_get_due_jgzmi);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(icalStr);
+    // Test icalcomponent_is_valid
+    bool is_valid = icalcomponent_is_valid(component);
+    (void)is_valid; // Suppress unused variable warning
 
-    if (comp) {
-        // Test icalcomponent_isa_component
-        icalcomponent_isa_component(comp);
+    // Test icalcomponent_kind_is_valid
+    bool kind_is_valid = icalcomponent_kind_is_valid(kind);
+    (void)kind_is_valid; // Suppress unused variable warning
 
-        // Setup a dummy icaltimetype for testing
-        struct icaltimetype dtstart = {0};
-        struct icaltimetype recurtime = {0};
-
-        // Test icalproperty_recurrence_is_excluded
-        icalproperty_recurrence_is_excluded(comp, &dtstart, &recurtime);
-
-        // Test icalcomponent_set_description
-        icalcomponent_set_description(comp, "Sample Description");
-
-        // Test icalcomponent_kind_is_valid
-        icalcomponent_kind kind = icalcomponent_isa(comp);
-        icalcomponent_kind_is_valid(kind);
-
-        // Test icalcomponent_is_valid
-        icalcomponent_is_valid(comp);
-
-        // Cleanup the component
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
-        icalcomponent_normalize(comp);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    }
+    // Cleanup
+    icalcomponent_free(component);
 
     return 0;
 }

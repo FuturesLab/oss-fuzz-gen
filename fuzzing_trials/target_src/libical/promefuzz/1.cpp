@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_new_vevent at icalcomponent.c:2030:16 in icalcomponent.h
-// icalcomponent_new_vtodo at icalcomponent.c:2035:16 in icalcomponent.h
-// icalcomponent_new_vagenda at icalcomponent.c:2070:16 in icalcomponent.h
-// icalcomponent_new_vresource at icalcomponent.c:2130:16 in icalcomponent.h
-// icalcomponent_new_vcalendar at icalcomponent.c:2025:16 in icalcomponent.h
-// icalcomponent_free at icalcomponent.c:172:6 in icalcomponent.h
+// icalcomponent_new_xstandard at icalcomponent.c:2124:16 in icalcomponent.h
+// icalcomponent_new_vreply at icalcomponent.c:2144:16 in icalcomponent.h
+// icalcomponent_new_vlocation at icalcomponent.c:2189:16 in icalcomponent.h
+// icalcomponent_new_vevent at icalcomponent.c:2094:16 in icalcomponent.h
+// icalcomponent_new_vcalendar at icalcomponent.c:2089:16 in icalcomponent.h
+// icalcomponent_new_vquery at icalcomponent.c:2139:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,35 +14,48 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstddef>
+#include <iostream>
 #include <cstdint>
+#include <cstdlib>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include <icalcomponent.h>
 
 extern "C" int LLVMFuzzerTestOneInput_1(const uint8_t *Data, size_t Size) {
-    // Create various icalcomponent objects
-    icalcomponent *vtodo = icalcomponent_new_vtodo();
-    icalcomponent *vevent = icalcomponent_new_vevent();
-    icalcomponent *vresource = icalcomponent_new_vresource();
-    icalcomponent *vagenda = icalcomponent_new_vagenda();
-    icalcomponent *vcalendar = icalcomponent_new_vcalendar();
-
-    // Free the components
-    if (vtodo) {
-        icalcomponent_free(vtodo);
+    // Call icalcomponent_new_vlocation and free the component
+    icalcomponent *vlocation = icalcomponent_new_vlocation();
+    if (vlocation != nullptr) {
+        icalcomponent_free(vlocation);
     }
-    if (vevent) {
+
+    // Call icalcomponent_new_vevent and free the component
+    icalcomponent *vevent = icalcomponent_new_vevent();
+    if (vevent != nullptr) {
         icalcomponent_free(vevent);
     }
-    if (vresource) {
-        icalcomponent_free(vresource);
+
+    // Call icalcomponent_new_vquery and free the component
+    icalcomponent *vquery = icalcomponent_new_vquery();
+    if (vquery != nullptr) {
+        icalcomponent_free(vquery);
     }
-    if (vagenda) {
-        icalcomponent_free(vagenda);
+
+    // Call icalcomponent_new_vreply and free the component
+    icalcomponent *vreply = icalcomponent_new_vreply();
+    if (vreply != nullptr) {
+        icalcomponent_free(vreply);
     }
-    if (vcalendar) {
+
+    // Call icalcomponent_new_xstandard and free the component
+    icalcomponent *xstandard = icalcomponent_new_xstandard();
+    if (xstandard != nullptr) {
+        icalcomponent_free(xstandard);
+    }
+
+    // Call icalcomponent_new_vcalendar and free the component
+    icalcomponent *vcalendar = icalcomponent_new_vcalendar();
+    if (vcalendar != nullptr) {
         icalcomponent_free(vcalendar);
     }
 

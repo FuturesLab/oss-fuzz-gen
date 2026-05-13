@@ -9,39 +9,94 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
+#include <iostream>
+#include <fstream>
+#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
+static icalcomponent* create_icalcomponent_from_data(const uint8_t *Data, size_t Size) {
+    // For simplicity, assume the data is a string representation of an icalcomponent
+    char *dataStr = static_cast<char*>(malloc(Size + 1));
+    if (!dataStr) {
+        return nullptr;
+    }
+    memcpy(dataStr, Data, Size);
+    dataStr[Size] = '\0';
+
+    icalcomponent *comp = icalcomponent_new_from_string(dataStr);
+    free(dataStr);
+    return comp;
+}
+
 extern "C" int LLVMFuzzerTestOneInput_27(const uint8_t *Data, size_t Size) {
-    // Create a new VEVENT component
-    icalcomponent *vevent = icalcomponent_new_vevent();
-    if (!vevent) {
-        return 0; // Memory allocation failed
+    if (Size == 0) {
+        return 0;
     }
 
-    // Check restrictions on the new VEVENT component
-    bool restrictions_ok = icalcomponent_check_restrictions(vevent);
+    icalcomponent *comp = create_icalcomponent_from_data(Data, Size);
+    if (!comp) {
+        return 0;
+    }
 
-    // Create a dummy icalcompiter and icalpropiter
-    icalcompiter comp_iter;
-    icalpropiter prop_iter;
+    // Fuzz icalcomponent_get_uid
+    const char *uid = icalcomponent_get_uid(comp);
+    if (uid) {
+        std::cout << "UID: " << uid << std::endl;
+    }
 
-    // Check validity of the compiter and propiter
-    bool compiter_valid = icalcompiter_is_valid(&comp_iter);
-    bool propiter_valid = icalpropiter_is_valid(&prop_iter);
+    // Fuzz icalcomponent_get_x_name (assuming this is the correct function)
+    const char *x_name = icalcomponent_get_x_name(comp);
+    if (x_name) {
+        std::cout << "X Name: " << x_name << std::endl;
+    }
 
-    // Check if the VEVENT component is valid
-    bool vevent_valid = icalcomponent_is_valid(vevent);
+    // Fuzz icalcomponent_get_relcalid
+    const char *relcalid = icalcomponent_get_relcalid(comp);
+    if (relcalid) {
+        std::cout << "RELCALID: " << relcalid << std::endl;
+    }
 
-    // Free the VEVENT component
-    icalcomponent_free(vevent);
+    // Fuzz icalcomponent_as_ical_string_r
 
-    // Return 0 to indicate normal termination
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_relcalid to icalcomponent_check_restrictions
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
+    }
+    bool ret_icalcomponent_check_restrictions_uodog = icalcomponent_check_restrictions(comp);
+    if (ret_icalcomponent_check_restrictions_uodog == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    char *ical_str = icalcomponent_as_ical_string_r(comp);
+    if (ical_str) {
+        std::cout << "ICAL String: " << ical_str << std::endl;
+        free(ical_str);
+    }
+
+    // Fuzz icalcomponent_get_description
+    const char *description = icalcomponent_get_description(comp);
+    if (description) {
+        std::cout << "Description: " << description << std::endl;
+    }
+
+    // Fuzz icalcomponent_normalize
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_description to icalcomponent_get_duration
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
+    }
+    struct icaldurationtype ret_icalcomponent_get_duration_ekkwk = icalcomponent_get_duration(comp);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    icalcomponent_normalize(comp);
+
+    icalcomponent_free(comp);
     return 0;
 }
 #ifdef INC_MAIN

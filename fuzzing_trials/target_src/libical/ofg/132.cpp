@@ -1,34 +1,29 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h> // Include the string.h library for memcpy
+#include <stddef.h>
+#include <stdbool.h>
 
 extern "C" {
-    #include <libical/ical.h>
+    #include "libical/icalcomponent.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_132(const uint8_t *data, size_t size) {
-    // Convert input data to a null-terminated string
-    char *input_str = (char *)malloc(size + 1);
-    if (!input_str) {
-        return 0; // If memory allocation fails, return immediately
-    }
-    memcpy(input_str, data, size);
-    input_str[size] = '\0';
-
-    // Initialize an icalcomponent from the input data
-    icalcomponent *component = icalcomponent_new_from_string(input_str);
-
-    // If the component is successfully created, call the function-under-test
-    if (component != NULL) {
-        // Call the function-under-test
-        struct icaltimetype due_time = icalcomponent_get_due(component);
-
-        // Clean up the component
-        icalcomponent_free(component);
+    // Ensure the data size is sufficient for a pointer
+    if (size < sizeof(void*)) {
+        return 0;
     }
 
-    // Free the allocated string
-    free(input_str);
+    // Cast the data to a void pointer
+    const void *component = reinterpret_cast<const void*>(data);
+
+    // Call the function-under-test
+    bool result = icalcomponent_isa_component(component);
+
+    // Use the result in some way to avoid compiler optimizations
+    if (result) {
+        // Do something trivial
+        volatile bool dummy = result;
+        (void)dummy;
+    }
 
     return 0;
 }

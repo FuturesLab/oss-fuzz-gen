@@ -1,24 +1,29 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstddef>  // Include for size_t
-#include <cstdio>   // Include for printf
+#include <libical/ical.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <cstring> // Include the C++ header for strlen
 
 extern "C" {
-#include <libical/ical.h>
+    // Wrap C headers and functions in extern "C" to prevent C++ name mangling
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_165(const uint8_t *data, size_t size) {
     // Call the function-under-test
     icalcomponent *component = icalcomponent_new_xstandard();
 
-    // Check if the component is created successfully
+    // Perform operations on the returned component if necessary
     if (component != NULL) {
-        // Perform operations on the component if needed
-        // For example, convert to string and print
+        // For example, convert the component to a string and check its length
         char *component_str = icalcomponent_as_ical_string(component);
         if (component_str != NULL) {
-            // Normally, you would use the string for something
-            // Here, we just print it for demonstration purposes
-            printf("%s\n", component_str);
+            size_t component_str_len = strlen(component_str);
+            // Perform some basic checks or operations on the string
+            if (component_str_len > 0) {
+                // Do something with the string, e.g., print or log
+            }
+            // Free the string after use
+            icalmemory_free_buffer(component_str);
         }
 
         // Free the component after use

@@ -1,22 +1,30 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_142(const uint8_t *data, size_t size) {
-    // Initialize icalcomponent and icalproperty_kind
+    // Initialize an icalcomponent with some default values
     icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalproperty_kind kind = ICAL_ANY_PROPERTY;
 
-    // Ensure the data size is sufficient for our needs
-    if (size > 0) {
-        // Use the first byte of data to determine the kind of property
-        kind = static_cast<icalproperty_kind>(data[0] % ICAL_NO_PROPERTY);
+    // Ensure the component is not NULL
+    if (component == NULL) {
+        return 0;
     }
 
-    // Call the function under test
-    icalcomponent_remove_property_by_kind(component, kind);
+    // Set a default location to ensure the component is not empty
+    icalcomponent_set_location(component, "Default Location");
 
-    // Cleanup
+    // Call the function-under-test
+    const char *location = icalcomponent_get_location(component);
+
+    // Use the location to prevent any compiler optimizations from removing the call
+    if (location != NULL) {
+        // Do something with location, like printing it or logging
+        // For fuzzing purposes, we can just ensure it's not NULL
+        (void)location; // Suppress unused variable warning
+    }
+
+    // Clean up
     icalcomponent_free(component);
 
     return 0;

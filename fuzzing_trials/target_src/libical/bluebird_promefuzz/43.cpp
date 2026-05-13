@@ -12,66 +12,62 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <cassert>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_43(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
+    if (Size < sizeof(icalcomponent_kind)) {
         return 0;
     }
 
-    // Use the first byte to determine the icalcomponent_kind
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
+    // Create a dummy icalcomponent
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0]);
+    icalcomponent *component = icalcomponent_new(kind);
 
-    // Test icalcomponent_new
-    icalcomponent *comp = icalcomponent_new(kind);
-    if (!comp) {
+    if (!component) {
         return 0;
     }
 
-    // Test icalcomponent_kind_to_string
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new to icalcomponent_as_ical_string_r
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!comp) {
-    	return 0;
-    }
-    char* ret_icalcomponent_as_ical_string_r_eexoj = icalcomponent_as_ical_string_r(comp);
-    if (ret_icalcomponent_as_ical_string_r_eexoj == NULL){
-    	return 0;
-    }
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    const char *kind_str = icalcomponent_kind_to_string(kind);
-
-    // Test icalcomponent_isa
-    icalcomponent_kind comp_kind = icalcomponent_isa(comp);
-
-    // Test icalcomponent_set_description
-    if (Size > 1) {
-        // Ensure the description is null-terminated
-        size_t desc_len = Size - 1;
-        char *description = static_cast<char *>(malloc(desc_len + 1));
-        if (description) {
-            memcpy(description, Data + 1, desc_len);
-            description[desc_len] = '\0';
-            icalcomponent_set_description(comp, description);
-            free(description);
-        }
+    // Test icalcomponent_clone
+    icalcomponent *cloned_component = icalcomponent_clone(component);
+    if (cloned_component) {
+        icalcomponent_free(cloned_component);
     }
 
-    // Test icalcomponent_string_to_kind
-    if (kind_str) {
-        icalcomponent_kind kind_from_str = icalcomponent_string_to_kind(kind_str);
+    // Test icalcomponent_is_valid
+    bool is_valid = icalcomponent_is_valid(component);
+    assert(is_valid == (kind != ICAL_NO_COMPONENT));
+
+    // Test icalcomponent_add_component
+    icalcomponent *child_component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (child_component) {
+        icalcomponent_add_component(component, child_component);
+        icalcomponent_free(child_component);
     }
 
-    // Test icalcomponent_kind_is_valid
-    bool is_valid = icalcomponent_kind_is_valid(kind);
+    // Test icalcomponent_get_current_property
+    icalproperty *current_property = icalcomponent_get_current_property(component);
+    if (current_property) {
+        // Do something with current_property if needed
+    }
+
+    // Create a dummy icalproperty
+    icalproperty *property = icalproperty_new(ICAL_SUMMARY_PROPERTY);
+    if (property) {
+        // Test icalproperty_set_parent
+        icalproperty_set_parent(property, component);
+
+        // Test icalcomponent_add_property
+        icalcomponent_add_property(component, property);
+
+        // Normally we would free property, but icalcomponent_add_property takes ownership
+    }
 
     // Clean up
-    icalcomponent_free(comp);
+    icalcomponent_free(component);
 
     return 0;
 }

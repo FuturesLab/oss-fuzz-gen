@@ -5,35 +5,39 @@
 #include <string.h>  // For memcpy
 
 extern "C" {
-    // Ensure that all C headers and functions are wrapped in extern "C"
-    #include <libical/ical.h>
+    // Include necessary C headers and functions here
 }
 
 extern "C" int LLVMFuzzerTestOneInput_139(const uint8_t *data, size_t size) {
-    // Ensure that the input data is not empty
-    if (size == 0) {
+    // Ensure that the input size is sufficient to create a valid string
+    if (size < 1) {
         return 0;
     }
 
-    // Create a string from the input data
+    // Create a null-terminated string from the input data
     char *ical_string = (char *)malloc(size + 1);
-    if (ical_string == NULL) {
+    if (!ical_string) {
         return 0;
     }
     memcpy(ical_string, data, size);
     ical_string[size] = '\0';
 
     // Parse the string into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(ical_string);
-    free(ical_string);
+    icalcomponent *comp = icalparser_parse_string(ical_string);
 
-    if (component != NULL) {
+    // Ensure the component is not NULL
+    if (comp != NULL) {
+        // Use a valid icalcomponent_kind for testing
+        icalcomponent_kind kind = ICAL_VEVENT_COMPONENT;
+
         // Call the function-under-test
-        icalcomponent *first_real_component = icalcomponent_get_first_real_component(component);
+        int count = icalcomponent_count_components(comp, kind);
 
         // Clean up
-        icalcomponent_free(component);
+        icalcomponent_free(comp);
     }
+
+    free(ical_string);
 
     return 0;
 }

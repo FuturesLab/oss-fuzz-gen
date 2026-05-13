@@ -1,43 +1,36 @@
-#include <libical/ical.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <string.h>
+#include <cstdint> // Include for uint8_t
+#include <cstddef> // Include for size_t
+#include <cstring> // Include for strlen
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_33(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to create a valid string
-    if (size == 0) {
-        return 0;
+    // Ensure the input data is null-terminated to avoid buffer overflow in icalcomponent_new_from_string
+    char *null_terminated_data = (char*)malloc(size + 1);
+    if (null_terminated_data == NULL) {
+        return 0; // If memory allocation fails, return immediately
     }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0'; // Null-terminate the string
 
-    // Allocate memory for a null-terminated string
-    char *ical_data = (char *)malloc(size + 1);
-    if (ical_data == NULL) {
-        return 0;
-    }
+    // Initialize an icalcomponent from the input data
+    icalcomponent *component = icalcomponent_new_from_string(null_terminated_data);
 
-    // Copy the input data into the string and null-terminate it
-    memcpy(ical_data, data, size);
-    ical_data[size] = '\0';
+    // Free the allocated memory for null-terminated data
+    free(null_terminated_data);
 
-    // Create an icalcomponent from the input data
-    icalcomponent *component = icalparser_parse_string(ical_data);
-
+    // If the component is successfully created, call the function-under-test
     if (component != NULL) {
-        // Call the function-under-test
         char *ical_string = icalcomponent_as_ical_string(component);
-
-        // Free the returned string if it was allocated
-        if (ical_string != NULL) {
-            free(ical_string);
-        }
-
-        // Free the icalcomponent
+        
+        // Free the string returned by icalcomponent_as_ical_string
+        icalmemory_free_buffer(ical_string);
+        
+        // Free the component
         icalcomponent_free(component);
     }
-
-    // Free the allocated string
-    free(ical_data);
 
     return 0;
 }

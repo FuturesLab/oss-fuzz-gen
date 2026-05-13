@@ -1,21 +1,28 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <libical/ical.h>
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_66(const uint8_t *data, size_t size) {
-    // Ensure the size is sufficient to extract an icalcomponent_kind value
+    // Declare and initialize the icalcomponent_kind variable
+    icalcomponent_kind kind;
+
+    // Check if the size of the input data is sufficient to determine the kind
     if (size < sizeof(icalcomponent_kind)) {
         return 0;
     }
 
-    // Extract an icalcomponent_kind value from the input data
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(data[0]);
+    // Use the input data to set the kind, ensuring it is within valid range
+    kind = static_cast<icalcomponent_kind>(data[0] % ICAL_NO_COMPONENT);
 
     // Call the function-under-test
     const char *result = icalcomponent_kind_to_string(kind);
 
-    // Use the result to avoid compiler optimizations removing the call
+    // Use the result in some way to prevent optimization out
     if (result != nullptr) {
+        // Print the result or perform other operations
         volatile char c = result[0];
         (void)c;
     }

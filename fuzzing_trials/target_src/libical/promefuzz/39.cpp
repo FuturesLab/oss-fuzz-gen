@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_get_location at icalcomponent.c:1932:13 in icalcomponent.h
-// icalcomponent_new_from_string at icalcomponent.c:124:16 in icalcomponent.h
-// icalcomponent_get_comment at icalcomponent.c:1781:13 in icalcomponent.h
-// icalcomponent_get_first_component at icalcomponent.c:611:16 in icalcomponent.h
-// icalcomponent_get_recurrenceid at icalcomponent.c:1859:21 in icalcomponent.h
-// icalcomponent_isa at icalcomponent.c:304:20 in icalcomponent.h
+// icalcomponent_end_component at icalcomponent.c:1424:14 in icalcomponent.h
+// icalcompiter_prior at icalcomponent.c:1465:16 in icalcomponent.h
+// icalcompiter_deref at icalcomponent.c:1484:16 in icalcomponent.h
+// icalcomponent_begin_component at icalcomponent.c:1401:14 in icalcomponent.h
+// icalcomponent_get_current_component at icalcomponent.c:643:16 in icalcomponent.h
+// icalcomponent_check_restrictions at icalcomponent.c:1160:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,49 +16,44 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
-#include <cstring>
-#include <cstdlib>
+#include <vector>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include <libical/icalcomponent.h>
 
+static icalcomponent* create_dummy_component() {
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalcomponent *subcomponent = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalcomponent_add_component(component, subcomponent);
+    return component;
+}
+
 extern "C" int LLVMFuzzerTestOneInput_39(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Create a string from the input data
-    std::string icalStr(reinterpret_cast<const char*>(Data), Size);
+    icalcomponent *component = create_dummy_component();
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
 
-    // Use the icalcomponent_new_from_string function
-    icalcomponent *component = icalcomponent_new_from_string(icalStr.c_str());
+    // Fuzz icalcomponent_end_component
+    icalcompiter end_iter = icalcomponent_end_component(component, kind);
+    icalcomponent *end_component = icalcompiter_deref(&end_iter);
 
-    if (component) {
-        // Use the icalcomponent_get_location function
-        const char *location = icalcomponent_get_location(component);
+    // Fuzz icalcomponent_begin_component
+    icalcompiter begin_iter = icalcomponent_begin_component(component, kind);
+    icalcomponent *begin_component = icalcompiter_deref(&begin_iter);
 
-        // Use the icalcomponent_isa function
-        icalcomponent_kind kind = icalcomponent_isa(component);
+    // Fuzz icalcomponent_get_current_component
+    icalcomponent *current_component = icalcomponent_get_current_component(component);
 
-        // Use the icalcomponent_get_recurrenceid function
-        struct icaltimetype recurrenceId = icalcomponent_get_recurrenceid(component);
+    // Fuzz icalcomponent_check_restrictions
+    bool has_restrictions = icalcomponent_check_restrictions(component);
 
-        // Loop through different component kinds for icalcomponent_get_first_component
-        for (int kindIndex = ICAL_NO_COMPONENT; kindIndex < ICAL_NUM_COMPONENT_TYPES; ++kindIndex) {
-            icalcomponent *firstComponent = icalcomponent_get_first_component(component, static_cast<icalcomponent_kind>(kindIndex));
-            // Just to simulate usage
-            if (firstComponent) {
-                const char *comment = icalcomponent_get_comment(firstComponent);
-            }
-        }
+    // Fuzz icalcompiter_prior
+    icalcomponent *prior_component = icalcompiter_prior(&begin_iter);
 
-        // Use the icalcomponent_get_comment function
-        const char *comment = icalcomponent_get_comment(component);
-
-        // Free the component
-        icalcomponent_free(component);
-    }
+    // Cleanup
+    icalcomponent_free(component);
 
     return 0;
 }

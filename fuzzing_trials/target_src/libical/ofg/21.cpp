@@ -1,5 +1,5 @@
-#include <cstdint> // Include for uint8_t
-#include <cstddef> // Include for size_t
+#include <cstdint>
+#include <cstddef>
 
 extern "C" {
     #include <libical/ical.h>
@@ -9,10 +9,20 @@ extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
     // Call the function-under-test
     icalcomponent *component = icalcomponent_new_vpoll();
 
-    // Check if the component was created successfully
+    // Perform some operations on the component if needed
     if (component != NULL) {
-        // Perform operations on the component if needed
-        // For now, we will just free the component as there are no specific operations defined
+        // Example operation: convert the component to a string and print it
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // Print the component string (or perform other operations)
+            // Note: In a real fuzzing environment, avoid printing to reduce noise
+            // printf("%s\n", component_str);
+        }
+
+        // Free the component string if it was allocated
+        icalmemory_free_buffer(component_str);
+
+        // Free the component to avoid memory leaks
         icalcomponent_free(component);
     }
 

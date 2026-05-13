@@ -1,18 +1,46 @@
-#include <cstdint> // Include standard library for uint8_t
-#include <cstddef> // Include standard library for size_t
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_146(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_vagenda();
-
-    // Perform any necessary cleanup
-    if (component != NULL) {
-        icalcomponent_free(component);
+    // Ensure that the input size is sufficient for creating a valid string
+    if (size < 1) {
+        return 0;
     }
+
+    // Allocate memory for the input string and ensure it's null-terminated
+    char *input = (char *)malloc(size + 1);
+    if (input == NULL) {
+        return 0;
+    }
+    memcpy(input, data, size);
+    input[size] = '\0';
+
+    // Attempt to parse the input data as an iCalendar string
+    icalcomponent *component = icalparser_parse_string(input);
+    if (component == NULL) {
+        free(input);
+        return 0;
+    }
+
+    // Set a comment to ensure interaction with the component
+    icalcomponent_set_comment(component, "Fuzzing comment");
+
+    // Retrieve and use the comment to ensure code coverage
+    const char *retrieved_comment = icalcomponent_get_comment(component);
+    if (retrieved_comment != NULL) {
+        // Perform a simple operation to utilize the retrieved comment
+        size_t comment_length = strlen(retrieved_comment);
+        (void)comment_length; // Suppress unused variable warning
+    }
+
+    // Clean up
+    icalcomponent_free(component);
+    free(input);
 
     return 0;
 }

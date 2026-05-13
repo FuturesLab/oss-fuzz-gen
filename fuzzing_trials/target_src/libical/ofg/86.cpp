@@ -1,38 +1,37 @@
+#include <libical/ical.h>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring> // Include for memcpy
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_86(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create a valid icalcomponent
-    if (size == 0) {
+    // Ensure the size is large enough to create a valid icalcomponent
+    if (size < 1) {
         return 0;
     }
 
-    // Create a string from the input data
-    char *ical_string = static_cast<char *>(malloc(size + 1));
-    if (ical_string == nullptr) {
+    // Allocate memory for the icalcomponent string
+    char *ical_str = static_cast<char *>(malloc(size + 1));
+    if (ical_str == nullptr) {
         return 0;
     }
-    memcpy(ical_string, data, size);
-    ical_string[size] = '\0';
 
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(ical_string);
+    // Copy the data into the icalcomponent string and null-terminate it
+    memcpy(ical_str, data, size);
+    ical_str[size] = '\0';
 
-    // Ensure the component is not null
-    if (component != nullptr) {
-        // Call the function-under-test
-        struct icaltimetype dtstamp = icalcomponent_get_dtstamp(component);
+    // Convert the string to an icalcomponent
+    icalcomponent *comp = icalparser_parse_string(ical_str);
 
-        // Clean up
-        icalcomponent_free(component);
+    // Free the allocated string memory
+    free(ical_str);
+
+    // If the component is successfully created, call the function-under-test
+    if (comp != nullptr) {
+        struct icaltimetype dtstamp = icalcomponent_get_dtstamp(comp);
+
+        // Clean up the icalcomponent
+        icalcomponent_free(comp);
     }
-
-    free(ical_string);
 
     return 0;
 }

@@ -1,30 +1,30 @@
 #include <stdint.h>
 #include <stddef.h>
-#include <libical/ical.h>
-#include <cstring> // Include for memcpy
 
 extern "C" {
-    // Include necessary C headers, source files, functions, and code here.
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_90(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to form a valid icaldurationtype
-    if (size < sizeof(struct icaldurationtype)) {
-        return 0;
-    }
-
     // Initialize an icalcomponent
     icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
+    
+    // Ensure the data size is sufficient to populate icaldurationtype
+    if (size < sizeof(struct icaldurationtype)) {
+        icalcomponent_free(component);
         return 0;
     }
 
     // Create an icaldurationtype from the input data
     struct icaldurationtype duration;
-    memcpy(&duration, data, sizeof(struct icaldurationtype));
+    duration.is_neg = data[0] % 2;  // Use first byte for is_neg
+    duration.weeks = data[1];       // Use second byte for weeks
+    duration.days = data[2];        // Use third byte for days
+    duration.hours = data[3];       // Use fourth byte for hours
+    duration.minutes = data[4];     // Use fifth byte for minutes
+    duration.seconds = data[5];     // Use sixth byte for seconds
 
-    // Call the function-under-test
+    // Call the function under test
     icalcomponent_set_duration(component, duration);
 
     // Clean up

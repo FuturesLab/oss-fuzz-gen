@@ -1,42 +1,29 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstring>  // Include for memcpy
+#include <cstdint> // Include the standard library for uint8_t
+#include <cstddef> // Include the standard library for size_t
+#include <cstring> // Include the standard library for memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_144(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to create a valid icaltimetype
-    if (size < sizeof(struct icaltimetype)) {
+    // Ensure the input data is null-terminated for parsing
+    char *ical_data = (char *)malloc(size + 1);
+    if (ical_data == NULL) {
         return 0;
     }
+    memcpy(ical_data, data, size);
+    ical_data[size] = '\0';
 
-    // Create a new icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        return 0;
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(ical_data);
+
+    // Perform any necessary cleanup
+    if (component != NULL) {
+        icalcomponent_free(component);
     }
 
-    // Initialize an icaltimetype from the input data
-    struct icaltimetype recurrence_id;
-    memcpy(&recurrence_id, data, sizeof(struct icaltimetype));
-
-    // Set some non-null values to ensure the icaltimetype is valid
-    recurrence_id.year = 2023;
-    recurrence_id.month = 10;
-    recurrence_id.day = 15;
-    recurrence_id.hour = 10;
-    recurrence_id.minute = 30;
-    recurrence_id.second = 0;
-    recurrence_id.is_date = 0; // Ensure it's a date-time
-    recurrence_id.zone = icaltimezone_get_utc_timezone(); // Set to UTC
-
-    // Call the function-under-test
-    icalcomponent_set_recurrenceid(component, recurrence_id);
-
-    // Clean up
-    icalcomponent_free(component);
-
+    free(ical_data);
     return 0;
 }
 #ifdef INC_MAIN

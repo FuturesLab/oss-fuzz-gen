@@ -1,30 +1,35 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <string.h>
+#include <time.h>
 
 extern "C" int LLVMFuzzerTestOneInput_85(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    // Ensure the input data is not empty
+    if (size == 0) {
+        return 0;
+    }
+
+    // Create a summary from the input data
+    char summary[size + 1];
+    memcpy(summary, data, size);
+    summary[size] = '\0'; // Null-terminate the string
+
+    // Initialize a dummy icalcomponent with the input data as the summary
+    icalcomponent *component = icalcomponent_vanew(
+        ICAL_VEVENT_COMPONENT,
+        icalproperty_new_dtstamp(icaltime_from_timet_with_zone(time(NULL), 0, NULL)),
+        icalproperty_new_summary(summary),
+        icalproperty_new_uid("1234567890@example.com"),
+        (void *)0);
+
+    // Ensure the component is not NULL
     if (component == NULL) {
         return 0;
     }
 
-    // Initialize the icaltimetype
-    struct icaltimetype dtend;
-    dtend.year = (size > 0) ? data[0] : 2023;  // Use the first byte or default to 2023
-    dtend.month = (size > 1) ? data[1] % 12 + 1 : 1;  // Ensure month is between 1 and 12
-    dtend.day = (size > 2) ? data[2] % 31 + 1 : 1;    // Ensure day is between 1 and 31
-    dtend.hour = (size > 3) ? data[3] % 24 : 0;       // Ensure hour is between 0 and 23
-    dtend.minute = (size > 4) ? data[4] % 60 : 0;     // Ensure minute is between 0 and 59
-    dtend.second = (size > 5) ? data[5] % 60 : 0;     // Ensure second is between 0 and 59
-    dtend.is_date = 0;  // Set to 0 for date-time
-    dtend.zone = NULL;  // Use NULL for local time
-
     // Call the function-under-test
-    icalcomponent_set_dtend(component, dtend);
+    struct icaltimetype dtstamp = icalcomponent_get_dtstamp(component);
 
     // Clean up
     icalcomponent_free(component);

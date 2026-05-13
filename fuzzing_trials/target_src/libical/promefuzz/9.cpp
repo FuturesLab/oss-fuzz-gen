@@ -1,66 +1,60 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_new_xavailable at icalcomponent.c:2090:16 in icalcomponent.h
-// icalcomponent_new_vavailability at icalcomponent.c:2085:16 in icalcomponent.h
-// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
-// icalcomponent_set_description at icalcomponent.c:1885:6 in icalcomponent.h
-// icalcomponent_set_summary at icalcomponent.c:1734:6 in icalcomponent.h
-// icalcomponent_new_xvote at icalcomponent.c:2105:16 in icalcomponent.h
-extern "C" {
+// icalcomponent_new_vjournal at icalcomponent.c:2104:16 in icalcomponent.h
+// icalcomponent_new_xvote at icalcomponent.c:2169:16 in icalcomponent.h
+// icalcomponent_new_xpatch at icalcomponent.c:2179:16 in icalcomponent.h
+// icalcomponent_set_parent at icalcomponent.c:1275:6 in icalcomponent.h
+// icalcomponent_new_valarm at icalcomponent.c:2109:16 in icalcomponent.h
+#include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <cstring>
+#include <cstdlib>
+#include <cstdio>
+#include <cstdint>
+#include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include "icalcomponent.h"
-}
-
-#include <cstdint>
-#include <cstddef>
 
 extern "C" int LLVMFuzzerTestOneInput_9(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0; // Ensure there is at least 1 byte to use
+    if (Size < 1) return 0;
 
-    // Create a new VAVAILABILITY component
-    icalcomponent *vavailability = icalcomponent_new_vavailability();
-    if (!vavailability) return 0;
-
-    // Use the first byte of Data as a simple description
-    char description[2] = {static_cast<char>(Data[0]), '\0'};
-    icalcomponent_set_description(vavailability, description);
-
-    // Create a new XAVAILABLE component
-    icalcomponent *xavailable = icalcomponent_new_xavailable();
-    if (xavailable) {
-        // Set summary using the second byte of Data if available
-        if (Size > 1) {
-            char summary[2] = {static_cast<char>(Data[1]), '\0'};
-            icalcomponent_set_summary(xavailable, summary);
-        }
+    // Fuzz icalcomponent_new_xpatch
+    icalcomponent *xpatch_comp = icalcomponent_new_xpatch();
+    if (xpatch_comp) {
+        icalcomponent_free(xpatch_comp);
     }
 
-    // Create a new XVOTE component
-    icalcomponent *xvote = icalcomponent_new_xvote();
-    if (xvote) {
-        // Set description using the third byte of Data if available
-        if (Size > 2) {
-            char xvote_desc[2] = {static_cast<char>(Data[2]), '\0'};
-            icalcomponent_set_description(xvote, xvote_desc);
-        }
+    // Fuzz icalcomponent_new_vjournal
+    icalcomponent *vjournal_comp = icalcomponent_new_vjournal();
+
+    // Fuzz icalcomponent_new_xvote
+    icalcomponent *xvote_comp = icalcomponent_new_xvote();
+    if (xvote_comp) {
+        icalcomponent_free(xvote_comp);
     }
 
-    // Create a new XPATCH component
-    icalcomponent *xpatch = icalcomponent_new_xpatch();
-    if (xpatch) {
-        // Set summary using the fourth byte of Data if available
-        if (Size > 3) {
-            char xpatch_summary[2] = {static_cast<char>(Data[3]), '\0'};
-            icalcomponent_set_summary(xpatch, xpatch_summary);
-        }
+    // Fuzz icalcomponent_new_valarm
+    icalcomponent *valarm_comp = icalcomponent_new_valarm();
+    if (valarm_comp) {
+        icalcomponent_free(valarm_comp);
     }
 
-    // Cleanup
-    icalcomponent_free(vavailability);
-    icalcomponent_free(xavailable);
-    icalcomponent_free(xvote);
-    icalcomponent_free(xpatch);
+    // Fuzz icalcomponent_set_parent
+    if (vjournal_comp) {
+        icalcomponent *parent_comp = icalcomponent_new_vjournal();
+        if (parent_comp) {
+            icalcomponent_set_parent(vjournal_comp, parent_comp);
+            icalcomponent_free(parent_comp);
+        }
+        icalcomponent_set_parent(vjournal_comp, nullptr);
+        icalcomponent_free(vjournal_comp);
+    }
 
     return 0;
 }

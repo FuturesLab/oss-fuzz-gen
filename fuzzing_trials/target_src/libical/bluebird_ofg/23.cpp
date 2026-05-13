@@ -1,60 +1,47 @@
-#include <sys/stat.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <stdint.h>
+#include <stddef.h>
 #include "libical/ical.h"
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
 
-extern "C" int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
-    // Ensure that the input data is not empty
-    if (size == 0) {
-        return 0;
-    }
+extern "C" {
 
-    // Create a temporary buffer to hold the input data
-    char *buffer = static_cast<char *>(malloc(size + 1));
-    if (buffer == nullptr) {
-        return 0;
-    }
-
-    // Copy the input data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
-
-    // Parse the buffer into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(buffer);
-
-    // If parsing was successful, call the function-under-test
-    if (component != nullptr) {
-        char *icalString = icalcomponent_as_ical_string_r(component);
-
-        // Free the returned string if it's not null
-        if (icalString != nullptr) {
-            free(icalString);
-        }
-
-        // Free the icalcomponent
-        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
-        icalcomponent_normalize(component);
-        // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalcomponent_get_description
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!component) {
-        	return 0;
-        }
-        const char* ret_icalcomponent_get_description_joiba = icalcomponent_get_description(component);
-        if (ret_icalcomponent_get_description_joiba == NULL){
-        	return 0;
-        }
-        // End mutation: Producer.APPEND_MUTATOR
-        
+void dummy_callback(const icalcomponent *comp, const struct icaltime_span *span, void *data) {
+    // Dummy callback function
 }
 
-    // Free the buffer
-    free(buffer);
+int LLVMFuzzerTestOneInput_23(const uint8_t *data, size_t size) {
+    if (size < sizeof(struct icaltimetype) * 2) {
+        return 0;
+    }
+
+    // Initialize the icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (!component) {
+        return 0;
+    }
+
+    // Extract two icaltimetype structures from the input data
+    struct icaltimetype start_time = *((struct icaltimetype *)data);
+    struct icaltimetype end_time = *((struct icaltimetype *)(data + sizeof(struct icaltimetype)));
+
+    // Ensure end_time is after start_time for valid input
+    if (icaltime_compare(end_time, start_time) < 0) {
+        // Swap start and end times if necessary
+        struct icaltimetype temp = start_time;
+        start_time = end_time;
+        end_time = temp;
+    }
+
+    // Call the function-under-test
+    icalcomponent_foreach_recurrence(component, start_time, end_time, dummy_callback, nullptr);
+
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
+}
+
 }
 #ifdef INC_MAIN
 #include <stdio.h>

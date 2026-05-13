@@ -1,43 +1,29 @@
-#include <sys/stat.h>
 #include <string.h>
-#include "libical/ical.h"
-#include <cstdint>
-#include <cstring>
+#include <sys/stat.h>
+#include <cstdint> // Include standard library for uint8_t
+#include <cstddef> // Include standard library for size_t
+
+extern "C" {
+    #include "libical/ical.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    // Ensure that the data size is sufficient to extract meaningful information
     if (size < 1) {
         return 0;
     }
 
-    // Convert input data to a null-terminated string
-    char *ical_data = (char *)malloc(size + 1);
-    if (!ical_data) {
-        return 0;
-    }
-    memcpy(ical_data, data, size);
-    ical_data[size] = '\0';
+    // Initialize an icalcomponent and icalproperty_kind
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalproperty_kind kind = static_cast<icalproperty_kind>(data[0] % ICAL_NO_PROPERTY);
 
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(ical_data);
-    free(ical_data);
+    // Add a property to the component to ensure it's not empty
+    icalproperty *property = icalproperty_new_version("2.0");
+    icalcomponent_add_property(component, property);
 
-    if (component == NULL) {
-        return 0;
-    }
+    // Fuzz the function-under-test
+    icalproperty *result = icalcomponent_get_first_property(component, kind);
 
-    // Iterate over all properties in the component
-    for (icalproperty *prop = icalcomponent_get_first_property(component, ICAL_ANY_PROPERTY);
-         prop != NULL;
-         prop = icalcomponent_get_next_property(component, ICAL_ANY_PROPERTY)) {
-        // Process each property
-        icalproperty_kind kind = icalproperty_isa(prop);
-        // Call the function-under-test
-        icalpropiter propiter = icalcomponent_begin_property(component, kind);
-        (void)propiter; // Suppress unused variable warning
-    }
-
-    // Clean up the icalcomponent object
+    // Clean up
     icalcomponent_free(component);
 
     return 0;

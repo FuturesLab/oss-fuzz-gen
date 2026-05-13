@@ -1,29 +1,33 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
 
-// Wrap the inclusion of C headers and functions in extern "C"
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_7(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated
-    char *input = new char[size + 1];
-    if (input == nullptr) {
+    // Ensure the data is null-terminated before passing it as a string
+    if (size == 0) {
         return 0;
     }
 
-    // Copy the data into the input buffer and null-terminate it
-    for (size_t i = 0; i < size; ++i) {
-        input[i] = static_cast<char>(data[i]);
+    // Allocate memory for the string and ensure it is null-terminated
+    char *inputString = (char *)malloc(size + 1);
+    if (inputString == NULL) {
+        return 0;
     }
-    input[size] = '\0';
+
+    // Copy the data into the inputString and null-terminate it
+    memcpy(inputString, data, size);
+    inputString[size] = '\0';
 
     // Call the function-under-test
-    icalcomponent_kind kind = icalcomponent_string_to_kind(input);
+    icalcomponent_kind kind = icalcomponent_string_to_kind(inputString);
 
-    // Clean up
-    delete[] input;
+    // Free the allocated memory
+    free(inputString);
 
     return 0;
 }

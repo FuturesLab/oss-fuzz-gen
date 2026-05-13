@@ -1,24 +1,43 @@
-#include <libical/ical.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h>
+#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *data, size_t size) {
-    // Initialize the library
-    icalcomponent *root_component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    icalcomponent *sub_component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    
-    // Add a property to the sub-component
-    icalproperty *prop = icalproperty_new_summary("Sample Event");
-    icalcomponent_add_property(sub_component, prop);
+    // Ensure the data size is sufficient to create a component
+    if (size == 0) {
+        return 0;
+    }
 
-    // Add the sub-component to the root component
-    icalcomponent_add_component(root_component, sub_component);
+    // Create a temporary buffer to hold a null-terminated string
+    char *buffer = (char *)malloc(size + 1);
+    if (buffer == NULL) {
+        return 0;
+    }
 
-    // Call the function-under-test
-    icalcomponent *current_component = icalcomponent_get_current_component(root_component);
+    // Copy the input data into the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
 
-    // Clean up
-    icalcomponent_free(root_component);
+    // Create an icalcomponent from the string
+    icalcomponent *component = icalparser_parse_string(buffer);
+
+    // Check if the component was successfully created
+    if (component != NULL) {
+        // Call the function-under-test
+        char *icalString = icalcomponent_as_ical_string(component);
+
+        // Free the returned string if it was allocated
+        if (icalString != NULL) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+        icalcomponent_free(component);
+    }
+
+    // Free the buffer
+    free(buffer);
 
     return 0;
 }

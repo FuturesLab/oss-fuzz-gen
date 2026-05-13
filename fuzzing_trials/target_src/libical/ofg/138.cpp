@@ -1,42 +1,33 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdlib.h> // Include for malloc and free
 
 extern "C" {
-#include <libical/ical.h>
+    #include <libical/ical.h> // Assuming the correct path for libical headers
 }
 
 extern "C" int LLVMFuzzerTestOneInput_138(const uint8_t *data, size_t size) {
-    // Ensure the input data is not empty
+    // Ensure the data is null-terminated for safe string operations
     if (size == 0) {
+        return 0; // Return early if there's no data to process
+    }
+    
+    char *null_terminated_data = (char *)malloc(size + 1);
+    if (null_terminated_data == NULL) {
         return 0;
     }
+    memcpy(null_terminated_data, data, size);
+    null_terminated_data[size] = '\0';
 
-    // Create a temporary buffer to hold the input data as a string
-    char *input_data = (char *)malloc(size + 1);
-    if (input_data == NULL) {
-        return 0;
-    }
+    // Call the function-under-test
+    icalcomponent *component = icalparser_parse_string(null_terminated_data);
 
-    // Copy the input data and null-terminate it
-    memcpy(input_data, data, size);
-    input_data[size] = '\0';
-
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(input_data);
-
-    // If parsing was successful, call the function-under-test
+    // Clean up
     if (component != NULL) {
-        icalcomponent *real_component = icalcomponent_get_first_real_component(component);
-
-        // Perform any additional operations on real_component if needed
-
-        // Free the parsed component
         icalcomponent_free(component);
     }
-
-    // Free the temporary buffer
-    free(input_data);
+    free(null_terminated_data);
 
     return 0;
 }

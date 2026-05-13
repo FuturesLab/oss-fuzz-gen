@@ -9,79 +9,47 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstddef>
+#include <iostream>
+#include <fstream>
+#include <vector>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
-#include <cstring>
-#include <cstdarg>
-#include <cstdio>
 
-static void test_icalcomponent_new() {
-    for (int kind = ICAL_NO_COMPONENT; kind <= ICAL_NUM_COMPONENT_TYPES; ++kind) {
-        icalcomponent *comp = icalcomponent_new(static_cast<icalcomponent_kind>(kind));
-        if (comp) {
-            icalcomponent_free(comp);
-        }
-    }
-}
-
-static void test_icalcomponent_new_vlocation() {
-    icalcomponent *comp = icalcomponent_new_vlocation();
-    if (comp) {
-        icalcomponent_free(comp);
-    }
-}
-
-static void test_icalcomponent_new_from_string(const char *str) {
-    icalcomponent *comp = icalcomponent_new_from_string(str);
-    if (comp) {
-        icalcomponent_free(comp);
-    }
-}
-
-static void test_icalcomponent_new_xvote() {
-    icalcomponent *comp = icalcomponent_new_xvote();
-    if (comp) {
-        icalcomponent_free(comp);
-    }
-}
-
-static void test_icalcomponent_vanew() {
-    icalcomponent *comp = icalcomponent_vanew(ICAL_VEVENT_COMPONENT, NULL);
-    if (comp) {
-        icalcomponent_free(comp);
-    }
-}
-
-static void test_icalcomponent_new_xpatch() {
-    icalcomponent *comp = icalcomponent_new_xpatch();
-    if (comp) {
-        icalcomponent_free(comp);
-    }
+static icalcomponent* create_dummy_component() {
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalcomponent *subcomponent = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalcomponent_add_component(component, subcomponent);
+    return component;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_8(const uint8_t *Data, size_t Size) {
-    if (Size == 0) {
-        return 0;
-    }
+    if (Size < 1) return 0;
 
-    // Ensure null-termination for string input
-    char *str = new char[Size + 1];
-    memcpy(str, Data, Size);
-    str[Size] = '\0';
+    icalcomponent *component = create_dummy_component();
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
 
-    // Test various functions
-    test_icalcomponent_new();
-    test_icalcomponent_new_vlocation();
-    test_icalcomponent_new_from_string(str);
-    test_icalcomponent_new_xvote();
-    test_icalcomponent_vanew();
-    test_icalcomponent_new_xpatch();
+    // Fuzz icalcomponent_end_component
+    icalcompiter end_iter = icalcomponent_end_component(component, kind);
+    icalcomponent *end_component = icalcompiter_deref(&end_iter);
 
-    delete[] str;
+    // Fuzz icalcomponent_begin_component
+    icalcompiter begin_iter = icalcomponent_begin_component(component, kind);
+    icalcomponent *begin_component = icalcompiter_deref(&begin_iter);
+
+    // Fuzz icalcomponent_get_current_component
+    icalcomponent *current_component = icalcomponent_get_current_component(component);
+
+    // Fuzz icalcomponent_check_restrictions
+    bool has_restrictions = icalcomponent_check_restrictions(component);
+
+    // Fuzz icalcompiter_prior
+    icalcomponent *prior_component = icalcompiter_prior(&begin_iter);
+
+    // Cleanup
+    icalcomponent_free(component);
+
     return 0;
 }
 #ifdef INC_MAIN

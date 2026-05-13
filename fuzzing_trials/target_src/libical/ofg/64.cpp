@@ -1,39 +1,20 @@
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
-
-extern "C" {
 #include <libical/ical.h>
-}
+#include <stdint.h>
+#include <stddef.h>
+#include <stdlib.h>
 
 extern "C" int LLVMFuzzerTestOneInput_64(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent and icalproperty_kind
-    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    icalproperty_kind kind = ICAL_ANY_PROPERTY;
+    // Initialize an icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
 
-    // Ensure that the data is not empty
-    if (size > 0) {
-        // Create a temporary buffer to hold the data
-        char *buffer = (char *)malloc(size + 1);
-        if (buffer == NULL) {
-            return 0; // Exit if memory allocation fails
-        }
-
-        // Copy the data into the buffer and null-terminate it
-        memcpy(buffer, data, size);
-        buffer[size] = '\0';
-
-        // Try to parse the buffer into an icalcomponent
-        icalcomponent *parsed_component = icalparser_parse_string(buffer);
-        if (parsed_component != NULL) {
-            // If parsing is successful, replace the initial component
-            icalcomponent_free(component);
-            component = parsed_component;
-        }
-
-        // Free the buffer
-        free(buffer);
+    // Ensure the data is not empty
+    if (size == 0) {
+        icalcomponent_free(component);
+        return 0;
     }
+
+    // Use the first byte of data to determine the icalproperty_kind
+    icalproperty_kind kind = static_cast<icalproperty_kind>(data[0] % ICAL_NO_PROPERTY);
 
     // Call the function-under-test
     icalproperty *property = icalcomponent_get_next_property(component, kind);

@@ -3,33 +3,42 @@
 #include <string.h>
 #include <stdlib.h>
 
-// Wrap the C headers and functions in extern "C" to ensure proper linkage
 extern "C" {
     #include <libical/ical.h>
+
+    // Function-under-test
+    void icalcomponent_set_uid(icalcomponent *, const char *);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_92(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty
+    // Ensure the data size is sufficient to create a meaningful UID string
     if (size == 0) {
         return 0;
     }
 
-    // Create an icalcomponent
+    // Create a new icalcomponent
     icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
     if (component == NULL) {
-        return 0;
+        return 0; // Return if we fail to create a component
     }
 
-    // Prepare a null-terminated string from the input data
+    // Copy the input data to a null-terminated string for UID
     char *uid = (char *)malloc(size + 1);
     if (uid == NULL) {
         icalcomponent_free(component);
-        return 0;
+        return 0; // Return if memory allocation fails
     }
     memcpy(uid, data, size);
-    uid[size] = '\0';
+    uid[size] = '\0'; // Null-terminate the string
 
-    // Call the function under test
+    // Ensure UID is not empty to maximize fuzzing result
+    if (strlen(uid) == 0) {
+        free(uid);
+        icalcomponent_free(component);
+        return 0;
+    }
+
+    // Call the function-under-test
     icalcomponent_set_uid(component, uid);
 
     // Clean up

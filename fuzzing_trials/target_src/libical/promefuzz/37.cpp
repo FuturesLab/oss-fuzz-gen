@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_set_comment at icalcomponent.c:1769:6 in icalcomponent.h
-// icalcomponent_set_location at icalcomponent.c:1920:6 in icalcomponent.h
-// icalcomponent_set_x_name at icalcomponent.c:324:6 in icalcomponent.h
-// icalcomponent_set_summary at icalcomponent.c:1734:6 in icalcomponent.h
-// icalcomponent_get_summary at icalcomponent.c:1746:13 in icalcomponent.h
-// icalcomponent_set_description at icalcomponent.c:1885:6 in icalcomponent.h
+// icalcomponent_foreach_recurrence at icalcomponent.c:970:6 in icalcomponent.h
+// icalcomponent_set_recurrenceid at icalcomponent.c:1903:6 in icalcomponent.h
+// icalcomponent_get_recurrenceid at icalcomponent.c:1923:21 in icalcomponent.h
+// icalproperty_recurrence_is_excluded at icalcomponent.c:781:6 in icalcomponent.h
+// icalcomponent_new_valarm at icalcomponent.c:2109:16 in icalcomponent.h
+// icalcomponent_get_dtstart at icalcomponent.c:1617:21 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,78 +14,76 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
 #include <iostream>
+#include <fstream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalcomponent.h"
+#include <libical/icalcomponent.h>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icalproperty.h>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icaltime.h>
+#include "ical.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icaltimezone.h>
 
-// Helper function to create a new icalcomponent
-static icalcomponent* create_component() {
-    return icalcomponent_new(ICAL_VEVENT_COMPONENT);
+// Callback function for icalcomponent_foreach_recurrence
+static void recurrence_callback(const icalcomponent *comp, const struct icaltime_span *span, void *data) {
+    // Do nothing for now
+    (void)comp;
+    (void)span;
+    (void)data;
 }
 
-// Helper function to safely extract a string from fuzz data
-static const char* extract_string(const uint8_t* Data, size_t Size, size_t& offset) {
-    if (offset >= Size) return nullptr;
-    size_t len = strnlen(reinterpret_cast<const char*>(Data + offset), Size - offset);
-    if (offset + len >= Size) return nullptr; // Ensure null terminator is within bounds
-    const char* str = reinterpret_cast<const char*>(Data + offset);
-    offset += len + 1; // Move past the string and null terminator
-    return str;
+// Helper function to create a random icaltimetype
+static struct icaltimetype create_random_icaltimetype(const uint8_t *Data, size_t Size, size_t &offset) {
+    struct icaltimetype tt = icaltime_null_time();
+    if (offset + sizeof(int) <= Size) {
+        tt.year = *(reinterpret_cast<const int*>(Data + offset));
+        offset += sizeof(int);
+    }
+    tt.zone = icaltimezone_get_utc_timezone();
+    return tt;
 }
 
-extern "C" int LLVMFuzzerTestOneInput_37(const uint8_t* Data, size_t Size) {
-    if (Size == 0) return 0;
+extern "C" int LLVMFuzzerTestOneInput_37(const uint8_t *Data, size_t Size) {
+    if (Size < 1) return 0;
 
-    // Create a new icalcomponent
-    icalcomponent* comp = create_component();
+    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
     if (!comp) return 0;
 
     size_t offset = 0;
 
-    // Extract strings from the fuzz input
-    const char* comment = extract_string(Data, Size, offset);
-    const char* description = extract_string(Data, Size, offset);
-    const char* location = extract_string(Data, Size, offset);
-    const char* summary = extract_string(Data, Size, offset);
-    const char* x_name = extract_string(Data, Size, offset);
+    // Fuzz icalcomponent_set_recurrenceid
+    struct icaltimetype recurrenceid = create_random_icaltimetype(Data, Size, offset);
+    icalcomponent_set_recurrenceid(comp, recurrenceid);
 
-    // Fuzz icalcomponent_set_comment
-    if (comment) {
-        icalcomponent_set_comment(comp, comment);
+    // Fuzz icalcomponent_get_dtstart
+    struct icaltimetype dtstart = icalcomponent_get_dtstart(comp);
+
+    // Fuzz icalcomponent_get_recurrenceid
+    struct icaltimetype got_recurrenceid = icalcomponent_get_recurrenceid(comp);
+
+    // Fuzz icalcomponent_foreach_recurrence
+    struct icaltimetype start = create_random_icaltimetype(Data, Size, offset);
+    struct icaltimetype end = create_random_icaltimetype(Data, Size, offset);
+    icalcomponent_foreach_recurrence(comp, start, end, recurrence_callback, nullptr);
+
+    // Fuzz icalproperty_recurrence_is_excluded
+    bool is_excluded = icalproperty_recurrence_is_excluded(comp, &dtstart, &recurrenceid);
+
+    // Fuzz icalcomponent_new_valarm
+    icalcomponent *valarm = icalcomponent_new_valarm();
+    if (valarm) {
+        icalcomponent_free(valarm);
     }
 
-    // Fuzz icalcomponent_set_description
-    if (description) {
-        icalcomponent_set_description(comp, description);
-    }
-
-    // Fuzz icalcomponent_set_location
-    if (location) {
-        icalcomponent_set_location(comp, location);
-    }
-
-    // Fuzz icalcomponent_set_summary
-    if (summary) {
-        icalcomponent_set_summary(comp, summary);
-    }
-
-    // Fuzz icalcomponent_get_summary
-    const char* retrieved_summary = icalcomponent_get_summary(comp);
-    if (retrieved_summary) {
-        std::cout << "Retrieved Summary: " << retrieved_summary << std::endl;
-    }
-
-    // Fuzz icalcomponent_set_x_name
-    if (x_name) {
-        icalcomponent_set_x_name(comp, x_name);
-    }
-
-    // Clean up
     icalcomponent_free(comp);
 
     return 0;

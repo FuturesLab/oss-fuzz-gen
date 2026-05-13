@@ -1,34 +1,38 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h> // Include for memcpy
+#include <stdlib.h>
+#include <string.h> // Include the string.h library for memcpy
 
 extern "C" {
-    #include <libical/ical.h> // Correct include path for libical
+#include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    // Ensure the input size is sufficient to create a valid icalcomponent
+    // Ensure size is large enough to create a valid icalcomponent
     if (size == 0) {
         return 0;
     }
 
-    // Create a temporary buffer to hold the input data
-    char *buffer = new char[size + 1];
-    memcpy(buffer, data, size);
-    buffer[size] = '\0'; // Null-terminate the buffer
+    // Create a string from the input data
+    char *ical_str = (char *)malloc(size + 1);
+    if (ical_str == NULL) {
+        return 0;
+    }
+    memcpy(ical_str, data, size);
+    ical_str[size] = '\0';
 
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(buffer);
+    // Parse the string into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(ical_str);
+    free(ical_str);
 
-    // If parsing is successful, normalize the component
-    if (component != nullptr) {
+    // Check if the component was successfully created
+    if (component != NULL) {
+        // Call the function-under-test
         icalcomponent_normalize(component);
 
         // Clean up
         icalcomponent_free(component);
     }
 
-    delete[] buffer;
     return 0;
 }
 #ifdef INC_MAIN

@@ -1,42 +1,47 @@
 #include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <cstring>  // Include for memcpy
+#include <stdlib.h>  // For malloc and free
+#include <string.h>  // For memcpy
 
 extern "C" {
-    #include <libical/ical.h>
+    // Include necessary C headers, source files, functions, and code here.
+    // This ensures the C library functions are correctly linked with the C++ code.
 }
 
 extern "C" int LLVMFuzzerTestOneInput_113(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent and icalcomponent_kind
-    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    icalcomponent_kind kind = ICAL_VEVENT_COMPONENT;
-
-    // Ensure the data is large enough to simulate a valid component
-    if (size > 0) {
-        // Create a temporary buffer to hold the data
-        char *buffer = (char *)malloc(size + 1);
-        if (buffer == NULL) {
-            return 0;
-        }
-        memcpy(buffer, data, size);
-        buffer[size] = '\0';
-
-        // Attempt to parse the data as an icalcomponent
-        icalcomponent *parsed_component = icalparser_parse_string(buffer);
-        if (parsed_component != NULL) {
-            // Assign the parsed component to the component variable
-            icalcomponent_free(component);
-            component = parsed_component;
-        }
-
-        free(buffer);
+    // Ensure that the input size is sufficient for creating a valid icalcomponent
+    if (size < 1) {
+        return 0;
     }
 
-    // Call the function-under-test
-    icalcompiter iter = icalcomponent_begin_component(component, kind);
+    // Create a string from the input data
+    char *ical_str = (char *)malloc(size + 1);
+    if (!ical_str) {
+        return 0;
+    }
+    memcpy(ical_str, data, size);
+    ical_str[size] = '\0';
 
-    // Clean up
+    // Parse the string into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(ical_str);
+    free(ical_str);
+
+    if (!component) {
+        return 0;
+    }
+
+    // Initialize an icalcompiter
+    icalcompiter iter;
+    iter = icalcomponent_begin_component(component, ICAL_ANY_COMPONENT);
+
+    // Call the function-under-test
+    icalcomponent *next_component = icalcompiter_next(&iter);
+
+    // Cleanup
+    if (next_component) {
+        icalcomponent_free(next_component);
+    }
     icalcomponent_free(component);
 
     return 0;

@@ -1,21 +1,24 @@
+#include <cstdint> // Include for uint8_t
+#include <cstddef> // Include for size_t
+
+extern "C" {
 #include <libical/ical.h>
-#include <cstdint>
-#include <cstddef>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_162(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to extract an icalcomponent_kind value
+    // Ensure that the input size is sufficient to extract an icalcomponent_kind
     if (size < sizeof(icalcomponent_kind)) {
         return 0;
     }
 
-    // Extract an icalcomponent_kind value from the input data
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(data[0]);
+    // Extract an icalcomponent_kind from the input data
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(data[0] % ICAL_NO_COMPONENT);
 
     // Call the function-under-test
-    icalcomponent *component = icalcomponent_vanew(kind, NULL);
+    icalcomponent *component = icalcomponent_vanew(kind, nullptr);
 
-    // Clean up the created component if it's not NULL
-    if (component != NULL) {
+    // Clean up the created component
+    if (component != nullptr) {
         icalcomponent_free(component);
     }
 

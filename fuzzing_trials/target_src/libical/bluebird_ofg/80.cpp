@@ -1,37 +1,44 @@
 #include <sys/stat.h>
+#include "libical/ical.h"
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>  // Include for memcpy
+#include <stddef.h>
+#include <stdlib.h>  // For malloc and free
+#include <string.h>  // For memcpy
 
 extern "C" {
-    #include "libical/ical.h"
+    // Include necessary C headers and functions here
 }
 
 extern "C" int LLVMFuzzerTestOneInput_80(const uint8_t *data, size_t size) {
-    // Convert the input data to a string
-    char *ical_str = (char *)malloc(size + 1);
-    if (!ical_str) {
+    // Ensure that the input size is sufficient to create a valid string
+    if (size < 1) {
         return 0;
     }
-    memcpy(ical_str, data, size);
-    ical_str[size] = '\0';
+
+    // Create a null-terminated string from the input data
+    char *ical_string = (char *)malloc(size + 1);
+    if (!ical_string) {
+        return 0;
+    }
+    memcpy(ical_string, data, size);
+    ical_string[size] = '\0';
 
     // Parse the string into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(ical_str);
-
-    // Free the allocated string
-    free(ical_str);
+    icalcomponent *comp = icalparser_parse_string(ical_string);
 
     // Ensure the component is not NULL
-    if (component == NULL) {
-        return 0;
+    if (comp != NULL) {
+        // Use a valid icalcomponent_kind for testing
+        icalcomponent_kind kind = ICAL_VEVENT_COMPONENT;
+
+        // Call the function-under-test
+        int count = icalcomponent_count_components(comp, kind);
+
+        // Clean up
+        icalcomponent_free(comp);
     }
 
-    // Call the function-under-test
-    struct icaltimetype recurrence_id = icalcomponent_get_recurrenceid(component);
-
-    // Clean up
-    icalcomponent_free(component);
+    free(ical_string);
 
     return 0;
 }

@@ -1,42 +1,35 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <time.h>  // Include for time_t
-#include <string.h> // Include for memcpy
+#include <string.h>
+#include <stdlib.h> // Include for malloc and free
 
+// Ensure the function is linked correctly with C++ code
 extern "C" {
-    #include <libical/ical.h>
+    icalcomponent *icalcomponent_new_from_string(const char *str);
+    void icalcomponent_free(icalcomponent *component);
 }
 
+// Fuzzing harness for the function-under-test
 extern "C" int LLVMFuzzerTestOneInput_95(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to extract meaningful values
-    if (size < sizeof(time_t) + sizeof(int)) {
-        return 0;
+    // Use the fuzzer input data to create a string
+    char *input_data = (char *)malloc(size + 1);
+    if (input_data != NULL) {
+        memcpy(input_data, data, size);
+        input_data[size] = '\0'; // Null-terminate the string
+
+        // Call the function-under-test with the fuzzer input
+        icalcomponent *component = icalcomponent_new_from_string(input_data);
+
+        if (component != NULL) {
+            // Perform operations on the component if needed
+
+            // Cleanup
+            icalcomponent_free(component);
+        }
+
+        free(input_data);
     }
-
-    // Initialize the icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        return 0;
-    }
-
-    // Extract a time_t value from the data
-    time_t rawtime;
-    memcpy(&rawtime, data, sizeof(time_t));
-    data += sizeof(time_t);
-    size -= sizeof(time_t);
-
-    // Extract an integer value for is_date
-    int is_date;
-    memcpy(&is_date, data, sizeof(int));
-
-    // Initialize the icaltimetype
-    struct icaltimetype dtstamp = icaltime_from_timet_with_zone(rawtime, is_date, NULL);
-
-    // Call the function-under-test
-    icalcomponent_set_dtstamp(component, dtstamp);
-
-    // Clean up
-    icalcomponent_free(component);
 
     return 0;
 }

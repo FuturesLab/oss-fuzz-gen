@@ -1,40 +1,62 @@
 #include <sys/stat.h>
+#include "libical/ical.h"
 #include <stdint.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
-extern "C" {
-    #include "libical/ical.h"
-}
-
 extern "C" int LLVMFuzzerTestOneInput_21(const uint8_t *data, size_t size) {
-    // Ensure that the data size is sufficient to create a valid string
+    // Ensure the data size is sufficient to create a valid string
     if (size == 0) {
         return 0;
     }
 
-    // Create a dummy icalcomponent object
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
+    // Create a null-terminated string from the input data
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
         return 0;
     }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0';
 
-    // Convert the input data to a null-terminated string
-    char *location = (char *)malloc(size + 1);
-    if (location == NULL) {
-        icalcomponent_free(component);
-        return 0;
-    }
-    memcpy(location, data, size);
-    location[size] = '\0'; // Null-terminate the string
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputData);
 
-    // Call the function-under-test
-    icalcomponent_set_location(component, location);
+    // Check if the component was successfully created
+    if (component != NULL) {
+        // Call the function-under-test
+        char *icalString = icalcomponent_as_ical_string_r(component);
 
-    // Clean up
-    free(location);
-    icalcomponent_free(component);
+        // Free the resulting string if it was created
+        if (icalString != NULL) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalproperty_recurrence_is_excluded
+        struct icaltimetype ret_icalcomponent_get_due_xncgn = icalcomponent_get_due(NULL);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        struct icaltimetype ret_icalcomponent_get_dtstart_uxduk = icalcomponent_get_dtstart(component);
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        bool ret_icalproperty_recurrence_is_excluded_jfuir = icalproperty_recurrence_is_excluded(component, &ret_icalcomponent_get_due_xncgn, &ret_icalcomponent_get_dtstart_uxduk);
+        if (ret_icalproperty_recurrence_is_excluded_jfuir == 0){
+        	return 0;
+        }
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Free the input data
+    free(inputData);
 
     return 0;
 }

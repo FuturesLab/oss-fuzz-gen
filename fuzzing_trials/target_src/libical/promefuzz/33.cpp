@@ -1,10 +1,7 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_foreach_recurrence at icalcomponent.c:927:6 in icalcomponent.h
-// icalcomponent_get_due at icalcomponent.c:2613:21 in icalcomponent.h
-// icalcomponent_get_dtend at icalcomponent.c:1566:21 in icalcomponent.h
-// icalcomponent_get_recurrenceid at icalcomponent.c:1859:21 in icalcomponent.h
-// icalcomponent_set_dtstart at icalcomponent.c:1533:6 in icalcomponent.h
-// icalcomponent_get_dtstart at icalcomponent.c:1553:21 in icalcomponent.h
+// icalcomponent_get_component_name_r at icalcomponent.c:395:7 in icalcomponent.h
+// icalcomponent_new_x at icalcomponent.c:169:16 in icalcomponent.h
+// icalcomponent_set_summary at icalcomponent.c:1798:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,58 +11,69 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include <iostream>
-#include <fstream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <libical/icalcomponent.h>
-#include "ical.h"
-#include "ical.h"
-#include "ical.h"
-#include <libical/icaltime.h>
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_33(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(int)) return 0;
+    if (Size == 0) {
+        return 0;
+    }
 
-    // Create a dummy icalcomponent for testing
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    // Ensure null-termination for string inputs
+    char *x_name = static_cast<char *>(malloc(Size + 1));
+    if (!x_name) {
+        return 0;
+    }
+    memcpy(x_name, Data, Size);
+    x_name[Size] = '\0';
 
-    // Create an icaltimetype from the input data
-    int year = *reinterpret_cast<const int*>(Data);
-    struct icaltimetype time = icaltime_from_string("20230101T000000Z");
-    time.year = year;
+    // Create a new X-NAME component
+    icalcomponent *comp_x = icalcomponent_new_x(x_name);
+    if (comp_x) {
+        // Test setting and getting IANA name
+        icalcomponent_set_x_name(comp_x, x_name);
+        const char *iana_name = icalcomponent_get_x_name(comp_x);
 
-    // Test icalcomponent_set_dtstart
-    icalcomponent_set_dtstart(component, time);
+        // Test setting summary
+        icalcomponent_set_summary(comp_x, x_name);
 
-    // Test icalcomponent_get_recurrenceid
-    icaltimetype recurrence_id = icalcomponent_get_recurrenceid(component);
+        // Test getting component name
+        char *component_name = icalcomponent_get_component_name_r(comp_x);
+        if (component_name) {
+            free(component_name);
+        }
 
-    // Test icalcomponent_get_dtend
-    icaltimetype dtend = icalcomponent_get_dtend(component);
+        // Clean up
+        icalcomponent_free(comp_x);
+    }
 
-    // Test icalcomponent_get_due
-    icaltimetype due = icalcomponent_get_due(component);
+    // Create a new IANA component
+    icalcomponent *comp_iana = icalcomponent_new_x(x_name); // Replace with icalcomponent_new_x
+    if (comp_iana) {
+        // Test setting and getting IANA name
+        icalcomponent_set_x_name(comp_iana, x_name);
+        const char *iana_name = icalcomponent_get_x_name(comp_iana);
 
-    // Test icalcomponent_get_dtstart
-    icaltimetype dtstart = icalcomponent_get_dtstart(component);
+        // Test setting summary
+        icalcomponent_set_summary(comp_iana, x_name);
 
-    // Prepare a callback function for icalcomponent_foreach_recurrence
-    auto callback = [](const icalcomponent *comp, const struct icaltime_span *span, void *data) {
-        // This is a simple callback that does nothing
-    };
+        // Test getting component name
+        char *component_name = icalcomponent_get_component_name_r(comp_iana);
+        if (component_name) {
+            free(component_name);
+        }
 
-    // Define start and end times for the recurrence
-    struct icaltimetype start_time = icaltime_from_string("20230101T000000Z");
-    struct icaltimetype end_time = icaltime_from_string("20240101T000000Z");
+        // Clean up
+        icalcomponent_free(comp_iana);
+    }
 
-    // Test icalcomponent_foreach_recurrence
-    icalcomponent_foreach_recurrence(component, start_time, end_time, callback, nullptr);
-
-    // Clean up
-    icalcomponent_free(component);
-
+    free(x_name);
     return 0;
 }
     #ifdef INC_MAIN

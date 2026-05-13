@@ -1,46 +1,38 @@
+#include <libical/ical.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
-extern "C" {
-    #include <libical/ical.h>
-}
-
 extern "C" int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
-    // Check if the input size is sufficient to create a valid string
-    if (size < 1) {
+    // Ensure that the data size is sufficient to create a valid icalcomponent
+    if (size == 0) {
         return 0;
     }
 
-    // Create a null-terminated string from the input data
-    char *input_data = (char *)malloc(size + 1);
-    if (input_data == NULL) {
-        return 0;
-    }
-    memcpy(input_data, data, size);
-    input_data[size] = '\0';
-
-    // Initialize a dummy icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    
-    // Ensure the component is not NULL
-    if (component == NULL) {
-        free(input_data);
+    // Create a temporary buffer to hold the data
+    char *tempData = (char *)malloc(size + 1);
+    if (tempData == NULL) {
         return 0;
     }
 
-    // Add a duration property to the component using fuzzed data
-    icalproperty *duration_prop = icalproperty_new_duration(icaldurationtype_from_string(input_data));
-    if (duration_prop != NULL) {
-        icalcomponent_add_property(component, duration_prop);
+    // Copy the input data to the temporary buffer and null-terminate it
+    memcpy(tempData, data, size);
+    tempData[size] = '\0';
 
+    // Parse the data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(tempData);
+
+    // Free the temporary buffer
+    free(tempData);
+
+    // Ensure the component is not NULL before calling the function
+    if (component != NULL) {
         // Call the function-under-test
         struct icaldurationtype duration = icalcomponent_get_duration(component);
-    }
 
-    // Clean up
-    icalcomponent_free(component);
-    free(input_data);
+        // Clean up
+        icalcomponent_free(component);
+    }
 
     return 0;
 }

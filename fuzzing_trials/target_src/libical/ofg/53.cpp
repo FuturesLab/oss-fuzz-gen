@@ -1,22 +1,47 @@
-#include <libical/ical.h>
 #include <cstdint>
-#include <cstddef>
+#include <cstdlib>
 #include <cstring>
 
+extern "C" {
+    #include <libical/ical.h>
+}
+
 extern "C" int LLVMFuzzerTestOneInput_53(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated
-    char *input = new char[size + 1];
-    memcpy(input, data, size);
-    input[size] = '\0';
+    // Initialize variables
+    icalcomponent *component = nullptr;
+    icalproperty_kind kind = ICAL_NO_PROPERTY;
 
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_from_string(input);
+    // Ensure that size is sufficient to extract at least one character for kind
+    if (size > 0) {
+        // Create a new icalcomponent
+        component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
 
-    // Clean up
-    if (component != nullptr) {
+        // Use the first byte of data to determine the icalproperty_kind
+        kind = static_cast<icalproperty_kind>(data[0] % (ICAL_ANY_PROPERTY + 1)); // Fix division by zero
+
+        // Create a new icalproperty with the determined kind
+        icalproperty *property = icalproperty_new(kind);
+
+        // Check if property creation was successful
+        if (property != nullptr) {
+            // Add the property to the component
+            icalcomponent_add_property(component, property);
+
+            // Iterate over properties to ensure full coverage
+            for (icalproperty *prop = icalcomponent_get_first_property(component, kind);
+                 prop != nullptr;
+                 prop = icalcomponent_get_next_property(component, kind)) {
+                // Process the property in some way
+                const char *prop_name = icalproperty_get_property_name(prop);
+                if (prop_name) {
+                    // Do something with the property name
+                }
+            }
+        }
+
+        // Clean up
         icalcomponent_free(component);
     }
-    delete[] input;
 
     return 0;
 }

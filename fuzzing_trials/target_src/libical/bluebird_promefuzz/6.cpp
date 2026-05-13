@@ -11,77 +11,55 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
+#include <fstream>
+#include <iostream>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
+static void fuzz_icalcomponent_set_sequence(icalcomponent *comp, const uint8_t *data, size_t size) {
+    if (size < sizeof(int)) return;
+    int sequence = *reinterpret_cast<const int*>(data);
+    icalcomponent_set_sequence(comp, sequence);
+}
+
+static void fuzz_icalcomponent_clone(icalcomponent *comp) {
+    icalcomponent *clone = icalcomponent_clone(comp);
+    if (clone) {
+        icalcomponent_free(clone);
+    }
+}
+
+static void fuzz_icalcomponent_get_status(icalcomponent *comp) {
+    icalproperty_status status = icalcomponent_get_status(comp);
+    (void)status; // Suppress unused variable warning
+}
+
+static void fuzz_icalcomponent_set_status(icalcomponent *comp, const uint8_t *data, size_t size) {
+    if (size < sizeof(icalproperty_status)) return;
+    icalproperty_status status = *reinterpret_cast<const icalproperty_status*>(data);
+    icalcomponent_set_status(comp, status);
+}
+
+static void fuzz_icalcomponent_convert_errors(icalcomponent *comp) {
+    icalcomponent_convert_errors(comp);
+}
+
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
-    }
+    // Create a new VTODO component
+    icalcomponent *comp = icalcomponent_new_vtodo();
+    if (!comp) return 0;
 
-    // Step 1: Create a null-terminated string from the input data
-    char *inputStr = static_cast<char *>(malloc(Size + 1));
-    if (!inputStr) {
-        return 0;
-    }
-    memcpy(inputStr, Data, Size);
-    inputStr[Size] = '\0';
+    // Fuzz each function with the input data
+    fuzz_icalcomponent_set_sequence(comp, Data, Size);
+    fuzz_icalcomponent_clone(comp);
+    fuzz_icalcomponent_get_status(comp);
+    fuzz_icalcomponent_set_status(comp, Data, Size);
+    fuzz_icalcomponent_convert_errors(comp);
 
-    // Step 2: Create an icalcomponent from the input string
-    icalcomponent *component = icalcomponent_new_from_string(inputStr);
-
-    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new_from_string to icalcomponent_set_dtstamp
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
-    }
-    struct icaltimetype ret_icalcomponent_get_dtend_rvpic = icalcomponent_get_dtend(component);
-    // Ensure dataflow is valid (i.e., non-null)
-    if (!component) {
-    	return 0;
-    }
-    // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_set_dtstamp with icalcomponent_set_due
-    icalcomponent_set_due(component, ret_icalcomponent_get_dtend_rvpic);
-    // End mutation: Producer.REPLACE_FUNC_MUTATOR
-    // End mutation: Producer.APPEND_MUTATOR
-    
-    free(inputStr);
-
-    if (component) {
-        // Step 3: Test icalcomponent_get_component_name_r
-        char *componentName = icalcomponent_get_component_name_r(component);
-        if (componentName) {
-            free(componentName);
-        }
-
-        // Step 4: Test icalcomponent_as_ical_string_r
-        char *icalStringR = icalcomponent_as_ical_string_r(component);
-        if (icalStringR) {
-            free(icalStringR);
-        }
-
-        // Step 5: Test icalcomponent_as_ical_string
-        char *icalString = icalcomponent_as_ical_string(component);
-        if (icalString) {
-            free(icalString);
-        }
-
-        // Step 6: Test icalcomponent_set_summary
-        const char *summaryText = "Sample Summary";
-        icalcomponent_set_summary(component, summaryText);
-
-        // Step 7: Test icalcomponent_get_comment
-        const char *comment = icalcomponent_get_comment(component);
-        if (comment) {
-            // Do something with the comment if needed
-        }
-
-        // Clean up the icalcomponent
-        icalcomponent_free(component);
-    }
+    // Cleanup
+    icalcomponent_free(comp);
 
     return 0;
 }

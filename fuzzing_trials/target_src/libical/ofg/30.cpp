@@ -1,45 +1,42 @@
 #include <stdint.h>
-#include <stdlib.h>
+#include <stddef.h>
 #include <string.h>
+#include <stdlib.h>
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *data, size_t size) {
-    // Ensure the data has at least one byte for a null-terminated string
-    if (size == 0) return 0;
-
-    // Create a null-terminated string from the input data
-    char *description = (char *)malloc(size + 1);
-    if (description == NULL) return 0;
-    memcpy(description, data, size);
-    description[size] = '\0';
-
-    // Create an icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        free(description);
+    // Ensure that the data is large enough to be used as a string
+    if (size == 0) {
         return 0;
     }
 
-    // Call the function-under-test
-    icalcomponent_set_description(component, description);
+    // Create a new icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
+        return 0;
+    }
 
-    // Serialize the component to a string
-    char *component_str = icalcomponent_as_ical_string(component);
-    if (component_str != NULL) {
-        // Parse the component string back to a new component
-        icalcomponent *parsed_component = icalparser_parse_string(component_str);
-        if (parsed_component != NULL) {
-            // Further operations can be done on parsed_component if needed
-            icalcomponent_free(parsed_component);
-        }
+    // Ensure the data is null-terminated to be used as a string
+    char *description = (char *)malloc(size + 1);
+    if (description == NULL) {
+        icalcomponent_free(component);
+        return 0;
+    }
+    memcpy(description, data, size);
+    description[size] = '\0';
+
+    // Call the function-under-test
+    // Use the description only if it's non-empty to ensure code coverage
+    if (strlen(description) > 0) {
+        icalcomponent_set_description(component, description);
     }
 
     // Clean up
-    icalcomponent_free(component);
     free(description);
+    icalcomponent_free(component);
 
     return 0;
 }

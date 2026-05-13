@@ -1,39 +1,40 @@
+#include <libical/ical.h>
 #include <stdint.h>
 #include <stddef.h>
-#include <string.h>  // Include this for memcpy
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_178(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to create an icaltimetype
-    if (size < sizeof(struct icaltimetype)) {
+    // Ensure the input data is not empty
+    if (size == 0) {
         return 0;
     }
 
-    // Create an icaltimetype from the input data
-    struct icaltimetype dtstart;
-    memcpy(&dtstart, data, sizeof(struct icaltimetype));
-
-    // Validate the icaltimetype to ensure it's a valid date-time
-    if (dtstart.year < 1 || dtstart.year > 9999 ||
-        dtstart.month < 1 || dtstart.month > 12 ||
-        dtstart.day < 1 || dtstart.day > 31) {
+    // Create a null-terminated string from the input data
+    char *ical_string = (char *)malloc(size + 1);
+    if (ical_string == NULL) {
         return 0;
     }
+    memcpy(ical_string, data, size);
+    ical_string[size] = '\0';
 
-    // Create a dummy icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
-        return 0;
+    // Parse the string into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(ical_string);
+    free(ical_string);
+
+    if (component != NULL) {
+        // Call the function-under-test
+        const char *uid = icalcomponent_get_uid(component);
+
+        // Optionally, use the uid for further operations or checks
+        if (uid != NULL) {
+            // For example, just print the UID
+            printf("UID: %s\n", uid);
+        }
+
+        // Clean up the icalcomponent
+        icalcomponent_free(component);
     }
-
-    // Call the function-under-test
-    icalcomponent_set_dtstart(component, dtstart);
-
-    // Clean up
-    icalcomponent_free(component);
 
     return 0;
 }

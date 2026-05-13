@@ -1,42 +1,27 @@
 #include <stdint.h>
-#include <stdlib.h>
-#include <string.h>
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <stddef.h>
+#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_172(const uint8_t *data, size_t size) {
-    // Initialize a memory context for the icalcomponent
-    icalcomponent *component = nullptr;
-
-    // Ensure the data is not empty
-    if (size == 0) {
+    // Ensure that the data is large enough to extract an integer for the sequence
+    if (size < sizeof(int)) {
         return 0;
     }
 
-    // Convert the input data to a string
-    char *ical_string = (char *)malloc(size + 1);
-    if (ical_string == nullptr) {
+    // Create an icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
         return 0;
     }
-    memcpy(ical_string, data, size);
-    ical_string[size] = '\0';
 
-    // Parse the string into an icalcomponent
-    component = icalparser_parse_string(ical_string);
+    // Extract an integer from the data
+    int sequence = *((int *)data);
 
-    // Ensure the component is not NULL
-    if (component != nullptr) {
-        // Call the function-under-test
-        bool result = icalcomponent_check_restrictions(component);
+    // Call the function-under-test
+    icalcomponent_set_sequence(component, sequence);
 
-        // Clean up the component
-        icalcomponent_free(component);
-    }
-
-    // Free the allocated string
-    free(ical_string);
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }

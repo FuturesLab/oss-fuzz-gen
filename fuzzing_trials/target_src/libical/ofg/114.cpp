@@ -1,25 +1,29 @@
-#include <cstdint> // Include for uint8_t
-#include <cstddef> // Include for size_t
+#include <cstdint> // Include standard library for uint8_t
+#include <cstdlib> // Include standard library for size_t
 
 extern "C" {
-#include <libical/ical.h>
+    #include <libical/ical.h> // Include libical headers within extern "C"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_114(const uint8_t *data, size_t size) {
-    // Initialize variables for the function-under-test
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalcomponent_kind kind = ICAL_VEVENT_COMPONENT;
-
-    // Ensure the component is not NULL
-    if (component == NULL) {
-        return 0;
-    }
-
     // Call the function-under-test
-    icalcompiter iter = icalcomponent_begin_component(component, kind);
+    icalcomponent *vjournal = icalcomponent_new_vjournal();
 
-    // Perform cleanup
-    icalcomponent_free(component);
+    // Perform operations on the vjournal if necessary
+    // For this example, we will just check if the component is not NULL
+    if (vjournal != NULL) {
+        // Optionally, perform some operations on the vjournal
+        // For example, convert it to a string and print it
+        char *str = icalcomponent_as_ical_string(vjournal);
+        if (str != NULL) {
+            // Normally, you would use the string for further processing
+            // For this example, we will just free the string
+            icalmemory_free_buffer(str);
+        }
+
+        // Free the icalcomponent to avoid memory leaks
+        icalcomponent_free(vjournal);
+    }
 
     return 0;
 }

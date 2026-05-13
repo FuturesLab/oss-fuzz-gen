@@ -1,57 +1,77 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_get_x_name at icalcomponent.c:337:13 in icalcomponent.h
-// icalcomponent_get_comment at icalcomponent.c:1781:13 in icalcomponent.h
-// icalcomponent_get_description at icalcomponent.c:1897:13 in icalcomponent.h
-// icalcomponent_get_relcalid at icalcomponent.c:2591:13 in icalcomponent.h
-// icalcomponent_get_uid at icalcomponent.c:1816:13 in icalcomponent.h
-// icalcomponent_get_summary at icalcomponent.c:1746:13 in icalcomponent.h
+// icalcomponent_remove_component at icalcomponent.c:586:6 in icalcomponent.h
+// icalcomponent_new_valarm at icalcomponent.c:2109:16 in icalcomponent.h
+// icalcomponent_strip_errors at icalcomponent.c:1188:6 in icalcomponent.h
+// icalcomponent_remove_property at icalcomponent.c:443:6 in icalcomponent.h
+// icalcomponent_isa at icalcomponent.c:324:20 in icalcomponent.h
+// icalcomponent_convert_errors at icalcomponent.c:1211:6 in icalcomponent.h
 #include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <cstring>
+#include <cstdlib>
+#include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_13(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icalcomponent_kind)) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Create a dummy icalcomponent with the kind from the input data
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-    icalcomponent *comp = icalcomponent_new(kind);
-
-    // Invoke each target function with the component
-    const char *x_name = icalcomponent_get_x_name(comp);
-    const char *relcalid = icalcomponent_get_relcalid(comp);
-    const char *uid = icalcomponent_get_uid(comp);
-    const char *description = icalcomponent_get_description(comp);
-    const char *summary = icalcomponent_get_summary(comp);
-    const char *comment = icalcomponent_get_comment(comp);
-
-    // Check returned values (not strictly necessary for fuzzing, but good practice)
-    if (x_name) {
-        // Process x_name if needed
-    }
-    if (relcalid) {
-        // Process relcalid if needed
-    }
-    if (uid) {
-        // Process uid if needed
-    }
-    if (description) {
-        // Process description if needed
-    }
-    if (summary) {
-        // Process summary if needed
-    }
-    if (comment) {
-        // Process comment if needed
+    // Create a new VALARM component
+    icalcomponent *valarm = icalcomponent_new_valarm();
+    if (!valarm) {
+        return 0;
     }
 
-    // Clean up
-    icalcomponent_free(comp);
+    // Create a parent component of type VCALENDAR
+    icalcomponent *parent = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    if (!parent) {
+        icalcomponent_free(valarm);
+        return 0;
+    }
+
+    // Optionally add the VALARM to the parent
+    if (Data[0] % 2 == 0) {
+        icalcomponent_add_component(parent, valarm);
+    }
+
+    // Fuzz icalcomponent_isa
+    icalcomponent_kind kind = icalcomponent_isa(valarm);
+
+    // Fuzz icalcomponent_strip_errors
+    icalcomponent_strip_errors(parent);
+
+    // Fuzz icalcomponent_convert_errors
+    icalcomponent_convert_errors(parent);
+
+    // Create a dummy property
+    icalproperty *property = icalproperty_new(ICAL_SUMMARY_PROPERTY);
+    if (property) {
+        icalcomponent_add_property(parent, property);
+
+        // Fuzz icalcomponent_remove_property
+        icalcomponent_remove_property(parent, property);
+
+        // Clean up the property
+        icalproperty_free(property);
+    }
+
+    // Fuzz icalcomponent_remove_component
+    icalcomponent_remove_component(parent, valarm);
+
+    // Clean up components
+    icalcomponent_free(parent);
+    icalcomponent_free(valarm);
 
     return 0;
 }

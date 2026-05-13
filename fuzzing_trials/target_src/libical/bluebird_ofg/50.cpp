@@ -1,31 +1,63 @@
 #include <sys/stat.h>
+#include "libical/ical.h"
+#include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
-#include <cstddef>
-#include <cstdint>
-
-extern "C" {
-    #include "libical/ical.h"
-}
 
 extern "C" int LLVMFuzzerTestOneInput_50(const uint8_t *data, size_t size) {
-    // Ensure that the size is sufficient to create an icalcompiter object
-    if (size < sizeof(icalcompiter)) {
+    // Ensure the data size is sufficient to create a valid string
+    if (size == 0) {
         return 0;
     }
 
-    // Create an icalcompiter object from the input data
-    icalcompiter compiter;
-    icalcomponent *component = icalcomponent_new(ICAL_NO_COMPONENT);
+    // Create a null-terminated string from the input data
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
+        return 0;
+    }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0';
 
-    // Initialize the icalcompiter object
-    // The correct function signature requires a component and a kind
-    compiter = icalcomponent_begin_component(component, ICAL_ANY_COMPONENT);
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputData);
 
-    // Call the function-under-test
-    bool is_valid = icalcompiter_is_valid(&compiter);
+    // Check if the component was successfully created
+    if (component != NULL) {
+        // Call the function-under-test
+        char *icalString = icalcomponent_as_ical_string_r(component);
 
-    // Clean up
-    icalcomponent_free(component);
+        // Free the resulting string if it was created
+        if (icalString != NULL) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalproperty_set_parent
+        icalpropiter uasxoqxl;
+        memset(&uasxoqxl, 0, sizeof(uasxoqxl));
+        icalproperty* ret_icalpropiter_deref_gzveu = icalpropiter_deref(&uasxoqxl);
+        if (ret_icalpropiter_deref_gzveu == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalpropiter_deref_gzveu) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        icalproperty_set_parent(ret_icalpropiter_deref_gzveu, component);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Free the input data
+    free(inputData);
 
     return 0;
 }

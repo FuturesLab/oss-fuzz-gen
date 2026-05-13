@@ -1,33 +1,35 @@
+#include <stdint.h>
+#include <stddef.h>
 #include <libical/ical.h>
-#include <cstddef>
-#include <cstdint>
-#include <cstring>
+#include <vector>
 
 extern "C" int LLVMFuzzerTestOneInput_87(const uint8_t *data, size_t size) {
-    // Ensure that the input size is sufficient to create a valid string
-    if (size < 1) {
-        return 0;
+    // Initialize an icalcomponent and icalproperty_method
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    icalproperty_method method = ICAL_METHOD_NONE;
+
+    // Ensure the data size is sufficient to extract a method
+    if (size > 0) {
+        // Use the first byte of data to determine the method
+        // This is a simple mapping, assuming there are fewer than 256 methods
+        method = static_cast<icalproperty_method>(data[0] % ICAL_METHOD_NONE);
     }
 
-    // Create a null-terminated string from the input data
-    char *ical_str = new char[size + 1];
-    memcpy(ical_str, data, size);
-    ical_str[size] = '\0';
+    // Call the function-under-test
+    icalcomponent_set_method(component, method);
 
-    // Parse the input data into an icalcomponent
-    icalcomponent *comp = icalparser_parse_string(ical_str);
-
-    // Ensure that the component is not NULL
-    if (comp != NULL) {
-        // Call the function-under-test
-        struct icaltimetype dtstamp = icalcomponent_get_dtstamp(comp);
-
-        // Clean up the component
-        icalcomponent_free(comp);
+    // Add some properties to the component to increase code coverage
+    if (size > 1) {
+        // Create a property and set its value from the remaining data
+        icalproperty *prop = icalproperty_new(ICAL_SUMMARY_PROPERTY);
+        std::vector<char> summary(data + 1, data + size);
+        summary.push_back('\0'); // Null-terminate the string
+        icalproperty_set_summary(prop, summary.data());
+        icalcomponent_add_property(component, prop);
     }
 
-    // Clean up the allocated string
-    delete[] ical_str;
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }

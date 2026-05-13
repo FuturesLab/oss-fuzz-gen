@@ -1,24 +1,57 @@
+#include <cstdint>  // Include for uint8_t
+#include <cstddef>  // Include for size_t
+#include <cstring>  // Include for memcpy
+
+extern "C" {
 #include <libical/ical.h>
-#include <stdint.h>
-#include <stddef.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_76(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_vpatch();
-
-    // Perform some operations on the created component if necessary
-    if (component != NULL) {
-        // Example: Convert the component to a string and print it (for debugging purposes)
-        char *component_str = icalcomponent_as_ical_string(component);
-        if (component_str != NULL) {
-            // For debugging, print the component string
-            // printf("%s\n", component_str);
-            icalmemory_free_buffer(component_str);
-        }
-
-        // Free the component to prevent memory leaks
-        icalcomponent_free(component);
+    // Ensure the input data is not null and has a reasonable size
+    if (data == nullptr || size == 0) {
+        return 0;
     }
+
+    // Initialize an icalcomponent and icalproperty_kind
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    if (component == nullptr) {
+        return 0;
+    }
+
+    icalproperty_kind kind = ICAL_SUMMARY_PROPERTY;  // Use a specific property kind
+
+    // Use the input data to create a summary string
+    char summary[256] = "Test Summary";
+    size_t copy_size = size < 255 ? size : 255;  // Ensure null-termination
+    memcpy(summary, data, copy_size);
+    summary[copy_size] = '\0';
+
+    // Add a property to the component using the input data as the summary
+    icalproperty *property = icalproperty_new_summary(summary);
+    if (property == nullptr) {
+        icalcomponent_free(component);
+        return 0;
+    }
+    icalcomponent_add_property(component, property);
+
+    // Call the function-under-test
+    icalproperty *result = icalcomponent_get_first_property(component, kind);
+
+    // Check if the result is not null to ensure the function is tested effectively
+    if (result != nullptr) {
+        // Extract the summary from the result property to ensure the function is being tested effectively
+        const char *extracted_summary = icalproperty_get_summary(result);
+        if (extracted_summary != nullptr) {
+            // Perform additional checks or operations as needed
+            // For example, compare extracted_summary with the original summary
+            if (strcmp(extracted_summary, summary) != 0) {
+                // Log or handle the mismatch if necessary
+            }
+        }
+    }
+
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }

@@ -11,7 +11,7 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
-#include <stdint.h>
+#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
@@ -19,62 +19,115 @@
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
-#include "/src/libical/src/libical/icaltime.h"
+#include "/src/libical/src/libical/icaltimezone.h"
 
-static icalcomponent* create_component_from_data(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return nullptr;
+static void fuzz_icalcomponent_get_timezone(icalcomponent *comp, const std::string &input) {
+    // Attempt to retrieve timezone using input as TZID
+    icaltimezone *timezone = icalcomponent_get_timezone(comp, input.c_str());
+    if (timezone) {
+        const char *tzid = icaltimezone_get_tzid(timezone);
+        if (tzid) {
+            std::cout << "Timezone ID: " << tzid << std::endl;
+        }
     }
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-    return icalcomponent_new(kind);
+}
+
+static void fuzz_icalcomponent_get_location(icalcomponent *comp) {
+    // Retrieve location property
+    const char *location = icalcomponent_get_location(comp);
+    if (location) {
+        std::cout << "Location: " << location << std::endl;
+    }
+}
+
+static void fuzz_icalcomponent_get_uid(icalcomponent *comp) {
+    // Retrieve UID property
+    const char *uid = icalcomponent_get_uid(comp);
+    if (uid) {
+        std::cout << "UID: " << uid << std::endl;
+    }
+}
+
+static void fuzz_icalcomponent_get_description(icalcomponent *comp) {
+    // Retrieve description property
+    const char *description = icalcomponent_get_description(comp);
+    if (description) {
+        std::cout << "Description: " << description << std::endl;
+    }
 }
 
 extern "C" int LLVMFuzzerTestOneInput_14(const uint8_t *Data, size_t Size) {
-    if (Size < 1) {
-        return 0;
+    // Ensure the input data is null-terminated
+    std::string input(reinterpret_cast<const char *>(Data), Size);
+
+    // Create a new icalcomponent from the input string
+    icalcomponent *comp = icalcomponent_new_from_string(input.c_str());
+    if (comp) {
+        // Fuzz each target function with the created component
+        fuzz_icalcomponent_get_timezone(comp, input);
+        fuzz_icalcomponent_get_location(comp);
+        fuzz_icalcomponent_get_uid(comp);
+        fuzz_icalcomponent_get_description(comp);
+
+        // Clean up the component
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_convert_errors
+        icalcomponent_convert_errors(comp);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
     }
 
-    icalcomponent *comp = create_component_from_data(Data, Size);
+
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_new_from_string to icalproperty_recurrence_is_excluded
+    // Ensure dataflow is valid (i.e., non-null)
     if (!comp) {
-        return 0;
+    	return 0;
+    }
+    struct icaltimetype ret_icalcomponent_get_dtend_qvxru = icalcomponent_get_dtend(comp);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
     }
 
-    // Test icalcomponent_get_inner
-    icalcomponent *inner = icalcomponent_get_inner(comp);
-    if (inner) {
-        // Do something with inner, like checking its kind
-        icalcomponent_kind inner_kind = icalcomponent_isa(inner);
-        (void)inner_kind; // Suppress unused variable warning
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_dtend to icalcomponent_set_duration
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
     }
 
-    // Test icalcomponent_set_dtstart
-    struct icaltimetype dtstart = icaltime_from_timet_with_zone(time(NULL), 0, nullptr);
-    icalcomponent_set_dtstart(comp, dtstart);
-
-    // Test icalcomponent_get_sequence
-    int sequence = icalcomponent_get_sequence(comp);
-    (void)sequence; // Suppress unused variable warning
-
-    // Test icalcomponent_get_next_component
-    icalcomponent *next = icalcomponent_get_next_component(comp, ICAL_VEVENT_COMPONENT);
-    if (next) {
-        // Do something with next, like checking its kind
-        icalcomponent_kind next_kind = icalcomponent_isa(next);
-        (void)next_kind; // Suppress unused variable warning
+    // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_get_dtend to icalcomponent_set_dtstart
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
     }
-
-    // Test icalcomponent_new_valarm
-    icalcomponent *alarm = icalcomponent_new_valarm();
-    if (alarm) {
-        icalcomponent_add_component(comp, alarm);
+    int ret_icalcomponent_get_sequence_plwnm = icalcomponent_get_sequence(comp);
+    if (ret_icalcomponent_get_sequence_plwnm < 0){
+    	return 0;
     }
-
-    // Test icalcomponent_set_sequence
-    icalcomponent_set_sequence(comp, static_cast<int>(Data[0]));
-
-    // Cleanup
-    icalcomponent_free(comp);
-
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
+    }
+    icalcomponent_set_dtstart(comp, ret_icalcomponent_get_dtend_qvxru);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    struct icaldurationtype ret_icalcomponent_get_duration_acrby = icalcomponent_get_duration(comp);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
+    }
+    icalcomponent_set_duration(comp, ret_icalcomponent_get_duration_acrby);
+    // End mutation: Producer.APPEND_MUTATOR
+    
+    struct icaltimetype ret_icalcomponent_get_dtstamp_meray = icalcomponent_get_dtstamp(comp);
+    // Ensure dataflow is valid (i.e., non-null)
+    if (!comp) {
+    	return 0;
+    }
+    bool ret_icalproperty_recurrence_is_excluded_nojdp = icalproperty_recurrence_is_excluded(comp, &ret_icalcomponent_get_dtend_qvxru, &ret_icalcomponent_get_dtstamp_meray);
+    if (ret_icalproperty_recurrence_is_excluded_nojdp == 0){
+    	return 0;
+    }
+    // End mutation: Producer.APPEND_MUTATOR
+    
     return 0;
 }
 #ifdef INC_MAIN

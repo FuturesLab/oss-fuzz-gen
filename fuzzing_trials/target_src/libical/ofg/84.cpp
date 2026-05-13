@@ -1,28 +1,34 @@
-#include <stdint.h>
-#include <stddef.h>
-#include <libical/ical.h>
+#include <cstdint>  // For uint8_t
+#include <cstddef>  // For size_t
 
 extern "C" {
-    // Include the function-under-test signature
-    void icalcomponent_set_dtend(icalcomponent *, struct icaltimetype);
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_84(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent
+    // Initialize an icalcomponent
     icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
     if (component == NULL) {
         return 0;
     }
 
-    // Ensure there's enough data to create a valid icaltimetype
+    // Ensure that the size is sufficient to create a valid icaltimetype
     if (size < sizeof(struct icaltimetype)) {
         icalcomponent_free(component);
         return 0;
     }
 
     // Create an icaltimetype from the input data
-    struct icaltimetype dtend = icaltime_from_timet_with_zone(
-        *((time_t *)data), 0, nullptr);
+    struct icaltimetype dtend;
+    dtend.year = (int)(data[0] + 1900);  // Year range: 1900-2555
+    dtend.month = (int)(data[1] % 12 + 1);  // Month range: 1-12
+    dtend.day = (int)(data[2] % 28 + 1);  // Day range: 1-28
+    dtend.hour = (int)(data[3] % 24);  // Hour range: 0-23
+    dtend.minute = (int)(data[4] % 60);  // Minute range: 0-59
+    dtend.second = (int)(data[5] % 60);  // Second range: 0-59
+    dtend.is_date = (data[6] % 2 == 0);  // Boolean value
+    // Removed is_utc as it does not exist in icaltimetype
+    dtend.zone = NULL;  // No time zone information
 
     // Call the function-under-test
     icalcomponent_set_dtend(component, dtend);

@@ -1,39 +1,29 @@
 #include <stdint.h>
-#include <stddef.h>
-#include <string.h>
 #include <stdlib.h>
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
 
 extern "C" int LLVMFuzzerTestOneInput_148(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty
-    if (size == 0) {
-        return 0;
-    }
+    // Initialize two icalcomponent objects
+    icalcomponent *parent = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+    icalcomponent *child = icalcomponent_new(ICAL_VEVENT_COMPONENT);
 
-    // Create a dummy icalcomponent
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (component == NULL) {
+    // Ensure that both components are not NULL
+    if (parent == NULL || child == NULL) {
+        if (parent != NULL) {
+            icalcomponent_free(parent);
+        }
+        if (child != NULL) {
+            icalcomponent_free(child);
+        }
         return 0;
     }
-
-    // Ensure the comment string is null-terminated
-    char *comment = (char *)malloc(size + 1);
-    if (comment == NULL) {
-        icalcomponent_free(component);
-        return 0;
-    }
-    memcpy(comment, data, size);
-    comment[size] = '\0';
 
     // Call the function under test
-    icalcomponent_set_comment(component, comment);
+    icalcomponent_set_parent(child, parent);
 
     // Clean up
-    icalcomponent_free(component);
-    free(comment);
+    icalcomponent_free(child);
+    icalcomponent_free(parent);
 
     return 0;
 }

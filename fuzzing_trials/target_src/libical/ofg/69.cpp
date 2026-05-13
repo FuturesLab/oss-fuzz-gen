@@ -1,27 +1,23 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstddef>  // Include for size_t
-
-extern "C" {
-    #include <libical/ical.h>
-}
+#include <libical/ical.h>
+#include <stdint.h>
+#include <stddef.h>
 
 extern "C" int LLVMFuzzerTestOneInput_69(const uint8_t *data, size_t size) {
-    // Check if the data size is sufficient to perform meaningful operations
-    if (size == 0) {
-        return 0;  // No data to process
-    }
-
     // Call the function-under-test
-    icalcomponent *vevent = icalcomponent_new_vevent();
-    
-    // Check if the vevent was created successfully
-    if (vevent != NULL) {
-        // Perform operations on the vevent if necessary
-        // For example, you might want to add properties or subcomponents
-        // Here, we just clean up the created component
+    icalcomponent *component = icalcomponent_new_xvote();
 
-        // Free the created vevent component
-        icalcomponent_free(vevent);
+    // Perform any additional operations on the component if necessary
+    // For example, you might want to convert it to a string or manipulate it in some way
+    if (component != NULL) {
+        char *component_str = icalcomponent_as_ical_string(component);
+        // Normally you might do something with component_str here
+        // For this fuzz test, we'll just free it
+        if (component_str != NULL) {
+            icalmemory_free_buffer(component_str);
+        }
+
+        // Free the component after use
+        icalcomponent_free(component);
     }
 
     return 0;

@@ -1,10 +1,7 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_new_x at icalcomponent.c:161:16 in icalcomponent.h
-// icalcomponent_set_x_name at icalcomponent.c:324:6 in icalcomponent.h
-// icalcomponent_get_x_name at icalcomponent.c:337:13 in icalcomponent.h
-// icalcomponent_set_description at icalcomponent.c:1885:6 in icalcomponent.h
-// icalcomponent_as_ical_string at icalcomponent.c:215:7 in icalcomponent.h
-// icalcomponent_new_xpatch at icalcomponent.c:2115:16 in icalcomponent.h
+// icalcomponent_new_x at icalcomponent.c:169:16 in icalcomponent.h
+// icalcomponent_get_component_name_r at icalcomponent.c:395:7 in icalcomponent.h
+// icalcomponent_set_x_name at icalcomponent.c:344:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -15,57 +12,77 @@
 #include <cstdint>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
-#include <iostream>
+#include <fstream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
 #include "icalcomponent.h"
 
+static icalcomponent* create_component_with_name(const uint8_t* Data, size_t Size) {
+    if (Size == 0) return nullptr;
+
+    // Ensure null-termination
+    char* name = new char[Size + 1];
+    memcpy(name, Data, Size);
+    name[Size] = '\0';
+
+    icalcomponent* comp = icalcomponent_new_x(name);
+    delete[] name;
+    return comp;
+}
+
+static void set_iana_name(icalcomponent* comp, const uint8_t* Data, size_t Size) {
+    if (Size == 0 || comp == nullptr) return;
+
+    char* name = new char[Size + 1];
+    memcpy(name, Data, Size);
+    name[Size] = '\0';
+
+    // Assuming icalcomponent_set_iana_name is available in the actual library
+    icalcomponent_set_x_name(comp, name); // Using set_x_name as a placeholder
+    delete[] name;
+}
+
+static void set_x_name(icalcomponent* comp, const uint8_t* Data, size_t Size) {
+    if (Size == 0 || comp == nullptr) return;
+
+    char* name = new char[Size + 1];
+    memcpy(name, Data, Size);
+    name[Size] = '\0';
+
+    icalcomponent_set_x_name(comp, name);
+    delete[] name;
+}
+
 extern "C" int LLVMFuzzerTestOneInput_34(const uint8_t *Data, size_t Size) {
-    // Convert the input data to a string for use as a component name or description
-    std::string input_data(reinterpret_cast<const char*>(Data), Size);
+    if (Size == 0) return 0;
 
-    // Test icalcomponent_new_x
-    icalcomponent *comp_x = icalcomponent_new_x(input_data.c_str());
-    if (comp_x) {
-        // Test icalcomponent_set_x_name
-        icalcomponent_set_x_name(comp_x, input_data.c_str());
+    // Create a component with an X-NAME
+    icalcomponent* comp = create_component_with_name(Data, Size);
+    if (!comp) return 0;
 
-        // Test icalcomponent_get_x_name
-        const char *x_name = icalcomponent_get_x_name(comp_x);
-        if (x_name) {
-            std::cout << "X-Name: " << x_name << std::endl;
-        }
+    // Set IANA name
+    set_iana_name(comp, Data, Size);
 
-        // Test icalcomponent_as_ical_string
-        const char *ical_str = icalcomponent_as_ical_string(comp_x);
-        if (ical_str) {
-            std::cout << "iCal String: " << ical_str << std::endl;
-            // No need to free ical_str as it is managed by libical
-        }
-
-        // Test icalcomponent_set_description
-        icalcomponent_set_description(comp_x, input_data.c_str());
-
-        // Cleanup
-        icalcomponent_free(comp_x);
+    // Get IANA name
+    const char* iana_name = icalcomponent_get_x_name(comp); // Using get_x_name as a placeholder
+    if (iana_name) {
+        // Do something with iana_name, e.g., logging or further processing
     }
 
-    // Test icalcomponent_new_xpatch
-    icalcomponent *comp_xpatch = icalcomponent_new_xpatch();
-    if (comp_xpatch) {
-        // Test icalcomponent_as_ical_string
-        const char *ical_str_xpatch = icalcomponent_as_ical_string(comp_xpatch);
-        if (ical_str_xpatch) {
-            std::cout << "iCal XPATCH String: " << ical_str_xpatch << std::endl;
-            // No need to free ical_str_xpatch as it is managed by libical
-        }
+    // Set X-NAME
+    set_x_name(comp, Data, Size);
 
-        // Cleanup
-        icalcomponent_free(comp_xpatch);
+    // Get component name
+    char* comp_name = icalcomponent_get_component_name_r(comp);
+    if (comp_name) {
+        // Do something with comp_name, e.g., logging or further processing
+        free(comp_name); // Remember to free the allocated name
     }
+
+    // Clean up
+    icalcomponent_free(comp);
 
     return 0;
 }

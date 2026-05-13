@@ -1,38 +1,29 @@
-#include <libical/ical.h>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <cstdint> // Include for uint8_t
+#include <cstddef> // Include for size_t
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_78(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_vpatch();
+
+    // Perform operations or checks on the component if needed
+    if (component != NULL) {
+        // Example operation: convert component to string and print
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // Print the component string (for debugging purposes)
+            // printf("%s\n", component_str);
+
+            // Free the component string
+            icalmemory_free_buffer(component_str);
+        }
+
+        // Free the component
+        icalcomponent_free(component);
     }
-
-    // Create a temporary buffer to hold the data and ensure it's null-terminated
-    char *buffer = static_cast<char*>(malloc(size + 1));
-    if (buffer == nullptr) {
-        return 0;
-    }
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
-
-    // Parse the buffer into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(buffer);
-
-    // Free the buffer as it's no longer needed
-    free(buffer);
-
-    if (component == nullptr) {
-        return 0;
-    }
-
-    // Iterate over a few icalproperty_kind values to test the function
-    for (int kind = ICAL_ANY_PROPERTY; kind <= ICAL_X_PROPERTY; ++kind) {
-        icalcomponent_count_properties(component, static_cast<icalproperty_kind>(kind));
-    }
-
-    // Clean up the icalcomponent
-    icalcomponent_free(component);
 
     return 0;
 }

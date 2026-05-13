@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalpropiter_deref at icalcomponent.c:1479:15 in icalcomponent.h
-// icalpropiter_next at icalcomponent.c:1460:15 in icalcomponent.h
-// icalcomponent_get_current_property at icalcomponent.c:463:15 in icalcomponent.h
-// icalproperty_get_parent at icalproperty.c:907:16 in icalcomponent.h
-// icalcomponent_remove_property at icalcomponent.c:400:6 in icalcomponent.h
-// icalproperty_set_parent at icalproperty.c:900:6 in icalcomponent.h
+// icalcomponent_get_span at icalcomponent.c:713:15 in icalcomponent.h
+// icalcomponent_new_vtodo at icalcomponent.c:2099:16 in icalcomponent.h
+// icalcomponent_new_vfreebusy at icalcomponent.c:2114:16 in icalcomponent.h
+// icalcomponent_clone at icalcomponent.c:137:16 in icalcomponent.h
+// icalcomponent_set_duration at icalcomponent.c:1711:6 in icalcomponent.h
+// icalcomponent_convert_errors at icalcomponent.c:1211:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -14,55 +14,64 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
+#include <iostream>
+#include <fstream>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include "icalcomponent.h"
+#include <icalcomponent.h>
+
+static void write_dummy_file(const uint8_t *Data, size_t Size) {
+    std::ofstream file("./dummy_file", std::ios::binary);
+    if (file.is_open()) {
+        file.write(reinterpret_cast<const char*>(Data), Size);
+        file.close();
+    }
+}
 
 extern "C" int LLVMFuzzerTestOneInput_16(const uint8_t *Data, size_t Size) {
-    if (Size < sizeof(icalcomponent_kind) + sizeof(icalproperty_kind)) {
+    if (Size < 1) {
         return 0;
     }
 
-    // Prepare environment
-    icalcomponent_kind comp_kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-    icalproperty_kind prop_kind = static_cast<icalproperty_kind>((Data[1] % ICAL_NO_PROPERTY) + 1);
-
-    icalcomponent *component = icalcomponent_new(comp_kind);
-    icalproperty *property = icalproperty_new(prop_kind);
-
-    if (!component || !property) {
-        if (component) icalcomponent_free(component);
-        if (property) icalproperty_free(property);
+    // Create a new VTODO component
+    icalcomponent *vtodo = icalcomponent_new_vtodo();
+    if (vtodo == nullptr) {
         return 0;
     }
 
-    // Set parent
-    icalproperty_set_parent(property, component);
-
-    // Get parent
-    icalcomponent *parent = icalproperty_get_parent(property);
-
-    // Use iterators
-    icalpropiter iter;
-    iter.kind = ICAL_ANY_PROPERTY;
-    iter.iter = nullptr;
-
-    icalproperty *current_prop = icalcomponent_get_current_property(component);
-    if (current_prop) {
-        icalproperty *deref_prop = icalpropiter_deref(&iter);
-        icalproperty *next_prop = icalpropiter_next(&iter);
+    // Clone the VTODO component
+    icalcomponent *cloned_component = icalcomponent_clone(vtodo);
+    if (cloned_component != nullptr) {
+        icalcomponent_free(cloned_component);
     }
 
-    // Remove property
-    icalcomponent_remove_property(component, property);
+    // Set duration on the VTODO component
+    struct icaldurationtype duration;
+    duration.is_neg = 0;
+    duration.days = static_cast<unsigned int>(Data[0]);
+    icalcomponent_set_duration(vtodo, duration);
 
-    // Cleanup
-    icalproperty_free(property); // Ensure property is freed before the component
-    icalcomponent_free(component);
+    // Get the time span of the VTODO component
+    struct icaltime_span span = icalcomponent_get_span(vtodo);
+
+    // Convert errors in the VTODO component
+    icalcomponent_convert_errors(vtodo);
+
+    // Create a new VFREEBUSY component
+    icalcomponent *vfreebusy = icalcomponent_new_vfreebusy();
+    if (vfreebusy != nullptr) {
+        icalcomponent_free(vfreebusy);
+    }
+
+    // Write data to a dummy file if necessary
+    write_dummy_file(Data, Size);
+
+    // Free the original VTODO component
+    icalcomponent_free(vtodo);
 
     return 0;
 }

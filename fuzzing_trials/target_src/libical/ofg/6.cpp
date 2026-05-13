@@ -4,24 +4,25 @@
 #include <string.h>
 
 extern "C" {
-    #include <libical/ical.h> // Include the actual header where icalcomponent_kind is defined
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-    // Ensure the input data is null-terminated
-    char *null_terminated_data = (char *)malloc(size + 1);
-    if (null_terminated_data == NULL) {
-        return 0; // Allocation failed, return
+    // Ensure the input data is null-terminated to be used as a C string
+    char *inputString = (char *)malloc(size + 1);
+    if (inputString == NULL) {
+        return 0; // Exit if memory allocation fails
     }
-    
-    memcpy(null_terminated_data, data, size);
-    null_terminated_data[size] = '\0';
+
+    // Copy data to inputString and null-terminate it
+    memcpy(inputString, data, size);
+    inputString[size] = '\0';
 
     // Call the function-under-test
-    icalcomponent_kind kind = icalcomponent_string_to_kind(null_terminated_data);
+    icalcomponent_kind kind = icalcomponent_string_to_kind(inputString);
 
-    // Clean up
-    free(null_terminated_data);
+    // Free allocated memory
+    free(inputString);
 
     return 0;
 }

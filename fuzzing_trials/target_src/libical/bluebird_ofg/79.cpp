@@ -1,63 +1,49 @@
-#include <sys/stat.h>
 #include <string.h>
-#include "libical/ical.h"
+#include <sys/stat.h>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 
+extern "C" {
+    #include "libical/ical.h"
+}
+
 extern "C" int LLVMFuzzerTestOneInput_79(const uint8_t *data, size_t size) {
-    // Ensure that the input data is not empty
-    if (size == 0) {
-        return 0;
-    }
+    // Initialize variables
+    icalcomponent *component = nullptr;
+    icalproperty_kind kind = ICAL_NO_PROPERTY;
 
-    // Create a temporary buffer to hold the input data
-    char *buffer = static_cast<char *>(malloc(size + 1));
-    if (buffer == nullptr) {
-        return 0;
-    }
+    // Ensure that size is sufficient to extract at least one character for kind
+    if (size > 0) {
+        // Create a new icalcomponent
+        component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
 
-    // Copy the input data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
+        // Use the first byte of data to determine the icalproperty_kind
+        kind = static_cast<icalproperty_kind>(data[0] % (ICAL_ANY_PROPERTY + 1)); // Fix division by zero
 
-    // Parse the buffer into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(buffer);
+        // Create a new icalproperty with the determined kind
+        icalproperty *property = icalproperty_new(kind);
 
-    // If parsing was successful, call the function-under-test
-    if (component != nullptr) {
-        char *icalString = icalcomponent_as_ical_string_r(component);
+        // Check if property creation was successful
+        if (property != nullptr) {
+            // Add the property to the component
+            icalcomponent_add_property(component, property);
 
-        // Free the returned string if it's not null
-        if (icalString != nullptr) {
-            free(icalString);
+            // Iterate over properties to ensure full coverage
+            for (icalproperty *prop = icalcomponent_get_first_property(component, kind);
+                 prop != nullptr;
+                 prop = icalcomponent_get_next_property(component, kind)) {
+                // Process the property in some way
+                const char *prop_name = icalproperty_get_property_name(prop);
+                if (prop_name) {
+                    // Do something with the property name
+                }
+            }
         }
 
-        // Free the icalcomponent
-
-        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_as_ical_string_r to icalcomponent_set_relcalid
-        icalcompiter gzotmgxs;
-        memset(&gzotmgxs, 0, sizeof(gzotmgxs));
-        icalcomponent* ret_icalcompiter_deref_mmnvx = icalcompiter_deref(&gzotmgxs);
-        if (ret_icalcompiter_deref_mmnvx == NULL){
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!ret_icalcompiter_deref_mmnvx) {
-        	return 0;
-        }
-        // Ensure dataflow is valid (i.e., non-null)
-        if (!icalString) {
-        	return 0;
-        }
-        icalcomponent_set_relcalid(ret_icalcompiter_deref_mmnvx, icalString);
-        // End mutation: Producer.APPEND_MUTATOR
-        
+        // Clean up
         icalcomponent_free(component);
     }
-
-    // Free the buffer
-    free(buffer);
 
     return 0;
 }

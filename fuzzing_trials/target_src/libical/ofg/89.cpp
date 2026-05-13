@@ -1,37 +1,33 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <libical/ical.h>
 
 extern "C" {
-    #include <libical/ical.h> // Correctly include the libical header
-
-    // Function signature for the function-under-test
-    void icalcomponent_set_method(icalcomponent *, icalproperty_method);
+    // Include necessary C headers, source files, functions, and code here.
+    void icalcomponent_set_duration(icalcomponent *, struct icaldurationtype);
 }
 
 extern "C" int LLVMFuzzerTestOneInput_89(const uint8_t *data, size_t size) {
-    // Initialize variables before goto
-    icalcomponent *component = nullptr;
-    icalproperty_method method;
-
-    // Ensure there is enough data to extract a method value
-    if (size < sizeof(icalproperty_method)) {
+    // Create an icalcomponent
+    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (comp == NULL) {
         return 0;
     }
 
-    // Create a new icalcomponent
-    component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    if (component == nullptr) {
-        return 0;
-    }
+    // Initialize an icaldurationtype with non-NULL values
+    struct icaldurationtype duration;
+    duration.is_neg = 0; // Positive duration
+    duration.weeks = (size > 0) ? data[0] % 52 : 1; // Weeks (0-51)
+    duration.days = (size > 1) ? data[1] % 7 : 1;   // Days (0-6)
+    duration.hours = (size > 2) ? data[2] % 24 : 1; // Hours (0-23)
+    duration.minutes = (size > 3) ? data[3] % 60 : 1; // Minutes (0-59)
+    duration.seconds = (size > 4) ? data[4] % 60 : 1; // Seconds (0-59)
 
-    // Extract a method value from the input data
-    method = static_cast<icalproperty_method>(data[0] % ICAL_METHOD_NONE);
-
-    // Call the function-under-test
-    icalcomponent_set_method(component, method);
+    // Call the function under test
+    icalcomponent_set_duration(comp, duration);
 
     // Clean up
-    icalcomponent_free(component);
+    icalcomponent_free(comp);
 
     return 0;
 }

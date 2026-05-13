@@ -9,21 +9,48 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-extern "C" {
+#include <iostream>
+#include <fstream>
+#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
+
+static icalcomponent* create_dummy_icalcomponent() {
+    // Create a dummy icalcomponent for testing
+    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (comp) {
+        // Set some properties to explore more states
+        icalcomponent_set_uid(comp, "dummy-uid");
+        icalproperty *summary = icalproperty_new_summary("Dummy Summary");
+        if (summary) {
+            icalcomponent_add_property(comp, summary);
+        }
+        icalproperty *location = icalproperty_new_location("Dummy Location");
+        if (location) {
+            icalcomponent_add_property(comp, location);
+        }
+        icalproperty *comment = icalproperty_new_comment("Dummy Comment");
+        if (comment) {
+            icalcomponent_add_property(comp, comment);
+        }
+        icalproperty *relcalid = icalproperty_new_relcalid("Dummy RelCalId");
+        if (relcalid) {
+            icalcomponent_add_property(comp, relcalid);
+        
+            // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_add_property to icalcomponent_set_duration
+            struct icaldurationtype ret_icalcomponent_get_duration_hqkzs = icalcomponent_get_duration(NULL);
+            // Ensure dataflow is valid (i.e., non-null)
+            if (!comp) {
+            	return 0;
+            }
+            icalcomponent_set_duration(comp, ret_icalcomponent_get_duration_hqkzs);
+            // End mutation: Producer.APPEND_MUTATOR
+            
 }
-
-#include <cstdint>
-#include <cstdlib>
-
-static icalcomponent* create_dummy_component() {
-    icalcomponent* component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
-    icalcomponent* vevent = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalcomponent_add_component(component, vevent);
-    return component;
+    }
+    return comp;
 }
 
 extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
@@ -31,36 +58,32 @@ extern "C" int LLVMFuzzerTestOneInput_10(const uint8_t *Data, size_t Size) {
         return 0;
     }
 
-    // Create a dummy component to work with
-    icalcomponent* component = create_dummy_component();
-
-    // Choose a component kind based on fuzzing data
-    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES);
-
-    // Begin component iteration
-    icalcompiter iter = icalcomponent_begin_component(component, kind);
-
-    // Traverse components using the iterator
-    while (icalcompiter_deref(&iter)) {
-        icalcomponent* current_component = icalcompiter_deref(&iter);
-        if (current_component) {
-            // Use icalcomponent_get_current_component
-            icalcomponent_get_current_component(current_component);
-        }
-        icalcompiter_next(&iter);
+    // Create a dummy icalcomponent
+    icalcomponent *comp = create_dummy_icalcomponent();
+    if (!comp) {
+        return 0;
     }
 
-    // End component iteration
-    iter = icalcomponent_end_component(component, kind);
-
-    // Use icalcomponent_get_first_component
-    icalcomponent* first_component = icalcomponent_get_first_component(component, kind);
-    if (first_component) {
-        icalcomponent_get_current_component(first_component);
+    // Clone the component
+    icalcomponent *clone = icalcomponent_clone(comp);
+    if (clone) {
+        icalcomponent_free(clone);
     }
+
+    // Get various properties
+    const char *comment = icalcomponent_get_comment(comp);
+    const char *location = icalcomponent_get_location(comp);
+    const char *relcalid = icalcomponent_get_relcalid(comp);
+    const char *summary = icalcomponent_get_summary(comp);
+
+    // Set a new UID using fuzzer data
+    char uid[Size + 1];
+    memcpy(uid, Data, Size);
+    uid[Size] = '\0';
+    icalcomponent_set_uid(comp, uid);
 
     // Clean up
-    icalcomponent_free(component);
+    icalcomponent_free(comp);
 
     return 0;
 }

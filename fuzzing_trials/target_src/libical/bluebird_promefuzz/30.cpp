@@ -9,50 +9,85 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstddef>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "libical/ical.h"
 #include "/src/libical/src/libical/icalcomponent.h"
 
+static void fuzz_icalcomponent_set_sequence(icalcomponent *comp, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(int)) return;
+    int sequence = *reinterpret_cast<const int*>(Data);
+    icalcomponent_set_sequence(comp, sequence);
+}
+
+static void fuzz_icalcomponent_get_sequence(icalcomponent *comp) {
+    int sequence = icalcomponent_get_sequence(comp);
+    (void)sequence; // Suppress unused variable warning
+}
+
+static void fuzz_icalcomponent_count_properties(icalcomponent *comp, const uint8_t *Data, size_t Size) {
+    if (Size < sizeof(icalproperty_kind)) return;
+    icalproperty_kind kind = *reinterpret_cast<const icalproperty_kind*>(Data);
+    int count = icalcomponent_count_properties(comp, kind);
+    (void)count; // Suppress unused variable warning
+}
+
+static void fuzz_icalcomponent_new_x(const uint8_t *Data, size_t Size) {
+    char *x_name = static_cast<char*>(malloc(Size + 1));
+    if (!x_name) return;
+    memcpy(x_name, Data, Size);
+    x_name[Size] = '\0';
+    icalcomponent *comp = icalcomponent_new_x(x_name);
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+    free(x_name);
+}
+
+static void fuzz_icalcomponent_new_vpoll() {
+    icalcomponent *comp = icalcomponent_new_vpoll();
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+}
+
+static void fuzz_icalcomponent_new_vfreebusy() {
+    icalcomponent *comp = icalcomponent_new_vfreebusy();
+    if (comp) {
+        icalcomponent_free(comp);
+    }
+}
+
 extern "C" int LLVMFuzzerTestOneInput_30(const uint8_t *Data, size_t Size) {
-    // Create a new vPatch component
-    icalcomponent *vpatch = icalcomponent_new_vpatch();
-    if (vpatch) {
-        // Convert errors in the vPatch component
-        icalcomponent_convert_errors(vpatch);
-        // Free the vPatch component
-        icalcomponent_free(vpatch);
-    }
+    if (Size < 1) return 0;
 
-    // Create a new vPoll component
-    icalcomponent *vpoll = icalcomponent_new_vpoll();
-    if (vpoll) {
-        // Convert errors in the vPoll component
-        icalcomponent_convert_errors(vpoll);
-        // Free the vPoll component
-        icalcomponent_free(vpoll);
-    }
+    // Fuzz icalcomponent_new_vpoll
+    fuzz_icalcomponent_new_vpoll();
 
-    // Create a new xVote component
-    icalcomponent *xvote = icalcomponent_new_xvote();
-    if (xvote) {
-        // Convert errors in the xVote component
-        icalcomponent_convert_errors(xvote);
-        // Free the xVote component
-        icalcomponent_free(xvote);
-    }
+    // Fuzz icalcomponent_new_vfreebusy
+    fuzz_icalcomponent_new_vfreebusy();
 
-    // Create a new xPatch component
-    icalcomponent *xpatch = icalcomponent_new_xpatch();
-    if (xpatch) {
-        // Convert errors in the xPatch component
-        icalcomponent_convert_errors(xpatch);
-        // Free the xPatch component
-        icalcomponent_free(xpatch);
-    }
+    // Fuzz icalcomponent_new_x
+    fuzz_icalcomponent_new_x(Data, Size);
+
+    // Create a new dummy component
+    icalcomponent *comp = icalcomponent_new_vpoll();
+    if (!comp) return 0;
+
+    // Fuzz icalcomponent_set_sequence
+    fuzz_icalcomponent_set_sequence(comp, Data, Size);
+
+    // Fuzz icalcomponent_get_sequence
+    fuzz_icalcomponent_get_sequence(comp);
+
+    // Fuzz icalcomponent_count_properties
+    fuzz_icalcomponent_count_properties(comp, Data, Size);
+
+    // Clean up
+    icalcomponent_free(comp);
 
     return 0;
 }

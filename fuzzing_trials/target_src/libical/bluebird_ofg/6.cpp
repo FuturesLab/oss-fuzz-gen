@@ -1,46 +1,38 @@
+#include <string.h>
 #include <sys/stat.h>
-#include "libical/ical.h"
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>  // Include for malloc and free
-#include <string.h>  // Include for memcpy
+#include <cstdint>  // For uint8_t
+#include <cstddef>  // For size_t
+#include <cstring>  // For memcpy
 
 extern "C" {
-    // Include necessary C headers, source files, functions, and code here.
     #include "libical/ical.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_6(const uint8_t *data, size_t size) {
-    // Initialize a icalcomponent and icalcompiter
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalcompiter iter;
+    // Initialize the icalcomponent object
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
 
-    // Ensure the data is not empty and within a reasonable size
+    // Ensure that the data size is reasonable for the buffer
     if (size > 0 && size < 1024) {
-        // Create a temporary buffer to store the input data
-        char *buffer = (char *)malloc(size + 1);
-        if (buffer != NULL) {
-            memcpy(buffer, data, size);
-            buffer[size] = '\0';
+        // Create a temporary buffer to hold the input data
+        char buffer[1024];
+        memcpy(buffer, data, size);
+        buffer[size] = '\0'; // Null-terminate the buffer
 
-            // Attempt to parse the buffer into an icalcomponent
-            icalcomponent *parsed_component = icalparser_parse_string(buffer);
-            if (parsed_component != NULL) {
-                // Initialize the iterator with the parsed component
-                iter = icalcomponent_begin_component(parsed_component, ICAL_ANY_COMPONENT);
+        // Parse the buffer into an icalcomponent
+        icalcomponent *parsed_component = icalparser_parse_string(buffer);
+        if (parsed_component != NULL) {
+            // Use the function-under-test
+            const char *component_name = icalcomponent_get_component_name(parsed_component);
 
-                // Call the function-under-test
-                icalcomponent *prior_component = icalcompiter_prior(&iter);
-
-                // Clean up
-                icalcomponent_free(parsed_component);
-            }
-
-            free(buffer);
+            // Clean up the parsed component
+            // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+            icalcomponent_normalize(parsed_component);
+            // End mutation: Producer.REPLACE_FUNC_MUTATOR
         }
     }
 
-    // Clean up
+    // Clean up the initial icalcomponent
     icalcomponent_free(component);
 
     return 0;

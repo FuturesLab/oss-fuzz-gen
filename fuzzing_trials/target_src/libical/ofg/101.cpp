@@ -1,42 +1,45 @@
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h> // Include for memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_101(const uint8_t *data, size_t size) {
-    // Ensure the data is large enough to extract meaningful values
-    if (size < sizeof(int) * 6) {
+    if (size < 1) {
         return 0;
     }
 
-    // Initialize an icalcomponent
+    // Initialize icalcomponent
     icalcomponent *component = icalcomponent_new(ICAL_VTODO_COMPONENT);
-    if (component == NULL) {
+    if (!component) {
         return 0;
     }
 
-    // Extract values from the data to create an icaltimetype
-    int year = (int)data[0] + 1900; // Year range from 1900 to 2155
-    int month = (int)(data[1] % 12) + 1; // Month range from 1 to 12
-    int day = (int)(data[2] % 31) + 1; // Day range from 1 to 31
-    int hour = (int)(data[3] % 24); // Hour range from 0 to 23
-    int minute = (int)(data[4] % 60); // Minute range from 0 to 59
-    int second = (int)(data[5] % 60); // Second range from 0 to 59
-
-    struct icaltimetype due_time = icaltime_from_day_of_year(
-        day, year);
-
-    due_time.month = month;
-    due_time.day = day;
-    due_time.hour = hour;
-    due_time.minute = minute;
-    due_time.second = second;
-    due_time.is_date = 0; // Set to 0 to indicate this is a date-time
+    // Initialize icaltimetype
+    struct icaltimetype due_time;
+    due_time.year = 2023;  // Example year
+    due_time.month = 10;   // Example month
+    due_time.day = 15;     // Example day
+    due_time.hour = 12;    // Example hour
+    due_time.minute = 30;  // Example minute
+    due_time.second = 0;   // Example second
+    due_time.is_date = 0;  // Example is_date
+    due_time.zone = icaltimezone_get_utc_timezone(); // Example timezone
 
     // Call the function-under-test
     icalcomponent_set_due(component, due_time);
+
+    // Use the input data to modify the component
+    // For example, set a summary if the size is sufficient
+    if (size > 1) {
+        char summary[256];
+        size_t summary_length = size < 256 ? size : 255;
+        memcpy(summary, data, summary_length);
+        summary[summary_length] = '\0'; // Ensure null-termination
+        icalcomponent_set_summary(component, summary);
+    }
 
     // Clean up
     icalcomponent_free(component);

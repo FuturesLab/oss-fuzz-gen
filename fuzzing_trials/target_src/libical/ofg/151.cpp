@@ -1,32 +1,31 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstddef>  // Include for size_t
+#include <cstddef>
+#include <cstdint>
 
 extern "C" {
-#include <libical/ical.h>
+    #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_151(const uint8_t *data, size_t size) {
-    // Initialize two icalcomponent pointers
-    icalcomponent *comp1 = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    icalcomponent *comp2 = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-
-    // Ensure comp1 and comp2 are not NULL
-    if (comp1 == NULL || comp2 == NULL) {
-        if (comp1 != NULL) {
-            icalcomponent_free(comp1);
-        }
-        if (comp2 != NULL) {
-            icalcomponent_free(comp2);
-        }
-        return 0;
-    }
-
     // Call the function-under-test
-    icalcomponent_set_parent(comp1, comp2);
+    icalcomponent *component = icalcomponent_new_vvoter();
 
-    // Clean up
-    icalcomponent_free(comp1);
-    icalcomponent_free(comp2);
+    // Check if the component was created successfully
+    if (component != NULL) {
+        // Perform operations on the component if needed
+        // For example, convert the component to a string and print it
+        char *component_str = icalcomponent_as_ical_string(component);
+        if (component_str != NULL) {
+            // Normally, you would use the component_str for further processing
+            // For fuzzing purposes, we can just print it to verify the function call
+            // printf("%s\n", component_str); // Uncomment if needed for debugging
+
+            // Free the string after use
+            icalmemory_free_buffer(component_str);
+        }
+
+        // Free the component after use
+        icalcomponent_free(component);
+    }
 
     return 0;
 }

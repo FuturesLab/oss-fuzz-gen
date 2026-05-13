@@ -1,25 +1,33 @@
 #include <libical/ical.h>
-#include <stdint.h>
-#include <stdlib.h>
+#include <cstddef>
+#include <cstdint>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_129(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_xpatch();
+    // Ensure there is enough data to create a valid icalcomponent
+    if (size == 0) {
+        return 0;
+    }
 
-    // Check if the component is created successfully
-    if (component != NULL) {
-        // Perform operations on the component if necessary
-        // For example, convert it to a string or manipulate it
-        char *component_str = icalcomponent_as_ical_string(component);
-        if (component_str != NULL) {
-            // Do something with the string representation
-            // For now, just free the string
-            free(component_str);
-        }
+    // Create a temporary buffer to hold the data
+    char *buffer = new char[size + 1];
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';  // Null-terminate the buffer to make it a valid string
 
-        // Free the component after use
+    // Parse the buffer into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(buffer);
+
+    // If parsing was successful, call the function-under-test
+    if (component != nullptr) {
+        icalproperty *property = icalcomponent_get_current_property(component);
+        // Normally you would do something with the property, but for fuzzing, just ensure the function is called
+    }
+
+    // Clean up
+    if (component != nullptr) {
         icalcomponent_free(component);
     }
+    delete[] buffer;
 
     return 0;
 }

@@ -1,44 +1,44 @@
 #include <libical/ical.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>  // For malloc and free
-#include <string.h>  // For memcpy
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Include this header for memcpy
 
 extern "C" {
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_140(const uint8_t *data, size_t size) {
-    if (size == 0) {
-        return 0;
-    }
+    // Initialize libical
+    icalcomponent *component = nullptr;
+    icalcomponent *real_component = nullptr;
 
-    // Create a temporary string buffer from the input data
-    char *str = (char *)malloc(size + 1);
-    if (str == NULL) {
-        return 0;
-    }
-    memcpy(str, data, size);
-    str[size] = '\0';  // Null-terminate the string
+    // Ensure size is non-zero to avoid creating an empty string
+    if (size > 0) {
+        // Create a string from the input data
+        char *ical_string = static_cast<char *>(malloc(size + 1));
+        if (ical_string == nullptr) {
+            return 0; // Memory allocation failed
+        }
+        memcpy(ical_string, data, size);
+        ical_string[size] = '\0'; // Null-terminate the string
 
-    // Parse the string into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(str);
-    if (component != NULL) {
-        // Call the function-under-test
-        const char *location = icalcomponent_get_location(component);
+        // Parse the input data into an icalcomponent
+        component = icalparser_parse_string(ical_string);
+        free(ical_string);
 
-        // Use the location in some way to avoid compiler optimizations removing the call
-        if (location != NULL) {
-            // Print the location (for debugging purposes)
-            // printf("Location: %s\n", location);
+        if (component != nullptr) {
+            // Call the function-under-test
+            real_component = icalcomponent_get_first_real_component(component);
+
+            // Optionally, perform additional operations on real_component
+            // For example, you could print its type or properties
         }
 
-        // Free the icalcomponent
-        icalcomponent_free(component);
+        // Clean up
+        if (component != nullptr) {
+            icalcomponent_free(component);
+        }
     }
-
-    // Free the temporary string buffer
-    free(str);
 
     return 0;
 }

@@ -1,30 +1,63 @@
 #include <sys/stat.h>
+#include "libical/ical.h"
 #include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
-#include <string.h> // Include for memcpy
-
-extern "C" {
-    #include "libical/ical.h"
-}
+#include <stdlib.h>
+#include <string.h>
 
 extern "C" int LLVMFuzzerTestOneInput_49(const uint8_t *data, size_t size) {
-    // Ensure there's enough data to initialize icalpropiter
-    if (size < sizeof(icalpropiter)) {
+    // Ensure the data size is sufficient to create a valid string
+    if (size == 0) {
         return 0;
     }
 
-    // Initialize icalpropiter from the input data
-    icalpropiter iter;
-    memcpy(&iter, data, sizeof(icalpropiter));
-
-    // Call the function-under-test
-    bool is_valid = icalpropiter_is_valid(&iter);
-
-    // Use the result in some way to prevent compiler optimizations
-    if (is_valid) {
-        // Do something if valid (no-op)
+    // Create a null-terminated string from the input data
+    char *inputData = (char *)malloc(size + 1);
+    if (inputData == NULL) {
+        return 0;
     }
+    memcpy(inputData, data, size);
+    inputData[size] = '\0';
+
+    // Parse the input data into an icalcomponent
+    icalcomponent *component = icalparser_parse_string(inputData);
+
+    // Check if the component was successfully created
+    if (component != NULL) {
+        // Call the function-under-test
+        char *icalString = icalcomponent_as_ical_string_r(component);
+
+        // Free the resulting string if it was created
+        if (icalString != NULL) {
+            free(icalString);
+        }
+
+        // Free the icalcomponent
+        // Begin mutation: Producer.REPLACE_FUNC_MUTATOR - Replaced function icalcomponent_free with icalcomponent_normalize
+        icalcomponent_normalize(component);
+        // End mutation: Producer.REPLACE_FUNC_MUTATOR
+    
+        // Begin mutation: Producer.APPEND_MUTATOR - Incorporated data flow from icalcomponent_normalize to icalproperty_set_parent
+        icalpropiter orczcwvk;
+        memset(&orczcwvk, 0, sizeof(orczcwvk));
+        icalproperty* ret_icalpropiter_next_zcnux = icalpropiter_next(&orczcwvk);
+        if (ret_icalpropiter_next_zcnux == NULL){
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!ret_icalpropiter_next_zcnux) {
+        	return 0;
+        }
+        // Ensure dataflow is valid (i.e., non-null)
+        if (!component) {
+        	return 0;
+        }
+        icalproperty_set_parent(ret_icalpropiter_next_zcnux, component);
+        // End mutation: Producer.APPEND_MUTATOR
+        
+}
+
+    // Free the input data
+    free(inputData);
 
     return 0;
 }

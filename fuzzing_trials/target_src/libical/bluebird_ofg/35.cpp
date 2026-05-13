@@ -1,40 +1,36 @@
-#include <sys/stat.h>
-#include "libical/ical.h"
-#include <stdint.h>
-#include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <cstdint>  // Include for uint8_t
+#include <cstddef>  // Include for size_t
+
+extern "C" {
+#include "libical/ical.h"
+}
 
 extern "C" int LLVMFuzzerTestOneInput_35(const uint8_t *data, size_t size) {
-    // Ensure the data size is sufficient to create a valid icalcomponent
-    if (size == 0) {
-        return 0;
-    }
-
-    // Create a temporary buffer to hold the data
-    char *tempData = (char *)malloc(size + 1);
-    if (tempData == NULL) {
-        return 0;
-    }
-
-    // Copy the input data to the temporary buffer and null-terminate it
-    memcpy(tempData, data, size);
-    tempData[size] = '\0';
-
-    // Parse the input data into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(tempData);
-
-    // Free the temporary buffer
-    free(tempData);
-
-    // If the component is NULL, exit
+    // Initialize the icalcomponent with some default data
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
     if (component == NULL) {
         return 0;
     }
 
-    // Call the function-under-test
-    struct icaldurationtype duration = icalcomponent_get_duration(component);
+    // Add a property to ensure the component is not empty
+    icalproperty *property = icalproperty_new_summary("Sample Event");
+    icalcomponent_add_property(component, property);
 
-    // Clean up the icalcomponent
+    // Ensure the data size is sufficient to extract a property kind
+    if (size < sizeof(icalproperty_kind)) {
+        icalcomponent_free(component);
+        return 0;
+    }
+
+    // Extract a property kind from the input data
+    icalproperty_kind kind = static_cast<icalproperty_kind>(data[0] % ICAL_NO_PROPERTY);
+
+    // Call the function-under-test
+    icalcomponent_remove_property_by_kind(component, kind);
+
+    // Clean up
     icalcomponent_free(component);
 
     return 0;

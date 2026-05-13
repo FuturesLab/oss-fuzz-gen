@@ -1,21 +1,27 @@
-#include <cstdint>  // Include for uint8_t
-#include <cstddef>  // Include for size_t
-
-extern "C" {
+#include <stdint.h>
+#include <stdlib.h>
 #include <libical/ical.h>
-}
 
 extern "C" int LLVMFuzzerTestOneInput_17(const uint8_t *data, size_t size) {
-    // Ensure that the input data is large enough to be used
+    // Ensure size is sufficient to create both icalproperty and icalcomponent
     if (size < 2) {
         return 0;
     }
 
-    // Create a dummy icalproperty and icalcomponent
+    // Create a new icalproperty
     icalproperty *property = icalproperty_new(ICAL_ANY_PROPERTY);
-    icalcomponent *component = icalcomponent_new(ICAL_NO_COMPONENT);
+    if (property == NULL) {
+        return 0;
+    }
 
-    // Call the function under test
+    // Create a new icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_NO_COMPONENT);
+    if (component == NULL) {
+        icalproperty_free(property);
+        return 0;
+    }
+
+    // Call the function-under-test
     icalproperty_set_parent(property, component);
 
     // Clean up

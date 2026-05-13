@@ -1,38 +1,29 @@
-#include <libical/ical.h>
-#include <cstdint>
-#include <cstdlib>
-#include <cstring>
+#include <stdint.h>
+#include <stddef.h>
+
+extern "C" {
+    #include <libical/icalcomponent.h> // Corrected include path for libical
+
+    // Function to be fuzzed
+    const char *icalcomponent_get_x_name(const icalcomponent *);
+}
 
 extern "C" int LLVMFuzzerTestOneInput_160(const uint8_t *data, size_t size) {
-    // Ensure the input size is reasonable
-    if (size == 0) {
-        return 0;
+    // Initialize an icalcomponent object
+    icalcomponent *component = icalcomponent_new(ICAL_NO_COMPONENT);
+
+    if (component == NULL) {
+        return 0; // Exit if component creation failed
     }
 
-    // Create a temporary buffer to hold the input data
-    char *buffer = static_cast<char *>(malloc(size + 1));
-    if (buffer == nullptr) {
-        return 0;
-    }
+    // Call the function under test
+    const char *x_name = icalcomponent_get_x_name(component);
 
-    // Copy the input data into the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
+    // Optionally, you can do something with x_name here, like printing or logging
+    // For fuzzing, we generally don't need to do anything with the output
 
-    // Use the buffer to create an icalcomponent
-    icalcomponent *component = icalparser_parse_string(buffer);
-
-    // Check if the component was created successfully
-    if (component != nullptr) {
-        // Call the function-under-test
-        icalcomponent_convert_errors(component);
-
-        // Clean up the created component
-        icalcomponent_free(component);
-    }
-
-    // Free the allocated buffer
-    free(buffer);
+    // Clean up
+    icalcomponent_free(component);
 
     return 0;
 }

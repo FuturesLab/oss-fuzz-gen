@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_as_ical_string at icalcomponent.c:215:7 in icalcomponent.h
-// icalcomponent_as_ical_string_r at icalcomponent.c:226:7 in icalcomponent.h
-// icalcomponent_new_from_string at icalcomponent.c:124:16 in icalcomponent.h
-// icalcomponent_get_component_name_r at icalcomponent.c:353:7 in icalcomponent.h
-// icalcomponent_get_comment at icalcomponent.c:1781:13 in icalcomponent.h
-// icalcomponent_set_summary at icalcomponent.c:1734:6 in icalcomponent.h
+// icalcompiter_deref at icalcomponent.c:1484:16 in icalcomponent.h
+// icalcompiter_prior at icalcomponent.c:1465:16 in icalcomponent.h
+// icalcompiter_next at icalcomponent.c:1446:16 in icalcomponent.h
+// icalcomponent_begin_component at icalcomponent.c:1401:14 in icalcomponent.h
+// icalcomponent_end_component at icalcomponent.c:1424:14 in icalcomponent.h
+// icalcomponent_get_current_component at icalcomponent.c:643:16 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,57 +16,57 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <cstring>
+#include <iostream>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <icalcomponent.h>
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_40(const uint8_t *Data, size_t Size) {
-    if (Size < 1) return 0;
-
-    // Step 1: Create a null-terminated string from the input data
-    char *inputStr = static_cast<char *>(malloc(Size + 1));
-    if (!inputStr) return 0;
-    memcpy(inputStr, Data, Size);
-    inputStr[Size] = '\0';
-
-    // Step 2: Create an icalcomponent from the input string
-    icalcomponent *component = icalcomponent_new_from_string(inputStr);
-    free(inputStr);
-
-    if (component) {
-        // Step 3: Test icalcomponent_get_component_name_r
-        char *componentName = icalcomponent_get_component_name_r(component);
-        if (componentName) {
-            free(componentName);
-        }
-
-        // Step 4: Test icalcomponent_as_ical_string_r
-        char *icalStringR = icalcomponent_as_ical_string_r(component);
-        if (icalStringR) {
-            free(icalStringR);
-        }
-
-        // Step 5: Test icalcomponent_as_ical_string
-        char *icalString = icalcomponent_as_ical_string(component);
-        if (icalString) {
-            free(icalString);
-        }
-
-        // Step 6: Test icalcomponent_set_summary
-        const char *summaryText = "Sample Summary";
-        icalcomponent_set_summary(component, summaryText);
-
-        // Step 7: Test icalcomponent_get_comment
-        const char *comment = icalcomponent_get_comment(component);
-        if (comment) {
-            // Do something with the comment if needed
-        }
-
-        // Clean up the icalcomponent
-        icalcomponent_free(component);
+    if (Size < sizeof(icalcomponent_kind)) {
+        return 0; // Not enough data to extract icalcomponent_kind
     }
+
+    // Create a dummy icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VCALENDAR_COMPONENT);
+
+    // Extract icalcomponent_kind from input data
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0]);
+
+    // Try to use icalcomponent_end_component
+    icalcompiter end_iter = icalcomponent_end_component(component, kind);
+    icalcomponent *end_comp = icalcompiter_deref(&end_iter);
+    if (end_comp != NULL) {
+        // Do something with end_comp
+    }
+
+    // Try to use icalcomponent_begin_component
+    icalcompiter begin_iter = icalcomponent_begin_component(component, kind);
+    icalcomponent *begin_comp = icalcompiter_deref(&begin_iter);
+    if (begin_comp != NULL) {
+        // Do something with begin_comp
+    }
+
+    // Use icalcomponent_get_current_component
+    icalcomponent *current_comp = icalcomponent_get_current_component(component);
+    if (current_comp != NULL) {
+        // Do something with current_comp
+    }
+
+    // Use icalcompiter_prior
+    icalcomponent *prior_comp = icalcompiter_prior(&begin_iter);
+    if (prior_comp != NULL) {
+        // Do something with prior_comp
+    }
+
+    // Use icalcompiter_next
+    icalcomponent *next_comp = icalcompiter_next(&begin_iter);
+    if (next_comp != NULL) {
+        // Do something with next_comp
+    }
+
+    // Cleanup
+    icalcomponent_free(component);
 
     return 0;
 }

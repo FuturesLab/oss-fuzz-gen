@@ -1,30 +1,31 @@
-#include <stdint.h>
-#include <stdlib.h>
+#include <cstdint> // For uint8_t
+#include <cstddef> // For size_t
 
 extern "C" {
-    #include <libical/ical.h>
+#include "libical/ical.h"
 }
 
 extern "C" int LLVMFuzzerTestOneInput_47(const uint8_t *data, size_t size) {
-    // Ensure there is enough data to extract meaningful values
-    if (size < sizeof(icalproperty_status)) {
+    // Ensure there is enough data to proceed
+    if (size < 1) {
         return 0;
     }
 
-    // Initialize the icalcomponent
-    icalcomponent *comp = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (comp == NULL) {
+    // Initialize an icalcomponent
+    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (component == NULL) {
         return 0;
     }
 
-    // Extract a status value from the input data
-    icalproperty_status status = (icalproperty_status)data[0];
+    // Extract a value for icalproperty_status from the data
+    // Assuming the enumeration has values ranging from 0 to 4 (as an example)
+    icalproperty_status status = static_cast<icalproperty_status>(data[0] % 5);
 
     // Call the function-under-test
-    icalcomponent_set_status(comp, status);
+    icalcomponent_set_status(component, status);
 
     // Clean up
-    icalcomponent_free(comp);
+    icalcomponent_free(component);
 
     return 0;
 }

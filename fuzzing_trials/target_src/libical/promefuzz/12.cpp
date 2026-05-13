@@ -1,10 +1,10 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_begin_property at icalcomponent.c:1436:14 in icalcomponent.h
-// icalcomponent_remove_property_by_kind at icalcomponent.c:425:6 in icalcomponent.h
-// icalcomponent_get_next_property at icalcomponent.c:489:15 in icalcomponent.h
-// icalcomponent_get_first_property at icalcomponent.c:474:15 in icalcomponent.h
-// icalcomponent_remove_property at icalcomponent.c:400:6 in icalcomponent.h
-// icalcomponent_add_property at icalcomponent.c:385:6 in icalcomponent.h
+// icalcomponent_get_due at icalcomponent.c:2661:21 in icalcomponent.h
+// icalcomponent_get_recurrenceid at icalcomponent.c:1923:21 in icalcomponent.h
+// icalcomponent_set_due at icalcomponent.c:2682:6 in icalcomponent.h
+// icalcomponent_get_dtend at icalcomponent.c:1630:21 in icalcomponent.h
+// icalcomponent_set_dtend at icalcomponent.c:1686:6 in icalcomponent.h
+// icalcomponent_set_dtstart at icalcomponent.c:1597:6 in icalcomponent.h
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -16,68 +16,75 @@
 #include <cstddef>
 #include <iostream>
 #include <fstream>
-#include <cstdint>
-#include <cstdlib>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
+#include <libical/icalcomponent.h>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
+#include <libical/icaltime.h>
 #include "ical.h"
-#include "icalcomponent.h"
+#include "ical.h"
+#include "ical.h"
+#include <libical/icalerror.h>
+
+static icalcomponent* create_component_from_data(const uint8_t *Data, size_t Size) {
+    // Create a dummy VTODO component
+    icalcomponent *comp = icalcomponent_new(ICAL_VTODO_COMPONENT);
+    if (!comp) {
+        return nullptr;
+    }
+
+    // Set some basic properties using the provided data
+    if (Size >= sizeof(time_t)) {
+        struct icaltimetype dtstart = icaltime_from_timet_with_zone(
+            *(const time_t*)Data, 0, nullptr);
+        icalcomponent_set_dtstart(comp, dtstart);
+    }
+
+    return comp;
+}
 
 extern "C" int LLVMFuzzerTestOneInput_12(const uint8_t *Data, size_t Size) {
-    // Create dummy file for file-related operations
-    std::ofstream dummyFile("./dummy_file");
-    if (!dummyFile) {
-        std::cerr << "Failed to create dummy file" << std::endl;
-        return 0;
-    }
-    dummyFile.write(reinterpret_cast<const char*>(Data), Size);
-    dummyFile.close();
-
-    // Initialize components and properties
-    icalcomponent *component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
-    if (!component) {
-        std::cerr << "Failed to create new icalcomponent" << std::endl;
+    // Create a component from the input data
+    icalcomponent *comp = create_component_from_data(Data, Size);
+    if (!comp) {
         return 0;
     }
 
-    icalproperty *property = icalproperty_new(ICAL_SUMMARY_PROPERTY);
-    if (!property) {
-        std::cerr << "Failed to create new icalproperty" << std::endl;
-        icalcomponent_free(component);
-        return 0;
+    // Use the icalcomponent_get_due function
+    struct icaltimetype due = icalcomponent_get_due(comp);
+
+    // Use the icalcomponent_set_dtend function
+    if (Size >= sizeof(time_t)) {
+        struct icaltimetype dtend = icaltime_from_timet_with_zone(
+            *(const time_t*)Data, 0, nullptr);
+        icalcomponent_set_dtend(comp, dtend);
     }
 
-    // Explore various states by invoking target functions
-    try {
-        icalcomponent_add_property(component, property);
-        icalcomponent_remove_property(component, property);
+    // Use the icalcomponent_get_dtend function
+    struct icaltimetype retrieved_dtend = icalcomponent_get_dtend(comp);
 
-        icalproperty_kind kind = static_cast<icalproperty_kind>(Data[0] % ICAL_NO_PROPERTY);
-        icalcomponent_remove_property_by_kind(component, kind);
+    // Use the icalcomponent_get_recurrenceid function
+    struct icaltimetype recurrenceid = icalcomponent_get_recurrenceid(comp);
 
-        icalproperty *nextProperty = icalcomponent_get_next_property(component, kind);
-        if (nextProperty) {
-            // Do something with nextProperty if needed
-        }
-
-        icalpropiter iter = icalcomponent_begin_property(component, kind);
-        // Use iter if needed
-
-        icalproperty *firstProperty = icalcomponent_get_first_property(component, kind);
-        if (firstProperty) {
-            // Do something with firstProperty if needed
-        }
-    } catch (...) {
-        std::cerr << "Exception caught during fuzzing" << std::endl;
+    // Use the icalcomponent_set_dtstart function
+    if (Size >= sizeof(time_t)) {
+        struct icaltimetype dtstart = icaltime_from_timet_with_zone(
+            *(const time_t*)Data, 0, nullptr);
+        icalcomponent_set_dtstart(comp, dtstart);
     }
 
-    // Cleanup
-    icalproperty_free(property);
-    icalcomponent_free(component);
+    // Use the icalcomponent_set_due function
+    if (Size >= sizeof(time_t)) {
+        struct icaltimetype due_time = icaltime_from_timet_with_zone(
+            *(const time_t*)Data, 0, nullptr);
+        icalcomponent_set_due(comp, due_time);
+    }
+
+    // Clean up
+    icalcomponent_free(comp);
 
     return 0;
 }

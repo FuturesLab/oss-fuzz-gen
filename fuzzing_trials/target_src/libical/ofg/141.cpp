@@ -1,48 +1,35 @@
-#include <libical/ical.h>
-#include <stdint.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <stdlib.h> // Include for malloc and free
-#include <string.h> // Include for memcpy
+#include <cstdint>
+#include <cstdlib>
+#include <cstring> // Include for memcpy
 
 extern "C" {
-    // Ensure all C headers and functions are wrapped in extern "C"
     #include <libical/ical.h>
 }
 
 extern "C" int LLVMFuzzerTestOneInput_141(const uint8_t *data, size_t size) {
-    // Ensure the data is not empty
-    if (size == 0) {
-        return 0;
-    }
-
-    // Create a temporary buffer to hold the input data
-    char *buffer = (char *)malloc(size + 1);
-    if (buffer == NULL) {
-        return 0;
-    }
-
-    // Copy the input data to the buffer and null-terminate it
-    memcpy(buffer, data, size);
-    buffer[size] = '\0';
-
-    // Parse the buffer into an icalcomponent
-    icalcomponent *component = icalparser_parse_string(buffer);
-    if (component != NULL) {
-        // Call the function-under-test
-        const char *location = icalcomponent_get_location(component);
-
-        // Print the location if it's not NULL
-        if (location != NULL) {
-            printf("Location: %s\n", location);
+    // Initialize an icalcomponent from the input data
+    icalcomponent *component = nullptr;
+    if (size > 0) {
+        // Ensure the data is null-terminated for string-based functions
+        char *ical_data = static_cast<char*>(malloc(size + 1));
+        if (ical_data == nullptr) {
+            return 0; // Exit if memory allocation fails
         }
+        memcpy(ical_data, data, size);
+        ical_data[size] = '\0';
 
-        // Free the icalcomponent
+        // Parse the data into an icalcomponent
+        component = icalcomponent_new_from_string(ical_data);
+        free(ical_data);
+    }
+
+    if (component != nullptr) {
+        // Call the function-under-test
+        icalcomponent *first_real_component = icalcomponent_get_first_real_component(component);
+
+        // Clean up the created icalcomponent
         icalcomponent_free(component);
     }
-
-    // Free the buffer
-    free(buffer);
 
     return 0;
 }

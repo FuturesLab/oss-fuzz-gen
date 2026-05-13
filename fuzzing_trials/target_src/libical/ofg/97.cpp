@@ -1,24 +1,37 @@
 #include <libical/ical.h>
 #include <stdint.h>
-#include <stddef.h>
+#include <stdlib.h>
+#include <string.h> // Include for memcpy
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_97(const uint8_t *data, size_t size) {
-    // Call the function-under-test
-    icalcomponent *component = icalcomponent_new_vavailability();
+    // Ensure the data size is sufficient to create a valid icalcomponent
+    if (size == 0) {
+        return 0;
+    }
 
-    // Check if the component was created successfully
-    if (component != NULL) {
-        // Perform any additional operations on the component if necessary
-        // For example, serialize it to a string to ensure it's well-formed
-        char *component_str = icalcomponent_as_ical_string(component);
-        if (component_str != NULL) {
-            // Normally you would use component_str for something,
-            // but for fuzzing, we just want to ensure no crash occurs
-            icalmemory_free_buffer(component_str);
-        }
+    // Create a temporary buffer to hold the input data
+    char *buffer = (char *)malloc(size + 1);
+    if (buffer == NULL) {
+        return 0;
+    }
 
-        // Free the component after usage
-        icalcomponent_free(component);
+    // Copy the data into the buffer and null-terminate it
+    memcpy(buffer, data, size);
+    buffer[size] = '\0';
+
+    // Parse the buffer into an icalcomponent
+    icalcomponent *comp = icalparser_parse_string(buffer);
+
+    // Free the allocated buffer
+    free(buffer);
+
+    // If parsing was successful, free the icalcomponent
+    if (comp != NULL) {
+        icalcomponent_free(comp);
     }
 
     return 0;

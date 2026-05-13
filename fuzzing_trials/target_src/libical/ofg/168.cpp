@@ -1,23 +1,29 @@
-#include <libical/ical.h>
-#include <cstddef>
-#include <cstdint>
+#include <cstring> // Include for strlen
+#include <cstdint> // Include for uint8_t
+
+extern "C" {
+    #include <libical/ical.h>
+}
 
 extern "C" int LLVMFuzzerTestOneInput_168(const uint8_t *data, size_t size) {
-    // Initialize variables
-    icalcomponent *component = nullptr;
-    icalcomponent_kind kind = ICAL_VEVENT_COMPONENT; // Use a valid icalcomponent_kind
-
-    // Create a dummy icalcomponent for fuzzing
-    component = icalcomponent_new(kind);
-    if (component == nullptr) {
-        return 0; // Exit if component creation fails
-    }
-
     // Call the function-under-test
-    icalcomponent *next_component = icalcomponent_get_next_component(component, kind);
+    icalcomponent *component = icalcomponent_new_vcalendar();
 
-    // Clean up
-    if (component != nullptr) {
+    // Perform some operations with the component to ensure it is used
+    if (component != NULL) {
+        // Convert the component to a string
+        char *component_str = icalcomponent_as_ical_string(component);
+
+        // Check if the conversion was successful
+        if (component_str != NULL) {
+            // Do something with the string, e.g., print its length
+            size_t str_length = strlen(component_str);
+
+            // Free the string after use
+            icalmemory_free_buffer(component_str);
+        }
+
+        // Free the component after use
         icalcomponent_free(component);
     }
 

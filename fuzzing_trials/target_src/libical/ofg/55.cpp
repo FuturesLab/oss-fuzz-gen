@@ -1,25 +1,23 @@
+#include <iostream>
 #include <libical/ical.h>
-#include <stdint.h>
-#include <stddef.h>
+#include <cstdint>
+#include <cstddef>
+#include <cstring>
 
 extern "C" int LLVMFuzzerTestOneInput_55(const uint8_t *data, size_t size) {
-    // Initialize the icalcomponent and icalproperty
-    icalcomponent *component = icalcomponent_vanew(
-        ICAL_VCALENDAR_COMPONENT,
-        icalproperty_new_version("2.0"),
-        icalproperty_new_prodid("-//Sample Corp//NONSGML Event//EN"),
-        0);
+    // Ensure the input data is null-terminated
+    char *inputString = new char[size + 1];
+    memcpy(inputString, data, size);
+    inputString[size] = '\0';
 
-    icalproperty *property = icalproperty_new_summary("Sample Event");
-
-    // Add the property to the component
-    icalcomponent_add_property(component, property);
-
-    // Fuzzing logic: Attempt to remove the property using the function-under-test
-    icalcomponent_remove_property(component, property);
+    // Call the function-under-test
+    icalcomponent *component = icalcomponent_new_from_string(inputString);
 
     // Clean up
-    icalcomponent_free(component);
+    if (component != nullptr) {
+        icalcomponent_free(component);
+    }
+    delete[] inputString;
 
     return 0;
 }

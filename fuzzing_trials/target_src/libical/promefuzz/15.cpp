@@ -1,18 +1,27 @@
 // This fuzz driver is generated for library libical, aiming to fuzz the following functions:
-// icalcomponent_get_relcalid at icalcomponent.c:2591:13 in icalcomponent.h
-// icalcomponent_get_component_name_r at icalcomponent.c:353:7 in icalcomponent.h
-// icalcomponent_get_comment at icalcomponent.c:1781:13 in icalcomponent.h
-// icalcomponent_get_uid at icalcomponent.c:1816:13 in icalcomponent.h
-// icalcomponent_get_description at icalcomponent.c:1897:13 in icalcomponent.h
-// icalcomponent_get_x_name at icalcomponent.c:337:13 in icalcomponent.h
+// icalcomponent_get_current_property at icalcomponent.c:506:15 in icalcomponent.h
+// icalcomponent_add_property at icalcomponent.c:428:6 in icalcomponent.h
+// icalproperty_set_parent at icalproperty.c:932:6 in icalcomponent.h
+// icalcomponent_add_component at icalcomponent.c:552:6 in icalcomponent.h
+// icalcomponent_clone at icalcomponent.c:137:16 in icalcomponent.h
+// icalcomponent_is_valid at icalcomponent.c:314:6 in icalcomponent.h
 #include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <cstring>
+#include <cstdlib>
+#include <cstdio>
+#include <cstdint>
+#include <cstddef>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <cassert>
 #include "ical.h"
 #include "ical.h"
 #include "ical.h"
-#include <icalcomponent.h>
+#include "icalcomponent.h"
 
 extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
     if (Size < sizeof(icalcomponent_kind)) {
@@ -20,51 +29,50 @@ extern "C" int LLVMFuzzerTestOneInput_15(const uint8_t *Data, size_t Size) {
     }
 
     // Create a dummy icalcomponent
-    icalcomponent *comp = icalcomponent_new(static_cast<icalcomponent_kind>(Data[0] % ICAL_NUM_COMPONENT_TYPES));
+    icalcomponent_kind kind = static_cast<icalcomponent_kind>(Data[0]);
+    icalcomponent *component = icalcomponent_new(kind);
 
-    if (!comp) {
+    if (!component) {
         return 0;
     }
 
-    // Fuzz icalcomponent_get_component_name_r
-    char *component_name = icalcomponent_get_component_name_r(comp);
-    if (component_name) {
-        std::cout << "Component Name: " << component_name << std::endl;
-        free(component_name);
+    // Test icalcomponent_clone
+    icalcomponent *cloned_component = icalcomponent_clone(component);
+    if (cloned_component) {
+        icalcomponent_free(cloned_component);
     }
 
-    // Fuzz icalcomponent_get_x_name
-    const char *x_name = icalcomponent_get_x_name(comp);
-    if (x_name) {
-        std::cout << "X Name: " << x_name << std::endl;
+    // Test icalcomponent_is_valid
+    bool is_valid = icalcomponent_is_valid(component);
+    assert(is_valid == (kind != ICAL_NO_COMPONENT));
+
+    // Test icalcomponent_add_component
+    icalcomponent *child_component = icalcomponent_new(ICAL_VEVENT_COMPONENT);
+    if (child_component) {
+        icalcomponent_add_component(component, child_component);
+        icalcomponent_free(child_component);
     }
 
-    // Fuzz icalcomponent_get_relcalid
-    const char *relcalid = icalcomponent_get_relcalid(comp);
-    if (relcalid) {
-        std::cout << "Relcalid: " << relcalid << std::endl;
+    // Test icalcomponent_get_current_property
+    icalproperty *current_property = icalcomponent_get_current_property(component);
+    if (current_property) {
+        // Do something with current_property if needed
     }
 
-    // Fuzz icalcomponent_get_description
-    const char *description = icalcomponent_get_description(comp);
-    if (description) {
-        std::cout << "Description: " << description << std::endl;
-    }
+    // Create a dummy icalproperty
+    icalproperty *property = icalproperty_new(ICAL_SUMMARY_PROPERTY);
+    if (property) {
+        // Test icalproperty_set_parent
+        icalproperty_set_parent(property, component);
 
-    // Fuzz icalcomponent_get_uid
-    const char *uid = icalcomponent_get_uid(comp);
-    if (uid) {
-        std::cout << "UID: " << uid << std::endl;
-    }
+        // Test icalcomponent_add_property
+        icalcomponent_add_property(component, property);
 
-    // Fuzz icalcomponent_get_comment
-    const char *comment = icalcomponent_get_comment(comp);
-    if (comment) {
-        std::cout << "Comment: " << comment << std::endl;
+        // Normally we would free property, but icalcomponent_add_property takes ownership
     }
 
     // Clean up
-    icalcomponent_free(comp);
+    icalcomponent_free(component);
 
     return 0;
 }
